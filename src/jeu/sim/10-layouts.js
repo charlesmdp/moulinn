@@ -97,6 +97,14 @@
             [2.35, 3.95],
             [-2.35, 3.95],
           ].map(X),
+          // Véranda de plain-pied contre le pan est, juste au nord de la roue : le jardin est à
+          // la hauteur de son dallage (pas de bief ni de talus dessous).
+          terrace: [
+            [2.3, -2.3],
+            [4.25, -2.3],
+            [4.25, 1.2],
+            [2.3, 1.2],
+          ].map(X),
           door: X([-3.1, 0]),
           chest: X([-3.4, 1.4]),
           wheel,
@@ -237,7 +245,8 @@
         rot: -0.24,
         reserve: { id: "A", name: "Le moulin", treasures: 3 },
         inflow: [[42.6, 31.6], [40.6, 28.6], [39.8, 25.6]],
-        outflow: [[39.6, 20.2], [41, 18.8], [44, 19], [47, 20.4], [51, 21.6], [55, 22.8], [59, 23.2], [64.8, 22.6]],
+        // Après la roue, le bief repart vers l'est (pas le long du pan : la véranda est là).
+        outflow: [[41.3, 23.9], [44.2, 24], [47.4, 22.9], [51, 22], [55, 22.8], [59, 23.2], [64.8, 22.6]],
         atelier: [44.2, 11.2],
       });
       b.building("dependance", { id: "dependance", x: 25.4, z: 23.2, rot: 0.03, w: 10, d: 4, door: "n", doorOffset: 1.8, reserve: { id: "B", name: "La dépendance", treasures: 3 } });

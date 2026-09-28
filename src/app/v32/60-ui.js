@@ -34,6 +34,37 @@
       const globeBar = root.querySelector("[data-globe26-bar]");
       if (globeBar) globeBar.classList.add("v32-retired");
 
+      // Écran tactile : pas de touches du clavier dans les invites (« E », « L ») mais des
+      // boutons explicites, et pas de touche « E » dans le bouton du quad.
+      const touch = hooks.mobile || matchMedia("(pointer: coarse)").matches;
+      if (touch) {
+        root.classList.add("v32-touch");
+        const relabel = () => {
+          const vehicle = root.querySelector("[data-vehicle-prompt25]");
+          if (vehicle && vehicle.textContent !== "Monter") {
+            vehicle.textContent = "Monter";
+            vehicle.setAttribute("aria-label", "Monter sur le quad");
+            vehicle.title = "Monter sur le quad";
+          }
+          const sign = root.querySelector("[data-sign-prompt25]");
+          if (sign && sign.textContent !== "Lire") {
+            sign.textContent = "Lire";
+            sign.setAttribute("aria-label", "Lire le panneau");
+            sign.title = "Lire le panneau";
+          }
+          for (const key of root.querySelectorAll(".player20-key")) key.remove();
+          return Boolean(vehicle && sign);
+        };
+        // Les invites naissent avec la promenade (après ce module) : on attend qu'elles
+        // existent, puis on arrête d'observer (leur texte ne change plus ensuite).
+        if (!relabel()) {
+          const watcher = new MutationObserver(() => {
+            if (relabel()) watcher.disconnect();
+          });
+          watcher.observe(root, { childList: true, subtree: true });
+        }
+      }
+
       // Pastille « Promenade » : toujours visible sur ordinateur, discrète sur téléphone.
       root.dataset.ui32 = "ready";
       return null;

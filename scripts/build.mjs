@@ -96,8 +96,32 @@ async function main() {
   if (/\{\{asset:/.test(html)) throw new Error("Jeton {{asset:…}} non remplacé dans index.html");
   await fs.writeFile(path.join(stage, "index.html"), html);
 
+  // Jeu « Pas touche à mes trésors » : page /jeu/ et ses scripts (socle, simulation, modèles,
+  // personnages, effets, rendu, interface, puis main.js qui démarre la partie).
+  const jeuDir = path.join(src, "jeu");
+  const jeuFiles = [];
+  for (const part of ["core", "sim", "models", "actors", "fx", "render", "ui"]) jeuFiles.push(...(await listFiles(path.join(jeuDir, part), ".js")));
+  jeuFiles.push(path.join(jeuDir, "main.js"));
+  for (const file of jeuFiles)
+    await transform(await fs.readFile(file, "utf8"), { loader: "js", sourcefile: path.relative(root, file) }).catch((error) => {
+      throw new Error(error.message);
+    });
+  const jeuFile = await emit("jeu", "js", await minifyJs(await concat(jeuFiles), "jeu.js"), report);
+  const vendorFiles = ["GLTFLoader.js", "SkeletonUtils.js", "BufferGeometryUtils.js"].map((f) => path.join(jeuDir, "vendor", f));
+  const jeuVendorFile = await emit("jeu-vendor", "js", await minifyJs(await concat(vendorFiles), "jeu-vendor.js"), report);
+  const jeuCss = await transform(await fs.readFile(path.join(jeuDir, "jeu.css"), "utf8"), { loader: "css", minify: true, target: ["safari15"] });
+  const jeuCssFile = await emit("jeu", "css", jeuCss.code, report);
+  let jeuBoot = await fs.readFile(path.join(jeuDir, "boot.js"), "utf8");
+  jeuBoot = jeuBoot.replaceAll("{{asset:jeu-js}}", "../" + jeuFile).replaceAll("{{asset:jeu-vendor}}", "../" + jeuVendorFile);
+  const jeuBootFile = await emit("jeu-boot", "js", await minifyJs(jeuBoot, "jeu-boot.js"), report);
+  let jeuHtml = await fs.readFile(path.join(jeuDir, "index.html"), "utf8");
+  jeuHtml = jeuHtml.replaceAll("{{asset:jeu-css}}", "../" + jeuCssFile).replaceAll("{{asset:jeu-boot}}", "../" + jeuBootFile);
+  if (/\{\{asset:/.test(jeuHtml + jeuBoot)) throw new Error("Jeton {{asset:…}} non remplacé dans le jeu");
+  await fs.mkdir(path.join(stage, "jeu"), { recursive: true });
+  await fs.writeFile(path.join(stage, "jeu", "index.html"), jeuHtml);
+
   // Vérification : chaque ressource citée par le chargeur et la page existe.
-  const referenced = new Set([...`${html}\n${start}`.matchAll(/assets\/[A-Za-z0-9_.-]+\.[a-z0-9]+/g)].map((m) => m[0]));
+  const referenced = new Set([...`${html}\n${start}\n${jeuHtml}\n${jeuBoot}`.matchAll(/assets\/[A-Za-z0-9_.-]+\.[a-z0-9]+/g)].map((m) => m[0]));
   const plan = JSON.parse(await fs.readFile(path.join(stage, "assets", path.basename(start.match(/assets\/garden-assets\.[a-f0-9]+\.json/)[0])), "utf8"));
   for (const texture of Object.values(plan.textures || {})) referenced.add(texture.uri);
   for (const file of referenced) {

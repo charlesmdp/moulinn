@@ -1629,3 +1629,20 @@
     padding: 0;
   }
 }
+
+/* Écran tactile : invites en toutes lettres (« Monter », « Lire »), jamais de touche clavier. */
+#moulin-vallee-3d.v32.v32-touch .world25-prompt,
+#moulin-vallee-3d.v32.game22.v32-touch .world25-prompt {
+  width: auto;
+  min-width: 0;
+  height: 44px;
+  padding: 0 16px;
+  font-size: 15px;
+  white-space: nowrap;
+}
+#moulin-vallee-3d.v32.v32-touch .player20-key,
+#moulin-vallee-3d.v32.game22.v32-touch .player20-key,
+#moulin-vallee-3d.v32.v32-touch .game19-keybar,
+#moulin-vallee-3d.v32.v32-touch kbd {
+  display: none !important;
+}

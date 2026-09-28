@@ -29,6 +29,8 @@ http
     if (!file.startsWith(root)) return response.writeHead(403).end();
     if (url.pathname.endsWith("/")) file = path.join(file, "index.html");
     fs.stat(file, (error, stat) => {
+      // Comme Cloudflare Pages : /jeu redirige vers /jeu/.
+      if (!error && stat.isDirectory()) return response.writeHead(308, { Location: url.pathname + "/" }).end();
       if (error || !stat.isFile()) return response.writeHead(404).end("Introuvable");
       response.writeHead(200, {
         "Content-Type": types[path.extname(file)] || "application/octet-stream",
