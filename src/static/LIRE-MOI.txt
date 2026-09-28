@@ -1,0 +1,61 @@
+MOULIN DE SAINT CHRISTOPHE — VERSION CLOUDFLARE PAGES
+Export web du 27 septembre 2026, à partir de la version 31 du jardin.
+
+NOUVEAUTES V31
+Interface mobile compacte, sélection des vues en haut à gauche, petite carte
+sans texte, icônes Sauter et Creuser, arrivée cadrée sur le moulin et les panneaux.
+
+MISE EN LIGNE DEPUIS UN ORDINATEUR
+1. Connectez-vous à votre compte sur https://dash.cloudflare.com/
+2. Allez dans Workers & Pages > Create application.
+3. Dans Pages, choisissez Get started > Drag and drop your files.
+4. Donnez un nom au projet, par exemple moulin-saint-christophe.
+5. Déposez le ZIP complet, puis cliquez sur Deploy site / Save and Deploy.
+6. Ouvrez l'adresse HTTPS en .pages.dev affichée par Cloudflare.
+   Elle permet de visiter le jardin depuis un ordinateur ou un téléphone.
+
+Le dossier est déjà construit : aucune installation ni commande de build.
+Cloudflare accepte directement le ZIP dans son interface de dépôt.
+Si vous décompressez le ZIP, index.html doit rester à la racine du dossier
+avec assets/ et _headers. Déposez tout le dossier, pas seulement index.html.
+
+SUR IPHONE
+Ouvrez l'adresse HTTPS du site dans Safari ou Chrome. Ouvrir le HTML dans
+Fichiers ou un aperçu local n'est pas le mode de lancement de cette version.
+Au premier accès, laissez le chargement se terminer. Les visites suivantes
+peuvent réutiliser les ressources conservées dans le cache du navigateur.
+Le jeu détecte les commandes tactiles et active le rendu mobile existant.
+Si la 3D est indisponible ou qu'un téléchargement échoue, l'écran affiche
+une indication et un bouton Recharger. Le son s'active par un appui.
+
+RETROUVER VOS RETOUCHES
+L'hébergement du jeu ne synchronise pas les sauvegardes. Elles sont stockées
+sur chaque navigateur et chaque adresse de site. Avant de changer d'appareil
+ou de passer de l'ancienne adresse à Cloudflare, utilisez l'export des
+retouches dans l'éditeur, puis importez ce fichier sur la nouvelle adresse.
+
+MISES A JOUR
+Dans le même projet Cloudflare, utilisez Create a new deployment, choisissez
+Production et déposez le nouveau ZIP complet. L'adresse du projet reste la
+même. Les noms des ressources changent avec leur contenu pour éviter un
+mélange entre anciennes et nouvelles versions dans le cache.
+
+CE QUI A ETE ALLEGE
+- Ressources séparées du HTML et mises en cache.
+- Code et styles minifiés.
+- Modèles et terrain compressés, sans altération des données 3D.
+- Textures optimisées sans perte ; dimensions et pixels conservés.
+- Anciens modèles d'arbres inutilisés retirés du chargement.
+- Son et outil d'export 3D téléchargés uniquement lorsqu'ils sont utilisés.
+- Décompression native si disponible, avec solution de repli pour Safari
+  plus ancien. Toutes les ressources utiles sont incluses dans ce dossier.
+
+VERIFICATIONS
+Le chargement des fichiers, les deux chemins de décompression, les données
+3D et les initialisations mobile/ordinateur ont été vérifiés. Les tests
+simulent le moteur graphique : le rendu et la fluidité sur un iPhone réel
+ne sont pas encore validés. Les performances dépendent aussi de l'appareil.
+
+DOCUMENTATION CLOUDFLARE
+https://developers.cloudflare.com/pages/get-started/direct-upload/
+https://developers.cloudflare.com/pages/configuration/headers/
