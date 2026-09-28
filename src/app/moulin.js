@@ -5902,16 +5902,48 @@ float clothHem23=1.-smoothstep(1.06,1.38,position.y);float clothWave23=sin(uAvat
         const v = Math.sin(q * 127.1 + te * 13.713) * 43758.5453;
         return v - Math.floor(v);
       };
-    function T(q, v, k = 1) {
+    function T(q, v, k = 1, shade32 = null) {
       const h = v.index ? v.toNonIndexed() : v.clone(),
         b = h.attributes.position,
+        n32 = h.attributes.normal,
         p = new Float32Array(b.count * 3);
       for (let S = 0; S < b.count; S++) {
         const x = Math.floor(S / 3),
-          c = k * (0.91 + O(x + R[q].length * 73) * 0.13);
+          c =
+            k *
+            (0.91 + O(x + R[q].length * 73) * 0.13) *
+            (shade32 ? shade32(b.getX(S), b.getY(S), b.getZ(S), n32 ? n32.getY(S) : 0) : 1);
         ((p[S * 3] = c), (p[S * 3 + 1] = c), (p[S * 3 + 2] = c));
       }
       (h.setAttribute("color", new t.BufferAttribute(p, 3)), R[q].push(h));
+    }
+    // V32 : couronnes plus douces. Les normales des facettes sont melangees a celles
+    // de l'ellipsoide de chaque bouquet (eclairage arrondi, sans aspect de pierre taillee)
+    // et chaque bouquet s'assombrit vers le bas et vers le coeur de l'arbre.
+    function soften32(geometry, centre, radii, amount = 0.72) {
+      const position = geometry.attributes.position,
+        normal = geometry.attributes.normal;
+      for (let i = 0; i < position.count; i++) {
+        let rx = (position.getX(i) - centre[0]) / (radii[0] * radii[0]),
+          ry = (position.getY(i) - centre[1]) / (radii[1] * radii[1]),
+          rz = (position.getZ(i) - centre[2]) / (radii[2] * radii[2]);
+        const rl = Math.hypot(rx, ry, rz) || 1;
+        let nx = normal.getX(i) * (1 - amount) + (rx / rl) * amount,
+          ny = normal.getY(i) * (1 - amount) + (ry / rl) * amount,
+          nz = normal.getZ(i) * (1 - amount) + (rz / rl) * amount;
+        const nl = Math.hypot(nx, ny, nz) || 1;
+        normal.setXYZ(i, nx / nl, ny / nl, nz / nl);
+      }
+      normal.needsUpdate = !0;
+    }
+    function blobShade32(centre, radii) {
+      const outer = Math.hypot(centre[0], centre[2]) + radii[0];
+      return (x, y, z) => {
+        const local = t.MathUtils.clamp((y - centre[1]) / radii[1], -1, 1),
+          lift = t.MathUtils.smoothstep(local, -1, 0.85),
+          rim = t.MathUtils.clamp(Math.hypot(x, z) / Math.max(0.001, outer), 0, 1);
+        return (0.7 + 0.36 * lift) * (0.9 + 0.13 * rim);
+      };
     }
     function le(q, v, k, h, b, p = 5, S = 1) {
       const x = new t.Vector3(...v),
@@ -5955,7 +5987,10 @@ float clothHem23=1.-smoothstep(1.06,1.38,position.y);float clothWave23=sin(uAvat
             (lt * Me + ve * V) * v[2] * Xe * P + C[2],
           );
         }
-        (Ne.computeVertexNormals(), T(2, Ne, h * (0.97 + O(k + S * 17) * 0.06)), Ne.dispose());
+        (Ne.computeVertexNormals(),
+          soften32(Ne, C, [v[0] * P, v[1] * P, v[2] * P]),
+          T(2, Ne, h * (0.97 + O(k + S * 17) * 0.06), blobShade32(C, [v[0] * P, v[1] * P, v[2] * P])),
+          Ne.dispose());
       }
     }
     function a(q, v) {
@@ -6059,7 +6094,7 @@ float clothHem23=1.-smoothstep(1.06,1.38,position.y);float clothWave23=sin(uAvat
         const C = new t.BufferGeometry();
         (C.setAttribute("position", new t.Float32BufferAttribute(S, 3)),
           C.computeVertexNormals(),
-          T(2, C, 0.83 + v * 0.026),
+          T(2, C, 0.83 + v * 0.026, (x, y, z, ny) => 0.72 + 0.3 * t.MathUtils.smoothstep(ny, -0.6, 0.75)),
           C.dispose());
       }
       X([0.004, 0.956, 0], [0.055, 0.085, 0.057], 91, 1.03, 0);
@@ -6536,15 +6571,29 @@ uniform vec2 uMoulinSunSlope20;
     mwOrigin20=(modelMatrix*instanceMatrix*vec4(0.0,0.0,0.0,1.0)).xyz;
    #endif
    float mwPhase20=dot(mwOrigin20.xz,vec2(.113,.087))+position.x*.41+position.z*.33;
-   float mwForce23=pow(clamp(uMoulinWind20,0.,1.8),1.12);
-   float mwGust23=.65+.35*sin(uMoulinTime20*.73-dot(mwOrigin20.xz,uMoulinDirection20)*.07);
-   float mwWave20=.52+.30*sin(uMoulinTime20*(1.10+.17*mwForce23)-dot(mwOrigin20.xz,uMoulinDirection20)*.06)+.28*mwGust23;
-   float mwAmount20=mwMask20*mwForce23*${k === "tree" || k === "wood" ? "clamp(length(mwY20)/max(.1,aTreeShape23.y)*.112,.28,2.25)" : "(.24+.12*sin(uMoulinTime20*2.8+mwPhase20))"}*mwWave20;
-   ${k === "tree" ? "mwAmount20+=mwMask20*mwForce23*.090*sin(uMoulinTime20*4.7+mwPhase20*5.2);" : ""}
+   float mwForce23=pow(clamp(uMoulinWind20,0.,1.8),1.05);
    vec2 mwDir20=normalize(uMoulinDirection20+vec2(.00001));
-   transformed.x+=mwAmount20*dot(mwDir20,mwX20.xz/max(.001,length(mwX20)))/max(.001,length(mwX20));
-   transformed.z+=mwAmount20*dot(mwDir20,mwZ20.xz/max(.001,length(mwZ20)))/max(.001,length(mwZ20));
-   transformed.y-=mwAmount20*mwAmount20*.18/max(.4,length(mwY20));
+   // V32 : rafales qui traversent la vallee dans le sens du vent, chaque arbre avec son rythme.
+   float mwAlong32=dot(mwOrigin20.xz,mwDir20);
+   float mwTree32=fract(sin(dot(floor(mwOrigin20.xz*1.7),vec2(12.9898,78.233)))*43758.5453);
+   float mwFront32=sin(mwAlong32*.042-uMoulinTime20*(.62+mwForce23*.55)+sin(mwAlong32*.011+uMoulinTime20*.07)*2.2);
+   float mwGust23=smoothstep(-.25,1.,mwFront32)*(.55+.45*sin(uMoulinTime20*.23+mwTree32*6.28));
+   float mwSway32=sin(uMoulinTime20*(1.35+.35*mwTree32+.3*mwForce23)+mwTree32*6.283-mwAlong32*.05);
+   float mwWave20=.5+.26*mwSway32+.55*mwGust23;
+   float mwAmount20=mwMask20*mwForce23*${k === "tree" || k === "wood" ? "clamp(length(mwY20)/max(.1,aTreeShape23.y)*.118,.3,2.4)" : "(.3+.16*sin(uMoulinTime20*2.8+mwPhase20))"}*mwWave20;
+   float mwSide32=mwMask20*mwForce23*${k === "tree" || k === "wood" ? "clamp(length(mwY20)*.034,.08,.7)" : ".08"}*sin(uMoulinTime20*(1.9+.4*mwTree32)+mwTree32*11.)*(.4+.6*mwGust23);
+   vec2 mwCross32=vec2(-mwDir20.y,mwDir20.x);
+   vec2 mwPush32=mwDir20*mwAmount20+mwCross32*mwSide32;
+   transformed.x+=dot(mwPush32,mwX20.xz/max(.001,length(mwX20)))/max(.001,length(mwX20));
+   transformed.z+=dot(mwPush32,mwZ20.xz/max(.001,length(mwZ20)))/max(.001,length(mwZ20));
+   transformed.y-=mwAmount20*mwAmount20*.16/max(.4,length(mwY20));
+   ${k === "tree" ? `// Feuillage qui frissonne : petit mouvement rapide propre a chaque sommet.
+   float mwLeaf32=fract(sin(dot(position,vec3(12.9898,78.233,37.719)))*43758.5453)*6.2831;
+   float mwFlutter32=mwMask20*(.018+.07*mwForce23)*(.45+.9*mwGust23)*step(.001,uMoulinWind20);
+   vec3 mwJitter32=vec3(sin(uMoulinTime20*(7.3+mwForce23*3.)+mwLeaf32),sin(uMoulinTime20*(9.1+mwForce23*2.)+mwLeaf32*1.7)*.6,cos(uMoulinTime20*(8.2+mwForce23*3.)+mwLeaf32*1.3))*mwFlutter32;
+   transformed.x+=mwJitter32.x/max(.001,length(mwX20));
+   transformed.y+=mwJitter32.y/max(.001,length(mwY20));
+   transformed.z+=mwJitter32.z/max(.001,length(mwZ20));` : ""}
    ${h && k === "tree" ? "vMoulinLeafWorld20=mwOrigin20+mwX20*transformed.x+mwY20*transformed.y+mwZ20*transformed.z;" : ""}
   `,
       );
@@ -7010,7 +7059,7 @@ lawnWorld20=(modelMatrix*lawnP20).xyz;`,
       he = (E) => A.querySelector(E),
       te = (E, Y, w) => Math.max(Y, Math.min(w, Number.isFinite(+E) ? +E : Y)),
       O = ["Aucun", "L\xE9ger", "Mod\xE9r\xE9", "Fort", "Tr\xE8s fort"],
-      T = [0, 0.16, 0.42, 0.94, 1.5],
+      T = [0, 0.3, 0.58, 0.98, 1.5],
       le = "moulin-settings-v20";
     let X = { wind: 1, volume: 0.55, sound: !1 };
     try {
@@ -7496,12 +7545,19 @@ lawnWorld20=(modelMatrix*lawnP20).xyz;`,
       ((Y = te(Y, 0, 0.15)), (ce += Y));
       const w = typeof n.weather == "function" ? n.weather() : n.weather,
         be = (w == null ? void 0 : w.mode) === "storm",
-        ne = Math.max(T[a], be ? 1.4 : 0),
-        K = 0.86 + 0.19 * Math.sin(ce * 0.67) + 0.13 * Math.sin(ce * 1.71 + 0.8) + 0.075 * Math.sin(ce * 3.08),
-        fe = te(ne * (ne > 0.6 ? K : 1), 0, 1.8),
+        live32 = globalThis.MoulinV32.windOverride,
+        ne = live32 ? live32.value : Math.max(T[a], be ? 1.4 : 0),
+        K =
+          0.86 +
+          (0.19 * Math.sin(ce * 0.67) + 0.13 * Math.sin(ce * 1.71 + 0.8) + 0.075 * Math.sin(ce * 3.08)) *
+            (live32 ? 0.5 + live32.gustiness * 1.6 : 1),
+        fe = te(ne * (ne > 0.6 || live32 ? K : 1), 0, 1.8),
         Ee = $.value;
       (($.value += (fe - $.value) * (1 - Math.exp(-Y * 3.4))), Math.abs(fe - $.value) < 2e-4 && ($.value = fe));
-      const bt = 0.595 + Math.sin(ce * 0.14) * (0.035 + $.value * 0.085) + Math.sin(ce * 0.71) * $.value * 0.027;
+      const bt =
+        (live32 ? live32.angle : 0.595) +
+        Math.sin(ce * 0.14) * (0.035 + $.value * 0.085) +
+        Math.sin(ce * 0.71) * $.value * 0.027;
       U.value.set(Math.cos(bt), Math.sin(bt));
       const mt = I();
       if (mt != null && mt.position) {
@@ -13213,10 +13269,10 @@ diffuseColor.a*=(1.-smoothstep(85.,160.,vTireAge24))*smoothstep(0.,.18,vTireUv24
       ce = new t.PlaneGeometry(1, 1);
     ce.rotateX(-Math.PI / 2);
     const V = {
-        oak: ["#77974a", "#638845", "#87a256", "#6e914f"],
-        pine: ["#4f7661", "#446e55", "#62806b", "#4d7258"],
-        birch: ["#9aaf60", "#839f52", "#a4b46d", "#90a660"],
-        old: ["#708a48", "#7f984f", "#627e43", "#879953"],
+        oak: ["#6f9a41", "#5b8a3d", "#86a84b", "#679646"],
+        pine: ["#41705a", "#37664e", "#517d62", "#406c53"],
+        birch: ["#93b35b", "#7fa24d", "#a0b963", "#8aab56"],
+        old: ["#6a8f43", "#789e49", "#5d8641", "#80a04d"],
       },
       Me = (Ce) => {
         const xe = te(V[Ce.species][Math.abs(Ce.variant || 0) % 4]),
@@ -18205,11 +18261,13 @@ void main(){
           cloudAdvection25: ce,
           storm25: V,
           sunDirection24: { value: new t.Vector3(-65, 98, 62).normalize() },
+          moonDirection32: globalThis.MoulinV32.uniforms.moonDirection,
+          moonLight32: globalThis.MoulinV32.uniforms.moonLight,
         },
         vertexShader:
           "varying vec3 skyWorld;void main(){vec4 world=modelMatrix*vec4(position,1.0);skyWorld=world.xyz;gl_Position=projectionMatrix*viewMatrix*world;}",
         fragmentShader: `
-  uniform sampler2D noiseMap;uniform float weatherTime,cover,night,rain,snow,windStrength24,skyDetail24,storm25;uniform vec2 wind24,cloudAdvection25;uniform vec3 sunDirection24;varying vec3 skyWorld;
+  uniform sampler2D noiseMap;uniform float weatherTime,cover,night,rain,snow,windStrength24,skyDetail24,storm25;uniform vec2 wind24,cloudAdvection25;uniform vec3 sunDirection24,moonDirection32;uniform vec2 moonLight32;varying vec3 skyWorld;
   float cloudNoise(vec2 p){return texture2D(noiseMap,p).r*.54+texture2D(noiseMap,p*2.03+.13).r*.28+texture2D(noiseMap,p*4.07-.19).r*.18;}
   void main(){
    vec3 ray=normalize(skyWorld-cameraPosition);float h=clamp(ray.y,0.,1.),haze=exp(-h*6.2);float overcast=smoothstep(.42,.92,cover);
@@ -18218,7 +18276,24 @@ void main(){
    day=mix(day,vec3(.37,.44,.50),rain*.31);day=mix(day,mix(vec3(.42,.53,.62),vec3(.66,.72,.77),haze),snow*.5);
    float angle=max(dot(ray,sunDirection24),0.);vec3 warm=vec3(1.,.83,.58);
    day+=warm*(pow(angle,18.)*.075+pow(angle,120.)*.08)*(1.-overcast*.94);
+   // V32 : aube et crepuscule d'apres la hauteur reelle du soleil (sunDirection24 suit l'astre).
+   float sunH32=sunDirection24.y;
+   float golden32=smoothstep(-.14,.0,sunH32)*(1.-smoothstep(.05,.4,sunH32));
+   float dusk32=1.-smoothstep(-.18,.03,sunH32);
+   vec2 flatRay32=normalize(ray.xz+vec2(1e-4)),flatSun32=normalize(sunDirection24.xz+vec2(1e-4));
+   float toward32=pow(dot(flatRay32,flatSun32)*.5+.5,2.4);
+   vec3 glow32=mix(vec3(.62,.30,.42),vec3(1.,.50,.19),toward32);
+   day=mix(day,glow32*(.5+.5*toward32),golden32*pow(haze,.75)*(.3+.7*toward32)*(1.-overcast*.72));
+   day=mix(day,mix(vec3(.028,.05,.13),vec3(.26,.25,.42)*(.4+.6*toward32),pow(haze,.9)),dusk32*.82);
    vec3 sky=mix(day,mix(vec3(.008,.017,.033),vec3(.028,.046,.073),haze),night);
+   // Lune : sphere eclairee par le vrai soleil (la phase en decoule), halo discret.
+   vec3 moon32=normalize(moonDirection32);float moonAngle32=dot(ray,moon32);
+   vec3 moonOffset32=ray-moon32*moonAngle32;float moonR32=.0205,moonD32=length(moonOffset32)/moonR32;
+   vec3 moonNormal32=normalize(moonOffset32/moonR32-moon32*sqrt(max(0.,1.-moonD32*moonD32)));
+   float moonLit32=smoothstep(-.06,.14,dot(moonNormal32,sunDirection24));
+   float moonDisc32=(1.-smoothstep(.9,1.,moonD32))*step(0.,moonAngle32);
+   float moonHalo32=(pow(max(moonAngle32,0.),2600.)*.22+pow(max(moonAngle32,0.),90.)*.045)*moonLight32.x;
+   sky+=vec3(.86,.9,1.)*(moonDisc32*(.07+moonLit32*1.25)+moonHalo32)*night*smoothstep(-.02,.06,moon32.y);
    // A high veil crosses above a separate, lower bank of broad cumulus. Each layer
    // advects in world wind, with evolving detail rather than a single sliding sheet.
    vec2 drift=cloudAdvection25;
@@ -18230,6 +18305,8 @@ void main(){
    float thickness=clamp((n-threshold)*3.2,0.,1.);vec3 cloud=mix(vec3(.38,.44,.48),vec3(.88,.91,.92),edgeLight);
    cloud*=1.-rain*(.24+thickness*.17);cloud=mix(cloud,cloud*vec3(.46,.51,.58),storm25*.72);cloud=mix(cloud,vec3(.77,.83,.87),snow*.27);
    cloud+=warm*pow(angle,18.)*pow(1.-thickness,2.)*.18*(1.-rain);
+   cloud=mix(cloud,cloud*vec3(1.25,.72,.55)+vec3(.10,.03,.02)*toward32,golden32*(1.-thickness*.5)*(1.-overcast*.5));
+   cloud*=mix(1.,.28,dusk32);
    cloud=mix(cloud,vec3(.055,.079,.115)*(.67+edgeLight*.4),night);sky=mix(sky,cloud,density*.95);
    vec2 lowUV=ray.xz/max(.11,ray.y+.015)*.115+drift*1.65+vec2(.37,.72);
    float low=cloudNoise(lowUV);float bank=smoothstep(.75-cover*.38,.87-cover*.34,low)*horizonFade*overcast;
@@ -18560,7 +18637,9 @@ void main(){
         P.value.normalize(),
         ce.value.addScaledVector(P.value, Ee * (25e-5 + C.value * 0.0038)),
         $.position.copy(R.position),
-        st.uniforms.sunDirection24.value.copy(O.position).sub(O.target.position).normalize());
+        globalThis.MoulinV32.uniforms.sunTrue.value.lengthSq() > 0.5
+          ? st.uniforms.sunDirection24.value.copy(globalThis.MoulinV32.uniforms.sunTrue.value)
+          : st.uniforms.sunDirection24.value.copy(O.position).sub(O.target.position).normalize());
       const Pt = k[p].fog / Math.max(1, 1 + Math.max(0, R.position.y - 60) / 110);
       return (
         A.fog && (A.fog.density = Pt),
@@ -18634,6 +18713,7 @@ void main(){
   (async function () {
     "use strict";
     var t, n, A, re, R, he;
+    var moulinV32 = null;
     try {
       let $ = function () {
           return ((st = (Math.imul(1664525, st) + 1013904223) >>> 0), st / 4294967296);
@@ -19210,6 +19290,8 @@ void main(){
             time: ao,
             daylight: wo,
             flowSpeed: { value: o },
+            sunDirection32: globalThis.MoulinV32.uniforms.sunDirection,
+            sunColor32: globalThis.MoulinV32.uniforms.sunColor,
           };
         },
         fn = function (e, o, r, s, u) {
@@ -19697,7 +19779,7 @@ void main(){
             (Nr = o.fps),
             (In.targetFPS = Nr),
             ($o.shadow.normalBias = e === "fast" ? 0.06 : 0.032),
-            xo.setPixelRatio(Math.min(window.devicePixelRatio || 1, o.ratio)),
+            globalThis.MoulinV32.render.setQuality(e, o.fps),
             $o.shadow.mapSize.set(o.shadow, o.shadow),
             $o.shadow.map && ($o.shadow.map.dispose(), ($o.shadow.map = null)),
             Yo.forEach((s, u) =>
@@ -19810,12 +19892,14 @@ void main(){
           );
         },
         Oa = function () {
-          const e = a.MathUtils.clamp(ko.position.distanceTo(Fo.target) * 0.78, 30, O ? 90 : 128);
-          if (Gi.distanceTo(Fo.target) < 2 && Math.abs(Fi - e) < 3) return;
-          (Gi.copy(Fo.target),
+          const e = a.MathUtils.clamp(ko.position.distanceTo(Fo.target) * 0.78, 30, O ? 90 : 128),
+            sunVersion32 = globalThis.MoulinV32.sunVersion || 0;
+          if (Gi.distanceTo(Fo.target) < 2 && Math.abs(Fi - e) < 3 && Oa.sunVersion32 === sunVersion32) return;
+          ((Oa.sunVersion32 = sunVersion32),
+            Gi.copy(Fo.target),
             (Fi = e),
             $o.target.position.copy(Fo.target),
-            $o.position.copy(Fo.target).add(new a.Vector3(-65, 98, 62)));
+            $o.position.copy(Fo.target).add(globalThis.MoulinV32.sunOffset || new a.Vector3(-65, 98, 62)));
           const o = $o.shadow.camera;
           ((o.left = -e),
             (o.right = e),
@@ -19927,6 +20011,7 @@ void main(){
             V == null || V.update(),
             z != null && z.update(u, e) && (Po = !0),
             Me != null && Me.update(u, qe) && (Po = !0),
+            moulinV32 != null && moulinV32.update(u, qe, e) && (Po = !0),
             In.frames <= Xo.deferredFrames26 && (Po = !0),
             Po)
           ) {
@@ -19948,6 +20033,7 @@ void main(){
               (In.reflectionDraws = xo.info.render.calls),
               (In.reflectionTriangles = xo.info.render.triangles),
               xo.render(qn, ko),
+              globalThis.MoulinV32.render.frameRendered(performance.now()),
               (In.mainDraws = xo.info.render.calls - In.reflectionDraws),
               (In.mainTriangles = xo.info.render.triangles - In.reflectionTriangles),
               In.frames++,
@@ -21287,26 +21373,40 @@ void main(){
         fo = `uniform sampler2D tDiffuse,rippleMap,depthMap,bedMap;
 uniform vec4 atlasBounds;
 uniform float time,daylight,flowSpeed,waterWind,weatherRain,weatherSnow,weatherFog,planarReflection28;
-uniform vec3 weatherFogColor;
+uniform vec3 weatherFogColor,sunDirection32,sunColor32;
 uniform vec2 waterWindDirection;
 varying vec4 reflectionUv;
 varying vec3 waterWorld;
 varying vec2 waterFlow;
 // Optical Fresnel from Clearwater, MIT. The containing project retains its notice.
 float waterFresnel(float ci){ci=clamp(ci,0.0,1.0);float ct=sqrt(1.0-(1.0-ci*ci)/(1.333*1.333));float rs=(ci-1.333*ct)/(ci+1.333*ct),rp=(1.333*ci-ct)/(1.333*ci+ct);return .5*(rs*rs+rp*rp);}
+float waterHash32(vec2 p){return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453);}
+float waterNoise32(vec2 p){vec2 i=floor(p),f=fract(p);f=f*f*(3.-2.*f);return mix(mix(waterHash32(i),waterHash32(i+vec2(1.,0.)),f.x),mix(waterHash32(i+vec2(0.,1.)),waterHash32(i+vec2(1.,1.)),f.x),f.y);}
+// Reseau de caustiques organique (d'apres le motif libre de joltz0r / Dave Hoskins).
+float waterCaustic32(vec2 uv,float t){
+ vec2 p=mod(uv*6.2831853,6.2831853)-250.0,i=p;float c=1.0;
+ for(int n=0;n<3;n++){float tn=t*(1.0-(3.5/float(n+1)));i=p+vec2(cos(tn-i.x)+sin(tn+i.y),sin(tn-i.y)+cos(tn+i.x));c+=1.0/length(vec2(p.x/(sin(i.x+tn)/.005),p.y/(cos(i.y+tn)/.005)));}
+ c/=3.0;c=1.17-pow(c,1.4);return pow(abs(c),8.0);
+}
 void main(){
  vec3 view=normalize(cameraPosition-waterWorld);float distanceToEye=length(cameraPosition-waterWorld);
  float breeze=clamp(waterWind,0.0,2.0),windWave=pow(breeze,.64),moving=smoothstep(.015,.12,flowSpeed);
  vec2 world=waterWorld.xz,windDir=normalize(waterWindDirection+vec2(.0001)),windCross=vec2(-windDir.y,windDir.x);
- vec2 p=world-waterFlow*time*flowSpeed*.72;
- // Two shared ripple samples and coherent wave trains: no scene re-render on mobile.
- vec2 a=texture2D(rippleMap,p*.115+windDir*time*.0045).rg*2.0-1.0;
- vec2 b=texture2D(rippleMap,vec2(p.y,-p.x)*.205+vec2(-time*.0032,time*.0024)).rg*2.0-1.0;
- float attenuation=mix(1.0,.36,smoothstep(24.0,145.0,distanceToEye));
- float broad=dot(p,windDir)*3.65-time*(.72+windWave*.91)+sin(dot(p,windCross)*.57-time*.24)*.48;
- float crosswave=dot(p,windCross)*5.4+time*(.38+windWave*.58)+sin(dot(p,windDir)*.42)*.34;
- vec2 slope=(a*.092+b*.046)*attenuation*(.56+windWave*.75)
-  +windDir*cos(broad)*(.031+windWave*.069)+windCross*sin(crosswave)*(.019+windWave*.037);
+ // V32 : le courant du bief et de la riviere se voit (environ 0,5 m/s), les etangs suivent le vent.
+ vec2 p=world-waterFlow*time*flowSpeed*2.1;
+ float attenuation=mix(1.0,.42,smoothstep(20.0,150.0,distanceToEye));
+ float near=1.-smoothstep(6.,48.,distanceToEye);
+ // Trois trains de rides qui se croisent a des vitesses differentes : la surface n'est jamais figee.
+ vec2 a=texture2D(rippleMap,p*.11+windDir*time*(.016+.026*windWave)).rg*2.0-1.0;
+ vec2 b=texture2D(rippleMap,vec2(p.y,-p.x)*.19+vec2(-time*.019,time*.015)).rg*2.0-1.0;
+ vec2 c=texture2D(rippleMap,p*.47+windCross*time*.043-windDir*time*.031).rg*2.0-1.0;
+ float broad=dot(p,windDir)*3.1-time*(1.2+windWave*1.3)+sin(dot(p,windCross)*.57-time*.31)*.48;
+ float crosswave=dot(p,windCross)*4.7+time*(.75+windWave*.7)+sin(dot(p,windDir)*.42)*.34;
+ vec2 slope=(a*.088+b*.056+c*.034*near)*attenuation*(.6+windWave*.85)
+  +windDir*cos(broad)*(.026+windWave*.062)+windCross*sin(crosswave)*(.015+windWave*.034);
+ // Risees du vent : des plaques mates et ridees qui glissent sur l'etang.
+ float gustPatch=smoothstep(.55,.85,waterNoise32(world*.045-windDir*time*(.12+.18*windWave)))*(1.-moving)*(.35+.65*windWave);
+ slope+=c*.05*gustPatch*attenuation;
  float rainRings25=0.;
  if(weatherRain>.001){
   for(int layer25=0;layer25<2;layer25++){
@@ -21323,49 +21423,65 @@ void main(){
  }
  vec3 normal=normalize(vec3(-slope.x,1.0,-slope.y));float nv=max(dot(view,normal),.03),F=waterFresnel(nv);
  vec2 duv=(world-atlasBounds.xz)/(atlasBounds.yw-atlasBounds.xz);
- float bathymetry=texture2D(depthMap,duv).r,depth=.12+bathymetry*3.4;
- // The riverbed fades out within the first metre; the deep pond is genuinely opaque.
- float shallows=1.-smoothstep(.35,1.35,depth);
- vec3 clearWater=mix(vec3(.017,.232,.229),vec3(.005,.090,.128),smoothstep(.16,2.7,depth));
+ // Interpolation adoucie de la carte des profondeurs (1 texel ~ 0,9 m) : pas de quadrillage.
+ vec2 depthTexel=duv*${Oe}.0+.5,depthCell=floor(depthTexel),depthFrac=fract(depthTexel);
+ depthFrac=depthFrac*depthFrac*(3.-2.*depthFrac);
+ float bathymetry=texture2D(depthMap,(depthCell+depthFrac-.5)/${Oe}.0).r;
+ bathymetry=clamp(bathymetry+(waterNoise32(world*.9)-.5)*.035,0.,1.);
+ float depth=.12+bathymetry*3.4;
+ // Eau claire et turquoise : le fond reste visible jusqu'a deux metres environ.
+ float shallows=1.-smoothstep(.55,2.7,depth);
+ vec3 clearWater=mix(vec3(.028,.30,.29),vec3(.006,.10,.145),smoothstep(.3,3.3,depth));
  float depthVariation=sin(world.x*.13+world.y*.09)*sin(world.y*.11-world.x*.05);
  vec3 under=clearWater*(.95+depthVariation*.06)*(.16+.84*daylight);
  if(shallows>.002){
   vec3 refractedRay=refract(-view,normal,1.0/1.333);float opticalPath=depth/max(-refractedRay.y,.26);
   vec2 bottom=world+refractedRay.xz*opticalPath;
   vec3 bed=pow(texture2D(bedMap,bottom*.18).rgb,vec3(2.2))*(.34+.66*daylight);
-  vec3 transmission=exp(-vec3(1.08,.47,.39)*opticalPath);
-  vec2 causticPoint=bottom+vec2(sin(bottom.y*.74+time*.49),sin(bottom.x*.65-time*.43))*.24;
-  float c1=sin(causticPoint.x*3.1+causticPoint.y*.6-time*.81),c2=sin(causticPoint.y*3.7-causticPoint.x*.8+time*.63);
-  float caustic=pow(max(0.0,1.0-abs(c1+c2)*.84),10.0)*.14*shallows*daylight;
-  under=mix(under,bed*transmission*.66+clearWater*(1.-transmission*.70),shallows);
-  under+=vec3(.34,.53,.39)*caustic;
+  bed*=.78+.32*waterNoise32(bottom*.7);
+  vec3 transmission=exp(-vec3(.92,.30,.27)*opticalPath);
+  float caustic=clamp(waterCaustic32(bottom*.21+slope*.6,time*.42),0.,1.4)*.16*shallows*daylight;
+  under=mix(under,bed*transmission*.82+clearWater*(1.-transmission*.66),shallows);
+  under+=vec3(.36,.58,.42)*caustic*transmission.g;
  }
- under*=.97+clamp(sin(broad)*.62+cos(crosswave)*.38,-1.,1.)*.035*attenuation;
+ under*=.97+clamp(sin(broad)*.62+cos(crosswave)*.38,-1.,1.)*.04*attenuation;
+ // Lumiere qui traverse les vagues face au soleil : lueur turquoise sur les cretes.
+ vec3 sunDir=normalize(sunDirection32),halfDir=normalize(view+sunDir);
+ float backlit=pow(max(dot(-view.xz,normalize(sunDir.xz+vec2(1e-4))),0.)*.5+.5,3.)*max(0.,sin(broad)*.6+cos(crosswave)*.4);
+ under+=vec3(.05,.24,.2)*backlit*.35*daylight*attenuation;
  // A quiet analytical sky survives all camera angles and the mobile path. Planar
  // reflections are restrained to avoid painting enormous cloud photographs on water.
  vec3 reflectedRay=reflect(-view,normal);
  float skyHeight=clamp(reflectedRay.y,0.,1.);
- vec3 sky=mix(vec3(.21,.35,.40),vec3(.34,.49,.60),skyHeight)*(.025+.975*daylight);
+ vec3 sky=mix(vec3(.24,.40,.47),vec3(.33,.52,.68),skyHeight)*(.025+.975*daylight);
  vec3 reflected=sky;
  if(planarReflection28>.5){
-  vec2 projected=reflectionUv.xy/max(reflectionUv.w,.0001)+slope*(.043+.045*(1.0-nv));
+  vec2 projected=reflectionUv.xy/max(reflectionUv.w,.0001)+slope*(.05+.05*(1.0-nv));
   float valid=step(.002,projected.x)*step(.002,projected.y)*step(projected.x,.998)*step(projected.y,.998)*step(0.0,reflectionUv.w);
   vec3 captured=texture2D(tDiffuse,clamp(projected,vec2(.002),vec2(.998))).rgb;
-  captured*=mix(vec3(.62,.93,1.0),vec3(1.0),smoothstep(.25,.85,F));
+  captured*=mix(vec3(.66,.95,1.0),vec3(1.0),smoothstep(.25,.85,F));
   reflected=mix(sky,captured,valid*(.36+.49*F));
  }
- vec3 sunDir=normalize(vec3(-.49,.74,.47)),halfDir=normalize(view+sunDir);
- float gloss=mix(115.0,54.0,smoothstep(15.0,120.0,distanceToEye));
- float glint=pow(max(dot(normal,halfDir),0.0),gloss)*.48*daylight/(1.0+distanceToEye*.015);
- vec3 colour=mix(under,reflected,min(.79,.045+F*.76))+vec3(1.0,.96,.84)*glint;
+ float gloss=mix(140.0,60.0,smoothstep(15.0,120.0,distanceToEye));
+ float glint=pow(max(dot(normal,halfDir),0.0),gloss)*.55*daylight/(1.0+distanceToEye*.014);
+ // Scintillement du soleil sur les petites rides, qui bouge avec elles.
+ vec3 sparkleNormal=normalize(vec3(-(slope.x+c.x*.09),1.0,-(slope.y+c.y*.09)));
+ float sparkle=pow(max(dot(sparkleNormal,halfDir),0.0),520.)*2.4*daylight*(1.-gustPatch*.6)*near;
+ vec3 colour=mix(under,reflected,min(.66,.04+F*.72))+sunColor32*(glint+sparkle);
  // Blue-green surface ribbons are specular ripples, not foam. White turbulence
  // remains solely at the sluice, flowing channels and the working wheel.
  float crest=pow(max(0.,sin(broad)*.65+cos(crosswave)*.35),10.);
  float broken=.36+.64*smoothstep(-.15,.8,sin(dot(p,windCross)*1.25+time*.34));
  colour+=vec3(.14,.28,.28)*crest*broken*(.11+.11*windWave+.05*moving)*daylight*attenuation;
+ colour=mix(colour,colour*vec3(.9,.96,1.)+vec3(.02,.03,.035)*daylight,gustPatch*.5);
+ // Liseré d'ecume le long des berges des etangs, qui va et vient doucement.
+ float shore=(1.-smoothstep(.13,.36,depth))*(1.-moving);
+ float lap=waterNoise32(world*1.6+vec2(time*.11,-time*.08))*.6+waterNoise32(world*4.1-vec2(time*.19,time*.07))*.4;
+ float foamBand=shore*smoothstep(.5,.78,lap+.25*sin(time*.9+dot(world,vec2(.7,.4))))*(.35+.65*near);
+ colour=mix(colour,vec3(.82,.9,.9)*(.2+.8*daylight),foamBand*.5);
  colour+=vec3(.53,.68,.72)*rainRings25*(.18+.82*daylight)*(1.-smoothstep(36.,120.,distanceToEye));
  colour=mix(colour,weatherFogColor,1.0-exp(-pow(distanceToEye*weatherFog,2.0)));
- float opacity=mix(1.,.78,shallows);opacity=mix(opacity,1.0,min(.8,F));
+ float opacity=mix(1.,.8,shallows);opacity=mix(opacity,1.0,min(.8,F));
  gl_FragColor=vec4(colour,opacity);
  #include <tonemapping_fragment>
  #include <encodings_fragment>
@@ -23848,7 +23964,8 @@ transformed.x+=sway*breezeStrength20;transformed.z+=sway*.36*breezeStrength20;`,
           globalThis.MoulinHost30.renderer,
         ),
       );
-      (xo.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.25)),
+      (globalThis.MoulinV32.render.attach(xo, { mobile: O }),
+        xo.setPixelRatio(Math.min(window.devicePixelRatio || 1, O ? 1.75 : 1.5)),
         (xo.outputEncoding = a.sRGBEncoding),
         (xo.toneMapping = a.ACESFilmicToneMapping),
         (xo.toneMappingExposure = 0.9),
@@ -24674,7 +24791,44 @@ transformed.x+=sway*breezeStrength20;transformed.z+=sway*.36*breezeStrength20;`,
               }
             })
           ),
-        }));
+        }),
+        (moulinV32 = globalThis.MoulinV32.start(window.moulin3D, {
+          markDirty: () => {
+            Po = !0;
+          },
+          invalidate: () => {
+            ((Po = !0), ho++, (xo.shadowMap.needsUpdate = !0));
+          },
+          refreshShadows: () => {
+            ((xo.shadowMap.needsUpdate = !0), (Po = !0));
+          },
+          syncSun: () => Oa(),
+          root: T,
+          mount: le,
+          mobile: O,
+          sun: $o,
+          hemi: Ir,
+          fill: ar,
+          getQuality: () => Qn,
+          setQuality: jr,
+          getMode: () => (v == null ? void 0 : v.mode),
+          setMode: (e) => (v == null ? void 0 : v.setMode(e)),
+          globe: () => Or(),
+          refreshGlobeBar: () => Ur(),
+          waterUniforms: po,
+          waterDaylight: wo,
+          materials: D,
+          surfaces: W,
+          boot: te,
+          wind: S,
+          ground: Nn,
+          inside: ue,
+          islands: et,
+          terrainHeight: Rt,
+          waterMeshes: io,
+          waterClock: ao,
+          animationsEnabled: () => oa,
+        })));
     } catch (te) {
       ((he = globalThis.MoulinBoot) == null || he.fail(te), console.error(te));
     }

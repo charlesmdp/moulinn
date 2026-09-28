@@ -67,7 +67,9 @@
       }));
   var h = matchMedia("(pointer: coarse)").matches || innerWidth < 700,
     d = document.createElement("canvas"),
-    y = { antialias: !h, alpha: !1, preserveDrawingBuffer: !1, powerPreference: "low-power" },
+    // V32 : anticrénelage matériel partout. Sur les GPU de téléphone (rendu par tuiles),
+    // le MSAA est presque gratuit et supprime l'effet d'escalier que la V31 laissait.
+    y = { antialias: !0, alpha: !1, preserveDrawingBuffer: !1, powerPreference: h ? "low-power" : "default" },
     g;
   try {
     g = d.getContext("webgl2", y) || d.getContext("webgl", y) || d.getContext("experimental-webgl", y);
