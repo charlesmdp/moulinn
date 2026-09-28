@@ -333,7 +333,7 @@
   };
 
   // --- Plantes des berges --------------------------------------------------------------
-  // Géométries simples à couleurs de sommets, instanciées par secteurs de 48 m.
+  // Géométries simples à couleurs de sommets, instanciées par secteurs de 96 m.
   function tintGeometry(THREE, geometry, bottom, top) {
     const position = geometry.attributes.position;
     geometry.computeBoundingBox();
@@ -555,7 +555,7 @@
         if (!geometry || !list.length) return;
         const chunks = new Map();
         for (const r of list) {
-          const key = Math.floor(r.x / 48) + ":" + Math.floor(r.z / 48);
+          const key = Math.floor(r.x / 96) + ":" + Math.floor(r.z / 96);
           if (!chunks.has(key)) chunks.set(key, []);
           chunks.get(key).push(r);
         }

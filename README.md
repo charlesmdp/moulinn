@@ -24,24 +24,36 @@ hébergement statique en HTTPS). Les sources modifiables sont dans `src/`.
 - **Onglet Météo** : la boule à neige du moulin tourne avec l'heure et le temps
   qu'il fait ; conditions du moment, heure par heure, sept jours, et une frise
   pour faire défiler les 72 prochaines heures dans la boule.
-- **Eau vivante** : eau claire et turquoise, reflets et caustiques en mouvement,
-  feuilles qui dérivent avec le courant, ronds de poissons.
-- **Nature plus réaliste** : feuillages éclairés par transparence, balancement
-  des arbres, pelouse aux teintes naturelles.
+- **Eau vive** : courant visible dans le bief et les rivières (rides entraînées,
+  stries, écume qui dérive, remous aux chutes et aux vannes), chute derrière le
+  moulin qui coule en filets blancs, roue à aubes qui trempe dans l'eau (les
+  aubes ruissellent et perdent des gouttes), feuilles et ronds de poissons.
+- **Rivières au naturel** : le bief n'est maçonné que devant le moulin et sur
+  30 m au-delà de la véranda ; ailleurs, l'eau coule plus bas que la prairie,
+  dans un lit plus profond bordé de légers fossés, de roseaux, carex, iris,
+  reine-des-prés, salicaires, fougères et pierres.
+- **Nature plus réaliste** : vent à l'échelle réelle (les arbres oscillent
+  sans à-coups ni ralentissement, même en tempête), feuillages arrondis et
+  éclairés par transparence, pelouse aux teintes naturelles, murs en moellons
+  avec leurs joints, ardoises gris-bleu. La véranda repose sur son soubassement.
+- **Lumières du moulin** : allumées au crépuscule, éteintes à 23 h 30.
 - **Quad** redessiné (carénages, garde-boue, porte-bagages, pneus à crampons) :
-  il laisse des traces qui restent dans l'herbe, de la boue quand il pleut et
-  des ornières dans la neige.
+  il laisse des traces dans l'herbe, de la boue sous la pluie et des ornières
+  dans la neige ; l'herbe se redresse en quelques minutes.
 - **Oiseaux modelés** : hérons, cormorans, cygnes, oies, et une famille de
   colverts sur l'eau.
+- **Atelier simplifié** : quatre onglets (Relief, Chemins, Plantes & objets,
+  Arbres) et un nouvel outil « Chemin taillé dans la pente » : on pose les
+  points du chemin entre les arbres, il reste de niveau en travers et entaille
+  la pente du côté haut sans creuser le côté bas, comme une route de montagne.
+- **Boutons façon jeu** : boutons épais crème et vert mousse, avec icônes.
 
-## Choisir le lieu du moulin
+## Le lieu du moulin
 
-La météo, le lever et le coucher du soleil suivent le lieu choisi. À la
-première ouverture de l'onglet **Météo**, le jeu demande où se trouve le
-moulin : tape le nom de la commune (plusieurs communes s'appellent
-Saint-Christophe, choisis la bonne dans la liste) ou utilise la position
-actuelle du téléphone. Le choix est retenu par le navigateur ; tant qu'aucun
-lieu n'est choisi, le jeu utilise le centre de la France.
+Le jeu est réglé sur le **Moulin de Saint-Christophe, 56250 Elven** : la météo,
+le lever et le coucher du soleil et les lumières de la maison suivent ce lieu.
+Un autre lieu peut être choisi depuis l'onglet **Météo** (en touchant le nom du
+lieu) ; le moulin reste proposé en tête de la liste pour y revenir.
 
 Dans **Réglages** :
 
@@ -129,11 +141,16 @@ Modules de la version 32 (`src/app/v32/`, chargés dans l'ordre des noms) :
 | `20-foliage.js` | Feuillages et vent dans les arbres |
 | `25-lawn.js` | Teinte naturelle de la pelouse |
 | `30-water.js` | Feuilles à la dérive et ronds de poissons |
+| `32-veranda.js` | Soubassement en moellons de la véranda |
+| `35-rivers.js` | Lits naturels des rivières, berges et plantes de berge |
+| `38-waterflow.js` | Roue à aubes, chutes, embruns et remous |
 | `40-weather-live.js` | Météo réelle Open-Meteo et éclairs |
 | `45-weather-icons.js` | Pictogrammes météo |
 | `50-meteo.js` | Onglet Météo et boule à neige |
 | `60-ui.js` | Habillage de l'interface |
+| `65-atelier.js` | Atelier en onglets et chemins taillés dans la pente |
 | `70-birds.js` | Oiseaux et colverts |
+| `72-materials.js` | Moellons, ardoises et feuillages arrondis |
 
 Après une modification :
 

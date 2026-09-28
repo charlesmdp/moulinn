@@ -2,18 +2,18 @@ MOULIN DE SAINT CHRISTOPHE — VERSION CLOUDFLARE PAGES
 Export web du 28 septembre 2026, version 32 du jardin.
 
 NOUVEAUTES V32
-Rendu net sur téléphone et nouvelle interface. Heure réelle : soleil, lune
-et nuit à leur vraie place. Météo réelle (Open-Meteo) : soleil, nuages,
-brouillard, pluie, averses, orage, grêle et neige, avec le vent réel dans
-les arbres. Onglet Météo avec la boule à neige qui tourne, les prévisions
-heure par heure et sur sept jours. Eau vivante, pelouse et feuillages plus
-naturels, quad redessiné qui laisse des traces, oiseaux modelés.
+Rendu net sur téléphone et interface de jeu. Heure réelle : soleil, lune et
+nuit à leur vraie place ; lumières du moulin éteintes à 23 h 30. Météo réelle
+(Open-Meteo) avec le vent réel dans les arbres. Onglet Météo avec la boule à
+neige qui tourne. Eau vive (courant, chute, roue à aubes qui trempe dans le
+bief), rivières au lit naturel hors du bief maçonné, murs en moellons,
+ardoises, feuillages arrondis, traces de quad qui s'effacent, oiseaux
+modelés. Atelier en quatre onglets avec les chemins taillés dans la pente.
 
 LE LIEU DU MOULIN
-A la première ouverture de l'onglet Météo, choisissez la commune du moulin
-(ou la position actuelle du téléphone). La météo, le lever et le coucher du
-soleil suivent ce lieu. Dans Réglages, « Météo réelle » et « Heure réelle »
-peuvent être remplacées par un temps ou une ambiance fixes.
+Le jeu est réglé sur le Moulin de Saint-Christophe, 56250 Elven. Un autre
+lieu peut être choisi dans l'onglet Météo. Dans Réglages, « Météo réelle » et
+« Heure réelle » peuvent être remplacées par un temps ou une ambiance fixes.
 
 MISE EN LIGNE DEPUIS UN ORDINATEUR
 1. Connectez-vous à votre compte sur https://dash.cloudflare.com/
