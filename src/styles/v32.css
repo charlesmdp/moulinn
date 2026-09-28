@@ -998,13 +998,19 @@
     border-radius: 18px;
     background: rgba(252, 253, 251, 0.95);
   }
+  #moulin-vallee-3d.v32.game22[data-mode-menu-open="true"] .mode-switch {
+    display: grid;
+    grid-template-columns: 1fr;
+  }
   #moulin-vallee-3d.v32.game22 .mode-switch button {
+    width: 100%;
     height: 46px;
     min-height: 46px;
     padding: 0 12px;
     gap: 12px;
     font-size: 15px;
     justify-content: flex-start;
+    white-space: nowrap;
   }
   #moulin-vallee-3d.v32.game22 .mode-switch .game22-mode-icon {
     display: flex;

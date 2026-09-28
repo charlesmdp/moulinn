@@ -206,15 +206,26 @@
         const hours = [];
         const h = data.hourly;
         const start = Math.floor(Date.now() / 3600000) * 3600;
+        const shown = Date.now() + offsetHours * 3600000;
+        let closest = -1;
+        let closestGap = Infinity;
+        for (let i = 0; i < h.time.length; i++) {
+          if (h.time[i] < start) continue;
+          const gap = Math.abs(h.time[i] * 1000 - shown);
+          if (gap < closestGap) {
+            closestGap = gap;
+            closest = i;
+          }
+        }
         for (let i = 0; i < h.time.length && hours.length < 30; i++) {
           if (h.time[i] < start) continue;
           const t = h.time[i] * 1000;
           const info = live.describe(h.weather_code[i]);
           const offset = (t - Date.now()) / 3600000;
-          const selected = Math.abs(offset - offsetHours) < 0.5 || (hours.length === 0 && offsetHours < 0.5);
+          const selected = i === closest;
           hours.push(
             `<button type="button" role="listitem" class="v32-hour${selected ? " is-selected" : ""}" data-offset="${Math.max(0, offset).toFixed(2)}">` +
-              `<span>${hours.length === 0 ? "Maint." : format(t, { hour: "2-digit" }) + " h"}</span>${V32.weatherIcon(info.icon, h.is_day?.[i] !== 0)}` +
+              `<span>${hours.length === 0 ? "Maint." : format(t, { hour: "numeric" }).replace(/\s*h$/, "") + " h"}</span>${V32.weatherIcon(info.icon, h.is_day?.[i] !== 0)}` +
               `<strong>${round(h.temperature_2m[i])}°</strong><small>${h.precipitation_probability?.[i] >= 10 ? h.precipitation_probability[i] + " %" : "&nbsp;"}</small></button>`,
           );
         }
