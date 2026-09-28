@@ -19059,7 +19059,9 @@ void main(){
                   ? 0.12 - (0.08 * (s.along - _)) / (o.length - _)
                   : 0.88 - 0.76 * (s.along - _ + 0.35);
           }
-          return s;
+          // V32 : l'eau coule plus bas que la prairie dans les tronçons naturels.
+          const sink32 = globalThis.MoulinV32.riverbeds ? globalThis.MoulinV32.riverbeds.sink(o, s.along) : 0;
+          return (sink32 && (s.height -= sink32), s);
         },
         ae = function (e, o = 0) {
           return (
@@ -19506,6 +19508,7 @@ void main(){
             flowSpeed: { value: o },
             sunDirection32: globalThis.MoulinV32.uniforms.sunDirection,
             sunColor32: globalThis.MoulinV32.uniforms.sunColor,
+            turbulence32: globalThis.MoulinV32.uniforms.turbulence,
           };
         },
         fn = function (e, o, r, s, u) {
@@ -20612,6 +20615,15 @@ void main(){
           );
         e.length = e.lengths[e.lengths.length - 1];
       }
+      // V32 : tronçons naturels des cours d'eau (niveau abaissé, berges creusées).
+      globalThis.MoulinV32.riverbeds &&
+        globalThis.MoulinV32.riverbeds.setup({
+          channels: ee,
+          ponds: Re,
+          inside: ue,
+          polyDistance: se,
+          cascades: (X.cascades || []).map((e) => ({ centre: He(e.centre), width: e.width })),
+        });
       const de = [
           [460, 1248],
           [685, 1040],
@@ -21349,6 +21361,8 @@ void main(){
           }
         }
         const Ue = new Map();
+        // V32 : vrai pendant l'ajout de cellules fines hors du cache de terrain.
+        let upgrade32 = !1;
         function wt(Ht, $t, to) {
           const Wo = Ht + ":" + $t;
           if (Ue.has(Wo)) return Ue.get(Wo);
@@ -21356,14 +21370,14 @@ void main(){
             yo = Bt.z0 + ((Bt.z1 - Bt.z0) * $t) / 1856,
             Bo = [co, yo],
             Ho = e.length / 3,
-            Pn = dt
+            Pn = dt && !upgrade32
               ? dt.styleVersion === 17
                 ? dt.heights[Ho]
                 : Dt(co, yo, dt.heights[Ho])
               : to === void 0
                 ? yt(co, yo)
                 : to;
-          (e.push(co, (dt == null ? void 0 : dt.styleVersion) >= 16 ? Pn : ne(co, yo, Pn + Kt(co, yo, Pn)), yo),
+          (e.push(co, upgrade32 || (dt == null ? void 0 : dt.styleVersion) >= 16 ? Pn : ne(co, yo, Pn + Kt(co, yo, Pn)), yo),
             r.push(co * 0.47, yo * 0.47));
           const vn = xe(
               ue(Bo, oe)
@@ -21487,6 +21501,49 @@ void main(){
             Ca = aa(Tn, En + 1);
           return pa >= ir ? _a + (Ca - _a) * pa + (lr - Ca) * ir : _a + (sr - _a) * ir + (lr - sr) * pa;
         };
+        // V32 : cellules grossières subdivisées (4 × 4) le long des rivières naturelles, pour
+        // que les berges creusées aient la finesse voulue. Les nouveaux sommets sont ajoutés
+        // après ceux du cache de terrain, dont l'ordre ne change pas.
+        const refine32 = globalThis.MoulinV32.riverbeds
+          ? globalThis.MoulinV32.riverbeds.cellsToRefine({
+              bounds: Bt,
+              rows: 232,
+              cols: 340,
+              channels: ee,
+              sample: ge,
+              isCoarse: (Ht, $t) => Te[Ht][$t].n === 1,
+            })
+          : [];
+        if (refine32.length) {
+          upgrade32 = !0;
+          for (const [Ht, $t] of refine32) {
+            const cell32 = Te[Ht][$t],
+              entry32 = it[Ht * 340 + $t],
+              [h00, h01] = [e[cell32.ids[0][0] * 3 + 1], e[cell32.ids[0][1] * 3 + 1]],
+              [h10, h11] = [e[cell32.ids[1][0] * 3 + 1], e[cell32.ids[1][1] * 3 + 1]],
+              co = [];
+            for (let Bo = 0; Bo <= 4; Bo++) {
+              co[Bo] = [];
+              for (let Ho = 0; Ho <= 4; Ho++) {
+                const u = Ho / 4,
+                  v = Bo / 4,
+                  Pn = v >= u ? h00 + (h10 - h00) * v + (h11 - h10) * u : h00 + (h01 - h00) * u + (h11 - h01) * v;
+                co[Bo][Ho] = wt($t * 8 + Ho * 2, Ht * 8 + Bo * 2, Pn);
+              }
+            }
+            for (let yo = entry32.start; yo < entry32.end; yo++) s[yo] = s[entry32.start];
+            entry32.start = s.length;
+            for (let Bo = 0; Bo < 4; Bo++)
+              for (let Ho = 0; Ho < 4; Ho++)
+                s.push(co[Bo][Ho], co[Bo + 1][Ho], co[Bo + 1][Ho + 1], co[Bo][Ho], co[Bo + 1][Ho + 1], co[Bo][Ho + 1]);
+            entry32.end = s.length;
+            Te[Ht][$t] = { n: 4, ids: co };
+          }
+          upgrade32 = !1;
+        }
+        // V32 : berges naturelles creusées dans le relief avant de construire le maillage.
+        globalThis.MoulinV32.riverbeds &&
+          globalThis.MoulinV32.riverbeds.carve({ positions: e, colors: o, sample: ge, channels: ee });
         const St = new a.BufferGeometry();
         (St.setAttribute("position", new a.Float32BufferAttribute(e, 3)),
           St.setAttribute("color", new a.Float32BufferAttribute(o, 3)),
@@ -21495,16 +21552,26 @@ void main(){
           St.computeVertexNormals());
         const Nt = F(St, D.grass, "Relief_estime_de_la_vallee"),
           Mo = new Map();
+        // V32 : raccords sans fissure entre cellules de finesses différentes (1, 4 ou 8).
         for (let Ht = 0; Ht < 232; Ht++)
           for (let $t = 0; $t < 340; $t++)
-            if (Te[Ht][$t].n === 8) {
+            if (Te[Ht][$t].n > 1) {
               const to = Te[Ht][$t],
+                n32 = to.n,
                 Wo = [];
-              (Ht > 0 && Te[Ht - 1][$t].n === 1 && Wo.push(Array.from({ length: 9 }, (co, yo) => to.ids[0][yo])),
-                Ht < 231 && Te[Ht + 1][$t].n === 1 && Wo.push(Array.from({ length: 9 }, (co, yo) => to.ids[8][yo])),
-                $t > 0 && Te[Ht][$t - 1].n === 1 && Wo.push(Array.from({ length: 9 }, (co, yo) => to.ids[yo][0])),
-                $t < 339 && Te[Ht][$t + 1].n === 1 && Wo.push(Array.from({ length: 9 }, (co, yo) => to.ids[yo][8])));
-              for (const co of Wo) for (let yo = 1; yo < 8; yo++) Mo.set(co[yo], [co[yo], co[0], co[8], yo / 8]);
+              for (const [nb32, edge32] of [
+                [Ht > 0 && Te[Ht - 1][$t], (yo) => to.ids[0][yo]],
+                [Ht < 231 && Te[Ht + 1][$t], (yo) => to.ids[n32][yo]],
+                [$t > 0 && Te[Ht][$t - 1], (yo) => to.ids[yo][0]],
+                [$t < 339 && Te[Ht][$t + 1], (yo) => to.ids[yo][n32]],
+              ])
+                nb32 && nb32.n < n32 && Wo.push([Array.from({ length: n32 + 1 }, (co, yo) => edge32(yo)), n32 / nb32.n]);
+              for (const [co, r32] of Wo)
+                for (let yo = 1; yo < n32; yo++) {
+                  if (yo % r32 === 0) continue;
+                  const a32 = Math.floor(yo / r32) * r32;
+                  Mo.set(co[yo], [co[yo], co[a32], co[a32 + r32], (yo - a32) / r32]);
+                }
             }
         for (const [Ht, $t, to, Wo] of Mo.values())
           ((e[Ht * 3 + 1] = e[$t * 3 + 1] * (1 - Wo) + e[to * 3 + 1] * Wo),
@@ -21571,6 +21638,9 @@ void main(){
         for (let _ = 0; _ < 3; _++) It[r + _] = ([86, 148, 133][_] * (1 - u) + [32, 121, 154][_] * u) * s;
         It[r + 3] = 255;
       }
+      // V32 : profondeurs des cours d'eau d'après le relief réel (lits creusés compris).
+      globalThis.MoulinV32.riverbeds &&
+        globalThis.MoulinV32.riverbeds.bakeDepth({ data: At, size: Oe, bounds: Q, channels: ee, sample: ge, terrain: Rt });
       const Vt = W.fromData(At, Oe, !1, !1),
         Ut = W.fromData(It, Oe, !0, !1);
       (D.waterExport.color.set(16777215),
@@ -21587,6 +21657,7 @@ uniform vec4 atlasBounds;
 uniform float time,daylight,flowSpeed,waterWind,weatherRain,weatherSnow,weatherFog,planarReflection28;
 uniform vec3 weatherFogColor,sunDirection32,sunColor32;
 uniform vec2 waterWindDirection;
+uniform vec4 turbulence32[6];
 varying vec4 reflectionUv;
 varying vec3 waterWorld;
 varying vec2 waterFlow;
@@ -21604,18 +21675,45 @@ void main(){
  vec3 view=normalize(cameraPosition-waterWorld);float distanceToEye=length(cameraPosition-waterWorld);
  float breeze=clamp(waterWind,0.0,2.0),windWave=pow(breeze,.64),moving=smoothstep(.015,.12,flowSpeed);
  vec2 world=waterWorld.xz,windDir=normalize(waterWindDirection+vec2(.0001)),windCross=vec2(-windDir.y,windDir.x);
- // V32 : le courant du bief et de la riviere se voit (environ 0,5 m/s), les etangs suivent le vent.
- vec2 p=world-waterFlow*time*flowSpeed*2.1;
+ // V32 : le courant du bief et des rivieres (environ 0,5 m/s). Advection en deux phases :
+ // les rides suivent le courant sans jamais s'etirer, meme dans les courbes.
+ float travel32=time*flowSpeed*2.1;
+ float cycle32=fract(travel32*.25);
+ float flowBlend32=moving>.001?abs(1.-2.*cycle32):0.;
+ vec2 p=world-waterFlow*cycle32*4.;
+ vec2 pB32=world-waterFlow*fract(cycle32+.5)*4.+vec2(.47,.29);
  float attenuation=mix(1.0,.42,smoothstep(20.0,150.0,distanceToEye));
  float near=1.-smoothstep(6.,48.,distanceToEye);
  // Trois trains de rides qui se croisent a des vitesses differentes : la surface n'est jamais figee.
  vec2 a=texture2D(rippleMap,p*.11+windDir*time*(.016+.026*windWave)).rg*2.0-1.0;
  vec2 b=texture2D(rippleMap,vec2(p.y,-p.x)*.19+vec2(-time*.019,time*.015)).rg*2.0-1.0;
  vec2 c=texture2D(rippleMap,p*.47+windCross*time*.043-windDir*time*.031).rg*2.0-1.0;
+ vec2 ripple32=a*.088+b*.056+c*.034*near;
+ if(flowBlend32>.001){
+  vec2 aB=texture2D(rippleMap,pB32*.11+windDir*time*(.016+.026*windWave)).rg*2.0-1.0;
+  vec2 bB=texture2D(rippleMap,vec2(pB32.y,-pB32.x)*.19+vec2(-time*.019,time*.015)).rg*2.0-1.0;
+  vec2 cB=texture2D(rippleMap,pB32*.47+windCross*time*.043-windDir*time*.031).rg*2.0-1.0;
+  ripple32=mix(ripple32,aB*.088+bB*.056+cB*.034*near,flowBlend32);
+ }
  float broad=dot(p,windDir)*3.1-time*(1.2+windWave*1.3)+sin(dot(p,windCross)*.57-time*.31)*.48;
  float crosswave=dot(p,windCross)*4.7+time*(.75+windWave*.7)+sin(dot(p,windDir)*.42)*.34;
- vec2 slope=(a*.088+b*.056+c*.034*near)*attenuation*(.6+windWave*.85)
-  +windDir*cos(broad)*(.026+windWave*.062)+windCross*sin(crosswave)*(.015+windWave*.034);
+ vec2 slope=ripple32*attenuation*(.6+windWave*.85)
+  +(windDir*cos(broad)*(.026+windWave*.062)+windCross*sin(crosswave)*(.015+windWave*.034))*(1.-moving*.75);
+ // Courant visible : stries etirees dans le sens de l'ecoulement, remous aux chutes et a la roue.
+ float turb32=0.,fleck32=0.,streak32=.5;
+ vec2 flowN32=waterFlow/max(length(waterFlow),.001);
+ if(moving>.001){
+  for(int k=0;k<6;k++){vec4 zone=turbulence32[k];if(zone.w>0.){float dz=length(world-zone.xy);turb32=max(turb32,zone.w*(1.-smoothstep(zone.z*.2,zone.z,dz)));}}
+  float sA=0.,sB=0.;
+  for(int k=0;k<3;k++){vec2 o=flowN32*float(k)*.32;sA+=waterNoise32((p-o)*2.4);sB+=waterNoise32((pB32-o)*2.4+7.1);}
+  streak32=mix(sA,sB,flowBlend32)/3.;
+  slope+=vec2(-flowN32.y,flowN32.x)*(streak32-.5)*(.085+.12*turb32)*attenuation;
+  float fA=waterNoise32(p*6.8)*waterNoise32(p*2.2+3.7);
+  float fB=waterNoise32(pB32*6.8+1.9)*waterNoise32(pB32*2.2+5.3);
+  fleck32=mix(fA,fB,flowBlend32);
+  vec2 boil32=texture2D(rippleMap,p*.83+vec2(time*.23,-time*.19)).rg*2.-1.;
+  slope+=boil32*.1*turb32*attenuation;
+ }
  // Risees du vent : des plaques mates et ridees qui glissent sur l'etang.
  float gustPatch=smoothstep(.55,.85,waterNoise32(world*.045-windDir*time*(.12+.18*windWave)))*(1.-moving)*(.35+.65*windWave);
  slope+=c*.05*gustPatch*attenuation;
@@ -21644,6 +21742,8 @@ void main(){
  // Eau claire et turquoise : le fond reste visible jusqu'a deux metres environ.
  float shallows=1.-smoothstep(.55,2.7,depth);
  vec3 clearWater=mix(vec3(.028,.30,.29),vec3(.006,.10,.145),smoothstep(.3,3.3,depth));
+ // Eau courante : un peu chargee, plus verte et plus sombre que celle des etangs.
+ clearWater=mix(clearWater,mix(vec3(.034,.17,.14),vec3(.008,.072,.078),smoothstep(.2,1.3,depth)),moving*.85);
  float depthVariation=sin(world.x*.13+world.y*.09)*sin(world.y*.11-world.x*.05);
  vec3 under=clearWater*(.95+depthVariation*.06)*(.16+.84*daylight);
  if(shallows>.002){
@@ -21651,7 +21751,9 @@ void main(){
   vec2 bottom=world+refractedRay.xz*opticalPath;
   vec3 bed=pow(texture2D(bedMap,bottom*.18).rgb,vec3(2.2))*(.34+.66*daylight);
   bed*=.78+.32*waterNoise32(bottom*.7);
-  vec3 transmission=exp(-vec3(.92,.30,.27)*opticalPath);
+  // Lit de riviere : galets moussus, plus sombres que le fond sableux des etangs.
+  bed*=mix(1.,.6+.25*waterNoise32(bottom*2.3),moving);
+  vec3 transmission=exp(-mix(vec3(.92,.30,.27),vec3(1.55,.66,.72),moving)*opticalPath);
   float caustic=clamp(waterCaustic32(bottom*.21+slope*.6,time*.42),0.,1.4)*.16*shallows*daylight;
   under=mix(under,bed*transmission*.82+clearWater*(1.-transmission*.66),shallows);
   under+=vec3(.36,.58,.42)*caustic*transmission.g;
@@ -21667,12 +21769,18 @@ void main(){
  float skyHeight=clamp(reflectedRay.y,0.,1.);
  vec3 sky=mix(vec3(.24,.40,.47),vec3(.33,.52,.68),skyHeight)*(.025+.975*daylight);
  vec3 reflected=sky;
- if(planarReflection28>.5){
+ // Le reflet plan est celui du grand etang : il ne vaut que pour les eaux calmes.
+ if(planarReflection28>.5&&moving<.001){
   vec2 projected=reflectionUv.xy/max(reflectionUv.w,.0001)+slope*(.05+.05*(1.0-nv));
   float valid=step(.002,projected.x)*step(.002,projected.y)*step(projected.x,.998)*step(projected.y,.998)*step(0.0,reflectionUv.w);
   vec3 captured=texture2D(tDiffuse,clamp(projected,vec2(.002),vec2(.998))).rgb;
   captured*=mix(vec3(.66,.95,1.0),vec3(1.0),smoothstep(.25,.85,F));
   reflected=mix(sky,captured,valid*(.36+.49*F));
+ }
+ // Eau courante : a jour frisant, un ruisseau reflete ses berges et sa vegetation, pas le ciel.
+ if(moving>.001){
+  vec3 banks32=vec3(.03,.055,.028)*(.15+.85*daylight);
+  reflected=mix(banks32,reflected,smoothstep(.1,.6,skyHeight)*.85+.15);
  }
  float gloss=mix(140.0,60.0,smoothstep(15.0,120.0,distanceToEye));
  float glint=pow(max(dot(normal,halfDir),0.0),gloss)*.55*daylight/(1.0+distanceToEye*.014);
@@ -21691,6 +21799,14 @@ void main(){
  float lap=waterNoise32(world*1.6+vec2(time*.11,-time*.08))*.6+waterNoise32(world*4.1-vec2(time*.19,time*.07))*.4;
  float foamBand=shore*smoothstep(.5,.78,lap+.25*sin(time*.9+dot(world,vec2(.7,.4))))*(.35+.65*near);
  colour=mix(colour,vec3(.82,.9,.9)*(.2+.8*daylight),foamBand*.5);
+ // Ecume qui derive avec le courant : quelques flocons partout, un tapis blanc dans les remous.
+ if(moving>.001){
+  float bank32=1.-smoothstep(.16,.55,depth);
+  float foamAmount32=smoothstep(.36-.24*turb32-.08*bank32,.46-.2*turb32-.06*bank32,fleck32)*(.3+.7*max(turb32,bank32*.5))*(.55+.9*smoothstep(.45,.7,streak32));
+  foamAmount32=max(foamAmount32,turb32*turb32*smoothstep(.3,.7,streak32+fleck32*.6)*.85);
+  colour=mix(colour,vec3(.86,.93,.92)*(.18+.82*daylight),clamp(foamAmount32,0.,1.)*.72*(.45+.55*near));
+  colour+=vec3(.07,.11,.11)*(streak32-.5)*daylight*attenuation*(.6+.4*near);
+ }
  colour+=vec3(.53,.68,.72)*rainRings25*(.18+.82*daylight)*(1.-smoothstep(36.,120.,distanceToEye));
  colour=mix(colour,weatherFogColor,1.0-exp(-pow(distanceToEye*weatherFog,2.0)));
  float opacity=mix(1.,.8,shallows);opacity=mix(opacity,1.0,min(.8,F));
@@ -21753,8 +21869,20 @@ void main(){
       for (const e of ee) {
         const o = Oo.channels[e.name];
         if (!o) throw new Error("Missing clipped water surface " + e.name);
+        // V32 : dans les tronçons naturels, l'eau s'étend jusque sous la berge ; c'est le
+        // relief qui dessine la ligne d'eau, plus le bord droit de la surface.
+        const beds32 = globalThis.MoulinV32.riverbeds,
+          widen32 = (dt) => {
+            if (!beds32) return dt;
+            const Ue = ge(dt, e),
+              wt = beds32.natural(e, Ue.along);
+            if (wt <= 0.001) return dt;
+            const St = beds32.pointAt(e, Ue.along),
+              Nt = Math.hypot(dt[0] - St[0], dt[1] - St[1]) || 1;
+            return [dt[0] + ((dt[0] - St[0]) / Nt) * 0.5 * wt, dt[1] + ((dt[1] - St[1]) / Nt) * 0.5 * wt];
+          };
         const r = o.map((Te) => {
-            const it = new a.Shape(Te.outer.map((dt) => new a.Vector2(dt[0], -dt[1])));
+            const it = new a.Shape(Te.outer.map(widen32).map((dt) => new a.Vector2(dt[0], -dt[1])));
             for (const dt of Te.holes) it.holes.push(new a.Path(dt.map((Ue) => new a.Vector2(Ue[0], -Ue[1]))));
             return it;
           }),
@@ -23569,6 +23697,8 @@ transformed.x+=sway*breezeStrength20;transformed.z+=sway*.36*breezeStrength20;`,
               _ = r[(s + 1) % r.length],
               L = [(u[0] + _[0]) / 2, (u[1] + _[1]) / 2];
             if (Re.some((Te) => ue(L, Te.poly) || se(L, Te.poly, !0, 0.6) < 0.6)) continue;
+            // V32 : pas de lèvre de terre régulière le long des tronçons naturels.
+            if (globalThis.MoulinV32.riverbeds && globalThis.MoulinV32.riverbeds.natural(e, ge(L, e).along) > 0.35) continue;
             const Ae = ge(u, e),
               Pe = ge(_, e);
             Math.abs(Ae.height - Pe.height) > 0.1 || $a(u, _, Ae.height, e, Pe.height);

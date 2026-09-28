@@ -29,6 +29,8 @@
     wind: { value: 0.3 },
     gust: { value: 0 },
     windDirection: { value: THREE ? new THREE.Vector2(0.83, 0.56).normalize() : null },
+    // Remous de l'eau vive (chutes, roue, vannes) : x, z, rayon, intensité.
+    turbulence: { value: THREE ? Array.from({ length: 6 }, () => new THREE.Vector4(0, 0, 1, 0)) : [] },
   };
 
   V32.clamp = (value, min, max) => Math.max(min, Math.min(max, value));
