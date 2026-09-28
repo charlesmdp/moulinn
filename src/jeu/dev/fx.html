@@ -1,0 +1,244 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Galerie des effets</title>
+<style>
+  :root { --bg: #1d2418; --panel: rgba(20, 24, 18, 0.82); --ink: #f4efe1; --accent: #ffd23a; --muted: #a9b49a; }
+  html, body { margin: 0; height: 100%; background: var(--bg); color: var(--ink); font: 13px/1.3 system-ui, -apple-system, "Segoe UI", sans-serif; overflow: hidden; }
+  canvas { display: block; }
+  #ui { position: fixed; left: 8px; top: 8px; max-width: min(640px, calc(100vw - 16px)); background: var(--panel); border-radius: 10px; padding: 8px 10px; }
+  #ui h1 { font-size: 14px; margin: 0 0 6px; color: var(--accent); }
+  #ui .row { display: flex; flex-wrap: wrap; gap: 4px; margin: 4px 0; }
+  #ui a, #ui button { font: inherit; font-size: 12px; border: 0; border-radius: 6px; padding: 3px 7px; background: #3a4431; color: var(--ink); cursor: pointer; text-decoration: none; }
+  #ui a.on { background: var(--accent); color: #2a2206; font-weight: 600; }
+  #stats { color: var(--muted); font: 11px/1.35 ui-monospace, Menlo, monospace; white-space: pre; margin-top: 4px; }
+  .label { position: fixed; transform: translate(-50%, 0); font-size: 11px; font-weight: 600; color: #fff; text-shadow: 0 1px 2px #000, 0 0 4px #000; pointer-events: none; white-space: nowrap; }
+  body.clean #ui, body.clean .label { display: none; }
+</style>
+</head>
+<body>
+<div id="ui">
+  <h1>Pas touche à mes trésors — effets</h1>
+  <div class="row" id="kinds"></div>
+  <div id="stats"></div>
+</div>
+<script src="../../static/assets/engine-0.40e246fcf208.js"></script>
+<script src="../../static/assets/engine-1.f10ee4887053.js"></script>
+<script src="../vendor/BufferGeometryUtils.js"></script>
+<script src="../core/00-ptmt.js"></script>
+<script src="../fx/05-kit.js"></script>
+<script src="../fx/10-fx.js"></script>
+<script src="../fx/11-areas.js"></script>
+<script src="../fx/12-props.js"></script>
+<script>
+(function () {
+  "use strict";
+  const params = new URLSearchParams(location.search);
+  const mobile = params.has("mobile") || matchMedia("(pointer: coarse)").matches;
+  if (params.has("clean")) document.body.classList.add("clean");
+  const V3 = (x, y, z) => new THREE.Vector3(x, y, z);
+
+  const renderer = new THREE.WebGLRenderer({ antialias: true });
+  renderer.setPixelRatio(Math.min(devicePixelRatio, mobile ? 2 : 1.5));
+  renderer.setSize(innerWidth, innerHeight);
+  renderer.outputEncoding = THREE.sRGBEncoding;
+  renderer.toneMapping = THREE.ACESFilmicToneMapping;
+  renderer.toneMappingExposure = 1.05;
+  renderer.shadowMap.enabled = true;
+  renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+  document.body.appendChild(renderer.domElement);
+  const scene = new THREE.Scene();
+  scene.background = PTMT.color(0x9fc4e8);
+  scene.fog = new THREE.Fog(PTMT.color(0x9fc4e8), 90, 220);
+  scene.add(new THREE.HemisphereLight(PTMT.color(0xbcd6ff), PTMT.color(0x5b6b3a), 0.95));
+  const sun = new THREE.DirectionalLight(PTMT.color(0xffe7c4), 2.3);
+  sun.position.set(-20, 36, 22);
+  sun.castShadow = true;
+  sun.shadow.mapSize.set(2048, 2048);
+  Object.assign(sun.shadow.camera, { left: -40, right: 40, top: 40, bottom: -40, near: 1, far: 120 });
+  sun.shadow.bias = -0.0006;
+  scene.add(sun);
+  function grassTexture() {
+    const c = document.createElement("canvas"); c.width = c.height = 512;
+    const x = c.getContext("2d");
+    x.fillStyle = "#6f9a3c"; x.fillRect(0, 0, 512, 512);
+    const rnd = PTMT.rng(5);
+    const wrap = (fn) => { for (const ox of [-512, 0, 512]) for (const oy of [-512, 0, 512]) { x.save(); x.translate(ox, oy); fn(); x.restore(); } };
+    for (let i = 0; i < 90; i++) { const cx = rnd() * 512, cy = rnd() * 512, light = rnd() > 0.5; wrap(() => { const g = x.createRadialGradient(cx, cy, 0, cx, cy, 60); g.addColorStop(0, light ? "rgba(140,180,70,0.35)" : "rgba(80,120,40,0.35)"); g.addColorStop(1, "rgba(0,0,0,0)"); x.fillStyle = g; x.fillRect(cx - 60, cy - 60, 120, 120); }); }
+    for (let i = 0; i < 9000; i++) { const px = rnd() * 512, py = rnd() * 512, l = 3 + rnd() * 6, dx = (rnd() - 0.5) * 2; x.strokeStyle = `hsl(${80 + rnd() * 30},${40 + rnd() * 25}%,${28 + rnd() * 22}%)`; x.lineWidth = 1; wrap(() => { x.beginPath(); x.moveTo(px, py); x.lineTo(px + dx, py - l); x.stroke(); }); }
+    const t = new THREE.CanvasTexture(c); t.wrapS = t.wrapT = THREE.RepeatWrapping; t.repeat.set(40, 40); t.encoding = THREE.sRGBEncoding; t.anisotropy = 4;
+    return t;
+  }
+  const ground = new THREE.Mesh(new THREE.PlaneGeometry(240, 240), new THREE.MeshStandardMaterial({ map: grassTexture(), roughness: 0.95 }));
+  ground.rotation.x = -Math.PI / 2; ground.receiveShadow = true;
+  scene.add(ground);
+  const waterMat = new THREE.MeshStandardMaterial({ color: PTMT.color(0x2f8fa6), roughness: 0.15, metalness: 0.1 });
+  function pond(x, z, r) { const m = new THREE.Mesh(new THREE.CircleGeometry(r, 40), waterMat); m.rotation.x = -Math.PI / 2; m.position.set(x, 0.02, z); scene.add(m); return m; }
+  // petites tours factices et silhouettes d'ennemis pour l'échelle
+  const stoneMat = new THREE.MeshStandardMaterial({ color: PTMT.color(0x9a8f80), roughness: 0.85 });
+  const dummyMat = new THREE.MeshStandardMaterial({ color: PTMT.color(0x3a3f5a), roughness: 0.7 });
+  function tower(x, z) { const g = new THREE.Group(); const b = new THREE.Mesh(new THREE.CylinderGeometry(0.9, 1.1, 2.4, 10), stoneMat); b.position.y = 1.2; b.castShadow = true; g.add(b); g.position.set(x, 0, z); scene.add(g); return g; }
+  function dummy(x, z) { const m = new THREE.Mesh(new THREE.CylinderGeometry(0.28, 0.32, 1.7, 10), dummyMat); m.position.set(x, 0.85, z); m.castShadow = true; scene.add(m); return m; }
+
+  const camera = new THREE.PerspectiveCamera(40, innerWidth / innerHeight, 0.1, 500);
+  const controls = new THREE.OrbitControls(camera, renderer.domElement);
+  controls.enableDamping = true;
+  function look(target, dist, pitch, yaw) {
+    const p = pitch * Math.PI / 180, y = (yaw || 0) * Math.PI / 180;
+    camera.position.set(target.x + Math.sin(y) * Math.cos(p) * dist, target.y + Math.sin(p) * dist, target.z + Math.cos(y) * Math.cos(p) * dist);
+    controls.target.copy(target); camera.lookAt(target); controls.update();
+  }
+
+  PTMT.fx.init(scene, camera, renderer, { mobile });
+  const FX = PTMT.fx;
+
+  // --- catalogue ----------------------------------------------------------------------------
+  const PROJ = ["fireball", "lavaShell", "iceShard", "iceSpike", "waterJet", "waterBlast", "meteor"];
+  const AREAS = ["groundFire", "blizzard", "polarStorm", "vortex", "maelstrom", "frenzy", "freezeZone"];
+  const CONES = ["flame", "waterCone"];
+  const BURSTS = ["explosion", "lavaSplash", "meteorImpact", "iceShatter", "freezeFlash", "splash", "waterWave", "steam", "smoke", "coins", "sparkle", "recall", "springBoing", "netThrow", "ko", "hit"];
+  const MISC = ["telegraph:fire", "telegraph:ice", "telegraph:water", "telegraph:band", "sack:dropped", "sack:floating"];
+  const ALL = PROJ.concat(AREAS, CONES, BURSTS, MISC);
+  const GROUPS = { projectiles: PROJ, areas: AREAS, bursts: BURSTS, misc: CONES.concat(MISC) };
+
+  const demos = [];
+  const labels = [];
+  function label(text, pos) { const d = document.createElement("div"); d.className = "label"; d.textContent = text; document.body.appendChild(d); labels.push({ d, pos: pos.clone() }); }
+
+  // Une démo = un effet rejoué en boucle à une position.
+  function demo(kind, c) {
+    const d = { kind, c, t: Math.random() * 0.3, h: null };
+    if (PROJ.includes(kind)) {
+      tower(c.x - 3.2, c.z);
+      dummy(c.x + 3, c.z);
+      d.period = kind === "meteor" ? 1.6 : 1.3;
+      d.tick = (dt) => {
+        d.t += dt;
+        let k = (d.t % d.period) / d.period;
+        if (!d.h || d.k > k) { if (d.h) d.h.release(); d.h = FX.projectile(kind); if (d.k !== undefined && d.k > k) FX.burst(impactOf(kind), V3(c.x + 3, 0.02, c.z), { radius: kind === "meteor" ? 3.5 : 1.5 }); }
+        d.k = k;
+        const from = kind === "meteor" ? V3(c.x - 5, 14, c.z - 6) : V3(c.x - 3.2, 2.6, c.z);
+        const to = V3(c.x + 3, kind === "meteor" ? 0 : 0.9, c.z);
+        const arc = kind === "lavaShell" ? 4 : kind === "iceSpike" ? 1.5 : kind === "meteor" ? 0 : 0.8;
+        const p = from.clone().lerp(to, k); p.y += Math.sin(k * Math.PI) * arc;
+        const p2 = from.clone().lerp(to, Math.min(1, k + 0.02)); p2.y += Math.sin(Math.min(1, k + 0.02) * Math.PI) * arc;
+        d.h.set(p, p2.sub(p));
+      };
+    } else if (AREAS.includes(kind)) {
+      const r = kind === "frenzy" ? 2.4 : kind === "polarStorm" || kind === "maelstrom" ? 3.2 : 2.6;
+      if (kind === "frenzy") tower(c.x, c.z);
+      if (kind === "vortex" || kind === "maelstrom") pond(c.x, c.z, r + 0.6);
+      d.h = FX.area(kind, V3(c.x, 0, c.z), r);
+      d.period = params.has("kind") ? 5 : 1e9;
+      d.tick = (dt) => { d.t += dt; const k = params.has("kind") ? (d.t % d.period) / d.period : Math.min(0.5, d.t / 2); d.h.update(null, null, k); };
+    } else if (CONES.includes(kind)) {
+      tower(c.x, c.z + 3.2);
+      if (kind === "waterCone") pond(c.x, c.z - 1, 4.5);
+      d.h = FX.cone(kind, V3(c.x, 1.6, c.z + 2.6), Math.PI, 0.9, 6.5);
+      d.tick = (dt) => { d.t += dt; d.h.update(null, Math.PI + Math.sin(d.t * 0.8) * 0.25, 0.6 + 0.4 * Math.sin(d.t * 5)); };
+    } else if (kind.startsWith("telegraph")) {
+      const fam = kind.split(":")[1];
+      d.h = fam === "band" ? FX.telegraph("waterWave", V3(c.x, 0, c.z), { length: 6, width: 2.4, yaw: 0.6 }) : FX.telegraph(fam, V3(c.x, 0, c.z), 2.6);
+      d.tick = () => {};
+    } else if (kind.startsWith("sack")) {
+      const st = kind.split(":")[1];
+      if (st === "floating") pond(c.x, c.z, 3);
+      d.h = FX.sack(); d.h.set(V3(c.x, st === "floating" ? 0.02 : 0, c.z), st);
+      d.period = 3;
+      d.tick = (dt) => { d.t += dt; if (d.t > d.period) { d.t = 0; d.h.set(null, "hidden"); d.h.set(V3(c.x, st === "floating" ? 0.02 : 0, c.z), st); } };
+    } else if (BURSTS.includes(kind)) {
+      if (kind === "splash" || kind === "waterWave") pond(c.x, c.z, kind === "waterWave" ? 4.6 : 2.4);
+      if (["hit", "ko", "netThrow", "iceShatter", "springBoing"].includes(kind)) dummy(c.x + (kind === "springBoing" ? 1.4 : 0), c.z);
+      if (kind === "recall") tower(c.x + 2.5, c.z - 2.5);
+      d.period = kind === "meteorImpact" || kind === "waterWave" || kind === "recall" ? 2.2 : 1.7;
+      d.t = d.period - 0.05 - Math.random() * 0.2;
+      d.tick = (dt) => {
+        d.t += dt;
+        if (d.t < d.period) return;
+        d.t = 0;
+        const p = V3(c.x, 0, c.z);
+        const o = { radius: kind === "explosion" ? 2.2 : kind === "meteorImpact" ? 3.2 : undefined };
+        if (kind === "coins") o.amount = 14;
+        if (kind === "waterWave") Object.assign(o, { length: 8, width: 3.2, yaw: 0 });
+        if (kind === "recall") { p.set(c.x - 2.5, 0, c.z + 2.5); o.to = V3(c.x + 2.5, 2.4, c.z - 2.5); }
+        if (kind === "hit" || kind === "ko") p.y = kind === "hit" ? 1.1 : 0;
+        FX.burst(kind, p, o);
+      };
+    }
+    demos.push(d);
+    label(kind, V3(c.x, 0, c.z + (CONES.includes(kind) ? 4.5 : 3.6)));
+    return d;
+  }
+  function impactOf(kind) {
+    return { fireball: "explosion", lavaShell: "lavaSplash", iceShard: "iceShatter", iceSpike: "freezeFlash", waterJet: "splash", waterBlast: "splash", meteor: "meteorImpact" }[kind];
+  }
+
+  // --- mise en place --------------------------------------------------------------------------
+  const kindParam = params.get("kind");
+  const group = params.get("group");
+  let list;
+  if (kindParam) list = [kindParam];
+  else if (group && GROUPS[group]) list = GROUPS[group];
+  else if (params.has("all")) list = ALL;
+  else list = ["explosion"];
+  const cols = list.length === 1 ? 1 : Math.min(list.length, params.has("all") ? 9 : 4);
+  const cell = 9;
+  list.forEach((k, i) => {
+    const cx = (i % cols - (cols - 1) / 2) * cell;
+    const cz = (Math.floor(i / cols) - (Math.ceil(list.length / cols) - 1) / 2) * cell;
+    demo(k, V3(cx, 0, cz));
+  });
+  const rows = Math.ceil(list.length / cols);
+  if (list.length === 1) look(V3(0, 1, 0), Number(params.get("dist") || 17), Number(params.get("pitch") || 42), Number(params.get("yaw") || 0));
+  else look(V3(0, 0, 0), Math.max(cols, rows * 1.6) * cell * 0.95 + 6, Number(params.get("pitch") || 55), 0);
+
+  // boutons
+  const kindsEl = document.getElementById("kinds");
+  const mk = (text, href, on) => { const a = document.createElement("a"); a.textContent = text; a.href = href; if (on) a.className = "on"; kindsEl.appendChild(a); };
+  mk("tout", "?all=1", params.has("all"));
+  for (const g of Object.keys(GROUPS)) mk(g, "?group=" + g, group === g);
+  for (const k of ALL) mk(k, "?kind=" + encodeURIComponent(k), kindParam === k);
+  addEventListener("resize", () => { renderer.setSize(innerWidth, innerHeight); camera.aspect = innerWidth / innerHeight; camera.updateProjectionMatrix(); });
+
+  // --- boucle ---------------------------------------------------------------------------------
+  const clock = new THREE.Clock();
+  const statsEl = document.getElementById("stats");
+  let time = 0, paused = false, frames = 0, acc = 0, fps = 0;
+  const tmp = new THREE.Vector3();
+  function step(dt) {
+    time += dt;
+    for (const d of demos) d.tick(dt);
+    FX.update(dt, time);
+  }
+  function frame() {
+    requestAnimationFrame(frame);
+    const dt = Math.min(0.05, clock.getDelta());
+    step(paused ? 0 : dt);
+    controls.update();
+    renderer.render(scene, camera);
+    frames++; acc += dt;
+    if (acc > 0.5) { fps = frames / acc; frames = 0; acc = 0; }
+    for (const l of labels) {
+      tmp.copy(l.pos).project(camera);
+      l.d.style.left = ((tmp.x + 1) / 2 * innerWidth) + "px";
+      l.d.style.top = ((1 - tmp.y) / 2 * innerHeight) + "px";
+      l.d.style.visibility = tmp.z < 1 ? "visible" : "hidden";
+    }
+    const info = renderer.info.render;
+    statsEl.textContent = `${list.length} effet(s) · ${fps.toFixed(0)} i/s · appels ${info.calls} · triangles ${(info.triangles / 1000).toFixed(0)} k${mobile ? " · mobile" : ""}`;
+  }
+  frame();
+  window.fxg = {
+    pause(p) { paused = p; },
+    restart() { for (const d of demos) { if (d.period && d.period < 1e8) d.t = BURSTS.includes(d.kind) ? d.period : 0; d.k = undefined; if (PROJ.includes(d.kind) && d.h) { d.h.release(); d.h = null; } } },
+    advance(sec, d) { d = d || 1 / 30; for (let t = 0; t < sec; t += d) step(d); renderer.render(scene, camera); step(0); },
+    look, demos, renderer, scene, camera,
+    stats() { const i = renderer.info.render; return { calls: i.calls, triangles: i.triangles, fx: FX.stats() }; },
+  };
+  document.title = "Galerie des effets · prête";
+})();
+</script>
+</body>
+</html>

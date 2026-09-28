@@ -1,0 +1,295 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Galerie des voleurs</title>
+<style>
+  :root { --bg: #1d2418; --panel: rgba(20, 24, 18, 0.82); --ink: #f4efe1; --accent: #ffd23a; --muted: #a9b49a; }
+  html, body { margin: 0; height: 100%; background: var(--bg); color: var(--ink); font: 13px/1.3 system-ui, -apple-system, "Segoe UI", sans-serif; overflow: hidden; }
+  canvas { display: block; }
+  #ui { position: fixed; left: 8px; top: 8px; max-width: min(560px, calc(100vw - 16px)); background: var(--panel); border-radius: 10px; padding: 8px 10px; backdrop-filter: blur(4px); }
+  #ui h1 { font-size: 14px; margin: 0 0 6px; color: var(--accent); }
+  #ui .row { display: flex; flex-wrap: wrap; gap: 4px; margin: 4px 0; }
+  #ui button { font: inherit; font-size: 12px; border: 0; border-radius: 6px; padding: 4px 7px; background: #3a4431; color: var(--ink); cursor: pointer; }
+  #ui button.on { background: var(--accent); color: #2a2206; font-weight: 600; }
+  #ui button.ev { background: #4b3a52; }
+  #stats { color: var(--muted); font: 11px/1.35 ui-monospace, Menlo, monospace; white-space: pre; margin-top: 4px; }
+  .label { position: fixed; transform: translate(-50%, -100%); font-size: 11px; font-weight: 600; color: #fff; text-shadow: 0 1px 2px #000, 0 0 4px #000; pointer-events: none; white-space: nowrap; }
+  .label.elite { color: var(--accent); }
+  body.clean #ui, body.clean .label { display: none; }
+</style>
+</head>
+<body>
+<div id="ui">
+  <h1>Pas touche à mes trésors — les voleurs</h1>
+  <div class="row" id="states"></div>
+  <div class="row" id="events"></div>
+  <div class="row" id="views"></div>
+  <div id="stats"></div>
+</div>
+<script src="../../static/assets/engine-0.40e246fcf208.js"></script>
+<script src="../../static/assets/engine-1.f10ee4887053.js"></script>
+<script src="../vendor/GLTFLoader.js"></script>
+<script src="../vendor/SkeletonUtils.js"></script>
+<script src="../core/00-ptmt.js"></script>
+<script src="../fx/05-kit.js"></script>
+<script src="../actors/10-actors.js"></script>
+<script src="../actors/11-types.js"></script>
+<script src="../actors/12-overlay.js"></script>
+<script>
+(async function () {
+  "use strict";
+  const params = new URLSearchParams(location.search);
+  const view = params.get("view") || "aerial";
+  const count = Number(params.get("count") || 0);
+  const solo = params.get("solo");
+  const mobile = params.has("mobile") || matchMedia("(pointer: coarse)").matches;
+  if (params.has("clean")) document.body.classList.add("clean");
+
+  const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: "high-performance" });
+  renderer.setPixelRatio(Math.min(devicePixelRatio, mobile ? 2 : 1.5));
+  renderer.setSize(innerWidth, innerHeight);
+  renderer.outputEncoding = THREE.sRGBEncoding;
+  renderer.toneMapping = THREE.ACESFilmicToneMapping;
+  renderer.toneMappingExposure = 1.05;
+  renderer.shadowMap.enabled = true;
+  renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+  document.body.appendChild(renderer.domElement);
+
+  const scene = new THREE.Scene();
+  scene.background = PTMT.color(0x9fc4e8);
+  scene.fog = new THREE.Fog(PTMT.color(0x9fc4e8), 60, 140);
+  const hemi = new THREE.HemisphereLight(PTMT.color(0xbcd6ff), PTMT.color(0x5b6b3a), 0.95);
+  scene.add(hemi);
+  const sun = new THREE.DirectionalLight(PTMT.color(0xffe7c4), 2.3);
+  sun.position.set(-14, 26, 16);
+  sun.castShadow = true;
+  sun.shadow.mapSize.set(2048, 2048);
+  sun.shadow.camera.left = -24; sun.shadow.camera.right = 24; sun.shadow.camera.top = 24; sun.shadow.camera.bottom = -24;
+  sun.shadow.camera.near = 1; sun.shadow.camera.far = 80;
+  sun.shadow.bias = -0.0006; sun.shadow.normalBias = 0.02;
+  scene.add(sun);
+
+  // sol d'herbe (texture peinte sur canvas)
+  function grassTexture() {
+    const c = document.createElement("canvas"); c.width = c.height = 512;
+    const x = c.getContext("2d");
+    x.fillStyle = "#6f9a3c"; x.fillRect(0, 0, 512, 512);
+    const rnd = PTMT.rng(5);
+    // taches et brins dessinés avec répétition sur les bords : texture sans couture
+    const wrap = (fn) => { for (const ox of [-512, 0, 512]) for (const oy of [-512, 0, 512]) { x.save(); x.translate(ox, oy); fn(); x.restore(); } };
+    for (let i = 0; i < 90; i++) { const cx = rnd() * 512, cy = rnd() * 512, light = rnd() > 0.5; wrap(() => { const g = x.createRadialGradient(cx, cy, 0, cx, cy, 60); g.addColorStop(0, light ? "rgba(140,180,70,0.35)" : "rgba(80,120,40,0.35)"); g.addColorStop(1, "rgba(0,0,0,0)"); x.fillStyle = g; x.fillRect(cx - 60, cy - 60, 120, 120); }); }
+    for (let i = 0; i < 9000; i++) { const px = rnd() * 512, py = rnd() * 512, l = 3 + rnd() * 6, dx = (rnd() - 0.5) * 2; x.strokeStyle = `hsl(${80 + rnd() * 30},${40 + rnd() * 25}%,${28 + rnd() * 22}%)`; x.lineWidth = 1; wrap(() => { x.beginPath(); x.moveTo(px, py); x.lineTo(px + dx, py - l); x.stroke(); }); }
+    const t = new THREE.CanvasTexture(c); t.wrapS = t.wrapT = THREE.RepeatWrapping; t.repeat.set(24, 24); t.encoding = THREE.sRGBEncoding; t.anisotropy = 4;
+    return t;
+  }
+  const ground = new THREE.Mesh(new THREE.PlaneGeometry(160, 160), new THREE.MeshStandardMaterial({ map: grassTexture(), roughness: 0.95 }));
+  ground.rotation.x = -Math.PI / 2;
+  ground.receiveShadow = true;
+  scene.add(ground);
+  // eau (visible avec l'état « dans l'eau »)
+  const water = new THREE.Mesh(new THREE.PlaneGeometry(60, 30), new THREE.MeshStandardMaterial({ color: PTMT.color(0x2f8fa6), transparent: true, opacity: 0.72, roughness: 0.12, metalness: 0.1 }));
+  water.rotation.x = -Math.PI / 2; water.position.y = 0.0; water.visible = false; water.renderOrder = 5;
+  scene.add(water);
+  const bed = new THREE.Mesh(new THREE.PlaneGeometry(60, 30), new THREE.MeshStandardMaterial({ color: PTMT.color(0x3b5a4a), roughness: 1 }));
+  bed.rotation.x = -Math.PI / 2; bed.position.y = -1.8; bed.visible = false;
+  scene.add(bed);
+
+  const camera = new THREE.PerspectiveCamera(40, innerWidth / innerHeight, 0.1, 400);
+  const controls = new THREE.OrbitControls(camera, renderer.domElement);
+  controls.enableDamping = true;
+  function setView(v) {
+    const target = new THREE.Vector3(0, 0.8, 0);
+    let dist = 30, pitch = 50, yaw = 0;
+    if (v === "close") { dist = solo ? 6.5 : 15; pitch = solo ? 12 : 14; target.y = solo ? 1.1 : 1.1; }
+    if (v === "three") { dist = solo ? 6.5 : 15; pitch = 22; yaw = 35; target.y = 1.1; }
+    if (v === "back") { dist = solo ? 6.5 : 15; pitch = 25; yaw = 160; target.y = 1.1; }
+    if (v === "top") { dist = solo ? 9 : 26; pitch = 55; yaw = 0; }
+    if (v === "face") { dist = 2.3; pitch = 6; yaw = 18; target.set(solo ? -1.6 : 0, 1.72, 0); }
+    if (v === "side") { dist = 16; pitch = 18; yaw = 38; }
+    if (v === "far") { dist = 55; pitch = 50; }
+    if (count) { dist = v === "close" ? 22 : 34; }
+    const p = pitch * Math.PI / 180, y = yaw * Math.PI / 180;
+    camera.position.set(target.x + Math.sin(y) * Math.cos(p) * dist, target.y + Math.sin(p) * dist, target.z + Math.cos(y) * Math.cos(p) * dist);
+    controls.target.copy(target);
+    camera.lookAt(target);
+    controls.update();
+  }
+
+  PTMT.actors.mobile = mobile;
+  await PTMT.actors.load("../../static/assets/visitor.0ad88b8a340a.glb.gz");
+
+  // --- ennemis ---
+  const TYPES = PTMT.actors.TYPES;
+  const items = [];
+  function spawn(type, elite, x, z, yaw) {
+    const a = PTMT.actors.create(type, elite);
+    a.object.position.set(x, 0, z);
+    a.object.rotation.y = yaw || 0;
+    scene.add(a.object);
+    const label = document.createElement("div");
+    label.className = "label" + (elite ? " elite" : "");
+    label.textContent = a.label;
+    document.body.appendChild(label);
+    const it = { a, type, elite, label, x, z, phase: Math.random() * 10, state: {} };
+    items.push(it);
+    return it;
+  }
+  if (count) {
+    for (let i = 0; i < count; i++) {
+      const type = TYPES[i % TYPES.length], elite = i % 5 === 4;
+      const it = spawn(type, elite, 0, 0, 0);
+      it.roam = { r: 4 + (i % 7) * 2.2, a: (i / count) * Math.PI * 2, s: 0.18 + (i % 3) * 0.05 };
+      it.label.style.display = "none";
+    }
+  } else if (solo) {
+    spawn(solo, false, -1.6, 0, 0.35);
+    spawn(solo, true, 1.8, 0, -0.35);
+  } else {
+    TYPES.forEach((t, i) => {
+      const x = (i - (TYPES.length - 1) / 2) * 3.3;
+      spawn(t, false, x, -3.2, 0);
+      spawn(t, true, x, 3.4, 0);
+    });
+  }
+  setView(view);
+
+  // --- états et événements ---
+  const STATE_KEYS = [
+    ["moving", "Marche", "m"], ["carrying", "Sac", "c"], ["frozen", "Gelé", "f"], ["burning", "En feu", "b"],
+    ["wet", "Mouillé", "w"], ["netted", "Filet", "n"], ["untargetable", "Fumée", "u"], ["inWater", "Dans l’eau", "i"],
+    ["overheated", "Surchauffe", "o"], ["lured", "Attiré", "l"], ["boosted", "Accéléré", "s"], ["tenacity", "Ténacité", "t"], ["lowHp", "PV bas", "p"],
+  ];
+  const EVENTS = [["hit", "h"], ["knockback", "k"], ["pull", "v"], ["ko", "x"], ["steal", "1"], ["drop", "2"], ["helmetOff", "3"], ["flipflops", "4"], ["smokePuff", "5"], ["overheat", "6"], ["rage", "7"], ["splash", "8"], ["fooled", "9"]];
+  const global = { moving: !params.has("idle") };
+  for (const k of (params.get("state") || "").split(",").filter(Boolean)) global[k] = true;
+  const statesEl = document.getElementById("states"), eventsEl = document.getElementById("events"), viewsEl = document.getElementById("views");
+  const buttons = {};
+  for (const [k, label, key] of STATE_KEYS) {
+    const b = document.createElement("button");
+    b.textContent = label + " (" + key.toUpperCase() + ")";
+    b.onclick = () => toggle(k);
+    statesEl.appendChild(b);
+    buttons[k] = b;
+  }
+  function refreshButtons() { for (const k in buttons) buttons[k].classList.toggle("on", !!global[k]); water.visible = bed.visible = !!global.inWater; ground.visible = !global.inWater; }
+  function toggle(k) { global[k] = !global[k]; refreshButtons(); }
+  refreshButtons();
+  function fire(name) {
+    for (const it of items) {
+      if (name === "ko") it.koAt = performance.now();
+      it.a.event(name);
+      if (name === "hit") it.flash = 1;
+    }
+  }
+  for (const [name, key] of EVENTS) {
+    const b = document.createElement("button");
+    b.className = "ev"; b.textContent = name + " (" + key + ")";
+    b.onclick = () => fire(name);
+    eventsEl.appendChild(b);
+  }
+  for (const v of ["aerial", "close", "three", "back", "side", "far"]) {
+    const b = document.createElement("button"); b.textContent = "vue " + v; b.onclick = () => setView(v); viewsEl.appendChild(b);
+  }
+  addEventListener("keydown", (e) => {
+    const s = STATE_KEYS.find((x) => x[2] === e.key.toLowerCase());
+    if (s) return toggle(s[0]);
+    const ev = EVENTS.find((x) => x[1] === e.key.toLowerCase());
+    if (ev) return fire(ev[0]);
+  });
+  addEventListener("resize", () => { renderer.setSize(innerWidth, innerHeight); camera.aspect = innerWidth / innerHeight; camera.updateProjectionMatrix(); });
+
+  // --- boucle ---
+  const statsEl = document.getElementById("stats");
+  const clock = new THREE.Clock();
+  let time = 0, frames = 0, acc = 0, updMs = 0, fps = 0, frameMs = 0;
+  const tmp = new THREE.Vector3();
+  let paused = false;
+  function step(dt) {
+    time += dt;
+    const t0 = performance.now();
+    for (const it of items) {
+      const a = it.a;
+      if (it.koAt && a.finished) {
+        // relance après K.-O. (la galerie recrée l'ennemi comme le ferait le jeu)
+        const { type, elite, label } = it;
+        const pos = a.object.position.clone(), rot = a.object.rotation.y;
+        a.release();
+        it.a = PTMT.actors.create(type, elite);
+        it.a.object.position.copy(pos); it.a.object.rotation.y = rot;
+        scene.add(it.a.object);
+        it.koAt = 0;
+        label.textContent = it.a.label;
+        continue;
+      }
+      if (it.roam) {
+        const r = it.roam;
+        r.a += dt * r.s * (global.moving ? 1 : 0);
+        a.object.position.set(Math.cos(r.a) * r.r, 0, Math.sin(r.a) * r.r);
+        a.object.rotation.y = -r.a;
+      }
+      it.flash = Math.max(0, (it.flash || 0) - dt * 5);
+      const st = it.state;
+      st.moving = !!global.moving;
+      st.speed = global.moving ? (a.naturalSpeed * (global.boosted ? 1.5 : 1)) : 0;
+      st.carrying = !!global.carrying; st.frozen = !!global.frozen; st.burning = !!global.burning; st.wet = !!global.wet;
+      st.netted = !!global.netted; st.untargetable = !!global.untargetable; st.inWater = !!global.inWater; st.overheated = !!global.overheated;
+      st.lured = !!global.lured; st.boosted = !!global.boosted; st.hitFlash = it.flash;
+      st.tenacity = global.tenacity ? 0.7 : 0; st.hpFrac = global.lowHp ? 0.2 : 1;
+      a.update(dt, time, st);
+    }
+    updMs = updMs * 0.9 + (performance.now() - t0) * 0.1;
+  }
+  function frame() {
+    requestAnimationFrame(frame);
+    const dt = Math.min(0.05, clock.getDelta());
+    step(paused ? 0 : dt);
+    controls.update();
+    const f0 = performance.now();
+    renderer.render(scene, camera);
+    frameMs = frameMs * 0.9 + (performance.now() - f0) * 0.1;
+    frames++; acc += dt;
+    if (acc > 0.5) { fps = frames / acc; frames = 0; acc = 0; }
+    // étiquettes
+    for (const it of items) {
+      if (it.label.style.display === "none") continue;
+      tmp.copy(it.a.object.position); tmp.y += it.a.height + 0.25;
+      tmp.project(camera);
+      it.label.style.left = ((tmp.x + 1) / 2 * innerWidth) + "px";
+      it.label.style.top = ((1 - tmp.y) / 2 * innerHeight) + "px";
+      it.label.style.visibility = tmp.z < 1 ? "visible" : "hidden";
+    }
+    const info = renderer.info.render;
+    statsEl.textContent = `${items.length} ennemis · ${fps.toFixed(0)} i/s · maj ${updMs.toFixed(2)} ms · rendu ${frameMs.toFixed(1)} ms\nappels ${info.calls} · triangles ${(info.triangles / 1000).toFixed(0)} k`;
+  }
+  frame();
+
+  // --- pilotage pour les captures ---
+  window.gallery = {
+    set(k, v) { global[k] = v; refreshButtons(); },
+    fire, setView, items, renderer, scene, camera,
+    pause(p) { paused = p; },
+    advance(sec, stepDt) { const d = stepDt || 1 / 30; for (let t = 0; t < sec; t += d) step(d); renderer.render(scene, camera); step(0); },
+    stats() {
+      const info = renderer.info.render;
+      return { actors: items.length, calls: info.calls, triangles: info.triangles, updateMs: +updMs.toFixed(3), renderMs: +frameMs.toFixed(2), fps: +fps.toFixed(1), variants: PTMT.actors.stats() };
+    },
+    bench(frames) {
+      // coût CPU des mises à jour (hors rendu) sur N images
+      const n = frames || 120, d = 1 / 60;
+      const t0 = performance.now();
+      for (let i = 0; i < n; i++) step(d);
+      const upd = (performance.now() - t0) / n;
+      const r0 = performance.now();
+      for (let i = 0; i < 10; i++) renderer.render(scene, camera);
+      const rend = (performance.now() - r0) / 10;
+      const info = renderer.info.render;
+      return { actors: items.length, updateMsPerFrame: +upd.toFixed(3), renderMsSwiftShader: +rend.toFixed(1), calls: info.calls, triangles: info.triangles };
+    },
+  };
+  document.title = "Galerie des voleurs · prête";
+})().catch((e) => { console.error(e && e.stack || e); document.title = "erreur"; });
+</script>
+</body>
+</html>
