@@ -21803,8 +21803,11 @@ void main(){
  if(moving>.001){
   float bank32=1.-smoothstep(.16,.55,depth);
   float foamAmount32=smoothstep(.36-.24*turb32-.08*bank32,.46-.2*turb32-.06*bank32,fleck32)*(.3+.7*max(turb32,bank32*.5))*(.55+.9*smoothstep(.45,.7,streak32));
-  foamAmount32=max(foamAmount32,turb32*turb32*smoothstep(.3,.7,streak32+fleck32*.6)*.85);
-  colour=mix(colour,vec3(.86,.93,.92)*(.18+.82*daylight),clamp(foamAmount32,0.,1.)*.72*(.45+.55*near));
+  // Remous : plaques d'ecume bouillonnantes separees par de l'eau sombre.
+  float froth32=smoothstep(.76,1.02,streak32*.55+fleck32*1.1+waterNoise32(p*4.1-flowN32*time*.8)*.45);
+  foamAmount32=max(foamAmount32,turb32*turb32*froth32*.85);
+  colour*=1.-turb32*.18*(1.-froth32);
+  colour=mix(colour,vec3(.86,.93,.92)*(.18+.82*daylight),clamp(foamAmount32,0.,1.)*.68*(.45+.55*near));
   colour+=vec3(.07,.11,.11)*(streak32-.5)*daylight*attenuation*(.6+.4*near);
  }
  colour+=vec3(.53,.68,.72)*rainRings25*(.18+.82*daylight)*(1.-smoothstep(36.,120.,distanceToEye));

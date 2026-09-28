@@ -28,9 +28,9 @@ float h32(vec2 p){return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453);}
 float n32(vec2 p){vec2 i=floor(p),f=fract(p);f=f*f*(3.-2.*f);return mix(mix(h32(i),h32(i+vec2(1.,0.)),f.x),mix(h32(i+vec2(0.,1.)),h32(i+vec2(1.,1.)),f.x),f.y);}
 void main(){
  float x=vUv.x,y=vUv.y;
- float strands=n32(vec2(x*16.+vCurtain.y*9.,y*1.6+time*3.4))*.6+n32(vec2(x*34.+vCurtain.y*3.,y*3.1+time*4.6))*.4;
- float edge=smoothstep(0.,.14,x)*(1.-smoothstep(.86,1.,x));
- float alpha=smoothstep(.38,.78,strands)*edge*(.3+.7*y)*vCurtain.x;
+ float strands=n32(vec2(x*38.+vCurtain.y*9.,y*1.3+time*3.4))*.6+n32(vec2(x*71.+vCurtain.y*3.,y*2.6+time*4.6))*.4;
+ float edge=smoothstep(0.,.2,x)*(1.-smoothstep(.8,1.,x));
+ float alpha=smoothstep(.52,.82,strands)*edge*(.25+.75*y*y)*vCurtain.x;
  if(alpha<.01)discard;
  gl_FragColor=vec4(vec3(.8,.92,.94)*(.26+.74*daylight),alpha*.85);
  #include <tonemapping_fragment>
