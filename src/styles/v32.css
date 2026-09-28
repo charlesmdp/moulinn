@@ -271,8 +271,53 @@
   padding: 10px 18px;
 }
 #moulin-vallee-3d.v32.game22 .flight-bar {
+  width: max-content;
   border-radius: 18px;
   padding: 10px 14px;
+  gap: 12px;
+  align-items: center;
+}
+#moulin-vallee-3d.v32.game22 .flight-bar > span {
+  color: rgba(243, 246, 241, 0.8);
+  font-size: 12.5px;
+}
+#moulin-vallee-3d.v32.game22[data-ui22-guides="hidden"] .flight-bar > span {
+  display: none;
+}
+#moulin-vallee-3d.v32.game22 .flight-bar b {
+  color: #fff;
+  font-weight: 650;
+}
+#moulin-vallee-3d.v32.game22 .flight-bar label {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: #f3f6f1;
+  font-size: 13px;
+}
+#moulin-vallee-3d.v32.game22 .flight-bar input {
+  accent-color: #62d68e;
+}
+#moulin-vallee-3d.v32.game22 .flight-bar output {
+  min-width: 48px;
+  color: rgba(243, 246, 241, 0.8);
+  font-variant-numeric: tabular-nums;
+}
+#moulin-vallee-3d.v32.game22 .flight-bar .btn {
+  min-height: 36px;
+  padding: 0 16px;
+  border: 0;
+  outline: 0;
+  border-radius: 12px;
+  background: linear-gradient(180deg, #3f7a63, #2c5b48);
+  box-shadow: 0 3px 10px rgba(10, 30, 22, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.16);
+  color: #fff;
+  text-shadow: none;
+  font: 650 13px/1 var(--v32-font);
+}
+#moulin-vallee-3d.v32.game22 .flight-bar .btn:hover {
+  filter: brightness(1.08);
+  transform: none;
 }
 #moulin-vallee-3d.v32.game22 .game19-toast {
   border-radius: 14px;
