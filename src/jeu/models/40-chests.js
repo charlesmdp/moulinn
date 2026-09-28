@@ -81,7 +81,7 @@
     if (tier === 3) {
       // Pieds griffus dorés, gueule (fond rouge + dents), plaque de mâchoire articulée plus bas.
       for (const sx of [-1, 1]) for (const sz of [-1, 1]) p.add(G.sphere(0.07, 8, 6), "gold", { p: [sx * (W / 2 - 0.05), 0.02, sz * (D / 2 - 0.05)], s: [1, 0.6, 1], c: "#f2b52e" });
-      p.add(G.rbox(W * 0.62, H * 0.26, 0.05, 0.02), "matte", { p: [0, H * 0.32, D / 2 - 0.02], c: "#2a0508" });
+      p.add(G.rbox(W * 0.62, H * 0.26, 0.05, 0.02), "glow", { p: [0, H * 0.32, D / 2 - 0.02], c: "#6a0a12" });
       for (let i = 0; i < 6; i++) p.add(G.cone(0.028, 0.07, 4), "glossy", { p: [-W * 0.25 + i * (W * 0.1), H * 0.43, D / 2 + 0.01], r: [Math.PI, 0, 0], c: "#fff6e0" });
     }
     body.add(p.build());
@@ -244,7 +244,7 @@
           face.setOpen(al > 0.3 ? 1 : st.open > 0.2 ? 0.6 : 0);
           face.look(al > 0.3 ? 0 : null, 0.2);
           face.update(dt);
-          jaw.rotation.x = al * (0.9 + Math.sin(time * 18) * 0.15) + st.open * 0.2;
+          jaw.rotation.x = al * (1.25 + Math.sin(time * 18) * 0.15) + st.open * 0.2;
           sirenMat.color.copy(K.col("#ff2a3a")).multiplyScalar(0.6 + al * (1.5 + Math.sin(time * 14) * 1.2));
           siren.rotation.y = time * (0.5 + al * 8);
           for (let i = 0; i < waves.length; i++) {

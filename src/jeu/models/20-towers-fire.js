@@ -213,19 +213,38 @@
       [R * 0.97, 0],
     ].reverse();
   }
+  /** Rayon de la pente extérieure du volcan à la hauteur y (interpolation du profil). */
+  function slopeRadius(R, H, cr, y) {
+    const pts = [
+      [R, 0.02],
+      [R * 0.95, H * 0.12],
+      [R * 0.78, H * 0.38],
+      [R * 0.52, H * 0.72],
+      [cr * 1.3, H - 0.02],
+    ];
+    if (y <= pts[0][1]) return pts[0][0];
+    for (let i = 1; i < pts.length; i++)
+      if (y <= pts[i][1]) {
+        const t = (y - pts[i - 1][1]) / (pts[i][1] - pts[i - 1][1]);
+        return lerp(pts[i - 1][0], pts[i][0], t);
+      }
+    return pts[pts.length - 1][0];
+  }
+  /** Coulées de lave qui épousent la pente (à moitié enfoncées dans la roche). */
   function lavaVeins(p, key, R, H, cr, n, w, seed) {
     const rnd = PTMT.rng(seed);
     for (let i = 0; i < n; i++) {
       const a = (i / n) * TAU + rnd() * 0.5 + 0.9;
       const pts = [];
-      for (let k = 0; k <= 5; k++) {
-        const t = k / 5;
-        const y = lerp(H * 0.98, H * 0.05, t);
-        const rr = lerp(cr * 1.25, R * 0.98, Math.pow(t, 0.8)) + 0.012;
+      for (let k = 0; k <= 7; k++) {
+        const t = k / 7;
+        const y = lerp(H * 0.97, H * 0.04, t);
+        const wt = w * (1 - t * 0.55);
+        const rr = slopeRadius(R, H, cr, y) + wt * 0.25;
         const aa = a + Math.sin(t * 5 + i) * 0.12;
         pts.push([Math.sin(aa) * rr, y, Math.cos(aa) * rr]);
       }
-      p.add(G.tube(key + ":vein" + i, pts, (t) => w * (1 - t * 0.55), 9, 4), "lava", {});
+      p.add(G.tube(key + ":vein" + i, pts, (t) => w * (1 - t * 0.55), 12, 4), "lava", {});
     }
   }
 
