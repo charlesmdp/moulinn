@@ -3717,7 +3717,7 @@ float ecoCut21(vec2 p){vec2 uv=(p-uEcoBounds21.xy)*uEcoBounds21.zw;if(any(lessTh
     const xe = 256,
       H = new Uint8Array(xe * xe * 4),
       W = new t.Color(),
-      D = ["#496b4b", "#698648", "#8d9b58", "#95896c"].map((l) => new t.Color(l).convertSRGBToLinear());
+      D = ["#3b6a42", "#5a8a41", "#83a24c", "#8e8460"].map((l) => new t.Color(l).convertSRGBToLinear());
     function De(l, j, ie) {
       const ze = le((ie - l) / (j - l), 0, 1);
       return ze * ze * (3 - 2 * ze);

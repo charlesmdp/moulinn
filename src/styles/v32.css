@@ -111,7 +111,7 @@
   text-shadow: none;
   font: 650 14.5px/1 var(--v32-font);
   letter-spacing: 0;
-  transition: background 0.18s, color 0.18s, box-shadow 0.18s;
+  transition: background-color 0.18s, box-shadow 0.18s;
 }
 #moulin-vallee-3d.v32.game22 .mode-switch button:hover {
   background: rgba(47, 91, 74, 0.09);
@@ -380,16 +380,16 @@
   font: 700 10px/1 var(--v32-font);
 }
 
-/* ---------- Réglages et atelier ---------- */
+/* ---------- Réglages et atelier : verre fumé, textes clairs (conçus ainsi depuis la V22) ---------- */
 #moulin-vallee-3d.v32.game22 .game19-settings,
 #moulin-vallee-3d.v32.game22 .editor-panel {
-  border: 1px solid var(--v32-glass-border);
+  border: 1px solid rgba(255, 255, 255, 0.14);
   border-radius: 20px;
-  background: rgba(252, 253, 251, 0.9);
+  background: rgba(21, 31, 28, 0.86);
   -webkit-backdrop-filter: var(--v32-blur);
   backdrop-filter: var(--v32-blur);
   box-shadow: var(--v32-shadow);
-  color: var(--v32-ink);
+  color: #eef2ec;
   font-family: var(--v32-font);
 }
 #moulin-vallee-3d.v32.game22 .game19-settings {
@@ -398,42 +398,71 @@
   padding: 16px;
 }
 #moulin-vallee-3d.v32.game22 .game19-settings .btn,
-#moulin-vallee-3d.v32.game22 .editor-panel .btn,
-#moulin-vallee-3d.v32.game22 .game19-settings select,
-#moulin-vallee-3d.v32.game22 .editor-panel select {
-  border: 1px solid var(--v32-line);
+#moulin-vallee-3d.v32.game22 .editor-panel .btn {
+  border: 1px solid rgba(255, 255, 255, 0.16);
   border-radius: 11px;
-  background: #fff;
+  background: rgba(255, 255, 255, 0.08);
   box-shadow: none;
-  color: var(--v32-ink);
+  color: #f1f5f0;
   text-shadow: none;
   font-family: var(--v32-font);
-  font-weight: 600;
+  font-weight: 650;
   outline: 0;
+}
+#moulin-vallee-3d.v32.game22 .game19-settings .btn:hover:not(:disabled),
+#moulin-vallee-3d.v32.game22 .editor-panel .btn:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.16);
+  border-color: rgba(255, 255, 255, 0.26);
 }
 #moulin-vallee-3d.v32.game22 .game19-settings .btn[aria-pressed="true"],
 #moulin-vallee-3d.v32.game22 .editor-panel .btn[aria-pressed="true"],
 #moulin-vallee-3d.v32.game22 .editor-panel .btn.primary {
-  background: var(--v32-accent);
-  border-color: var(--v32-accent);
+  background: linear-gradient(180deg, #438068, #2f5b4a);
+  border-color: rgba(143, 224, 176, 0.45);
   color: #fff;
 }
+#moulin-vallee-3d.v32.game22 .game19-settings select,
+#moulin-vallee-3d.v32.game22 .editor-panel select,
+#moulin-vallee-3d.v32.game22 .editor-panel input[type="search"],
+#moulin-vallee-3d.v32.game22 .editor-panel input[type="number"] {
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 11px;
+  background-color: rgba(255, 255, 255, 0.08);
+  color: #f1f5f0;
+  font-family: var(--v32-font);
+  box-shadow: none;
+}
+#moulin-vallee-3d.v32.game22 .game19-settings select option,
+#moulin-vallee-3d.v32.game22 .editor-panel select option {
+  color: #1d2b25;
+  background: #fff;
+}
 #moulin-vallee-3d.v32.game22 .game19-settings-title strong,
+#moulin-vallee-3d.v32.game22 .panel-title h2,
 #moulin-vallee-3d.v32.game22 .ambience20-heading strong {
-  font-size: 16px;
-  font-weight: 750;
-  color: var(--v32-ink);
+  font: 750 18px/1.2 var(--v32-font);
+  color: #fff;
+  text-shadow: none;
+}
+#moulin-vallee-3d.v32.game22 .eyebrow {
+  color: #8fe0b0;
+  letter-spacing: 0.14em;
+}
+#moulin-vallee-3d.v32.game22 .editor-badge {
+  background: rgba(143, 224, 176, 0.16);
+  color: #bfeccf;
+  border: 0;
 }
 #moulin-vallee-3d.v32.game22 .ambience20-panel {
   border-radius: 14px;
-  background: rgba(47, 91, 74, 0.06);
-  border: 1px solid var(--v32-line);
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
 }
 #moulin-vallee-3d.v32.game22 .v32-weather-status {
   margin: 8px 2px 0;
   font-size: 12.5px;
   line-height: 1.4;
-  color: var(--v32-muted);
+  color: #bfd0c6;
 }
 #moulin-vallee-3d.v32.game22 .v32-weather-status:empty {
   display: none;
@@ -451,9 +480,58 @@
   font: 650 14px/1 var(--v32-font);
 }
 
-/* ---------- Écran de chargement ---------- */
-#moulin-vallee-3d.v32.game22 .moulin-loading {
-  font-family: var(--v32-font);
+/* ---------- Écran de chargement (affiché avant l'ajout de .v32 : règles génériques) ---------- */
+#moulin-vallee-3d .moulin-loading {
+  background: radial-gradient(120% 90% at 50% 30%, #f3f6ee 0%, #dfe9dc 55%, #c9dccd 100%) !important;
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+}
+#moulin-vallee-3d .moulin-loading::before {
+  content: "M";
+  display: grid;
+  place-items: center;
+  width: 64px;
+  height: 64px;
+  margin: 0 auto 18px;
+  border-radius: 18px;
+  background: linear-gradient(160deg, #3a6b57, #244a3b);
+  color: #f5eed6;
+  font: italic 600 42px/1 "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, serif;
+  box-shadow: 0 10px 26px rgba(28, 64, 50, 0.3);
+}
+#moulin-vallee-3d .moulin-loading strong {
+  font: 700 22px/1.25 -apple-system, BlinkMacSystemFont, "SF Pro Display", "Segoe UI", Roboto, sans-serif;
+  color: #1d2b25;
+  letter-spacing: -0.01em;
+}
+#moulin-vallee-3d .moulin-loading p {
+  color: #5a6a62;
+}
+#moulin-vallee-3d .moulin-loading::after {
+  content: "";
+  display: block;
+  width: 180px;
+  height: 4px;
+  margin: 18px auto 0;
+  border-radius: 2px;
+  background:
+    linear-gradient(90deg, transparent, #3d7560, transparent) 0 0 / 60% 100% no-repeat,
+    rgba(47, 91, 74, 0.14);
+  animation: v32-loading 1.4s ease-in-out infinite;
+}
+#moulin-vallee-3d .moulin-loading[hidden]::after {
+  animation: none;
+}
+@keyframes v32-loading {
+  from {
+    background-position:
+      -120% 0,
+      0 0;
+  }
+  to {
+    background-position:
+      220% 0,
+      0 0;
+  }
 }
 
 /* ---------- Onglet Météo ---------- */
