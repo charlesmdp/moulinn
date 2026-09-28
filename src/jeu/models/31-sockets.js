@@ -15,7 +15,7 @@
     G = K.g;
   const { TAU, damp } = K.math;
 
-  const STATE_COL = { idle: null, hover: "#fff4c2", valid: "#2ee64a", invalid: "#ff2414" };
+  const STATE_COL = { idle: null, hover: "#fff4c2", valid: "#3dff5a", invalid: "#ff2414" };
   const FAM = { fire: "#ff7a1f", ice: "#7fe8ff", water: "#43f2df" };
 
   function buildFire(root, glow) {
@@ -66,7 +66,7 @@
     s.add(G.planeUp(1.5, 1.5), "sealIce", { p: [0, 0.105, 0], c: "#ffffff" });
     root.add(s.build({ mats: { sealIce: glow.userData.seal } }));
   }
-  function buildWater(root, glow) {
+  function buildWater(root) {
     const p = K.part("sock:water");
     p.add(
       G.lathe(
@@ -119,7 +119,6 @@
     const fm = f.build();
     fm.userData.noBounds = true;
     root.add(fm);
-    void glow;
   }
 
   PTMT.models.socket = function (kind) {
@@ -143,7 +142,7 @@
     const ringMat = K.mat("selN").clone();
     owned.push(ringMat);
     const rp = K.part("sock:ring");
-    rp.add(G.ring(0.9, 1.1, 40, 10), "selN", {});
+    rp.add(G.ring(0.86, 1.16, 40, 10), "selN", {});
     const ring = rp.build({ mats: { selN: ringMat } });
     ring.position.y = 0.03;
     root.add(ring);

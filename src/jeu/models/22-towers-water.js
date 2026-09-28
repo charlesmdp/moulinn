@@ -12,7 +12,7 @@
   if (!PTMT || !PTMT.models || !PTMT.models.kit) return;
   const K = PTMT.models.kit,
     G = K.g;
-  const { TAU, clamp, lerp, damp, bump, easeInOut, wob } = K.math;
+  const { TAU, damp, bump, easeInOut } = K.math;
   const Spring = K.Spring;
 
   const C = {
@@ -86,7 +86,7 @@
       c.root.add(b.build());
       const garg = K.node(c.yaw, 0, 0.78, 0);
       const gp = K.part("w1:body");
-      gp.add(G.sphere(0.3, 10, 8), "stone", { p: [0, 0.27, -0.06], s: [1.05, 0.9, 1], g: [C.gargD, C.garg, 0, 0.5], uv: [1.2, 1] });
+      gp.add(G.sphere(0.3, 10, 8), "stone", { p: [0, 0.27, -0.06], s: [1.05, 0.9, 1], g: [C.gargD, C.garg, 0, 0.5], uv: [3, 2] });
       for (const sx of [-1, 1]) {
         gp.add(G.sphere(0.16, 8, 6), "stone", { p: [sx * 0.21, 0.13, -0.12], s: [0.9, 0.8, 1.2], c: C.garg, uv: [0.8, 0.8] });
         gp.add(G.sphere(0.085, 6, 5), "stone", { p: [sx * 0.15, 0.05, 0.22], s: [1, 0.8, 1.2], c: C.garg });
@@ -141,7 +141,7 @@
       // Tête, joues, bec-fontaine.
       const head = K.node(garg, 0, 0.6, 0.08);
       const hp = K.part("w1:head");
-      hp.add(G.sphere(0.24, 10, 8), "stone", { s: [1.1, 0.95, 1], g: [C.gargD, C.garg, -0.2, 0.2], uv: [1, 1] });
+      hp.add(G.sphere(0.24, 10, 8), "stone", { s: [1.1, 0.95, 1], g: [C.gargD, C.garg, -0.2, 0.2], uv: [2.6, 2] });
       hp.add(G.rbox(0.2, 0.12, 0.16, 0.05), "stone", { p: [0, -0.07, 0.2], c: C.garg });
       for (const sx of [-1, 1]) {
         hp.add(G.cone(0.07, 0.2, 4), "stone", { p: [sx * 0.2, 0.18, -0.02], r: [0, 0, -sx * 0.7], c: C.gargD });
@@ -228,7 +228,7 @@
     recoil: 3.4,
     build(c) {
       const b = K.part("w2a:base");
-      b.add(G.cyl(1.2, 1.28, 0.28, 16), "stone", { p: [0, 0.14, 0], c: C.stone, uv: [7, 0.4], ao: 0.5, aoH: 0.3 });
+      b.add(G.cyl(1.2, 1.28, 0.28, 16), "stone", { p: [0, 0.14, 0], c: C.stone, uv: "box", tile: 1.6, ao: 0.5, aoH: 0.3 });
       b.add(G.ring(1.0, 1.16, 32, 5), "water", { p: [0, 0.285, 0] });
       b.add(G.torus(1.24, 0.04, 3, 24), "metal", { p: [0, 0.27, 0], r: [Math.PI / 2, 0, 0], c: C.bronze });
       mossPatches(b, [
@@ -238,7 +238,7 @@
       c.root.add(b.build());
       const mach = K.node(c.yaw, 0, 0.28, 0);
       const mp = K.part("w2a:table");
-      mp.add(G.cyl(0.9, 0.95, 0.1, 16), "metal", { p: [0, 0.05, 0], g: [C.bronzeD, C.bronze, 0, 0.1] });
+      mp.add(G.cyl(0.9, 0.95, 0.1, 14), "metal", { p: [0, 0.05, 0], g: [C.bronzeD, C.bronze, 0, 0.1] });
       // Berceau du canon.
       for (const sx of [-1, 1]) mp.add(G.box(0.08, 0.7, 0.6), "wood", { p: [sx * 0.3, 0.45, 0.05], c: C.wood, uv: "box", tile: 0.8 });
       // Corps des pompes.
@@ -306,7 +306,7 @@
         [0.14, 0.45],
         [0.001, 0.45],
       ];
-      bp.add(G.lathe("w2a:barrel", prof, 14), "metal", { r: [Math.PI / 2, 0, 0], g: [C.bronze, C.verd, -0.4, 0.7], vj: 0.15, vs: 5 });
+      bp.add(G.lathe("w2a:barrel", prof, 12), "metal", { r: [Math.PI / 2, 0, 0], g: [C.bronze, C.verd, -0.4, 0.7], vj: 0.15, vs: 5 });
       for (const z of [-0.3, 0.12]) bp.add(G.torus(z < 0 ? 0.255 : 0.21, 0.03, 3, 14), "metal", { p: [0, 0, z], c: C.bronzeD });
       bp.add(G.sphere(0.12, 8, 6), "metal", { p: [0, 0, -0.52], c: C.bronze });
       bp.add(G.disc(0.14, 12), "water", { p: [0, 0, 0.55] });
@@ -315,10 +315,7 @@
       cannon.add(bp.build());
       const face = c.face(cannon, { key: "w2a", p: [0, 0.2, -0.12], r: [-0.2, 0, 0], gap: 0.1, eye: 0.08, skin: C.bronze, lidMat: "metal", brow: C.bronzeD, slant: -0.3, rest: -0.15, browTilt: -0.4 });
       const spr = splash(cannon, 0, 0, 0.8, 0.9);
-      const steam = K.part("w2a:steam");
-      steam.add(G.blob(0.07, 0, 0.1, 3), "matte", { c: "#eef4f6" });
-      const puffM = steam.build({ cast: false });
-      puffM.userData.noBounds = true;
+      const puffM = K.fx.smoke("#f4f8fa", 1, 0.75);
       cannon.add(puffM);
       c.muzzle(cannon, 0, 0, 0.78);
       const kick = new Spring(260, 14, 0);
@@ -340,7 +337,7 @@
           for (let i = 0; i < 2; i++) needles[i].rotation.z = 1.2 - w * 2.2 - Math.sin(t * 3 + i) * 0.15 + st.fire * 1.5;
           const sp = (t * 0.8) % 1;
           puffM.position.set(0, 0.35 + sp * 0.4, -0.3 - sp * 0.1);
-          puffM.scale.setScalar(Math.max(0.001, Math.sin(sp * Math.PI) * (0.6 + w * 1.2 + st.flash * 1.5)));
+          puffM.scale.setScalar(Math.max(0.001, Math.sin(sp * Math.PI) * (0.6 + w * 1.2 + st.flash * 1.5) * 0.25));
           spr.scale.setScalar(0.3 + st.flash * 1.8 + w * 0.2);
           face.setOpen(st.fire > 0.3 ? 1 : -w * 1.4);
           face.look(st.w > 0.05 ? 0 : null, 0.2);
@@ -359,7 +356,7 @@
     build(c) {
       const water = c.inst("waterFx");
       const b = K.part("w3a:base");
-      b.add(G.cyl(1.55, 1.65, 0.3, 18), "stone", { p: [0, 0.15, 0], c: C.stone, uv: [9, 0.45], ao: 0.5, aoH: 0.3 });
+      b.add(G.cyl(1.55, 1.65, 0.3, 18), "stone", { p: [0, 0.15, 0], c: C.stone, uv: "box", tile: 1.6, ao: 0.5, aoH: 0.3 });
       b.add(G.ring(1.28, 1.48, 36, 6), "water", { p: [0, 0.305, 0] });
       b.add(G.torus(1.6, 0.045, 3, 26), "metal", { p: [0, 0.29, 0], r: [Math.PI / 2, 0, 0], c: C.bronze });
       mossPatches(b, [
@@ -479,17 +476,24 @@
       jaw.add(jp.build());
       const wave = K.node(head, 0, -0.1, 0.8);
       const wp = K.part("w3a:wave");
-      const curl = [];
-      for (let i = 0; i <= 10; i++) {
-        const a = (i / 10) * Math.PI * 1.35;
-        curl.push([Math.cos(a) * 0.3 - 0.02, Math.sin(a) * 0.3]);
-      }
-      for (let i = 10; i >= 0; i--) {
-        const a = (i / 10) * Math.PI * 1.35;
-        curl.push([Math.cos(a) * 0.18 + 0.02, Math.sin(a) * 0.16 - 0.04]);
-      }
-      wp.add(G.extrude("w3a:curl", curl, 0.7, 0), "waterFx", { r: [0, -Math.PI / 2, 0] });
-      wp.add(G.sphere(0.07, 6, 4), "snow", { p: [0.0, 0.3, -0.05], c: "#ffffff", s: [5, 1, 1] });
+      // Profil de vague déferlante (la crête s'enroule vers l'avant), extrudé sur la largeur de la gueule.
+      const curl = [
+        [-0.42, -0.1],
+        [-0.26, 0.04],
+        [-0.08, 0.3],
+        [0.08, 0.5],
+        [0.26, 0.55],
+        [0.4, 0.46],
+        [0.43, 0.34],
+        [0.34, 0.3],
+        [0.25, 0.37],
+        [0.15, 0.32],
+        [0.1, 0.18],
+        [0.16, 0.02],
+        [0.4, -0.1],
+      ];
+      wp.add(G.extrude("w3a:curl2", curl, 0.78, 0), "waterFx", { r: [0, -Math.PI / 2, 0], uv: [3, 3] });
+      for (let i = 0; i < 4; i++) wp.add(G.blob(0.085, 1, 0.2, 40 + i), "snow", { p: [-0.3 + i * 0.2, 0.52 - (i % 2) * 0.03, 0.2 + (i % 2) * 0.05], c: "#ffffff" });
       const wm = wp.build({ mats: { waterFx: water } });
       wm.userData.noBounds = true;
       wave.add(wm);
@@ -510,8 +514,8 @@
           mouth = damp(mouth, open, 20, dt);
           jaw.rotation.x = mouth * 0.6;
           const f = Math.sqrt(st.fire);
-          wave.position.set(0, -0.1, 0.8 + f * 0.9);
-          wave.scale.set(1 + f * 0.8, 0.6 + f * 1.1 - w * 0.3, 0.6 + f * 0.8);
+          wave.position.set(0, -0.2 + f * 0.1, 0.72 + f * 1.0);
+          wave.scale.set(1 + f * 0.6, 0.5 + f * 1.3 - w * 0.25, 0.55 + f * 1.1);
           water.opacity = 0.5 + f * 0.4;
           const flap = Math.sin(t * 3) * 0.25 + w * 0.3;
           fins[0].rotation.set(0, 0.3 + flap, -0.3);
@@ -850,7 +854,4 @@
     },
   });
 
-  void clamp;
-  void lerp;
-  void wob;
 })();

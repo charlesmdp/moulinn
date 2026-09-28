@@ -12,7 +12,8 @@
   if (!PTMT || !PTMT.models || !PTMT.models.kit) return;
   const K = PTMT.models.kit,
     G = K.g;
-  const { TAU, clamp, lerp, damp, bump, easeInOut, easeOut, wob, Spring } = Object.assign({}, K.math, { Spring: K.Spring });
+  const { TAU, lerp, damp, bump, easeInOut, easeOut } = K.math;
+  const Spring = K.Spring;
 
   const C = {
     stone: "#6585b8",
@@ -205,7 +206,7 @@
       const ice = c.inst("ice");
       const glow = c.inst("glow");
       const b = K.part("i2a:base");
-      b.add(G.cyl(1.25, 1.32, 0.18, 16), "blocks", { p: [0, 0.09, 0], c: C.stone, uv: [7, 0.4], ao: 0.5, aoH: 0.25 });
+      b.add(G.cyl(1.25, 1.32, 0.18, 16), "blocks", { p: [0, 0.09, 0], c: C.stone, uv: "box", tile: 1.6, ao: 0.5, aoH: 0.25 });
       runeRing(b, 1.33, 1.52, 0.02, 44);
       snowCaps(b, [
         [1.0, 0.18, 0.45, 0.2],
@@ -265,8 +266,7 @@
       const sp = K.part("i2a:spike");
       sp.add(G.crystal(0.14, 0.72, 6, 0.42, 0.05, 0.85), "ice", { r: [Math.PI / 2, 0, 0], g: [C.iceD, C.iceL, 0, 1.1] });
       spike.add(sp.build({ mats: { ice } }));
-      const tip = c.muzzle(spike, 0, 0, 1.15);
-      void tip;
+      c.muzzle(spike, 0, 0, 1.15);
       const face = c.face(crypt, { key: "i2a", p: [0, 1.62, 0.64], gap: 0.2, eye: 0.1, skin: C.stoneL, brow: C.navy, slant: 0.42, rest: 0.05, white: "#eefcff" });
       const spr = K.fx.sprite(C.glow, 1.0, 0.7);
       spr.position.set(0, 0.56, 0.7);
@@ -306,8 +306,8 @@
     build(c) {
       const ice = c.inst("ice");
       const b = K.part("i3a:base");
-      b.add(G.cyl(1.75, 1.85, 0.2, 22), "blocks", { p: [0, 0.1, 0], c: C.stone, uv: [10, 0.4], ao: 0.5, aoH: 0.3 });
-      b.add(G.cyl(1.45, 1.55, 0.18, 22), "blocks", { p: [0, 0.29, 0], c: C.stoneL, uv: [8, 0.35] });
+      b.add(G.cyl(1.75, 1.85, 0.2, 22), "blocks", { p: [0, 0.1, 0], c: C.stone, uv: "box", tile: 1.8, ao: 0.5, aoH: 0.3 });
+      b.add(G.cyl(1.45, 1.55, 0.18, 22), "blocks", { p: [0, 0.29, 0], c: C.stoneL, uv: "box", tile: 1.8 });
       runeRing(b, 1.52, 1.74, 0.201, 44);
       shards(b, 7, 1.6, 0.2, 7, 1.3);
       snowCaps(b, [
@@ -339,13 +339,14 @@
       throne.add(p.build({ mats: { ice } }));
       const face = c.face(throne, { key: "i3a", p: [0, 1.9, -0.88], gap: 0.25, eye: 0.14, skin: C.stoneL, lidMat: "matte", brow: C.navy, browT: 0.05, slant: 0.5, rest: 0.12 });
       // Main de glace.
-      const arm = K.node(throne, 0, 0.45, 0.15);
+      const arm = K.node(throne, 0.72, 0.5, 0.05);
+      arm.rotation.z = 0.12;
       const ap = K.part("i3a:arm");
       ap.add(G.crystal(0.17, 0.72, 6, 0.0, 0.1, 0.8), "ice", { g: [C.iceD, "#9fdcff", 0, 0.7] });
       ap.add(G.torus(0.17, 0.05, 4, 10), "metal", { p: [0, 0.64, 0], r: [Math.PI / 2, 0, 0], c: C.silver });
       arm.add(ap.build({ mats: { ice } }));
       const hand = K.node(arm, 0, 0.68, 0);
-      hand.scale.setScalar(1.25);
+      hand.scale.setScalar(1.15);
       const hp = K.part("i3a:palm");
       hp.add(G.rbox(0.6, 0.6, 0.22, 0.09, 1), "ice", { p: [0, 0.32, 0], g: ["#3f95e6", "#9fdcff", 0, 0.62] });
       hand.add(hp.build({ mats: { ice } }));
@@ -372,9 +373,9 @@
         fingers.push({ s1, s2, thumb, i });
       }
       // Glaçon qui apparaît dans le poing.
-      const cube = K.node(hand, 0, 0.45, 0.28);
+      const cube = K.node(hand, 0, 0.5, 0.34);
       const cb = K.part("i3a:cube");
-      cb.add(G.rbox(0.36, 0.36, 0.36, 0.04), "ice", { g: ["#6fc2ff", C.iceL, -0.2, 0.2] });
+      cb.add(G.rbox(0.46, 0.46, 0.46, 0.05), "ice", { g: ["#6fc2ff", "#e8fbff", -0.25, 0.25] });
       cube.add(cb.build({ mats: { ice } }));
       cube.scale.setScalar(0.001);
       c.muzzle(hand, 0, 0.35, 0.2);
@@ -389,8 +390,8 @@
         orbit.add(m);
         bits.push(m);
       }
-      const spr = K.fx.sprite(C.glow, 1.0, 0.35);
-      spr.position.set(0, 0.35, 0.25);
+      const spr = K.fx.sprite(C.glow, 1.0, 0.22);
+      spr.position.set(0, 0.35, 0.3);
       hand.add(spr);
       let grab = 0;
       return {
@@ -417,7 +418,7 @@
           }
           cube.scale.setScalar(Math.max(0.001, grab > 0.6 ? easeOut((grab - 0.6) / 0.4) : 0));
           ice.emissiveIntensity = 0.3 + w * 0.8 + st.flash * 1.2 + Math.sin(t * 1.9) * 0.05;
-          spr.scale.setScalar(0.6 + w * 0.8 + st.flash * 1.2);
+          spr.scale.setScalar(0.35 + w * 0.9 + st.flash * 1.3);
           orbit.rotation.y = t * 0.6;
           for (let i = 0; i < 4; i++) {
             const a = (i / 4) * TAU;
@@ -441,16 +442,16 @@
     recoil: 2.2,
     build(c) {
       const b = K.part("i2b:base");
-      b.add(G.cyl(0.95, 1.0, 0.22, 16), "blocks", { p: [0, 0.11, 0], c: C.stone, uv: [5, 0.4], ao: 0.5, aoH: 0.3 });
+      b.add(G.cyl(0.95, 1.0, 0.22, 16), "blocks", { p: [0, 0.11, 0], c: C.stone, uv: "box", tile: 1.4, ao: 0.5, aoH: 0.3 });
       b.add(G.blob(0.92, 1, 0.08, 4), "snow", { p: [0, 0.22, 0], s: [1, 0.16, 1], c: C.snow });
       runeRing(b, 1.02, 1.22, 0.02, 40);
       c.root.add(b.build());
       const man = K.node(c.yaw, 0, 0.22, 0);
       const p = K.part("i2b:man");
-      p.add(G.sphere(0.55, 12, 9), "snow", { p: [0, 0.46, 0], s: [1, 0.86, 1], c: C.snow, g: ["#c9dcf2", C.snow, 0.0, 0.6] });
-      p.add(G.sphere(0.42, 12, 9), "snow", { p: [0, 1.06, 0], s: [1, 0.92, 1], c: C.snow });
+      p.add(G.sphere(0.55, 11, 8), "snow", { p: [0, 0.46, 0], s: [1, 0.86, 1], c: C.snow, g: ["#c9dcf2", C.snow, 0.0, 0.6] });
+      p.add(G.sphere(0.42, 11, 8), "snow", { p: [0, 1.06, 0], s: [1, 0.92, 1], c: C.snow });
       for (let i = 0; i < 3; i++) p.add(G.ico(0.045, 0), "matte", { p: [0, 0.88 + i * 0.16, 0.405 - Math.abs(i - 1) * 0.02], c: C.coal });
-      p.add(G.torus(0.3, 0.075, 5, 14), "satin", { p: [0, 1.36, 0], r: [Math.PI / 2, 0, 0], c: C.scarf });
+      p.add(G.torus(0.3, 0.075, 4, 12), "satin", { p: [0, 1.36, 0], r: [Math.PI / 2, 0, 0], c: C.scarf });
       // Bras en bâtons qui tiennent le manche du ventilateur.
       for (const sx of [-1, 1]) {
         p.add(
@@ -481,7 +482,7 @@
       // Tête (tourne un peu, penche en colère).
       const head = K.node(man, 0, 1.62, 0);
       const hp = K.part("i2b:head");
-      hp.add(G.sphere(0.32, 12, 9), "snow", { c: C.snow });
+      hp.add(G.sphere(0.32, 11, 8), "snow", { c: C.snow });
       hp.add(G.cone(0.055, 0.32, 6), "satin", { p: [0, -0.02, 0.44], r: [Math.PI / 2, 0, 0], c: C.carrot });
       for (let i = 0; i < 5; i++) {
         const a = (i - 2) * 0.28;
@@ -537,7 +538,7 @@
       const cloudMat = c.inst("snow");
       const glow = c.inst("glow");
       const b = K.part("i3b:base");
-      b.add(G.cyl(1.35, 1.45, 0.3, 18), "blocks", { p: [0, 0.15, 0], c: C.stone, uv: [8, 0.5], ao: 0.5, aoH: 0.4 });
+      b.add(G.cyl(1.35, 1.45, 0.3, 18), "blocks", { p: [0, 0.15, 0], c: C.stone, uv: "box", tile: 1.6, ao: 0.5, aoH: 0.4 });
       b.add(G.blob(1.3, 1, 0.08, 6), "snow", { p: [0, 0.3, 0], s: [1, 0.12, 1], c: C.snow });
       runeRing(b, 1.48, 1.72, 0.02, 44);
       shards(b, 6, 1.5, 0.02, 11, 1.2);
@@ -564,19 +565,19 @@
       const cp = K.part("i3b:cloud");
       // Cœur fixe (porte le visage) + bourrelets qui tournoient au-dessus et au-dessous.
       const core = K.part("i3b:core");
-      core.add(G.blob(0.62, 2, 0.08, 79), "snow", { g: ["#8fa6c6", "#f7fbff", -0.5, 0.5] });
-      core.add(G.blob(0.42, 1, 0.1, 78), "snow", { p: [0, 0.48, -0.05], g: ["#c6d4e8", "#ffffff", 0.2, 0.8] });
+      core.add(G.blob(0.62, 2, 0.08, 79), "snow", { gp: ["#61779c", "#f7fbff", -0.6, 0.45] });
+      core.add(G.blob(0.44, 2, 0.08, 78), "snow", { p: [0, 0.52, -0.1], gp: ["#aebfd8", "#ffffff", 0.1, 0.8] });
       cloud.add(core.build({ mats: { snow: cloudMat } }));
-      for (let i = 0; i < 7; i++) {
-        const a = (i / 7) * TAU;
+      for (let i = 0; i < 6; i++) {
+        const a = (i / 6) * TAU + 0.5;
         const up = i % 2 === 0;
-        cp.add(G.blob(up ? 0.36 : 0.32, 1, 0.12, 80 + i), "snow", {
-          p: [Math.sin(a) * 0.78, up ? 0.36 : -0.34, Math.cos(a) * 0.78],
-          g: ["#8fa6c6", "#f7fbff", -0.4, 0.4],
+        cp.add(G.blob(up ? 0.4 : 0.34, up ? 2 : 1, 0.1, 80 + i), "snow", {
+          p: [Math.sin(a) * 0.74, up ? 0.5 : -0.42, Math.cos(a) * 0.74],
+          gp: ["#5a6f94", "#f7fbff", -0.75, 0.75],
         });
       }
       swirl.add(cp.build({ mats: { snow: cloudMat } }));
-      const face = c.face(cloud, { key: "i3b", p: [0, 0.0, 0.56], gap: 0.22, eye: 0.15, skin: "#d7e4f4", lidMat: "snow", brow: C.navy, browT: 0.05, slant: 0.55, rest: 0.12 });
+      const face = c.face(cloud, { key: "i3b", p: [0, 0.02, 0.58], gap: 0.23, eye: 0.17, skin: "#d7e4f4", lidMat: "snow", brow: C.navy, browT: 0.05, slant: 0.55, rest: 0.12 });
       // Éclair (visible pendant le tir).
       const bolt = K.node(cloud, 0.25, -0.35, 0.35);
       const bp = K.part("i3b:bolt");
@@ -650,5 +651,4 @@
     },
   });
 
-  void clamp;
 })();

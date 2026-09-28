@@ -19,13 +19,13 @@
   if (!PTMT || !PTMT.models || !PTMT.models.kit) return;
   const K = PTMT.models.kit,
     G = K.g;
-  const { TAU, clamp, bump, wob, damp } = K.math;
+  const { TAU, clamp, wob } = K.math;
 
   const C = {
     granite: "#cdc5b3",
     graniteD: "#a39b8a",
     dressed: "#ddd7c9",
-    millstone: "#b9b1a0",
+    millstone: "#9a9384",
     wood: "#9c7a58",
     woodD: "#6e5236",
     woodW: "#a6927c",
@@ -147,14 +147,17 @@
       // Meule tournante (et roues d'engrenage).
       const spin = K.node(c.root, 0, 0.62, 0);
       const rp = K.part("mill:runner" + lv);
-      rp.add(G.cyl(0.76 * S, 0.78 * S, 0.24, 20), "matte", { p: [0, 0.12, 0], c: "#c8c0ae", vj: 0.14, vs: 9 });
+      rp.add(G.cyl(0.76 * S, 0.78 * S, 0.24, 20), "matte", { p: [0, 0.12, 0], c: lv >= 3 ? "#6f7a92" : "#a8a090", vj: 0.14, vs: 9 });
       rp.add(G.cyl(0.14, 0.14, 0.26, 10), "matte", { p: [0, 0.13, 0], c: "#3a342e" });
       for (let i = 0; i < 6; i++) {
         const a = (i / 6) * TAU;
         rp.add(G.box(0.05, 0.02, 0.5 * S), "matte", { p: [Math.sin(a) * 0.42 * S, 0.245, Math.cos(a) * 0.42 * S], r: [0, a + 0.4, 0], c: "#8a8272" });
       }
       rp.add(G.box(0.4, 0.08, 0.08), "metal", { p: [0, 0.27, 0], c: C.iron });
-      if (lv >= 3) rp.add(G.planeUp(1.5 * S, 1.5 * S), "sealSpiral", { p: [0, 0.252, 0], c: C.magic });
+      if (lv >= 3) {
+        rp.add(G.planeUp(1.5 * S, 1.5 * S), "sealSpiral", { p: [0, 0.252, 0], c: C.magic });
+        rp.add(G.ring(0.78 * S, 0.8 * S, 32, 1), "glowAdd", { p: [0, 0.12, 0], c: "#3fb8ff" });
+      }
       spin.add(rp.build());
       const spindle = K.part("mill:spindle" + lv);
       spindle.add(G.cyl(0.05, 0.05, lv >= 2 ? 1.2 : 0.7, 8), "wood", { p: [0, lv >= 2 ? 0.8 : 0.55, 0], c: C.woodD });
@@ -187,7 +190,7 @@
         const mm = mp.build();
         mm.userData.noBounds = true;
         motes.add(mm);
-        spr = K.fx.sprite(C.magic, 2.6, 0.35);
+        spr = K.fx.sprite(C.magicV, 2.8, 0.45);
         spr.position.y = 1.0;
         c.root.add(spr);
       }
@@ -224,7 +227,10 @@
           }
       }
       if (lv >= 1) {
-        for (const sx of [-1, 1]) p.add(G.ring(1.3, 1.5, 48, 10), "runes", { p: [sx * (X + 0.01), 0, 0], r: [0, 0, Math.PI / 2], c: C.magic });
+        for (const sx of [-1, 1]) {
+          p.add(G.ring(1.3, 1.5, 48, 10), "runes", { p: [sx * (X + 0.012), 0, 0], r: [0, 0, Math.PI / 2], c: C.magic });
+          p.add(G.ring(1.33, 1.47, 48, 1), "glowAdd", { p: [sx * (X + 0.006), 0, 0], r: [0, 0, Math.PI / 2], c: "#1f6f8a" });
+        }
         for (const sx of [-1, 1])
           for (let i = 0; i < 8; i++) {
             const a = (i / 8) * TAU;
@@ -253,7 +259,7 @@
       if (lv >= 3) {
         heart = K.node(c.root, 0, 0, 0);
         const hp = K.part("mill:heart");
-        hp.add(G.sphere(0.26, 14, 10), "glow", { g: ["#e7fbff", "#5fd8ff", -0.26, 0.26] });
+        hp.add(G.sphere(0.3, 14, 10), "glow", { g: ["#e7fbff", "#5fd8ff", -0.3, 0.3] });
         heart.add(hp.build());
         rings = K.node(c.root, 0, 0, 0);
         const rq = K.part("mill:heartRings");
@@ -292,15 +298,25 @@
       const wallMat = stone ? "stone" : "wood";
       const wallCol = stone ? C.granite : C.woodW;
       const back = -D / 2;
-      p.add(G.box(W, H + 0.5, 0.2), wallMat, { p: [0, (H + 0.5) / 2, back + 0.1], c: wallCol, uv: "box", tile: stone ? 1.7 : 1.2, ao: 0.6, aoH: 1 });
+      p.add(G.box(W, H, 0.2), wallMat, { p: [0, H / 2, back + 0.1], c: wallCol, uv: "box", tile: stone ? 1.7 : 1.2, ao: 0.6, aoH: 1 });
       for (const sx of [-1, 1]) {
-        p.add(G.box(0.2, H + 0.25, D), wallMat, { p: [sx * (W / 2 - 0.1), (H + 0.25) / 2, 0], c: wallCol, uv: "box", tile: stone ? 1.7 : 1.2, ao: 0.6, aoH: 1 });
-        p.add(G.box(0.14, H, 0.14), "wood", { p: [sx * (W / 2 - 0.12), H / 2, D / 2 - 0.07], c: C.woodD, uv: [0.2, 2] });
+        // Mur de côté : partie droite + pignon en biais qui suit la pente de l'appentis.
+        p.add(G.box(0.2, H, D), wallMat, { p: [sx * (W / 2 - 0.1), H / 2, 0], c: wallCol, uv: "box", tile: stone ? 1.7 : 1.2, ao: 0.6, aoH: 1 });
+        p.add(
+          G.extrude("mill:side" + lv, [
+            [-D / 2, 0],
+            [D / 2, 0],
+            [-D / 2, 0.5],
+          ], 0.2, 0),
+          wallMat,
+          { p: [sx * (W / 2 - 0.1), H, 0], r: [0, Math.PI / 2, 0], c: wallCol, uv: "box", tile: stone ? 1.7 : 1.2 },
+        );
+        p.add(G.box(0.14, H + 0.5, 0.14), "wood", { p: [sx * (W / 2 - 0.12), (H + 0.5) / 2, D / 2 - 0.07], c: C.woodD, uv: [0.2, 2] });
       }
-      // Toit en appentis (ardoise).
+      // Toit en appentis (ardoise), haut sur l'avant ouvert : vu d'avion, on voit l'intérieur de l'atelier.
       const ra = Math.atan2(0.5, D);
-      p.add(G.box(W + 0.5, 0.12, Math.hypot(D + 0.6, 0.6)), "slate", { p: [0, H + 0.3, 0.05], r: [ra, 0, 0], c: "#76808f", uv: "box", tile: 1.4 });
-      p.add(G.box(W + 0.4, 0.14, 0.14), "wood", { p: [0, H - 0.02, D / 2 - 0.07], c: C.woodD });
+      p.add(G.box(W + 0.5, 0.12, Math.hypot(D + 0.6, 0.6)), "slate", { p: [0, H + 0.3, 0.05], r: [-ra, 0, 0], c: "#76808f", uv: "box", tile: 1.4 });
+      p.add(G.box(W + 0.4, 0.14, 0.14), "wood", { p: [0, H + 0.48, D / 2 - 0.07], c: C.woodD });
       p.add(G.box(W - 0.3, 0.1, D - 0.3), "blocks", { p: [0, 0.05, 0], c: C.graniteD, uv: "box", tile: 2.6 });
       // Établi.
       const bx = lv === 0 ? 0 : -W * 0.22;
@@ -382,10 +398,7 @@
       if (lv >= 2) {
         smoke = [];
         for (let i = 0; i < 3; i++) {
-          const pp = K.part("mill:smoke");
-          pp.add(G.blob(0.22, 0, 0.1, 3), "matte", { c: "#9d958e" });
-          const m = pp.build({ cast: false });
-          m.userData.noBounds = true;
+          const m = K.fx.smoke("#8f8780", 1, 0.6);
           c.root.add(m);
           smoke.push(m);
         }
@@ -437,7 +450,7 @@
             for (let i = 0; i < smoke.length; i++) {
               const ph = (t * 0.3 + i / smoke.length) % 1;
               smoke[i].position.set(W * 0.26 + ph * 0.5, H + 1.7 + ph * 2.2, back + 0.5 - ph * 0.2);
-              smoke[i].scale.setScalar(Math.max(0.001, Math.sin(ph * Math.PI) * (0.6 + ph * 1.2)));
+              smoke[i].scale.setScalar(Math.max(0.001, Math.sin(ph * Math.PI) * (0.6 + ph * 1.2) * 0.75));
             }
           if (bellows) {
             const pump = Math.sin(t * 2.2);
@@ -466,6 +479,4 @@
     return shell(kind + lv, f(lv), opt);
   };
 
-  void bump;
-  void damp;
 })();

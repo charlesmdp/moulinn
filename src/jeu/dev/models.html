@@ -141,16 +141,56 @@
     const VAR = [[1, null, "I"], [2, "A", "II-A"], [3, "A", "III-A"], [2, "B", "II-B"], [3, "B", "III-B"]];
     const EVO = [[1, null], [2, "A"], [3, "A"], [1, null], [2, "B"], [3, "B"]];
 
+    /** ?solo=tower:fire:2:A | trap:net:3 | socket:ice | chest:3 | building:crypte | mill:atelier:3 */
+    function buildSolo() {
+      const a = (q.get("solo") || "").split(":");
+      let api = null, label = a.join(" ");
+      if (a[0] === "tower") api = M.tower(a[1], +a[2], a[3] || null);
+      else if (a[0] === "trap") api = M.trap(a[1], +a[2]);
+      else if (a[0] === "socket") { api = M.socket(a[1]); api.setState(a[2] || "idle"); }
+      else if (a[0] === "chest") { api = M.chest(+a[1]); api.setStock(3, 3); }
+      else if (a[0] === "building") { const b = M.building(a[1]); api = { object: b.object, height: b.height, update: b.update, dispose: b.dispose }; }
+      else if (a[0] === "mill") { const u = M.millUpgrade(a[1], +a[2], a[1] === "roue" ? { spin: 0.6 } : undefined); api = { object: u.object, height: u.height, update: u.update, dispose: u.dispose }; if (a[1] === "roue") u.object.position.y = 1.75; }
+      if (!api) return;
+      const it = place(api, 0, 0, label, null, { kind: a[0], key: a.slice(1).join("") });
+      if (a[0] === "mill" && a[1] === "roue") it.api.object.position.y = 1.75;
+      const h = Math.max(1, api.height || 2);
+      return { center: [0, h * 0.45, 0], dist: 4 + h * 2.2, close: { center: [0, h * 0.5, 0], dist: 2.6 + h * 1.7, pitch: 14 } };
+    }
     const SECTIONS = {
+      solo: { name: "Solo", build: buildSolo },
       tours: { name: "Tours", build: buildTowers },
       pieges: { name: "Pièges", build: buildTraps },
       socles: { name: "Socles", build: buildSockets },
       coffres: { name: "Coffres", build: buildChests },
       batiments: { name: "Bâtiments", build: buildBuildings },
       moulin: { name: "Moulin", build: buildMill },
+      tout: { name: "Tout", build: buildAll },
     };
+    /** Toutes les sections côte à côte (vue d'ensemble). */
+    function buildAll() {
+      const root = sectionGroup;
+      const parts = [
+        [buildTowers, 0, 0],
+        [buildTraps, 34, -6],
+        [buildSockets, 34, 9],
+        [buildChests, 55, 0],
+        [buildBuildings, 6, -30],
+        [buildMill, 58, -30],
+      ];
+      for (const [f, x, z] of parts) {
+        const g = new THREE.Group();
+        g.position.set(x, 0, z);
+        root.add(g);
+        sectionGroup = g;
+        f();
+        sectionGroup = root;
+      }
+      return { center: [26, 0, -12], dist: 95, shadow: 75, close: { center: [26, 1, -4], dist: 50, pitch: 34 } };
+    }
     const sectionsEl = document.getElementById("sections");
     for (const [k, s] of Object.entries(SECTIONS)) {
+      if (k === "solo") continue;
       const b = document.createElement("button");
       b.textContent = s.name;
       b.dataset.section = k;
@@ -198,7 +238,7 @@
         place(api, 16.5, (i - 1) * 5.6, "Évolution " + FAM[f], "N : palier suivant", { kind: "tower", evo: 0, fam: f });
       });
       ref(-14.5, 0);
-      return { center: [0.8, 0, 0.5], dist: 36, close: { center: [-5.2, 0, 5.6], dist: 11, pitch: 20 } };
+      return { center: [0.8, 0, 0.5], dist: 36, close: { center: [0, 1.2, 0.8], dist: 17, pitch: 23 } };
     }
     function buildTraps() {
       if (!M.trap) return;
@@ -209,7 +249,7 @@
         }
       });
       ref(-6.2, 0);
-      return { center: [0, 0, 0], dist: 17, close: { center: [0, 0, 1.5], dist: 9, pitch: 26 } };
+      return { center: [0, 0, 0], dist: 17, close: { center: [0, 0.6, 1.5], dist: 9, pitch: 26 } };
     }
     function buildSockets() {
       if (!M.socket) return;
@@ -221,7 +261,7 @@
         });
       });
       ref(-7.5, 0);
-      return { center: [0, 0, 0], dist: 17, close: { center: [0, 0, 2], dist: 9, pitch: 30 } };
+      return { center: [0, 0, 0], dist: 17, close: { center: [0, 0.3, 2], dist: 9, pitch: 30 } };
     }
     function buildChests() {
       if (!M.chest) return;
@@ -237,7 +277,7 @@
         place(b, (t - 2) * 3.4, 1.8, names[t - 1], t === 3 ? "ouvert + alarme" : "ouvert, stock 1/3", { kind: "chest", tier: t, row: 1 });
       }
       ref(-6, 0);
-      return { center: [0, 0, 0], dist: 15, close: { center: [0, 0, 1], dist: 8, pitch: 26 } };
+      return { center: [0, 0, 0], dist: 15, close: { center: [0, 0.6, 1], dist: 8, pitch: 26 } };
     }
     function buildBuildings() {
       if (!M.building) return;
@@ -270,7 +310,7 @@
         b.object.add(line);
       });
       ref(-2, 0);
-      return { center: [0, 0, 0], dist: 44, close: { center: [-13, 0, -5], dist: 18, pitch: 24 } };
+      return { center: [0, 0, 0], dist: 44, close: { center: [-13, 1.5, -5], dist: 18, pitch: 24 } };
     }
     function buildMill() {
       if (!M.millUpgrade) return;
@@ -296,21 +336,22 @@
               const pad = new THREE.Mesh(new THREE.BoxGeometry(1.1, 0.34, 0.05), wm);
               pad.position.set(0, Math.cos(a) * 1.38, Math.sin(a) * 1.38); pad.rotation.x = a; pad.castShadow = true; wheel.add(pad);
             }
-            for (let i = 0; i < 4; i++) {
-              const sp = new THREE.Mesh(new THREE.BoxGeometry(1.0, 2.8, 0.1), wm);
-              sp.rotation.x = (i / 4) * Math.PI; wheel.add(sp);
-            }
+            for (let i = 0; i < 4; i++)
+              for (const sx of [-0.5, 0.5]) {
+                const sp = new THREE.Mesh(new THREE.BoxGeometry(0.1, 2.8, 0.1), wm);
+                sp.position.x = sx; sp.rotation.x = (i / 4) * Math.PI; wheel.add(sp);
+              }
             const axle = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.12, 1.6, 12), wm); axle.rotation.z = Math.PI / 2; wheel.add(axle);
             wheel.add(u.object);
             holder.add(wheel);
             sectionGroup.add(holder);
-            const it = { api: { object: holder, update: (dt, t) => { wheel.rotation.x -= dt * 0.6; u.update(dt, t); }, dispose: u.dispose }, kind: "mill" };
+            const it = { api: { object: holder, height: 3.3, update: (dt, t) => { wheel.rotation.x -= dt * 0.6; u.update(dt, t); }, dispose: u.dispose }, kind: "mill", label: n + " " + lv };
             items.push(it);
             addLabel(holder, n + " " + lv, null, 2.2);
           } else place(api, x, z, n + " " + lv, null, { kind: "mill" });
         }
       });
-      return { center: [0, 0, 0], dist: 40, close: { center: [0, 0, -10], dist: 16, pitch: 24 } };
+      return { center: [0, 0, 0], dist: 40, close: { center: [0, 1, -10], dist: 16, pitch: 24 } };
     }
 
     let layout = null;
@@ -335,21 +376,21 @@
     function applyView() {
       const L = layout;
       if (view.mode === "close" && L.close) {
-        view.target.set(L.close.center[0], L.close.center[1] + 1, L.close.center[2]);
+        view.target.set(L.close.center[0], L.close.center[1], L.close.center[2]);
         view.dist = +(q.get("dist") || L.close.dist);
         view.pitch = +(q.get("pitch") || L.close.pitch || 22);
       } else {
         view.target.set(L.center[0], L.center[1], L.center[2]);
-        view.dist = +(q.get("dist") || (view.mode === "aerial" ? 35 : L.dist));
+        view.dist = +(q.get("dist") || (view.mode === "aerial" && !L.shadow ? 35 : L.dist));
         view.pitch = +(q.get("pitch") || 50);
       }
-      if (q.get("tx")) view.target.set(+q.get("tx"), +(q.get("ty") || 0), +(q.get("tz") || 0));
+      if (q.get("tx") || q.get("tz")) view.target.set(+(q.get("tx") || 0), +(q.get("ty") || 0), +(q.get("tz") || 0));
       // Ombres cadrées sur la section.
-      const s = 40;
+      const s = L.shadow || 40;
       sun.position.set(view.target.x - 30, 55, view.target.z + 38);
       sun.target.position.copy(view.target);
       const c = sun.shadow.camera;
-      c.left = -s; c.right = s; c.top = s; c.bottom = -s; c.near = 1; c.far = 200;
+      c.left = -s; c.right = s; c.top = s; c.bottom = -s; c.near = 1; c.far = 260;
       c.updateProjectionMatrix();
     }
     function updateCamera() {
@@ -412,7 +453,8 @@
     for (const b of document.querySelectorAll("#ui [data-k]")) b.onclick = () => act(b.dataset.k);
     addEventListener("keydown", (e) => {
       const k = e.key.toLowerCase();
-      if (k >= "1" && k <= "6") return showSection(Object.keys(SECTIONS)[+k - 1]);
+      const keys = Object.keys(SECTIONS).filter((n) => n !== "solo");
+      if (k >= "1" && k <= String(keys.length)) return showSection(keys[+k - 1]);
       act(k);
     });
     // Orbite à la souris / au doigt.
@@ -435,7 +477,7 @@
 
     const statsEl = document.getElementById("stats");
     const clock = new THREE.Clock();
-    let autoT = 0, frames = 0, fpsT = 0, fps = 0;
+    let frames = 0;
     const v3 = new THREE.Vector3();
     const speed = +(q.get("speed") || 1);
     function frame() {
@@ -444,7 +486,6 @@
       state.time += dt;
       const time = state.time;
       if (state.auto) {
-        autoT += dt;
         for (const it of items) {
           if (it.kind !== "tower") continue;
           it.cd = (it.cd === undefined ? Math.random() * 2 : it.cd) - dt;
@@ -459,7 +500,10 @@
       if (state.sweep) forTowers((it) => it.api.aim(Math.sin(time * 0.7 + it.api.object.position.x * 0.2) * 1.6));
       for (const it of items) {
         const a = it.api;
-        if (it.kind === "chest" && it.row === 0) a.setOpenProgress && a.setOpenProgress(THREE.MathUtils.lerp(it.op || 0, state.open, 0.08)), (it.op = THREE.MathUtils.lerp(it.op || 0, state.open, 0.08));
+        if (it.kind === "chest" && it.row === 0) {
+          it.op = THREE.MathUtils.lerp(it.op || 0, state.open, 0.08);
+          a.setOpenProgress(it.op);
+        }
         if (a.update) a.update(dt, time);
       }
       updateCamera();
@@ -473,7 +517,7 @@
         l.el.style.display = vis ? "" : "none";
         if (vis) l.el.style.transform = `translate(${((v3.x + 1) / 2) * innerWidth}px, ${((1 - v3.y) / 2) * innerHeight}px) translate(-50%, -100%)`;
       }
-      frames++; fpsT += clock.elapsedTime - (fpsT ? 0 : 0);
+      frames++;
       if (frames % 20 === 0) {
         const r = renderer.info.render;
         statsEl.textContent = `${SECTIONS[current] ? SECTIONS[current].name : ""} · ${r.calls} appels · ${r.triangles.toLocaleString("fr-FR")} triangles · vue ${view.mode}`;
@@ -509,13 +553,14 @@
     };
     function countMeshes(o) { let n = 0; o.traverse((c) => { if (c.isMesh || c.isSprite) n++; }); return n; }
 
-    const sec = q.get("section") || "tours";
+    const sec = q.get("solo") ? "solo" : q.get("section") || "tours";
     showSection(SECTIONS[sec] ? sec : "tours");
     if (q.get("sel") === "1") act("s");
     if (q.get("frenzy") === "1") act("z");
     if (q.get("auto") === "1") act("a");
     if (q.get("labels") === "0") { state.labels = false; applyToggles(); }
     if (q.get("ui") === "0") document.getElementById("ui").style.display = "none";
+    else if (innerWidth < 600) document.getElementById("ui").classList.add("hidden");
     frame();
   }
 })();

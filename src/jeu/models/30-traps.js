@@ -14,7 +14,7 @@
   if (!PTMT || !PTMT.models || !PTMT.models.kit) return;
   const K = PTMT.models.kit,
     G = K.g;
-  const { TAU, clamp, lerp, damp, bump, easeOut, wob } = K.math;
+  const { TAU, clamp, damp, bump, easeOut } = K.math;
   const Spring = K.Spring;
 
   const C = {
@@ -28,8 +28,8 @@
     red: "#d6322b",
     redD: "#8f1f1a",
     yellow: "#ffcf3a",
-    gold: "#ffcf4a",
-    goldD: "#b8861e",
+    gold: "#f0ae24",
+    goldD: "#b07a16",
     paint: "#e2b33c",
     ruby: "#ff2d55",
     sapph: "#2d8bff",
@@ -228,10 +228,10 @@
       sm.userData.noBounds = true;
       hinge.add(sm);
     }
-    const flip = new Spring(90, 7, 0);
+    const flip = new Spring(55, 4.5, 0);
     return {
       trigger() {
-        flip.kick(-9);
+        flip.kick(-11);
       },
       pose(st, dt) {
         flip.target = st.readyOn ? 0 : -1.25;
@@ -269,7 +269,7 @@
         [-0.18, 0.02],
         [-0.08, 0.02],
       ];
-      pp.add(G.extrude("spring:arrow", arrow, 0.01, 0), "glow", { p: [0, 0.035, 0], r: [-Math.PI / 2, 0, 0], c: C.yellow });
+      pp.add(G.extrude("spring:arrow", arrow, 0.01, 0), "glow", { p: [0, 0.035, 0], r: [Math.PI / 2, 0, 0], c: C.yellow });
       plate.add(pp.build({ mats: { glow: c.lamp } }));
       const pop = new Spring(120, 6, 0);
       return {
@@ -281,7 +281,7 @@
           pop.step(dt);
           const h = Math.max(0, pop.x);
           plate.position.y = 0.19 + h;
-          plate.rotation.x = -Math.min(0.6, h * 1.2);
+          plate.rotation.x = Math.min(0.6, h * 1.2);
           coil.scale.y = 1 + h * 7;
           plate.rotation.z = Math.sin(st.t * 30) * 0.01 * bump(Math.min(1, st.fireT / 0.6));
         },
@@ -358,15 +358,15 @@
     const flip = new Spring(80, 9, 0);
     return {
       trigger() {
-        flip.kick(-26);
+        flip.kick(24);
       },
       pose(st, dt) {
-        flip.target = st.readyOn ? 0 : -0.35 * (1 - st.ready);
+        flip.target = st.readyOn ? 0 : 0.35 * (1 - st.ready);
         flip.step(dt);
-        const a = clamp(flip.x, -2.0, 0.2);
+        const a = clamp(flip.x, -0.15, 1.75);
         arm.rotation.x = a + Math.sin(st.t * 2.1) * 0.01;
-        cm.scale.y = 1 - a * 0.08;
-        coil.rotation.x = -a * 0.8;
+        cm.scale.y = 1 + a * 0.08;
+        coil.rotation.x = a * 0.8;
       },
     };
   }
@@ -377,8 +377,8 @@
     const W = [0, 0.66, 0.78, 0.9][tier],
       H = [0, 0.36, 0.42, 0.46][tier],
       D = [0, 0.46, 0.52, 0.58][tier];
-    const bodyMat = tier === 3 ? "gold" : "wood";
-    const bodyC = tier === 1 ? C.paint : tier === 2 ? "#f0c24a" : C.gold;
+    const bodyMat = tier === 3 ? "gold" : tier === 2 ? "satin" : "wood";
+    const bodyC = tier === 1 ? C.paint : tier === 2 ? "#f2c02e" : C.gold;
     const p = K.part("lure:body" + tier);
     if (tier === 3) {
       p.add(G.rbox(W + 0.3, 0.1, D + 0.3, 0.04), "satin", { p: [0, 0.05, 0], c: C.velvet, ao: 0.6, aoH: 0.12 });
@@ -529,6 +529,4 @@
     return trapShell(kind, clamp(tier | 0 || 1, 1, 3), def);
   };
 
-  void lerp;
-  void wob;
 })();

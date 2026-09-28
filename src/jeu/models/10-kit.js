@@ -753,7 +753,7 @@
     satin: () => std({ roughness: 0.55 }),
     glossy: () => std({ roughness: 0.26, metalness: 0.02 }),
     metal: () => std({ roughness: 0.38, metalness: 0.32 }),
-    gold: () => std({ roughness: 0.3, metalness: 0.55, emissive: col("#5a3600"), emissiveIntensity: 0.55 }),
+    gold: () => std({ roughness: 0.32, metalness: 0.6, emissive: col("#5a3400"), emissiveIntensity: 0.45 }),
     stone: () => std({ map: T.rubble(), roughness: 0.92 }),
     blocks: () => std({ map: T.blocks(), roughness: 0.9 }),
     wood: () => std({ map: T.planks(), roughness: 0.82 }),
@@ -783,11 +783,12 @@
     /** Anneau coloré en mélange normal (couleurs d'état fidèles : vert valide, rouge interdit). */
     selN: () => basic({ map: T.selRing(), side: THREE.DoubleSide, transparent: true, depthWrite: false }),
     chev: () => basic(Object.assign({ map: T.chevrons(), side: THREE.DoubleSide }, ADD)),
+    chevN: () => basic({ map: T.chevrons(), side: THREE.DoubleSide, transparent: true, depthWrite: false }),
     streak: () => basic(Object.assign({ map: T.streaks(), side: THREE.DoubleSide }, ADD)),
     waterFx: () => std({ map: T.water(), emissiveMap: T.water(), emissive: col("#ffffff"), emissiveIntensity: 0.7, roughness: 0.08, transparent: true, opacity: 0.82, depthWrite: false }),
   };
   /** Matières sans ombre portée (lumières, décalques, effets). */
-  const NO_SHADOW = new Set(["glow", "lava", "glowAdd", "halo", "runes", "sealIce", "sealSpiral", "sealTri", "ember", "sel", "selN", "chev", "streak", "waterFx", "pupil"]);
+  const NO_SHADOW = new Set(["glow", "lava", "glowAdd", "halo", "runes", "sealIce", "sealSpiral", "sealTri", "ember", "sel", "selN", "chev", "chevN", "streak", "waterFx", "pupil"]);
   MATS.pupil = () => basic({});
   K.defMat = (name, factory, noShadow) => {
     MATS[name] = factory;
@@ -1198,12 +1199,8 @@
     }
     itemMatrix(o, _m4);
     g.applyMatrix4(_m4);
-    if (o.flat) {
-      g.deleteAttribute("normal");
-      g.computeVertexNormals();
-    }
-    const nor = g.attributes.normal.array,
-      uvs = g.attributes.uv.array;
+    const uvs = g.attributes.uv.array;
+    let nor = g.attributes.normal.array;
     if (_m4.determinant() < 0) {
       // Pièce en miroir : on retourne l'ordre des sommets pour garder les faces vers l'extérieur.
       const sw = (arr, k, a, b) => {
@@ -1218,6 +1215,23 @@
         sw(nor, 3, t + 1, t + 2);
         sw(uvs, 2, t + 1, t + 2);
         sw(colors, 3, t + 1, t + 2);
+      }
+    }
+    if (o.flat) {
+      // Facettes : normales recalculées après l'éventuel retournement (non indexé → normales plates).
+      g.deleteAttribute("normal");
+      g.computeVertexNormals();
+      nor = g.attributes.normal.array;
+    }
+    if (o.gp) {
+      // Dégradé calculé dans l'espace de l'assemblage (après placement) : o.gp = [c0, c1, y0, y1].
+      const a0 = col(o.gp[0]),
+        a1 = col(o.gp[1]);
+      for (let i = 0; i < n; i++) {
+        const t = smooth(o.gp[2], o.gp[3], pa[i * 3 + 1]);
+        colors[i * 3] = lerp(a0.r, a1.r, t);
+        colors[i * 3 + 1] = lerp(a0.g, a1.g, t);
+        colors[i * 3 + 2] = lerp(a0.b, a1.b, t);
       }
     }
     if (o.ao) {
@@ -1448,7 +1462,6 @@
       });
     const lids = lp.build({ cast: false });
     grp.add(lids);
-    const brows = null;
     const rng = PTMT.rng(faceSeed++ * 977 + 13);
     const rest = o.rest === undefined ? 0.05 : o.rest;
     const st = { open: 0, openT: 0, blinkT: 0, nextBlink: 1 + rng() * 3, sac: 0, lx: 0, ly: 0, fx: null, fy: 0, px: 0, py: 0 };
@@ -1457,7 +1470,6 @@
       group: grp,
       pupils,
       lids,
-      brows,
       look(x, y) {
         st.fx = x;
         st.fy = y || 0;
@@ -1494,9 +1506,7 @@
           ty = st.fx === null ? st.ly : st.fy;
         st.px = damp(st.px, tx, 16, dt);
         st.py = damp(st.py, ty, 16, dt);
-        const s = 1 + clamp(op, 0, 1) * 0.12 - clamp(-op, 0, 1) * 0.12;
         pupils.position.set(clamp(st.px, -1, 1) * maxOff, clamp(st.py, -1, 1) * maxOff, 0);
-        pupils.scale.set(s, s, 1);
       },
     };
   };
@@ -1526,6 +1536,20 @@
     s.scale.setScalar(size);
     return s;
   };
+  /** Bouffée de fumée douce (sprite en mélange normal, matière partagée par teinte). */
+  const smokeMats = new Map();
+  FX.smoke = (hex, size, opacity) => {
+    const k = hex + ":" + (opacity || 0.7);
+    let m = smokeMats.get(k);
+    if (!m) {
+      m = new THREE.SpriteMaterial({ map: T.soft(), color: col(hex), transparent: true, opacity: opacity || 0.7, depthWrite: false });
+      smokeMats.set(k, m);
+    }
+    const s = new THREE.Sprite(m);
+    s.scale.setScalar(size);
+    s.userData.noBounds = true;
+    return s;
+  };
   /** Anneau de sélection au sol. */
   FX.selRing = (radius) => {
     const p = K.part("selring");
@@ -1541,12 +1565,12 @@
   FX.aura = (radius, height) => {
     const grp = new THREE.Group();
     const p = K.part("aura:ring");
-    p.add(G.ring(0.78, 1.0, 32, 8), "chev", { c: "#ff8a2a" });
+    p.add(G.ring(0.78, 1.0, 32, 8), "chevN", { c: "#ff4a1a" });
     const ring = p.build();
     ring.position.y = 0.06;
     grp.add(ring);
     const q = K.part("aura:band");
-    q.add(G.cyl(1, 1, 1, 20, true), "streak", { p: [0, 0.5, 0], c: "#ffb347", uv: [4, 1] });
+    q.add(G.cyl(1, 1, 1, 20, true), "streak", { p: [0, 0.5, 0], c: "#ff6a2a", uv: [4, 1] });
     const band = q.build();
     band.scale.set(0.92, height, 0.92);
     grp.add(band);

@@ -14,7 +14,7 @@
   if (!PTMT || !PTMT.models || !PTMT.models.kit) return;
   const K = PTMT.models.kit,
     G = K.g;
-  const { TAU, clamp, damp, bump, easeOut } = K.math;
+  const { clamp, damp } = K.math;
   const Spring = K.Spring;
 
   const T = [
@@ -86,7 +86,7 @@
     }
     body.add(p.build());
     // Tas de pièces à l'intérieur.
-    const heap = K.node(body, 0, H - 0.06, 0);
+    const heap = K.node(body, 0, H - 0.03, 0);
     const hp = K.part("chest:heap" + tier);
     hp.add(G.sphere(Math.min(W, D) * 0.46, 14, 6, 0, Math.PI / 2), "coins", { s: [W / D, 0.55, 1], uv: [2, 2] });
     hp.add(G.oct(0.05), "glossy", { p: [W * 0.18, 0.12, 0.05], c: "#ff2d55" });
@@ -221,7 +221,7 @@
         hinge.rotation.x = lid.x;
         heap.visible = st.stock > 0;
         const fill = st.stock / st.max;
-        heap.scale.set(0.6 + fill * 0.4, Math.max(0.05, fill), 0.6 + fill * 0.4);
+        heap.scale.set(0.7 + fill * 0.3, 0.35 + fill * 0.65, 0.7 + fill * 0.3);
         for (const S of sacks) {
           S.s.step(dt);
           const v = Math.max(0, S.s.x);
@@ -268,7 +268,4 @@
     return api;
   };
 
-  void TAU;
-  void bump;
-  void easeOut;
 })();

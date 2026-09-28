@@ -46,7 +46,7 @@
   /** Socle de briques cerclé de fer, charbons et braises autour. */
   function brickBase(key, r, h, n) {
     const b = K.part(key);
-    b.add(G.cyl(r * 0.94, r, h, 12), "blocks", { p: [0, h / 2, 0], c: C.brick, uv: [r * 4.2, h * 1.6], ao: 0.5, aoH: h + 0.1 });
+    b.add(G.cyl(r * 0.94, r, h, 12), "blocks", { p: [0, h / 2, 0], c: C.brick, uv: "box", tile: 1.0, ao: 0.5, aoH: h + 0.1 });
     b.add(G.cyl(r * 0.97, r * 0.97, 0.05, 16, true), "metal", { p: [0, h + 0.005, 0], c: C.ironD });
     const rnd = PTMT.rng(n * 31 + 7);
     for (let i = 0; i < n; i++) {
@@ -83,14 +83,12 @@
     p.add(G.cyl(r, r * 1.1, h, 8), "metal", { p: [x, y + h / 2, z], r: [-0.22, 0, 0], c: C.ironD });
     p.add(G.cyl(r * 1.45, r * 1.25, h * 0.16, 8), "metal", { p: [x, y + h * 0.98, z - h * 0.11], r: [-0.22, 0, 0], c: C.iron });
   }
-  /** Bouffées de fumée (sphères douces qui montent, gonflent et disparaissent). */
+  /** Bouffées de fumée (sprites doux qui montent, gonflent et disparaissent). */
   function puffs(parent, key, n, size) {
     const out = [];
     for (let i = 0; i < n; i++) {
-      const pp = K.part(key + ":puff");
-      pp.add(G.blob(size, 0, 0.1, 3), "matte", { c: C.smoke });
-      const m = pp.build({ cast: false });
-      m.userData.noBounds = true;
+      const m = K.fx.smoke("#8a817a", 1, 0.55);
+      m.userData.size = size * 3.2;
       parent.add(m);
       out.push(m);
     }
@@ -101,7 +99,7 @@
       const ph = (t * speed + i / list.length) % 1;
       const m = list[i];
       m.position.set(x + Math.sin(ph * 5 + i) * 0.05, y + ph * rise, z - ph * rise * 0.3);
-      const s = Math.sin(ph * Math.PI) * (0.5 + ph * 0.8) * (1 + boost);
+      const s = Math.sin(ph * Math.PI) * (0.5 + ph * 0.8) * (1 + boost) * m.userData.size;
       m.scale.setScalar(Math.max(0.001, s));
     }
   }
@@ -297,8 +295,8 @@
           const br = Math.sin(t * 2.3);
           const rec = st.recoil.x;
           const hop = bump(1 - st.fidget) * 0.07;
-          const sxz = 1 + br * 0.015 + inf * 0.22 - rec * 0.7;
-          const sy = 1 + br * 0.022 + inf * 0.12 + rec * 1.1;
+          const sxz = 1 + br * 0.015 + inf * 0.3 - rec * 0.7;
+          const sy = 1 + br * 0.022 + inf * 0.16 + rec * 1.1;
           body.scale.set(sxz, sy, sxz);
           body.position.set(0, 0.33 + hop, rec * 0.9);
           const open = 0.1 + 0.05 * Math.sin(t * 1.7) - inf * 0.1 + Math.sqrt(st.fire) * 0.75 + st.pulse * 0.35 + hop * 2;
@@ -306,7 +304,7 @@
           jaw.rotation.x = jawA;
           glow.color.setScalar(1.35 + wob(t * 3, 1) * 0.25 + inf * 1.6 + st.flash * 2.2);
           ball.scale.setScalar(st.fire > 0.05 ? 0.25 : 0.55 + inf * 0.9 + wob(t * 6, 2) * 0.06);
-          spr.scale.setScalar(0.8 + inf * 0.7 + st.flash * 1.2 + wob(t * 4, 3) * 0.08);
+          spr.scale.setScalar(0.8 + inf * 0.9 + st.flash * 2.6 + wob(t * 4, 3) * 0.08);
           face.setOpen(st.fire > 0.25 ? 1 : -inf * 1.2);
           face.look(st.w > 0.05 || st.fire > 0 ? 0 : null, 0);
           animPuffs(smoke, t, 0, 1.42, -0.42, 0.7, 0.45 + st.frenzy * 0.4, st.flash * 0.8 + hop * 4);
@@ -330,7 +328,7 @@
       const bp = K.part("f2a:body");
       belly(bp, "f2a", 0.84, 1.12, 14, { grill: false });
       chimney(bp, 0, 0.82, -0.5, 0.6, 0.1);
-      bp.add(G.torus(0.25, 0.06, 4, 12), "metal", { p: [0, 0.97, 0.47], r: [Math.PI / 2 - 0.75, 0, 0], c: C.brass });
+      bp.add(G.torus(0.25, 0.06, 3, 12), "metal", { p: [0, 0.97, 0.47], r: [Math.PI / 2 - 0.75, 0, 0], c: C.brass });
       // Porte du foyer (grille incandescente).
       for (let i = -2; i <= 2; i++) bp.add(G.box(0.05, 0.22, 0.04), "glow", { p: [i * 0.08, 0.3, 0.84], c: C.ember });
       bp.add(G.box(0.5, 0.05, 0.07), "metal", { p: [0, 0.43, 0.83], c: C.brass });
@@ -562,25 +560,26 @@
         H = 2.0,
         cr = 0.36;
       const vp = K.part("f2b:cone");
-      vp.add(G.lathe("f2b:cone", volcanoProfile(R, H, cr, 0.22), 18), "stone", { g: [C.basaltD, "#8a7060", 0, H], uv: [5, 2.2], vj: 0.12, vs: 3 });
+      vp.add(G.lathe("f2b:cone", volcanoProfile(R, H, cr, 0.22), 18), "stone", { g: [C.basaltD, "#8a7060", 0, H], uv: [8, 3.4], vj: 0.12, vs: 3 });
       lavaVeins(vp, "f2b", R, H, cr, 4, 0.055, 11);
       // Bouche de l'ancien poêle (arche de briques) — elle rote la lave.
       vp.add(G.torus(0.3, 0.09, 5, 10, Math.PI), "blocks", { p: [0, 0.18, 0.98], r: [-0.15, 0, 0], c: C.brick, uv: [2, 0.5] });
       vp.add(G.sphere(0.28, 10, 5, 0, Math.PI / 2), "lava", { p: [0, 0.16, 0.94], r: [Math.PI / 2 - 0.15, 0, 0], s: [1, 0.6, 1] });
       for (const sx of [-1, 1]) vp.add(G.cone(0.04, 0.12, 5), "glossy", { p: [sx * 0.14, 0.4, 0.99], r: [Math.PI - 0.2, 0, 0], c: C.bone });
       // Bec verseur vers l'avant (indique la visée) et coulée de lave.
-      vp.add(G.rbox(0.22, 0.1, 0.3, 0.04), "stone", { p: [0, H - 0.02, cr + 0.12], r: [0.25, 0, 0], c: C.basalt, uv: "box" });
+      // Coulée débordant par l'avant-gauche (indique la visée sans passer sur le visage).
       vp.add(
         G.tube(
           "f2b:drip",
           [
-            [0, H + 0.02, cr + 0.12],
-            [0, H - 0.25, cr + 0.33],
-            [0, H * 0.62, 0.66],
-            [0, H * 0.4, 0.85],
+            [-0.12, H + 0.03, cr + 0.02],
+            [-0.2, H - 0.2, cr + 0.22],
+            [-0.36, H * 0.66, 0.6],
+            [-0.5, H * 0.38, 0.78],
+            [-0.56, H * 0.18, 0.86],
           ],
-          [0.07, 0.035],
-          9,
+          [0.075, 0.04],
+          10,
           5,
         ),
         "lava",
@@ -621,7 +620,7 @@
           const j = jumpT < 0.9 ? bump(jumpT / 0.9) : 0;
           blob.position.y = H - 0.12 + w * 0.08 + j * 1.3 + Math.max(0, Math.sin(t * 3.1)) * 0.05;
           blob.scale.setScalar(0.8 + w * 0.5 + j * 0.4 + Math.sin(t * 7) * 0.05);
-          lava.color.setScalar(1.25 + wob(t * 2, 3) * 0.2 + w * 0.9 + st.flash * 1.6);
+          lava.color.setScalar(1.5 + wob(t * 2, 3) * 0.2 + w * 0.9 + st.flash * 1.6);
           glow.color.setScalar(1.3 + w * 1.2 + st.flash * 1.8);
           spr.scale.setScalar(1.3 + w * 0.8 + st.flash * 1.6 + wob(t * 3, 1) * 0.1);
           face.setOpen(st.fire > 0.3 ? 1 : -w * 1.3);
@@ -649,14 +648,14 @@
       const rnd = PTMT.rng(9);
       for (let i = 0; i < 11; i++) {
         const a = (i / 11) * TAU + rnd() * 0.3,
-          r = 1.72 + rnd() * 0.2;
+          r = 1.62 + rnd() * 0.14;
         bp.add(G.rock(0.2 + rnd() * 0.12, 1, 0.3, i + 20), "stone", { p: [Math.sin(a) * r, 0.08, Math.cos(a) * r], s: [1.2, 0.7, 1], r: [0, a, 0], c: C.basalt, uv: "box", tile: 0.9 });
       }
       bp.add(G.cyl(1.85, 1.92, 0.1, 22), "stone", { p: [0, 0.05, 0], c: C.basaltD, uv: "box", tile: 1.5 });
       c.root.add(bp.build());
       const body = K.node(c.yaw, 0, 0.08, 0);
       const vp = K.part("f3b:cone");
-      vp.add(G.lathe("f3b:cone", volcanoProfile(R, H, cr, 0.3), 22), "stone", { g: [C.basaltD, "#8c705e", 0, H], uv: [7, 3], vj: 0.14, vs: 2.5 });
+      vp.add(G.lathe("f3b:cone", volcanoProfile(R, H, cr, 0.3), 22), "stone", { g: [C.basaltD, "#8c705e", 0, H], uv: [12, 5], vj: 0.14, vs: 2.5 });
       lavaVeins(vp, "f3b", R, H, cr, 6, 0.1, 21);
       for (let i = 0; i < 9; i++) {
         const a = (i / 9) * TAU + 0.2;
@@ -737,7 +736,7 @@
             rocks[i].position.set(Math.sin(a) * r, Math.sin(t * 2 + i * 2.1) * 0.18 + e * 0.6, Math.cos(a) * r);
             rocks[i].rotation.set(t * 0.9 + i, t * 0.7, 0);
           }
-          lava.color.setScalar(1.3 + wob(t * 2, 3) * 0.2 + w * 0.9 + st.flash * 1.5);
+          lava.color.setScalar(1.55 + wob(t * 2, 3) * 0.2 + w * 0.9 + st.flash * 1.5);
           glow.color.setScalar(1.3 + w * 1.2 + st.flash * 1.8);
           spr.scale.setScalar(2.8 + w * 1.0 + st.flash * 2 + wob(t * 3, 1) * 0.15);
           face.setOpen(st.fire > 0.3 ? 1 : -w * 1.3);

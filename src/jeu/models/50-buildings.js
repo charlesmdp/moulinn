@@ -14,12 +14,12 @@
   if (!PTMT || !PTMT.models || !PTMT.models.kit) return;
   const K = PTMT.models.kit,
     G = K.g;
-  const { TAU, lerp, wob } = K.math;
+  const { TAU, wob } = K.math;
 
   const C = {
-    granite: "#cdc5b3",
+    granite: "#c2baa7",
     graniteD: "#a39b8a",
-    dressed: "#c9c2b2",
+    dressed: "#b9b19f",
     slate: "#76808f",
     slateD: "#4a5260",
     wood: "#9c8672",
@@ -123,10 +123,8 @@
   function puffs(parent, n, size, col) {
     const out = [];
     for (let i = 0; i < n; i++) {
-      const pp = K.part("bld:puff" + col);
-      pp.add(G.blob(size, 0, 0.1, 3), "matte", { c: col });
-      const m = pp.build({ cast: false });
-      m.userData.noBounds = true;
+      const m = K.fx.smoke(col, 1, 0.6);
+      m.userData.size = size * 3.2;
       parent.add(m);
       out.push(m);
     }
@@ -136,7 +134,7 @@
     for (let i = 0; i < list.length; i++) {
       const ph = (t * speed + i / list.length) % 1;
       list[i].position.set(x + Math.sin(ph * 4 + i) * 0.1 + ph * 0.3, y + ph * rise, z);
-      list[i].scale.setScalar(Math.max(0.001, Math.sin(ph * Math.PI) * (0.6 + ph)));
+      list[i].scale.setScalar(Math.max(0.001, Math.sin(ph * Math.PI) * (0.6 + ph) * list[i].userData.size));
     }
   }
   function mossBits(p, pts) {
@@ -501,7 +499,17 @@
   function crypte(c) {
     const p = K.part("bld:crypte");
     // Tertre herbeux.
-    p.add(G.blob(3.1, 2, 0.06, 9), "matte", { p: [0, -0.2, -0.6], s: [1, 0.5, 0.95], g: ["#3f6a26", "#5f8e35", 0, 1.4], vj: 0.12, vs: 2 });
+    p.add(G.blob(3.1, 2, 0.06, 9), "matte", { p: [0, -0.2, -0.6], s: [1, 0.5, 0.95], gp: ["#2f4f1c", "#4a7328", 0, 1.4], vj: 0.28, vs: 3 });
+    for (let i = 0; i < 6; i++) {
+      const a = i * 1.7 + 0.4,
+        r = 1.2 + (i % 3) * 0.5;
+      p.add(G.rock(0.16 + (i % 2) * 0.08, 0, 0.3, 300 + i), "stone", { p: [Math.sin(a) * r, 0.9 - r * 0.22, -0.8 + Math.cos(a) * r * 0.8], s: [1, 0.6, 1], c: "#9c9486", uv: "box", tile: 0.8 });
+    }
+    for (let i = 0; i < 7; i++) {
+      const a = i * 2.3,
+        r = 0.6 + (i % 4) * 0.45;
+      p.add(G.sphere(0.06, 5, 4), "matte", { p: [Math.sin(a) * r, 1.28 - r * 0.2, -0.6 + Math.cos(a) * r * 0.7], c: i % 2 ? "#f4e27a" : "#e8f0ff" });
+    }
     // Façade de granite.
     const fw = 4.4,
       fh = 2.9,
@@ -605,5 +613,4 @@
     return shell(kind, b);
   };
 
-  void lerp;
 })();
