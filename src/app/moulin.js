@@ -10293,8 +10293,12 @@ lawnWorld20=(modelMatrix*lawnP20).xyz;`,
     }
     function Ne(V = {}) {
       const Me = V.mode || "raise";
-      if (!["raise", "lower", "flatten", "smooth", "restore", "ramp", "terrace"].includes(Me))
+      if (!["raise", "lower", "flatten", "smooth", "restore", "ramp", "terrace", "custom32"].includes(Me))
         return { changed: !1, count: 0 };
+      // V32 : mode « custom32 » : V.target(x, z, hauteur, hauteur d'origine) donne la hauteur
+      // voulue de chaque sommet de V.bounds (chemins taillés dans la pente).
+      const custom32 = Me === "custom32" && V.bounds && typeof V.target == "function";
+      if (Me === "custom32" && !custom32) return { changed: !1, count: 0 };
       const je = le(X(V.strength, 1), 0, 12),
         lt = le(X(V.dt, 1 / 30), 0, 1);
       if (!je || !lt) return { changed: !1, count: 0 };
@@ -10317,7 +10321,7 @@ lawnWorld20=(modelMatrix*lawnP20).xyz;`,
         De = V.oneSided !== !1,
         ke = le(je * lt * 4, 0, 1),
         rt = [],
-        $e = P(qe - xe, Xe - H, qe + xe, Xe + H);
+        $e = custom32 ? P(V.bounds.x0, V.bounds.z0, V.bounds.x1, V.bounds.z1) : P(qe - xe, Xe - H, qe + xe, Xe + H);
       let B = 0;
       for (const Le of $e) {
         const pt = re[Le * 3],
@@ -10326,7 +10330,11 @@ lawnWorld20=(modelMatrix*lawnP20).xyz;`,
           at = Ge - Xe,
           ft = m * He + at * Ce,
           ue = -m * Ce + at * He,
-          se = Ke ? c(Math.abs(ft) / ($ * 0.5), Mt) * c(Math.abs(ue) / (st * 0.5), Mt) : c(Math.hypot(m, at) / _t, Mt);
+          se = custom32
+            ? 1
+            : Ke
+              ? c(Math.abs(ft) / ($ * 0.5), Mt) * c(Math.abs(ue) / (st * 0.5), Mt)
+              : c(Math.hypot(m, at) / _t, Mt);
         if (se < 1e-6 || q.has(Le)) continue;
         if (!b(Le)) {
           B++;
@@ -10335,7 +10343,11 @@ lawnWorld20=(modelMatrix*lawnP20).xyz;`,
         const Ve = R[Le * 3 + 1],
           vt = re[Le * 3 + 1];
         let me = Ve;
-        if (Me === "raise" || Me === "lower") me = Ve + (Me === "raise" ? 1 : -1) * je * lt * se;
+        if (custom32) {
+          const target32 = V.target(pt, Ge, Ve, vt);
+          if (target32 == null || !Number.isFinite(target32)) continue;
+          me = target32;
+        } else if (Me === "raise" || Me === "lower") me = Ve + (Me === "raise" ? 1 : -1) * je * lt * se;
         else if (Me === "flatten") me = Ve + (W - Ve) * ke * se;
         else if (Me === "restore") me = Ve + (vt - Ve) * ke * se;
         else if (Me === "smooth") me = Ve + (C(pt, Ge, Math.max(0.35, Math.min(3, _t * 0.2))) - Ve) * ke * se;
@@ -10374,7 +10386,7 @@ lawnWorld20=(modelMatrix*lawnP20).xyz;`,
         changes: Qe,
         visited: $e.length,
         protectedSkipped: B,
-        bounds: { x0: qe - xe, x1: qe + xe, z0: Xe - H, z1: Xe + H },
+        bounds: custom32 ? { ...V.bounds } : { x0: qe - xe, x1: qe + xe, z0: Xe - H, z1: Xe + H },
         options: { ...V, x: qe, z: Xe, width: st, length: $, radius: _t, angle: X(V.angle, 0), targetHeight: W },
         source: Fe,
         heightAt: (Le, pt) => te(Le, pt, Fe),
@@ -14664,7 +14676,13 @@ lawnWorld20=(modelMatrix*lawnP20).xyz;`,
       var xt;
       if (
         ((xt = n.shore29) == null || xt.validate((i == null ? void 0 : i.shorelines29) || []),
-        !i || i.format !== "moulin-landscape" || i.schema !== 1 || i.baseVersion !== 9 || i.vertexCount !== Se.count)
+        !i ||
+          i.format !== "moulin-landscape" ||
+          i.schema !== 1 ||
+          i.baseVersion !== 9 ||
+          // V32 : les sommets ajoutés le long des rivières sont en fin de tableau ; les
+          // retouches enregistrées avant restent valables.
+          !(i.vertexCount === Se.count || i.vertexCount === le.baseVertexCount32))
       )
         throw Error("Ce fichier ne correspond pas au projet du moulin, versions 9 \xE0 21.");
       if (
@@ -15953,6 +15971,19 @@ lawnWorld20=(modelMatrix*lawnP20).xyz;`,
     function _n() {
       dn(m) && ((m = []), hn(), ne("Sentier de feuilles ajout\xE9."));
     }
+    // V32 : chemin taillé dans la pente. Le relief est modifié (plan « custom32 » fourni
+    // par l'appelant), puis le tapis de feuilles est posé : une seule étape d'annulation.
+    function benchPath32(i, d, Z) {
+      if (!Array.isArray(i) || i.length < 2 || !Z || !Z.bounds || typeof Z.target != "function")
+        return { ok: !1, reason: "invalid" };
+      if (!Gn(i, d)) return { ok: !1, reason: "water" };
+      (So(!0), vo(), Pt(), Oe(), ao.beginStroke({ x: i[0][0], z: i[0][1], mode: "custom32" }));
+      const ye = ao.apply({ mode: "custom32", dt: 1, strength: 1, bounds: Z.bounds, target: Z.target });
+      (ut(ye), ao.endStroke(), Kt());
+      const nt = At(),
+        xt = { id: "sentier-" + ++at, width: d, points: i.map((ot) => ot.slice()) };
+      return (Ge.push(xt), xn(), We(), n.invalidate(), { ok: !0, path: xt, changed: ye.count, removed: nt });
+    }
     function zn(i) {
       var d;
       (Cn(),
@@ -16657,6 +16688,7 @@ lawnWorld20=(modelMatrix*lawnP20).xyz;`,
         fillDigHoles25: So,
         getAdventure24: Ee,
         addPath: dn,
+        benchPath32,
         undo: Tt,
         redo: Jt,
         compareOriginal: J,
@@ -21504,7 +21536,8 @@ void main(){
         // V32 : cellules grossières subdivisées (4 × 4) le long des rivières naturelles, pour
         // que les berges creusées aient la finesse voulue. Les nouveaux sommets sont ajoutés
         // après ceux du cache de terrain, dont l'ordre ne change pas.
-        const refine32 = globalThis.MoulinV32.riverbeds
+        const baseVertexCount32 = e.length / 3,
+          refine32 = globalThis.MoulinV32.riverbeds
           ? globalThis.MoulinV32.riverbeds.cellsToRefine({
               bounds: Bt,
               rows: 232,
@@ -21577,7 +21610,14 @@ void main(){
           ((e[Ht * 3 + 1] = e[$t * 3 + 1] * (1 - Wo) + e[to * 3 + 1] * Wo),
             St.attributes.position.setY(Ht, e[Ht * 3 + 1]));
         (St.computeVertexNormals(),
-          (qt = { renderCells: it, values: e, base: Float32Array.from(e), mesh: Nt, constraints: [...Mo.values()] }));
+          (qt = {
+            renderCells: it,
+            values: e,
+            base: Float32Array.from(e),
+            mesh: Nt,
+            constraints: [...Mo.values()],
+            baseVertexCount32,
+          }));
         const so = [
             ...L[0],
             ...L.slice(1).map((Ht) => Ht[340]),
