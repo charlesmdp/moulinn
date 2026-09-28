@@ -1101,6 +1101,7 @@
       P = !1,
       C = !1,
       Ne = !1,
+      houseLights32 = !0,
       z = 0,
       ce = -1 / 0,
       V = "",
@@ -1382,9 +1383,9 @@ if(length(gl_PointCoord-vec2(.5))>.5)discard;`,
         (ne.envMapIntensity !== void 0 && (be.envMapIntensity = c === "day" ? ne.envMapIntensity : 0),
           ne.emissiveIntensity !== void 0 &&
             (be.emissiveIntensity = c === "day" ? ne.emissiveIntensity : Math.min(ne.emissiveIntensity || 0, 0.12)));
-      for (const be of n.windows || []) be.emissiveIntensity = c === "day" || !$e.has(be) ? 0 : 0.82;
-      for (const be of n.lampMats || []) be.emissiveIntensity = c === "day" ? 0.15 : 1.3;
-      for (const be of ke) be.emissive && (be.emissiveIntensity = c === "day" ? 0 : 1.25);
+      for (const be of n.windows || []) be.emissiveIntensity = c === "day" || !houseLights32 || !$e.has(be) ? 0 : 0.82;
+      for (const be of n.lampMats || []) be.emissiveIntensity = c === "day" ? 0.15 : houseLights32 ? 1.3 : 0.03;
+      for (const be of ke) be.emissive && (be.emissiveIntensity = c === "day" || !houseLights32 ? 0 : 1.25);
     }
     function M() {
       var ne, K, fe, Ee;
@@ -1404,7 +1405,7 @@ if(length(gl_PointCoord-vec2(.5))>.5)discard;`,
       var Ee, bt, mt, Ct, Pt, jt;
       const be = v(),
         ne = M(),
-        K = c + "|" + ne.mode;
+        K = c + "|" + ne.mode + "|" + houseLights32;
       if (!w && K === V) return;
       V = K;
       const fe = ((Ee = be == null ? void 0 : be.modes) == null ? void 0 : Ee[ne.mode]) || {
@@ -1434,9 +1435,10 @@ if(length(gl_PointCoord-vec2(.5))>.5)discard;`,
       }
       be != null && be.sky && (be.sky.visible = c !== "black");
       for (const [Dt, we] of b) Dt !== T && Dt !== le && Dt !== X && (Dt.intensity = c === "day" ? we.intensity : 0);
-      for (const Dt of n.lamps || []) Dt.intensity = c === "day" ? 0 : 2.2;
+      // V32 : lampes du moulin et du jardin eteintes apres 23 h 30 (voir setHouseLights).
+      for (const Dt of n.lamps || []) Dt.intensity = c === "day" || !houseLights32 ? 0 : 2.2;
       for (const Dt of De)
-        ((Dt.intensity = c === "day" ? 0 : Dt.userData.nightPower23), (Dt.visible = Dt.intensity > 0));
+        ((Dt.intensity = c === "day" || !houseLights32 ? 0 : Dt.userData.nightPower23), (Dt.visible = Dt.intensity > 0));
       for (const [Dt] of b) Dt.visible = Dt.intensity > 1e-5;
       ((n.waterDaylight.value = c === "day" ? 1 : c === "stars" ? 0.055 : 0.03),
         (Pt = (Ct = n.forest) == null ? void 0 : Ct.setDaylight) == null ||
@@ -1663,6 +1665,11 @@ if(length(gl_PointCoord-vec2(.5))>.5)discard;`,
       uniforms: x,
       setMode: de,
       setTorch: oe,
+      /** V32 : allume ou eteint les lumieres de la maison et du jardin (la nuit seulement). */
+      setHouseLights(on) {
+        ((on = !!on), on !== houseLights32 && ((houseLights32 = on), ee(!0)));
+      },
+      houseLights: () => houseLights32,
       toggleTorch: y,
       update: Be,
       refreshMaterials: et,
@@ -6573,23 +6580,37 @@ uniform vec2 uMoulinSunSlope20;
    float mwPhase20=dot(mwOrigin20.xz,vec2(.113,.087))+position.x*.41+position.z*.33;
    float mwForce23=pow(clamp(uMoulinWind20,0.,1.8),1.05);
    vec2 mwDir20=normalize(uMoulinDirection20+vec2(.00001));
-   // V32 : rafales qui traversent la vallee dans le sens du vent, chaque arbre avec son rythme.
+   vec2 mwCross32=vec2(-mwDir20.y,mwDir20.x);
+   // V32 : rafales qui traversent la vallee dans le sens du vent ; chaque arbre a sa raideur.
    float mwAlong32=dot(mwOrigin20.xz,mwDir20);
    float mwTree32=fract(sin(dot(floor(mwOrigin20.xz*1.7),vec2(12.9898,78.233)))*43758.5453);
-   float mwFront32=sin(mwAlong32*.042-uMoulinTime20*(.62+mwForce23*.55)+sin(mwAlong32*.011+uMoulinTime20*.07)*2.2);
-   float mwGust23=smoothstep(-.25,1.,mwFront32)*(.55+.45*sin(uMoulinTime20*.23+mwTree32*6.28));
-   float mwSway32=sin(uMoulinTime20*(1.35+.35*mwTree32+.3*mwForce23)+mwTree32*6.283-mwAlong32*.05);
-   float mwWave20=.5+.26*mwSway32+.55*mwGust23;
-   float mwAmount20=mwMask20*mwForce23*${k === "tree" || k === "wood" ? "clamp(length(mwY20)/max(.1,aTreeShape23.y)*.118,.3,2.4)" : "(.3+.16*sin(uMoulinTime20*2.8+mwPhase20))"}*mwWave20;
-   float mwSide32=mwMask20*mwForce23*${k === "tree" || k === "wood" ? "clamp(length(mwY20)*.034,.08,.7)" : ".08"}*sin(uMoulinTime20*(1.9+.4*mwTree32)+mwTree32*11.)*(.4+.6*mwGust23);
-   vec2 mwCross32=vec2(-mwDir20.y,mwDir20.x);
-   vec2 mwPush32=mwDir20*mwAmount20+mwCross32*mwSide32;
+   float mwFront32=sin(mwAlong32*.042-uMoulinTime20*(.55+mwForce23*.45)+sin(mwAlong32*.011+uMoulinTime20*.07)*2.2);
+   float mwGust23=smoothstep(-.2,1.,mwFront32)*(.6+.4*sin(uMoulinTime20*.23+mwTree32*6.28));
+   ${k === "tree" || k === "wood" ? `// Amplitudes reelles : la cime d'un chene de 20 m bouge de 15 a 25 cm par vent leger,
+   // d'environ 60 cm par vent fort ; frequence propre plus lente pour les grands arbres.
+   float mwHeight32=max(1.,length(mwY20));
+   float mwReach32=(.03+.32*mwForce23)*sqrt(mwHeight32*.1)*(.75+.5*mwTree32);
+   float mwFreq32=6.2832*1.2/sqrt(mwHeight32)*(.9+.2*mwTree32);
+   float mwLean32=mwReach32*(.45+.55*mwGust23);
+   float mwSwing32=mwReach32*.35*sin(uMoulinTime20*mwFreq32+mwTree32*6.283-mwAlong32*.05);
+   float mwSide32=mwReach32*.18*sin(uMoulinTime20*mwFreq32*1.31+mwTree32*11.)*(.5+.5*mwGust23);
+   float mwAmount20=mwMask20*(mwLean32+mwSwing32);
+   vec2 mwPush32=mwDir20*mwAmount20+mwCross32*mwMask20*mwSide32;
+   float mwDrop32=dot(mwPush32,mwPush32)*.5/mwHeight32;` : k === "bamboo" ? `float mwReach32=.05+.42*mwForce23;
+   float mwAmount20=mwMask20*mwReach32*(.5+.4*mwGust23+.3*sin(uMoulinTime20*(3.6+mwTree32)+mwPhase20));
+   vec2 mwPush32=mwDir20*mwAmount20+mwCross32*mwMask20*mwReach32*.15*sin(uMoulinTime20*4.7+mwPhase20);
+   float mwDrop32=dot(mwPush32,mwPush32)*.08;` : k === "ivy" ? `float mwAmount20=mwMask20*(.006+.03*mwForce23)*(.5+.5*mwGust23+.4*sin(uMoulinTime20*5.1+mwPhase20));
+   vec2 mwPush32=mwDir20*mwAmount20;
+   float mwDrop32=0.;` : `float mwReach32=.02+.14*mwForce23;
+   float mwAmount20=mwMask20*mwReach32*(.55+.45*mwGust23+.35*sin(uMoulinTime20*(5.2+.8*mwTree32)+mwPhase20));
+   vec2 mwPush32=mwDir20*mwAmount20+mwCross32*mwMask20*mwReach32*.2*sin(uMoulinTime20*6.3+mwPhase20*1.7);
+   float mwDrop32=dot(mwPush32,mwPush32)*.3;`}
    transformed.x+=dot(mwPush32,mwX20.xz/max(.001,length(mwX20)))/max(.001,length(mwX20));
    transformed.z+=dot(mwPush32,mwZ20.xz/max(.001,length(mwZ20)))/max(.001,length(mwZ20));
-   transformed.y-=mwAmount20*mwAmount20*.16/max(.4,length(mwY20));
+   transformed.y-=mwDrop32/max(.001,length(mwY20));
    ${k === "tree" ? `// Feuillage qui frissonne : petit mouvement rapide propre a chaque sommet.
    float mwLeaf32=fract(sin(dot(position,vec3(12.9898,78.233,37.719)))*43758.5453)*6.2831;
-   float mwFlutter32=mwMask20*(.018+.07*mwForce23)*(.45+.9*mwGust23)*step(.001,uMoulinWind20);
+   float mwFlutter32=mwMask20*(.008+.04*mwForce23)*(.5+.8*mwGust23)*step(.001,uMoulinWind20);
    vec3 mwJitter32=vec3(sin(uMoulinTime20*(7.3+mwForce23*3.)+mwLeaf32),sin(uMoulinTime20*(9.1+mwForce23*2.)+mwLeaf32*1.7)*.6,cos(uMoulinTime20*(8.2+mwForce23*3.)+mwLeaf32*1.3))*mwFlutter32;
    transformed.x+=mwJitter32.x/max(.001,length(mwX20));
    transformed.y+=mwJitter32.y/max(.001,length(mwY20));
@@ -6721,7 +6742,9 @@ uniform vec2 uMoulinSunSlope20;
               Math.hypot(b, p) > 0.001 &&
               A.windDirection.value.set(b, p).normalize();
           }
-          _e();
+          // V32 : la recherche de nouveaux arbres (editeur) une fois par seconde suffit.
+          const now32 = performance.now();
+          if (!(now32 - (te.lastSync32 || 0) < 1e3)) ((te.lastSync32 = now32), _e());
         },
         setQuality() {},
       }
@@ -11344,7 +11367,7 @@ lawnWorld20=(modelMatrix*lawnP20).xyz;`,
         n.markDirty());
     }
     function Do(f) {
-      if (((f = _e(f, 0, 0.06)), (wn.value += f), !Ge.enabled)) return;
+      if (((f = _e(f, 0, 0.06)), (wn.value = performance.now() / 1e3), !Ge.enabled)) return;
       let J =
           Ge.forward +
           (kt.has("z") || kt.has("w") || kt.has("arrowup") ? 1 : 0) -
@@ -11905,11 +11928,12 @@ lawnWorld20=(modelMatrix*lawnP20).xyz;`,
       }
       return !0;
     }
-    // V32 : traces de pneus nettes et durables. Chaque empreinte assombrit le sol par
-    // multiplication (herbe couchee, puis boue sous la pluie, ornieres sombres dans la
-    // neige), avec le dessin des crampons ; elles s'estompent en 7 a 15 minutes.
+    // V32 : traces de pneus nettes. Chaque empreinte assombrit le sol par multiplication
+    // (herbe couchee, puis boue sous la pluie, ornieres sombres dans la neige), avec le
+    // dessin des crampons. Horloge reelle, quel que soit le mode de vue : l'herbe se
+    // redresse en 2 a 3 minutes, la boue seche en 6 minutes, la neige recouvre en 4.
     const Io = typeof matchMedia == "function" && matchMedia("(pointer:coarse)").matches ? 1100 : 2400,
-      Dn = 900,
+      Dn = 360,
       wn = { value: 0 },
       No = new t.PlaneGeometry(1, 1);
     No.rotateX(-pe / 2);
@@ -11934,12 +11958,14 @@ lawnWorld20=(modelMatrix*lawnP20).xyz;`,
         vertexShader:
           "attribute float tireBorn24,tireGrip32;uniform float uTireTime24;varying float vTireAge24,vTireGrip32;varying vec2 vTireUv24;varying vec3 vTireWorld32;void main(){vTireAge24=uTireTime24-tireBorn24;vTireGrip32=tireGrip32;vTireUv24=uv;vec4 w=modelMatrix*instanceMatrix*vec4(position,1.);vTireWorld32=w.xyz;gl_Position=projectionMatrix*viewMatrix*w;}",
         fragmentShader:
-          "uniform float uTireWet32,uTireSnow32;varying float vTireAge24,vTireGrip32;varying vec2 vTireUv24;varying vec3 vTireWorld32;float tireHash32(vec2 p){return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453);}void main(){if(vTireAge24<0.)discard;float fresh=1.-smoothstep(420.,900.,vTireAge24);float edge=smoothstep(0.,.2,vTireUv24.x)*(1.-smoothstep(.8,1.,vTireUv24.x));float chevron=fract(vTireUv24.y*6.+abs(vTireUv24.x-.5)*1.4);float lug=smoothstep(.3,.42,chevron)*(1.-smoothstep(.7,.82,chevron));float grain=.82+.18*tireHash32(floor(vTireWorld32.xz*16.));float crush=edge*(.62+.38*lug)*grain;vec3 tint=mix(vec3(.57,.64,.49),vec3(.45,.39,.32),uTireWet32);tint=mix(tint,vec3(.6,.62,.68),uTireSnow32);float amount=crush*fresh*vTireGrip32*mix(.8,1.,uTireWet32);gl_FragColor=vec4(mix(vec3(1.),tint,amount),1.);}",
+          "uniform float uTireWet32,uTireSnow32;varying float vTireAge24,vTireGrip32;varying vec2 vTireUv24;varying vec3 vTireWorld32;float tireHash32(vec2 p){return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453);}void main(){if(vTireAge24<0.)discard;float life=mix(mix(150.,360.,uTireWet32),240.,uTireSnow32);float fresh=1.-smoothstep(life*.25,life,vTireAge24);fresh*=fresh;float edge=smoothstep(0.,.2,vTireUv24.x)*(1.-smoothstep(.8,1.,vTireUv24.x));float chevron=fract(vTireUv24.y*6.+abs(vTireUv24.x-.5)*1.4);float lug=smoothstep(.3,.42,chevron)*(1.-smoothstep(.7,.82,chevron));float grain=.82+.18*tireHash32(floor(vTireWorld32.xz*16.));float crush=edge*(.62+.38*lug)*grain;vec3 tint=mix(vec3(.57,.64,.49),vec3(.45,.39,.32),uTireWet32);tint=mix(tint,vec3(.6,.62,.68),uTireSnow32);float amount=crush*fresh*vTireGrip32*mix(.8,1.,uTireWet32);gl_FragColor=vec4(mix(vec3(1.),tint,amount),1.);}",
       });
     ((Bn.name = "Traces_de_pneus_v32"),
       (Bn.onBeforeRender = () => {
         const f = tireWeather32();
-        ((Bn.uniforms.uTireWet32.value = f.wet ? f.wet.value : 0), (Bn.uniforms.uTireSnow32.value = f.snow ? f.snow.value : 0));
+        ((wn.value = performance.now() / 1e3),
+          (Bn.uniforms.uTireWet32.value = f.wet ? f.wet.value : 0),
+          (Bn.uniforms.uTireSnow32.value = f.snow ? f.snow.value : 0));
       }));
     const mn = new t.InstancedMesh(No, Bn, Io);
     ((mn.name = "Traces_de_pneus_du_quad"),
@@ -20189,9 +20215,7 @@ void main(){
             (L = da.update) == null || L.call(da, qe, ve, S.windDirection.value),
             P.update(qe) && oa && (Po = !0),
             ve > 0.001 && ((vr.value = qe), (Po = !0)),
-            ve > 0.38 &&
-              e - (Oa.lastBreeze || 0) > (Qn === "fast" ? 450 : 220) &&
-              ((Oa.lastBreeze = e), (xo.shadowMap.needsUpdate = !0)),
+            // V32 : plus de recalcul des ombres pendant le vent (c'etait la cause des saccades).
             C != null && C.update(qe, u) && (Po = !0),
             Uo.update(qe, e) && (Po = !0),
             oa && lt != null && lt.update(qe, u) && (Po = !0),

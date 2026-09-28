@@ -74,17 +74,58 @@
   };
 
   // --- Lieu du moulin et horloge de la scène ---
-  // Tant que le lieu n'est pas choisi dans l'onglet Météo, on prend le centre de la
-  // France : l'heure du lever et du coucher y reste juste à quelques minutes près.
-  const DEFAULT_LOCATION = { latitude: 46.6, longitude: 2.45, name: "", admin: "", country: "FR", timezone: "Europe/Paris", fallback: true };
+  // Le moulin de Saint-Christophe, 56250 Elven (Morbihan). Un autre lieu peut être
+  // choisi dans l'onglet Météo ; il est alors retenu par le navigateur.
+  const DEFAULT_LOCATION = {
+    latitude: 47.733,
+    longitude: -2.59,
+    name: "Moulin de Saint-Christophe",
+    admin: "Elven, Morbihan, Bretagne",
+    postcode: "56250",
+    country: "FR",
+    timezone: "Europe/Paris",
+    fallback: false,
+  };
   const locationListeners = [];
-  const storedLocation = V32.store.get("location", null);
-  V32.location = Object.assign({}, DEFAULT_LOCATION, storedLocation || {}, storedLocation ? { fallback: false } : {});
+  // Nouvelle clé : les lieux choisis avant que l'adresse du moulin soit connue sont oubliés.
+  const storedLocation = V32.store.get("place", null);
+  V32.location = Object.assign({}, DEFAULT_LOCATION, storedLocation || {}, { fallback: false });
   V32.setLocation = function (location) {
-    V32.location = Object.assign({}, DEFAULT_LOCATION, location, { fallback: !location });
-    if (location) V32.store.set("location", V32.location);
+    V32.location = Object.assign({}, DEFAULT_LOCATION, location || {}, { fallback: false });
+    V32.store.set("place", location ? V32.location : null);
     for (const listener of locationListeners) listener(V32.location);
   };
+  V32.defaultLocation = DEFAULT_LOCATION;
+
+  /** Heure locale du moulin, en minutes depuis minuit (fuseau du lieu). */
+  const clockFormats = new Map();
+  const clockCache = { key: "", minutes: 0 };
+  V32.localMinutes = function (ms) {
+    const zone = V32.location.timezone || "Europe/Paris";
+    const key = zone + "|" + Math.floor(ms / 15000);
+    if (key === clockCache.key) return clockCache.minutes;
+    let format = clockFormats.get(zone);
+    if (!format) {
+      try {
+        format = new Intl.DateTimeFormat("fr-FR", { timeZone: zone, hour: "numeric", minute: "numeric", hourCycle: "h23" });
+      } catch {
+        format = new Intl.DateTimeFormat("fr-FR", { hour: "numeric", minute: "numeric", hourCycle: "h23" });
+      }
+      clockFormats.set(zone, format);
+    }
+    let hours = 0;
+    let minutes = 0;
+    for (const part of format.formatToParts(ms)) {
+      if (part.type === "hour") hours = Number(part.value) % 24;
+      else if (part.type === "minute") minutes = Number(part.value);
+    }
+    clockCache.key = key;
+    clockCache.minutes = hours * 60 + minutes;
+    return clockCache.minutes;
+  };
+  // Lumières de la maison : allumées à la tombée de la nuit, éteintes à 23 h 30
+  // jusqu'au soir suivant.
+  V32.lightsOffAt = 23 * 60 + 30;
   V32.onLocation = (listener) => locationListeners.push(listener);
 
   // Mode de l'heure : "live" suit l'horloge, "manual" laisse le choix Jour / Nuit de la V31.
@@ -226,6 +267,17 @@
             dirty = true;
           }
           syncSelect();
+          // Lumières de la maison : de midi à 23 h 30 (donc du crépuscule à 23 h 30).
+          const minutes = V32.localMinutes(V32.clock.now());
+          const lightsOn = minutes >= 12 * 60 && minutes < V32.lightsOffAt;
+          if (night?.houseLights && night.houseLights() !== lightsOn) {
+            night.setHouseLights(lightsOn);
+            dirty = true;
+          }
+        } else if (night?.houseLights && !night.houseLights()) {
+          // Ambiance choisie à la main (« Nuit étoilée ») : la maison reste éclairée.
+          night.setHouseLights(true);
+          dirty = true;
         }
 
         const isNight = nightMode() !== "day";

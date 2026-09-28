@@ -102,7 +102,7 @@
         <div class="v32-picker-card">
           <header><strong>Où se trouve le moulin ?</strong><button type="button" class="v32-icon-btn" data-v32-picker-close aria-label="Fermer">${icon("close", 18)}</button></header>
           <p>La météo, l’heure du lever et du coucher du soleil et la course de la lune suivent ce lieu.</p>
-          <label class="v32-search">${icon("search", 18)}<input type="search" data-v32-search value="Saint-Christophe" autocomplete="off" aria-label="Commune du moulin"></label>
+          <label class="v32-search">${icon("search", 18)}<input type="search" data-v32-search value="" placeholder="Rechercher une commune" autocomplete="off" aria-label="Commune du moulin"></label>
           <button type="button" class="v32-pill v32-geo" data-v32-geo>${icon("locate", 18)}<span>Utiliser ma position actuelle</span></button>
           <ul class="v32-results" data-v32-results></ul>
           <p class="v32-picker-note" data-v32-picker-note></p>
@@ -326,10 +326,14 @@
       const note = $("[data-v32-picker-note]", picker);
       let searchTimer = 0;
       let searchId = 0;
+      // Le moulin (Elven) reste toujours proposé en tête de liste.
+      const home = V32.defaultLocation;
+      const homeItem = `<li><button type="button" data-home><strong>${home.name}</strong><span>${home.admin.split(",")[0]} · ${home.postcode}</span></button></li>`;
       async function runSearch() {
         const query = search.value.trim();
         if (query.length < 2) {
-          results.innerHTML = "";
+          results.innerHTML = homeItem;
+          results.found = [];
           return;
         }
         const id = ++searchId;
@@ -338,7 +342,7 @@
           const found = await live.search(query);
           if (id !== searchId) return;
           note.textContent = found.length ? "" : "Aucune commune trouvée.";
-          results.innerHTML = found
+          results.innerHTML = homeItem + found
             .map(
               (place, i) =>
                 `<li><button type="button" data-index="${i}"><strong>${place.name}</strong><span>${[place.admin, place.postcode, place.country !== "FR" ? place.country : ""].filter(Boolean).join(" · ")}</span></button></li>`,
@@ -354,6 +358,7 @@
         searchTimer = setTimeout(runSearch, 320);
       });
       results.addEventListener("click", (event) => {
+        if (event.target.closest("button[data-home]")) return choosePlace(null);
         const button = event.target.closest("button[data-index]");
         if (!button) return;
         const place = results.found?.[Number(button.dataset.index)];
