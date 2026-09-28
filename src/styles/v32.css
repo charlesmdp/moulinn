@@ -1458,3 +1458,174 @@
     min-height: 62px;
   }
 }
+
+/* ---------- Boutons de jeu : crème bombé, tranche en relief, vert mousse actif ---------- */
+#moulin-vallee-3d.v32.game22 {
+  --g-face: linear-gradient(180deg, #fffaf0 0%, #f3e8cc 100%);
+  --g-face-hover: linear-gradient(180deg, #fffdf6 0%, #f7eed8 100%);
+  --g-border: #d6c496;
+  --g-edge: #b49d6c;
+  --g-ink: #36432f;
+  --g-moss: linear-gradient(180deg, #86cb74 0%, #4f9a50 55%, #3c8341 100%);
+  --g-moss-edge: #2b5e31;
+  --g-drop: 0 7px 14px rgba(20, 30, 18, 0.28);
+}
+#moulin-vallee-3d.v32.game22 .mode-switch {
+  gap: 7px;
+  padding: 7px 8px 11px;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 22px;
+  background: rgba(34, 44, 33, 0.5);
+}
+#moulin-vallee-3d.v32.game22 .mode-switch button,
+#moulin-vallee-3d.v32.game22 .game19-actions > button.btn {
+  position: relative;
+  border: 1.5px solid var(--g-border);
+  border-radius: 15px;
+  background: var(--g-face);
+  box-shadow: 0 4px 0 var(--g-edge), var(--g-drop), inset 0 2px 0 rgba(255, 255, 255, 0.95);
+  color: var(--g-ink);
+  text-shadow: 0 1px 0 rgba(255, 255, 255, 0.7);
+  font: 800 13px/1.05 var(--v32-font);
+  transition: transform 0.09s ease, box-shadow 0.09s ease, filter 0.15s;
+}
+#moulin-vallee-3d.v32.game22 .mode-switch button {
+  flex-direction: column;
+  justify-content: center;
+  gap: 4px;
+  height: auto;
+  min-height: 56px;
+  min-width: 84px;
+  padding: 7px 12px 6px;
+}
+#moulin-vallee-3d.v32.game22 .mode-switch .game22-mode-icon {
+  display: block;
+  width: 22px;
+  height: 22px;
+  color: #4a7a44;
+  filter: none;
+}
+#moulin-vallee-3d.v32.game22 .mode-switch .game22-mode-icon svg {
+  width: 22px;
+  height: 22px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2.1;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+#moulin-vallee-3d.v32.game22 .mode-switch button:hover,
+#moulin-vallee-3d.v32.game22 .game19-actions > button.btn:hover {
+  background: var(--g-face-hover);
+  transform: translateY(-1px);
+  filter: none;
+}
+#moulin-vallee-3d.v32.game22 .mode-switch button:active,
+#moulin-vallee-3d.v32.game22 .game19-actions > button.btn:active {
+  transform: translateY(3px);
+  box-shadow: 0 1px 0 var(--g-edge), 0 2px 5px rgba(20, 30, 18, 0.25), inset 0 2px 0 rgba(255, 255, 255, 0.95);
+}
+#moulin-vallee-3d.v32.game22 .mode-switch button[aria-pressed="true"],
+#moulin-vallee-3d.v32.game22 .game19-actions > button.btn[aria-pressed="true"],
+#moulin-vallee-3d.v32.game22 .game19-actions > button.btn[aria-expanded="true"] {
+  border-color: #2f6a36;
+  background: var(--g-moss);
+  box-shadow: 0 4px 0 var(--g-moss-edge), 0 7px 16px rgba(30, 80, 35, 0.4), inset 0 2px 0 rgba(255, 255, 255, 0.35);
+  color: #fff;
+  text-shadow: 0 1px 1px rgba(0, 0, 0, 0.35);
+}
+#moulin-vallee-3d.v32.game22 .mode-switch button[aria-pressed="true"] .game22-mode-icon {
+  color: #fff9d8;
+  filter: drop-shadow(0 1px 1px rgba(0, 0, 0, 0.3));
+}
+#moulin-vallee-3d.v32.game22 .mode-switch button[aria-pressed="true"]:active {
+  box-shadow: 0 1px 0 var(--g-moss-edge), 0 2px 5px rgba(30, 80, 35, 0.35), inset 0 2px 0 rgba(255, 255, 255, 0.35);
+}
+#moulin-vallee-3d.v32.game22 .game19-actions > button.btn {
+  height: 50px;
+  min-height: 50px;
+  margin-bottom: 4px;
+  padding: 0 15px;
+  gap: 8px;
+}
+#moulin-vallee-3d.v32.game22 .game19-actions > button.btn > span:first-child {
+  color: #4a7a44;
+}
+#moulin-vallee-3d.v32.game22 .game19-actions > button.btn[aria-pressed="true"] > span:first-child,
+#moulin-vallee-3d.v32.game22 .game19-actions > button.btn[aria-expanded="true"] > span:first-child {
+  color: #fff9d8;
+}
+#moulin-vallee-3d.v32.game22 .v32-brand {
+  border: 1.5px solid var(--g-border);
+  background: var(--g-face);
+  box-shadow: 0 4px 0 var(--g-edge), var(--g-drop), inset 0 2px 0 rgba(255, 255, 255, 0.95);
+}
+/* Commandes de la promenade : galets ronds. */
+#moulin-vallee-3d.v32.game22 .player19-hud button,
+#moulin-vallee-3d.v32.game22 .world25-prompt {
+  border: 1.5px solid var(--g-border);
+  background: var(--g-face);
+  box-shadow: 0 4px 0 var(--g-edge), var(--g-drop), inset 0 2px 0 rgba(255, 255, 255, 0.95);
+  color: var(--g-ink);
+  text-shadow: 0 1px 0 rgba(255, 255, 255, 0.7);
+  font-weight: 800;
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+  transition: transform 0.09s ease, box-shadow 0.09s ease;
+}
+#moulin-vallee-3d.v32.game22 .player19-hud button:hover {
+  background: var(--g-face-hover);
+}
+#moulin-vallee-3d.v32.game22 .player19-hud button:active,
+#moulin-vallee-3d.v32.game22 .player19-hud button.is-held,
+#moulin-vallee-3d.v32.game22 .world25-prompt:active {
+  transform: translateY(3px);
+  box-shadow: 0 1px 0 var(--g-edge), 0 2px 5px rgba(20, 30, 18, 0.25), inset 0 2px 0 rgba(255, 255, 255, 0.95);
+}
+#moulin-vallee-3d.v32.game22 .player19-hud button[aria-pressed="true"],
+#moulin-vallee-3d.v32.game22 .player19-hud .player21-boost:not([hidden]):active {
+  border-color: #2f6a36;
+  background: var(--g-moss);
+  box-shadow: 0 4px 0 var(--g-moss-edge), 0 7px 16px rgba(30, 80, 35, 0.4), inset 0 2px 0 rgba(255, 255, 255, 0.35);
+  color: #fff;
+  text-shadow: 0 1px 1px rgba(0, 0, 0, 0.35);
+}
+#moulin-vallee-3d.v32.game22 .player20-vehicle .player20-key {
+  background: #3c8341;
+  color: #fff;
+  border-radius: 7px;
+  box-shadow: 0 2px 0 var(--g-moss-edge);
+}
+/* Téléphone : bouton du menu des modes et liste en boutons de jeu. */
+@media (pointer: coarse), (max-width: 700px) {
+  #moulin-vallee-3d.v32.game22 .mode-trigger31 {
+    border: 1.5px solid var(--g-border);
+    background: var(--g-face);
+    box-shadow: 0 4px 0 var(--g-edge), var(--g-drop), inset 0 2px 0 rgba(255, 255, 255, 0.95);
+    color: var(--g-ink);
+    font-weight: 800;
+  }
+  #moulin-vallee-3d.v32.game22 .mode-trigger31 .game22-mode-icon {
+    color: #4a7a44;
+  }
+  #moulin-vallee-3d.v32.game22 .mode-switch {
+    gap: 7px;
+    padding: 8px 8px 12px;
+    border-radius: 20px;
+    background: rgba(34, 44, 33, 0.72);
+  }
+  #moulin-vallee-3d.v32.game22 .mode-switch button {
+    flex-direction: row;
+    justify-content: flex-start;
+    gap: 10px;
+    min-height: 48px;
+    padding: 0 14px;
+    font-size: 15px;
+  }
+  #moulin-vallee-3d.v32.game22 .game19-actions > button.btn {
+    height: 46px;
+    min-height: 46px;
+    width: 46px;
+    padding: 0;
+  }
+}
