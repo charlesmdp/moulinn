@@ -30,6 +30,11 @@
   background: radial-gradient(120% 90% at 50% 45%, transparent 62%, rgba(12, 28, 22, 0.16) 100%);
   z-index: 1;
 }
+/* La vue reçoit le focus au démarrage pour le clavier : pas de cadre autour de l'écran. */
+#moulin-vallee-3d.v32.game22 .moulin-canvas canvas:focus,
+#moulin-vallee-3d.v32.game22 .moulin-canvas canvas:focus-visible {
+  outline: none;
+}
 
 /* ---------- Barre du haut ---------- */
 #moulin-vallee-3d.v32.game22 .moulin-toolbar {

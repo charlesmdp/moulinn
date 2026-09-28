@@ -1,9 +1,19 @@
 MOULIN DE SAINT CHRISTOPHE — VERSION CLOUDFLARE PAGES
-Export web du 27 septembre 2026, à partir de la version 31 du jardin.
+Export web du 28 septembre 2026, version 32 du jardin.
 
-NOUVEAUTES V31
-Interface mobile compacte, sélection des vues en haut à gauche, petite carte
-sans texte, icônes Sauter et Creuser, arrivée cadrée sur le moulin et les panneaux.
+NOUVEAUTES V32
+Rendu net sur téléphone et nouvelle interface. Heure réelle : soleil, lune
+et nuit à leur vraie place. Météo réelle (Open-Meteo) : soleil, nuages,
+brouillard, pluie, averses, orage, grêle et neige, avec le vent réel dans
+les arbres. Onglet Météo avec la boule à neige qui tourne, les prévisions
+heure par heure et sur sept jours. Eau vivante, pelouse et feuillages plus
+naturels, quad redessiné qui laisse des traces, oiseaux modelés.
+
+LE LIEU DU MOULIN
+A la première ouverture de l'onglet Météo, choisissez la commune du moulin
+(ou la position actuelle du téléphone). La météo, le lever et le coucher du
+soleil suivent ce lieu. Dans Réglages, « Météo réelle » et « Heure réelle »
+peuvent être remplacées par un temps ou une ambiance fixes.
 
 MISE EN LIGNE DEPUIS UN ORDINATEUR
 1. Connectez-vous à votre compte sur https://dash.cloudflare.com/

@@ -364,6 +364,10 @@
           note.textContent = "La localisation n’est pas disponible dans ce navigateur.";
           return;
         }
+        if (!window.isSecureContext) {
+          note.textContent = "La position actuelle n’est accessible que sur l’adresse HTTPS du site : cherche la commune ci-dessus.";
+          return;
+        }
         note.textContent = "Localisation…";
         navigator.geolocation.getCurrentPosition(
           (position) =>

@@ -1,17 +1,62 @@
-# Moulin de Saint Christophe
+# Moulin de Saint-Christophe
 
-Le jardin interactif 3D, version 31, avec le moulin, les véhicules, la météo,
-la végétation, les animaux, l'aménagement et les commandes tactiles.
+Le jardin interactif 3D du moulin, **version 32** : le moulin, la dépendance,
+les jardins, l'eau, les véhicules, les animaux, l'aménagement et les commandes
+tactiles, avec la météo et l'heure réelles.
 
-Ce dépôt contient le code source complet de la version actuelle et une copie
-optimisée prête à héberger. Le transfert sur GitHub ne modifie pas le site
-actuellement en ligne. GitHub conserve les fichiers ; Cloudflare Pages peut
-servir le jeu depuis une adresse HTTPS.
+Le dossier `dist/` est le site prêt à publier (Cloudflare Pages ou tout
+hébergement statique en HTTPS). Les sources modifiables sont dans `src/`.
+
+## Nouveautés de la version 32
+
+- **Rendu net sur téléphone** : anticrénelage, définition adaptée à l'écran et
+  ajustée en continu selon la fluidité. Pour des essais, `?definition=1.5` dans
+  l'adresse impose une définition.
+- **Nouvelle interface** : carte « Saint-Christophe » en haut à gauche, onglets
+  réunis au centre, réglages et outils d'aménagement en verre fumé, nouvel écran
+  de chargement, menu compact sur téléphone.
+- **Heure réelle** : le soleil et la lune sont à leur vraie place dans le ciel
+  (lever, coucher, aube, heure dorée, nuit étoilée, phase de la lune).
+- **Météo réelle** ([Open-Meteo](https://open-meteo.com), sans clé ni compte) :
+  ciel dégagé, voilé, nuageux, couvert, brouillard, bruine, pluie, averses,
+  orage avec éclairs, grêle et neige. Le vent réel fait plier les arbres, avec
+  ses rafales et sa direction.
+- **Onglet Météo** : la boule à neige du moulin tourne avec l'heure et le temps
+  qu'il fait ; conditions du moment, heure par heure, sept jours, et une frise
+  pour faire défiler les 72 prochaines heures dans la boule.
+- **Eau vivante** : eau claire et turquoise, reflets et caustiques en mouvement,
+  feuilles qui dérivent avec le courant, ronds de poissons.
+- **Nature plus réaliste** : feuillages éclairés par transparence, balancement
+  des arbres, pelouse aux teintes naturelles.
+- **Quad** redessiné (carénages, garde-boue, porte-bagages, pneus à crampons) :
+  il laisse des traces qui restent dans l'herbe, de la boue quand il pleut et
+  des ornières dans la neige.
+- **Oiseaux modelés** : hérons, cormorans, cygnes, oies, et une famille de
+  colverts sur l'eau.
+
+## Choisir le lieu du moulin
+
+La météo, le lever et le coucher du soleil suivent le lieu choisi. À la
+première ouverture de l'onglet **Météo**, le jeu demande où se trouve le
+moulin : tape le nom de la commune (plusieurs communes s'appellent
+Saint-Christophe, choisis la bonne dans la liste) ou utilise la position
+actuelle du téléphone. Le choix est retenu par le navigateur ; tant qu'aucun
+lieu n'est choisi, le jeu utilise le centre de la France.
+
+Dans **Réglages** :
+
+- **Météo** : « Météo réelle » par défaut, ou un temps fixe (Soleil, Pluie,
+  Tempête, Neige…) ;
+- **Ambiance** : « Heure réelle » par défaut, ou le jour, la nuit étoilée ou la
+  nuit noire en permanence.
+
+Sans connexion à Internet, le jeu garde les dernières prévisions reçues, puis
+affiche un ciel dégagé.
 
 ## Mettre le jeu sur Cloudflare Pages
 
-Dans **Workers & Pages > Create application > Pages**, importe le dépôt
-GitHub **charlesmdp/moulinn**, puis utilise ces réglages :
+Dans **Workers & Pages > Create application > Pages**, importe le dépôt GitHub
+**charlesmdp/moulinn**, puis utilise ces réglages :
 
 | Réglage | Valeur |
 | --- | --- |
@@ -21,17 +66,14 @@ GitHub **charlesmdp/moulinn**, puis utilise ces réglages :
 | Dossier de sortie | `dist` |
 | Dossier racine | Laisser vide |
 
-Le dossier `dist` est déjà construit. Aucun secret ni service serveur n'est
-nécessaire. Clique sur **Save and Deploy**, puis ouvre l'adresse HTTPS fournie
-par Cloudflare sur ordinateur, iPhone ou iPad.
+Le dossier `dist` est déjà construit et versionné : Cloudflare n'a rien à
+compiler, aucun secret n'est nécessaire. Clique sur **Save and Deploy**, puis
+ouvre l'adresse HTTPS fournie sur ordinateur, iPhone ou iPad. Les commits
+suivants sur `main` seront déployés automatiquement.
 
-Les prochains commits sur `main` seront déployés si tu actives cette intégration.
-Après une modification des sources, il faut reconstruire et committer `dist`
-avec les sources. Modifier seulement `src` ne met pas à jour le jeu publié.
-
-Si ton projet Cloudflare actuel a été créé en déposant un ZIP (Direct Upload),
-crée un nouveau projet Pages pour l'intégration Git. Tu peux conserver l'ancien
-site pendant la vérification du nouveau.
+Pour une mise en ligne sans GitHub (Direct Upload), compresse le contenu du
+dossier `dist` en ZIP et dépose-le dans le projet Pages : voir
+`dist/LIRE-MOI.txt`.
 
 Documentation officielle :
 
@@ -41,85 +83,89 @@ Documentation officielle :
 
 ## Lancer le jeu sur un ordinateur
 
-Avec Node.js 22 ou une version compatible plus récente :
+Avec Node.js 20 ou plus récent :
 
 ```sh
 npm ci
 npm run dev
 ```
 
-Ouvre l'adresse affichée par Vite. Il sert directement le dossier `dist`.
-Pour essayer sur un téléphone du même réseau Wi-Fi, utilise l'adresse réseau
-affichée par Vite. Pour un accès depuis n'importe où, utilise Cloudflare Pages.
+`npm run dev` reconstruit `dist/` puis le sert sur `http://localhost:8080`.
+Les adresses réseau affichées permettent d'essayer depuis un téléphone
+connecté au même Wi-Fi (le bouton « Utiliser ma position actuelle » ne
+fonctionne qu'en HTTPS, donc sur Cloudflare : en local, cherche la commune). `npm run serve` sert `dist/` sans le
+reconstruire ; `PORT=9000 npm run serve` change de port.
 
-Sans installer Node.js, un serveur statique suffit également :
+Sans Node.js, un serveur statique suffit :
 
 ```sh
 python3 -m http.server 8080 --directory dist
 ```
 
-Ouvre ensuite `http://localhost:8080`. Le double-clic sur `dist/index.html`
-ne convient pas : les ressources ont besoin d'un serveur HTTP ou HTTPS.
+Le double-clic sur `dist/index.html` ne convient pas : les ressources ont
+besoin d'un serveur HTTP ou HTTPS.
 
 ## Modifier et reconstruire
 
 | Emplacement | Contenu |
 | --- | --- |
-| `src/moulin.html` | Source complète V31 : jeu, interface, scène et ressources intégrées |
-| `scripts/build.py` | Extraction et optimisation du site statique |
-| `scripts/loader-template.js` | Chargement progressif, vérification WebGL et gestion des erreurs |
-| `scripts/minify.cjs` | Minification JavaScript et CSS avec esbuild |
-| `vendor/` | Décodeur gzip pako et sa licence, pour les anciens Safari |
-| `dist/` | Site complet prêt à publier |
-| `docs/` | Instructions et compte rendu de vérification du transfert |
+| `src/index.html` | Page et interface (menus, réglages, éditeur) |
+| `src/start.js` | Chargement progressif, vérification WebGL, erreurs |
+| `src/app/moulin.js` | Jeu complet (scène, jardin, eau, véhicules, animaux…) |
+| `src/app/v32/` | Modules de la version 32, chargés avant le jeu (voir ci-dessous) |
+| `src/styles/base.css` | Styles de la version 31 |
+| `src/styles/v32.css` | Habillage de la version 32 (ordinateur et téléphone) |
+| `src/static/` | Ressources recopiées telles quelles (modèles, textures, sons, `_headers`) |
+| `scripts/build.mjs` | Construction de `dist/` avec esbuild |
+| `scripts/serve.mjs` | Petit serveur local |
 
-Le source complet conserve les données d'origine. Les ressources du jeu publié
-sont séparées, compressées et nommées d'après leur contenu pour le cache.
-Le site à servir pèse environ **5,6 Mo**, avec **54 fichiers**, avant compression
-HTTP supplémentaire. Les anciennes versions et les dossiers d'installation
-ne sont pas nécessaires au fonctionnement et ne sont pas recopiés ici.
+Modules de la version 32 (`src/app/v32/`, chargés dans l'ordre des noms) :
 
-Pour reconstruire après modification, installe Python 3.10 ou plus récent,
-puis prépare un environnement Python :
+| Fichier | Rôle |
+| --- | --- |
+| `00-core.js` | Socle commun, étalonnage des couleurs, stockage local |
+| `05-render.js` | Définition adaptative et anticrénelage |
+| `10-atmosphere.js` | Heure réelle, soleil, lune, lieu du moulin |
+| `20-foliage.js` | Feuillages et vent dans les arbres |
+| `25-lawn.js` | Teinte naturelle de la pelouse |
+| `30-water.js` | Feuilles à la dérive et ronds de poissons |
+| `40-weather-live.js` | Météo réelle Open-Meteo et éclairs |
+| `45-weather-icons.js` | Pictogrammes météo |
+| `50-meteo.js` | Onglet Météo et boule à neige |
+| `60-ui.js` | Habillage de l'interface |
+| `70-birds.js` | Oiseaux et colverts |
+
+Après une modification :
 
 ```sh
-python3 -m venv .venv
-. .venv/bin/activate
-python3 -m pip install -r requirements.txt
-npm ci
 npm run build
-npm run dev
 ```
 
-Sous Windows, active l'environnement avec `.venv\Scripts\Activate.ps1`
-dans PowerShell, puis lance `python scripts/build.py` si la commande
-`python3` n'est pas disponible.
+Le build vérifie la syntaxe de chaque fichier, minifie le code et les styles,
+nomme les ressources d'après leur contenu (pour le cache), prépare le tout
+dans `.build/` puis remplace `dist/` d'un seul coup. Le rapport détaillé est
+dans `.build/build-report.json`.
 
-Le build prépare d'abord les fichiers dans `.build`. Il remplace `dist` après
-avoir terminé la génération et vérifié la présence des ressources.
-Le rapport détaillé se trouve dans `.build/build-report.json`.
-
-Pour publier une évolution, vérifie le jeu puis enregistre les sources et le
-dossier généré dans le même commit :
+Modifier seulement `src/` ne met pas à jour le jeu publié : enregistre les
+sources et le dossier `dist/` reconstruit dans le même commit.
 
 ```sh
-git add src scripts vendor docs dist package.json package-lock.json requirements.txt
+git add src scripts dist package.json package-lock.json README.md
 git commit -m "Mettre à jour le jardin"
 git push origin main
 ```
 
 ## Retouches personnelles et compatibilité
 
-Les retouches enregistrées dans le jeu restent dans le navigateur utilisé,
-pour l'adresse du site concernée. GitHub et Cloudflare ne les synchronisent
-pas entre appareils. Utilise l'export/import des retouches dans l'éditeur
-pour les transférer sur une autre adresse ou un autre ordinateur.
+Les retouches faites dans l'éditeur, le lieu du moulin et les réglages restent
+dans le navigateur utilisé, pour l'adresse du site concernée. GitHub et
+Cloudflare ne les synchronisent pas entre appareils : utilise l'export et
+l'import des retouches dans l'éditeur pour les transférer.
 
-Le jeu nécessite JavaScript et WebGL. Le dépôt reprend le comportement mobile
-de la version V31 ; transférer les fichiers ne change pas les performances du
-rendu 3D. Les essais automatisés ne remplacent pas une vérification sur un
-iPhone ou un iPad physique.
+Le jeu nécessite JavaScript et WebGL. Les essais automatisés (ordinateur et
+téléphone simulés, météo simulée) ne remplacent pas une vérification sur un
+iPhone ou un iPad réel.
 
 Les mentions de licence des bibliothèques sont conservées dans le code et dans
-`dist/LICENCES.txt`. Le décodeur gzip embarqué provient de
-[pako 1.0.11](https://github.com/nodeca/pako/tree/1.0.11).
+`dist/LICENCES.txt`. Les prévisions météo proviennent d'Open-Meteo
+(données sous licence CC BY 4.0).
