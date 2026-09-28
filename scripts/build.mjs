@@ -35,10 +35,10 @@ async function listFiles(dir, extension) {
   }
 }
 
-async function concat(files) {
+async function concat(files, separator = "\n;\n") {
   const parts = [];
   for (const file of files) parts.push(await fs.readFile(file, "utf8"));
-  return parts.join("\n;\n");
+  return parts.join(separator);
 }
 
 async function emit(name, extension, content, report) {
@@ -71,13 +71,18 @@ async function main() {
 
   // Jeu : modules V32 d'abord (ils s'enregistrent sur globalThis), puis le jeu qui démarre.
   const appFiles = [...(await listFiles(path.join(src, "app", "v32"), ".js")), path.join(src, "app", "moulin.js")];
+  // Vérification de syntaxe fichier par fichier : l'erreur cite le bon fichier et la bonne ligne.
+  for (const file of appFiles)
+    await transform(await fs.readFile(file, "utf8"), { loader: "js", sourcefile: path.relative(root, file) }).catch((error) => {
+      throw new Error(error.message);
+    });
   const app = await minifyJs(await concat(appFiles), "moulin.js");
   const appFile = await emit("moulin", "js", app, report);
 
   // Styles.
   const styleFiles = await listFiles(path.join(src, "styles"), ".css");
   styleFiles.sort((a, b) => (a.endsWith("base.css") ? -1 : b.endsWith("base.css") ? 1 : a.localeCompare(b)));
-  const css = await transform(await concat(styleFiles), { loader: "css", minify: true, target: ["safari15"] });
+  const css = await transform(await concat(styleFiles, "\n"), { loader: "css", minify: true, target: ["safari15"] });
   const cssFile = await emit("styles", "css", css.code, report);
 
   // Chargeur.

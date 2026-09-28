@@ -1,0 +1,1141 @@
+/* Moulin V32 — interface claire et légère (cartes de verre, pilule d'onglets, accent vert
+   sapin). Les règles portent sur #moulin-vallee-3d.v32.game22 pour passer devant les
+   couches V19 à V31 sans les modifier. */
+
+#moulin-vallee-3d.v32.game22 {
+  --v32-ink: #1d2b25;
+  --v32-muted: #5a6a62;
+  --v32-accent: #2f5b4a;
+  --v32-accent-2: #3d7560;
+  --v32-glass: rgba(255, 255, 255, 0.8);
+  --v32-glass-strong: rgba(255, 255, 255, 0.92);
+  --v32-glass-border: rgba(255, 255, 255, 0.7);
+  --v32-smoke: rgba(20, 29, 26, 0.6);
+  --v32-smoke-strong: rgba(20, 29, 26, 0.74);
+  --v32-line: rgba(29, 43, 37, 0.1);
+  --v32-shadow: 0 10px 30px rgba(16, 34, 27, 0.16), 0 2px 6px rgba(16, 34, 27, 0.1);
+  --v32-shadow-soft: 0 4px 14px rgba(16, 34, 27, 0.14);
+  --v32-blur: saturate(1.5) blur(16px);
+  --v32-font: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  font-family: var(--v32-font);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Voile doux sur les bords de la vue, comme une photo d'objectif. */
+#moulin-vallee-3d.v32.game22 .moulin-canvas::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: radial-gradient(120% 90% at 50% 45%, transparent 62%, rgba(12, 28, 22, 0.16) 100%);
+  z-index: 1;
+}
+
+/* ---------- Barre du haut ---------- */
+#moulin-vallee-3d.v32.game22 .moulin-toolbar {
+  top: max(14px, env(safe-area-inset-top));
+  left: max(16px, env(safe-area-inset-left));
+  right: max(16px, env(safe-area-inset-right));
+  align-items: center;
+  gap: 12px;
+}
+#moulin-vallee-3d.v32.game22 .v32-brand {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  height: 56px;
+  padding: 0 16px 0 8px;
+  border-radius: 16px;
+  background: var(--v32-glass);
+  border: 1px solid var(--v32-glass-border);
+  box-shadow: var(--v32-shadow);
+  -webkit-backdrop-filter: var(--v32-blur);
+  backdrop-filter: var(--v32-blur);
+  color: var(--v32-ink);
+  flex: none;
+  pointer-events: auto;
+}
+#moulin-vallee-3d.v32.game22 .v32-mark {
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 11px;
+  background: linear-gradient(160deg, #3a6b57, #244a3b);
+  color: #f5eed6;
+  font: italic 600 27px/1 "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, serif;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.18), 0 2px 6px rgba(20, 50, 40, 0.25);
+}
+#moulin-vallee-3d.v32.game22 .v32-brand-text strong {
+  display: block;
+  font-size: 12.5px;
+  font-weight: 750;
+  letter-spacing: 0.13em;
+  text-transform: uppercase;
+  line-height: 1.2;
+}
+#moulin-vallee-3d.v32.game22 .v32-brand-text span {
+  display: block;
+  margin-top: 2px;
+  font-size: 12px;
+  color: var(--v32-muted);
+  white-space: nowrap;
+}
+
+#moulin-vallee-3d.v32.game22 .mode-switch {
+  gap: 2px;
+  margin: 0 auto;
+  padding: 5px;
+  border: 1px solid var(--v32-glass-border);
+  border-radius: 17px;
+  background: var(--v32-glass);
+  box-shadow: var(--v32-shadow);
+  -webkit-backdrop-filter: var(--v32-blur);
+  backdrop-filter: var(--v32-blur);
+}
+#moulin-vallee-3d.v32.game22 .mode-switch button {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  min-width: 0;
+  min-height: 42px;
+  height: 42px;
+  padding: 0 17px;
+  border: 0;
+  outline: 0;
+  border-radius: 12px;
+  background: transparent;
+  box-shadow: none;
+  clip-path: none;
+  color: var(--v32-ink);
+  text-shadow: none;
+  font: 650 14.5px/1 var(--v32-font);
+  letter-spacing: 0;
+  transition: background 0.18s, color 0.18s, box-shadow 0.18s;
+}
+#moulin-vallee-3d.v32.game22 .mode-switch button:hover {
+  background: rgba(47, 91, 74, 0.09);
+  filter: none;
+  transform: none;
+}
+#moulin-vallee-3d.v32.game22 .mode-switch button[aria-pressed="true"] {
+  background: linear-gradient(180deg, #386a56, #2a5241);
+  color: #fff;
+  box-shadow: 0 3px 10px rgba(28, 64, 50, 0.32), inset 0 1px 0 rgba(255, 255, 255, 0.14);
+}
+#moulin-vallee-3d.v32.game22 .mode-switch .game22-mode-icon {
+  display: none;
+}
+#moulin-vallee-3d.v32.game22 .mode-switch .globe26-long {
+  display: inline;
+}
+#moulin-vallee-3d.v32.game22 .mode-switch .globe26-short {
+  display: none;
+}
+
+#moulin-vallee-3d.v32.game22 .game19-actions {
+  gap: 8px;
+  margin-left: 0;
+}
+#moulin-vallee-3d.v32.game22 .game19-actions > button.btn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  min-height: 48px;
+  height: 48px;
+  padding: 0 16px;
+  border: 1px solid var(--v32-glass-border);
+  outline: 0;
+  border-radius: 15px;
+  background: var(--v32-glass);
+  box-shadow: var(--v32-shadow);
+  -webkit-backdrop-filter: var(--v32-blur);
+  backdrop-filter: var(--v32-blur);
+  color: var(--v32-ink);
+  text-shadow: none;
+  font: 650 14px/1 var(--v32-font);
+  clip-path: none;
+}
+#moulin-vallee-3d.v32.game22 .game19-actions > button.btn:hover {
+  background: var(--v32-glass-strong);
+  filter: none;
+}
+#moulin-vallee-3d.v32.game22 .game19-actions > button.btn > span:first-child {
+  display: flex;
+  font-size: 18px;
+  color: var(--v32-accent);
+}
+#moulin-vallee-3d.v32.game22 .game19-actions > button.btn[aria-pressed="true"],
+#moulin-vallee-3d.v32.game22 .game19-actions > button.btn[aria-expanded="true"] {
+  background: linear-gradient(180deg, #386a56, #2a5241);
+  color: #fff;
+  border-color: transparent;
+}
+#moulin-vallee-3d.v32.game22 .game19-actions > button.btn[aria-pressed="true"] > span:first-child,
+#moulin-vallee-3d.v32.game22 .game19-actions > button.btn[aria-expanded="true"] > span:first-child {
+  color: #fff;
+}
+#moulin-vallee-3d.v32.game22 .game22-torch svg {
+  stroke: currentColor;
+}
+
+@media (max-width: 1240px) and (pointer: fine) {
+  #moulin-vallee-3d.v32.game22 .v32-brand-text {
+    display: none;
+  }
+  #moulin-vallee-3d.v32.game22 .v32-brand {
+    padding: 0 8px;
+  }
+}
+@media (max-width: 1000px) and (pointer: fine) {
+  #moulin-vallee-3d.v32.game22 .game19-action-label {
+    display: none;
+  }
+  #moulin-vallee-3d.v32.game22 .mode-switch button {
+    padding: 0 12px;
+    font-size: 13.5px;
+  }
+}
+
+/* ---------- Petite carte ---------- */
+#moulin-vallee-3d.v32.game22 .game22-minimap {
+  top: calc(max(14px, env(safe-area-inset-top)) + 68px);
+  right: max(16px, env(safe-area-inset-right));
+  padding: 10px;
+  border: 1px solid var(--v32-glass-border);
+  border-radius: 18px;
+  background: var(--v32-glass);
+  box-shadow: var(--v32-shadow);
+  -webkit-backdrop-filter: var(--v32-blur);
+  backdrop-filter: var(--v32-blur);
+  color: var(--v32-ink);
+  outline: 0;
+}
+#moulin-vallee-3d.v32.game22 .game22-map-heading,
+#moulin-vallee-3d.v32.game22 .game22-map-footer {
+  color: var(--v32-ink);
+  font-family: var(--v32-font);
+  text-shadow: none;
+}
+#moulin-vallee-3d.v32.game22 .game22-map-heading span:first-child {
+  letter-spacing: 0.12em;
+  font-weight: 750;
+  font-size: 11px;
+}
+#moulin-vallee-3d.v32.game22 .game22-map-toggle {
+  border: 0;
+  border-radius: 12px;
+  overflow: hidden;
+  box-shadow: inset 0 0 0 1px var(--v32-line);
+}
+
+/* ---------- Pastilles d'aide et boutons du bas ---------- */
+#moulin-vallee-3d.v32.game22 .player19-hint,
+#moulin-vallee-3d.v32.game22 .canvas-note,
+#moulin-vallee-3d.v32.game22 .fly-hint,
+#moulin-vallee-3d.v32.game22 .game19-toast,
+#moulin-vallee-3d.v32.game22 .flight-bar {
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 999px;
+  background: var(--v32-smoke);
+  -webkit-backdrop-filter: var(--v32-blur);
+  backdrop-filter: var(--v32-blur);
+  box-shadow: var(--v32-shadow-soft);
+  color: #f3f6f1;
+  font: 500 13.5px/1.3 var(--v32-font);
+  text-shadow: none;
+}
+#moulin-vallee-3d.v32.game22 .player19-hint {
+  gap: 10px;
+  padding: 10px 18px;
+  bottom: max(20px, env(safe-area-inset-bottom));
+}
+#moulin-vallee-3d.v32.game22 .player19-hint strong {
+  font-size: 14px;
+  font-weight: 700;
+  color: #fff;
+}
+#moulin-vallee-3d.v32.game22 .player19-hint span:not(.player19-live) {
+  color: rgba(243, 246, 241, 0.86);
+  font-size: 13.5px;
+}
+#moulin-vallee-3d.v32.game22 .player19-live {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #62d68e;
+  box-shadow: 0 0 0 3px rgba(98, 214, 142, 0.25);
+}
+#moulin-vallee-3d.v32.game22 .canvas-note {
+  padding: 10px 18px;
+}
+#moulin-vallee-3d.v32.game22 .flight-bar {
+  border-radius: 18px;
+  padding: 10px 14px;
+}
+#moulin-vallee-3d.v32.game22 .game19-toast {
+  border-radius: 14px;
+  padding: 11px 16px;
+}
+@media (pointer: fine) and (min-width: 701px) {
+  /* Sur ordinateur, la pastille « Promenade » reste affichée (comme sur la maquette). */
+  #moulin-vallee-3d.v32.game22[data-ui22-guides="hidden"] .player19-hint {
+    opacity: 1;
+    visibility: visible;
+  }
+}
+
+#moulin-vallee-3d.v32.game22 .player19-hud button,
+#moulin-vallee-3d.v32.game22 .world25-prompt {
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  outline: 0;
+  border-radius: 14px;
+  background: var(--v32-smoke-strong);
+  -webkit-backdrop-filter: var(--v32-blur);
+  backdrop-filter: var(--v32-blur);
+  box-shadow: var(--v32-shadow-soft);
+  color: #f6f8f4;
+  text-shadow: none;
+  font: 650 14px/1 var(--v32-font);
+  clip-path: none;
+}
+#moulin-vallee-3d.v32.game22 .player19-hud button:hover {
+  background: rgba(20, 29, 26, 0.84);
+  filter: none;
+}
+#moulin-vallee-3d.v32.game22 .player19-zoom {
+  gap: 6px;
+}
+#moulin-vallee-3d.v32.game22 .player19-zoom button {
+  width: 44px;
+  min-width: 44px;
+  height: 44px;
+  min-height: 44px;
+  padding: 0;
+  font-size: 22px;
+  font-weight: 500;
+}
+#moulin-vallee-3d.v32.game22 .player19-centre {
+  height: 44px;
+  min-height: 44px;
+  padding: 0 18px;
+}
+#moulin-vallee-3d.v32.game22 .player19-hud .player21-jump,
+#moulin-vallee-3d.v32.game22 .player19-hud .player24-dig {
+  border-radius: 14px;
+}
+#moulin-vallee-3d.v32.game22 .player19-hud .player19-run {
+  border-radius: 50%;
+}
+#moulin-vallee-3d.v32.game22 .player19-hud .player19-run.is-held,
+#moulin-vallee-3d.v32.game22 .player19-hud .player21-boost.is-held,
+#moulin-vallee-3d.v32.game22 .player19-hud .player20-brake.is-held {
+  background: linear-gradient(180deg, #3d7560, #2a5241);
+  color: #fff;
+}
+#moulin-vallee-3d.v32.game22 .player20-vehicle {
+  gap: 10px;
+  padding: 8px 16px 8px 8px;
+  border-radius: 999px;
+}
+#moulin-vallee-3d.v32.game22 .player20-key,
+#moulin-vallee-3d.v32.game22 .world25-prompt {
+  display: inline-grid;
+  place-items: center;
+  min-width: 30px;
+  height: 30px;
+  border-radius: 9px;
+  background: #fff;
+  color: var(--v32-accent);
+  font: 750 15px/1 var(--v32-font);
+  box-shadow: 0 2px 0 rgba(0, 0, 0, 0.18);
+  text-shadow: none;
+}
+#moulin-vallee-3d.v32.game22 .world25-prompt {
+  width: 42px;
+  height: 42px;
+  border-radius: 12px;
+  font-size: 18px;
+  background: rgba(255, 255, 255, 0.94);
+  color: var(--v32-accent);
+  border: 0;
+}
+#moulin-vallee-3d.v32.game22 .player19-pad {
+  border: 1.5px solid rgba(255, 255, 255, 0.55);
+  background: rgba(20, 29, 26, 0.28);
+  -webkit-backdrop-filter: blur(10px);
+  backdrop-filter: blur(10px);
+  box-shadow: 0 6px 18px rgba(10, 20, 16, 0.2), inset 0 0 0 10px rgba(255, 255, 255, 0.06);
+}
+#moulin-vallee-3d.v32.game22 .player19-stick {
+  background: radial-gradient(circle at 40% 35%, #ffffff, #e3ebe6 60%, #c9d6cf);
+  border: 0;
+  box-shadow: 0 4px 12px rgba(10, 20, 16, 0.3);
+}
+#moulin-vallee-3d.v32.game22 .player19-pad-label {
+  color: rgba(255, 255, 255, 0.85);
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.35);
+  letter-spacing: 0.14em;
+  font: 700 10px/1 var(--v32-font);
+}
+
+/* ---------- Réglages et atelier ---------- */
+#moulin-vallee-3d.v32.game22 .game19-settings,
+#moulin-vallee-3d.v32.game22 .editor-panel {
+  border: 1px solid var(--v32-glass-border);
+  border-radius: 20px;
+  background: rgba(252, 253, 251, 0.9);
+  -webkit-backdrop-filter: var(--v32-blur);
+  backdrop-filter: var(--v32-blur);
+  box-shadow: var(--v32-shadow);
+  color: var(--v32-ink);
+  font-family: var(--v32-font);
+}
+#moulin-vallee-3d.v32.game22 .game19-settings {
+  top: calc(max(14px, env(safe-area-inset-top)) + 68px);
+  width: min(380px, calc(100% - 32px));
+  padding: 16px;
+}
+#moulin-vallee-3d.v32.game22 .game19-settings .btn,
+#moulin-vallee-3d.v32.game22 .editor-panel .btn,
+#moulin-vallee-3d.v32.game22 .game19-settings select,
+#moulin-vallee-3d.v32.game22 .editor-panel select {
+  border: 1px solid var(--v32-line);
+  border-radius: 11px;
+  background: #fff;
+  box-shadow: none;
+  color: var(--v32-ink);
+  text-shadow: none;
+  font-family: var(--v32-font);
+  font-weight: 600;
+  outline: 0;
+}
+#moulin-vallee-3d.v32.game22 .game19-settings .btn[aria-pressed="true"],
+#moulin-vallee-3d.v32.game22 .editor-panel .btn[aria-pressed="true"],
+#moulin-vallee-3d.v32.game22 .editor-panel .btn.primary {
+  background: var(--v32-accent);
+  border-color: var(--v32-accent);
+  color: #fff;
+}
+#moulin-vallee-3d.v32.game22 .game19-settings-title strong,
+#moulin-vallee-3d.v32.game22 .ambience20-heading strong {
+  font-size: 16px;
+  font-weight: 750;
+  color: var(--v32-ink);
+}
+#moulin-vallee-3d.v32.game22 .ambience20-panel {
+  border-radius: 14px;
+  background: rgba(47, 91, 74, 0.06);
+  border: 1px solid var(--v32-line);
+}
+#moulin-vallee-3d.v32.game22 .v32-weather-status {
+  margin: 8px 2px 0;
+  font-size: 12.5px;
+  line-height: 1.4;
+  color: var(--v32-muted);
+}
+#moulin-vallee-3d.v32.game22 .v32-weather-status:empty {
+  display: none;
+}
+#moulin-vallee-3d.v32.game22 .game19-editor-toggle {
+  border: 1px solid var(--v32-glass-border);
+  outline: 0;
+  border-radius: 14px;
+  background: var(--v32-glass);
+  -webkit-backdrop-filter: var(--v32-blur);
+  backdrop-filter: var(--v32-blur);
+  box-shadow: var(--v32-shadow);
+  color: var(--v32-ink);
+  text-shadow: none;
+  font: 650 14px/1 var(--v32-font);
+}
+
+/* ---------- Écran de chargement ---------- */
+#moulin-vallee-3d.v32.game22 .moulin-loading {
+  font-family: var(--v32-font);
+}
+
+/* ---------- Onglet Météo ---------- */
+#moulin-vallee-3d.v32.game22 .v32-retired,
+#moulin-vallee-3d.v32.game22 .v32-retired[hidden] {
+  display: none !important;
+}
+#moulin-vallee-3d.v32.game22[data-meteo32="true"] .moulin-canvas {
+  background: radial-gradient(90% 80% at 40% 40%, #eef3f3, #c9d6d8);
+}
+#moulin-vallee-3d.v32.game22 .v32-meteo {
+  position: absolute;
+  z-index: 18;
+  top: calc(max(14px, env(safe-area-inset-top)) + 72px);
+  right: max(16px, env(safe-area-inset-right));
+  bottom: calc(max(18px, env(safe-area-inset-bottom)) + 76px);
+  width: min(392px, 38vw);
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--v32-glass-border);
+  border-radius: 22px;
+  background: rgba(252, 253, 251, 0.86);
+  -webkit-backdrop-filter: var(--v32-blur);
+  backdrop-filter: var(--v32-blur);
+  box-shadow: var(--v32-shadow);
+  color: var(--v32-ink);
+  overflow: hidden;
+  font-family: var(--v32-font);
+}
+#moulin-vallee-3d.v32.game22 .v32-meteo[hidden],
+#moulin-vallee-3d.v32.game22 .v32-timebar[hidden],
+#moulin-vallee-3d.v32.game22 .v32-picker[hidden] {
+  display: none;
+}
+#moulin-vallee-3d.v32.game22 .v32-meteo-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 12px 12px 4px 14px;
+}
+#moulin-vallee-3d.v32.game22 .v32-place {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 8px;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--v32-ink);
+  font: 700 14px/1.2 var(--v32-font);
+  text-align: left;
+  cursor: pointer;
+}
+#moulin-vallee-3d.v32.game22 .v32-place:hover {
+  background: rgba(47, 91, 74, 0.08);
+}
+#moulin-vallee-3d.v32.game22 .v32-place svg:first-child {
+  color: var(--v32-accent);
+  flex: none;
+}
+#moulin-vallee-3d.v32.game22 .v32-place span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+#moulin-vallee-3d.v32.game22 .v32-icon-btn {
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  flex: none;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--v32-muted);
+  cursor: pointer;
+}
+#moulin-vallee-3d.v32.game22 .v32-icon-btn:hover {
+  background: rgba(47, 91, 74, 0.08);
+  color: var(--v32-ink);
+}
+#moulin-vallee-3d.v32.game22 .v32-sheet-toggle {
+  display: none;
+}
+#moulin-vallee-3d.v32.game22 .v32-now {
+  display: grid;
+  grid-template-columns: 76px auto 1fr;
+  align-items: center;
+  gap: 4px 12px;
+  padding: 4px 18px 14px;
+}
+#moulin-vallee-3d.v32.game22 .v32-now-icon svg {
+  width: 76px;
+  height: 76px;
+  filter: drop-shadow(0 4px 8px rgba(30, 60, 80, 0.15));
+}
+#moulin-vallee-3d.v32.game22 .v32-now-temp {
+  display: flex;
+  align-items: flex-start;
+  font-variant-numeric: tabular-nums;
+}
+#moulin-vallee-3d.v32.game22 .v32-now-temp strong {
+  font-size: 52px;
+  font-weight: 300;
+  line-height: 1;
+  letter-spacing: -0.03em;
+}
+#moulin-vallee-3d.v32.game22 .v32-now-temp span {
+  margin-top: 6px;
+  font-size: 17px;
+  color: var(--v32-muted);
+}
+#moulin-vallee-3d.v32.game22 .v32-now-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+#moulin-vallee-3d.v32.game22 .v32-now-text strong {
+  font-size: 16px;
+  font-weight: 700;
+}
+#moulin-vallee-3d.v32.game22 .v32-now-text span {
+  font-size: 12.5px;
+  color: var(--v32-muted);
+}
+#moulin-vallee-3d.v32.game22 .v32-meteo-scroll {
+  flex: 1;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 0 14px 12px;
+  scrollbar-width: thin;
+}
+#moulin-vallee-3d.v32.game22 .v32-meteo h3 {
+  margin: 14px 4px 8px;
+  font-size: 11px;
+  font-weight: 750;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--v32-muted);
+}
+#moulin-vallee-3d.v32.game22 .v32-metrics {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+#moulin-vallee-3d.v32.game22 .v32-metric {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  align-items: center;
+  column-gap: 7px;
+  padding: 10px 11px;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.72);
+  border: 1px solid var(--v32-line);
+}
+#moulin-vallee-3d.v32.game22 .v32-metric svg {
+  color: var(--v32-accent);
+}
+#moulin-vallee-3d.v32.game22 .v32-metric span {
+  font-size: 11.5px;
+  color: var(--v32-muted);
+}
+#moulin-vallee-3d.v32.game22 .v32-metric strong {
+  grid-column: 1 / -1;
+  margin-top: 4px;
+  font-size: 15.5px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+#moulin-vallee-3d.v32.game22 .v32-metric small {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  margin-top: 2px;
+  font-size: 11.5px;
+  color: var(--v32-muted);
+}
+#moulin-vallee-3d.v32.game22 .v32-arrow {
+  display: inline-block;
+  width: 12px;
+  height: 12px;
+  transform: rotate(var(--dir));
+  background: var(--v32-accent);
+  clip-path: polygon(50% 0, 100% 100%, 50% 72%, 0 100%);
+}
+#moulin-vallee-3d.v32.game22 .v32-hours {
+  display: flex;
+  gap: 6px;
+  overflow-x: auto;
+  padding: 2px 2px 6px;
+  scroll-snap-type: x proximity;
+  scrollbar-width: thin;
+}
+#moulin-vallee-3d.v32.game22 .v32-hour {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  width: 56px;
+  padding: 8px 0 6px;
+  border: 1px solid var(--v32-line);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.6);
+  color: var(--v32-ink);
+  font-family: var(--v32-font);
+  scroll-snap-align: start;
+  cursor: pointer;
+}
+#moulin-vallee-3d.v32.game22 .v32-hour:hover {
+  background: #fff;
+}
+#moulin-vallee-3d.v32.game22 .v32-hour.is-selected {
+  background: var(--v32-accent);
+  border-color: var(--v32-accent);
+  color: #fff;
+}
+#moulin-vallee-3d.v32.game22 .v32-hour span {
+  font-size: 11.5px;
+  font-weight: 600;
+  opacity: 0.8;
+}
+#moulin-vallee-3d.v32.game22 .v32-hour svg {
+  width: 34px;
+  height: 34px;
+}
+#moulin-vallee-3d.v32.game22 .v32-hour strong {
+  font-size: 14px;
+  font-weight: 700;
+}
+#moulin-vallee-3d.v32.game22 .v32-hour small {
+  font-size: 10.5px;
+  font-weight: 600;
+  color: #2f86c7;
+}
+#moulin-vallee-3d.v32.game22 .v32-hour.is-selected small {
+  color: #cfe8ff;
+}
+#moulin-vallee-3d.v32.game22 .v32-days {
+  display: flex;
+  flex-direction: column;
+}
+#moulin-vallee-3d.v32.game22 .v32-day {
+  display: grid;
+  grid-template-columns: minmax(78px, 1fr) 30px 34px 28px minmax(60px, 1.2fr) 30px;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 4px;
+  border-bottom: 1px solid var(--v32-line);
+  font-size: 13.5px;
+}
+#moulin-vallee-3d.v32.game22 .v32-day:last-child {
+  border-bottom: 0;
+}
+#moulin-vallee-3d.v32.game22 .v32-day > span {
+  font-weight: 650;
+}
+#moulin-vallee-3d.v32.game22 .v32-day svg {
+  width: 30px;
+  height: 30px;
+}
+#moulin-vallee-3d.v32.game22 .v32-day small {
+  font-size: 11px;
+  font-weight: 650;
+  color: #2f86c7;
+}
+#moulin-vallee-3d.v32.game22 .v32-day em {
+  font-style: normal;
+  color: var(--v32-muted);
+  text-align: right;
+}
+#moulin-vallee-3d.v32.game22 .v32-day strong {
+  font-weight: 700;
+}
+#moulin-vallee-3d.v32.game22 .v32-range {
+  position: relative;
+  height: 5px;
+  border-radius: 3px;
+  background: rgba(29, 43, 37, 0.1);
+}
+#moulin-vallee-3d.v32.game22 .v32-range b {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  border-radius: 3px;
+  background: linear-gradient(90deg, #7fc3e6, #f2b84b);
+}
+#moulin-vallee-3d.v32.game22 .v32-meteo-source {
+  margin: 12px 4px 0;
+  font-size: 11.5px;
+  color: var(--v32-muted);
+}
+#moulin-vallee-3d.v32.game22 .v32-meteo-source a {
+  color: var(--v32-accent);
+}
+
+#moulin-vallee-3d.v32.game22 .v32-timebar {
+  position: absolute;
+  z-index: 18;
+  left: 50%;
+  bottom: max(18px, env(safe-area-inset-bottom));
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: min(760px, calc(100% - 32px));
+  padding: 8px 10px;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 22px;
+  background: var(--v32-smoke-strong);
+  -webkit-backdrop-filter: var(--v32-blur);
+  backdrop-filter: var(--v32-blur);
+  box-shadow: var(--v32-shadow);
+  color: #fff;
+  font-family: var(--v32-font);
+}
+#moulin-vallee-3d.v32.game22 .v32-round {
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  flex: none;
+  border: 0;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.14);
+  color: #fff;
+  cursor: pointer;
+}
+#moulin-vallee-3d.v32.game22 .v32-round:hover {
+  background: rgba(255, 255, 255, 0.24);
+}
+#moulin-vallee-3d.v32.game22 .v32-round[aria-pressed="true"] {
+  background: #fff;
+  color: var(--v32-accent);
+}
+#moulin-vallee-3d.v32.game22 .v32-time {
+  position: relative;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+#moulin-vallee-3d.v32.game22 .v32-time-label {
+  font-size: 13px;
+  font-weight: 650;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+#moulin-vallee-3d.v32.game22 .v32-time input[type="range"] {
+  width: 100%;
+  margin: 0;
+  accent-color: #8fe0b0;
+  height: 22px;
+}
+#moulin-vallee-3d.v32.game22 .v32-time-ticks {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 6px;
+  pointer-events: none;
+}
+#moulin-vallee-3d.v32.game22 .v32-time-ticks i {
+  position: absolute;
+  bottom: 0;
+  width: 1px;
+  height: 6px;
+  background: rgba(255, 255, 255, 0.45);
+}
+#moulin-vallee-3d.v32.game22 .v32-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 40px;
+  padding: 0 14px;
+  border: 0;
+  border-radius: 999px;
+  background: #fff;
+  color: var(--v32-accent);
+  font: 700 13.5px/1 var(--v32-font);
+  cursor: pointer;
+  flex: none;
+}
+#moulin-vallee-3d.v32.game22 .v32-pill:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+#moulin-vallee-3d.v32.game22 .v32-picker {
+  position: absolute;
+  inset: 0;
+  z-index: 60;
+  display: grid;
+  place-items: center;
+  padding: 16px;
+  background: rgba(16, 26, 22, 0.28);
+  -webkit-backdrop-filter: blur(3px);
+  backdrop-filter: blur(3px);
+}
+#moulin-vallee-3d.v32.game22 .v32-picker-card {
+  width: min(430px, 100%);
+  max-height: min(620px, calc(100% - 20px));
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 18px;
+  border-radius: 22px;
+  background: rgba(252, 253, 251, 0.97);
+  box-shadow: 0 24px 60px rgba(10, 25, 20, 0.3);
+  color: var(--v32-ink);
+  font-family: var(--v32-font);
+}
+#moulin-vallee-3d.v32.game22 .v32-picker-card header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 17px;
+}
+#moulin-vallee-3d.v32.game22 .v32-picker-card p {
+  margin: 0;
+  font-size: 13px;
+  color: var(--v32-muted);
+}
+#moulin-vallee-3d.v32.game22 .v32-search {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 12px;
+  height: 46px;
+  border: 1px solid var(--v32-line);
+  border-radius: 14px;
+  background: #fff;
+  color: var(--v32-muted);
+}
+#moulin-vallee-3d.v32.game22 .v32-search input {
+  flex: 1;
+  min-width: 0;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: var(--v32-ink);
+  font: 500 16px/1 var(--v32-font);
+}
+#moulin-vallee-3d.v32.game22 .v32-geo {
+  align-self: flex-start;
+  background: rgba(47, 91, 74, 0.09);
+}
+#moulin-vallee-3d.v32.game22 .v32-results {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+#moulin-vallee-3d.v32.game22 .v32-results button {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  padding: 10px 12px;
+  border: 1px solid transparent;
+  border-radius: 12px;
+  background: transparent;
+  color: var(--v32-ink);
+  font-family: var(--v32-font);
+  text-align: left;
+  cursor: pointer;
+}
+#moulin-vallee-3d.v32.game22 .v32-results button:hover,
+#moulin-vallee-3d.v32.game22 .v32-results button:focus-visible {
+  background: rgba(47, 91, 74, 0.08);
+  border-color: var(--v32-line);
+}
+#moulin-vallee-3d.v32.game22 .v32-results strong {
+  font-size: 15px;
+}
+#moulin-vallee-3d.v32.game22 .v32-results span {
+  font-size: 12.5px;
+  color: var(--v32-muted);
+}
+#moulin-vallee-3d.v32.game22 .v32-picker-note:empty {
+  display: none;
+}
+
+/* ---------- Téléphone et tablette tactile ---------- */
+@media (pointer: coarse), (max-width: 700px) {
+  #moulin-vallee-3d.v32.game22 .moulin-toolbar {
+    top: max(10px, env(safe-area-inset-top));
+    left: max(10px, env(safe-area-inset-left));
+    right: calc(92px + env(safe-area-inset-right));
+    gap: 8px;
+  }
+  #moulin-vallee-3d.v32.game22 .v32-brand {
+    height: 46px;
+    padding: 0 3px;
+    border-radius: 14px;
+  }
+  #moulin-vallee-3d.v32.game22 .v32-mark {
+    width: 38px;
+    height: 38px;
+    border-radius: 11px;
+    font-size: 24px;
+  }
+  #moulin-vallee-3d.v32.game22 .v32-brand-text {
+    display: none;
+  }
+  #moulin-vallee-3d.v32.game22 .mode-trigger31 {
+    height: 46px;
+    min-height: 46px;
+    padding: 0 12px;
+    gap: 7px;
+    border: 1px solid var(--v32-glass-border);
+    outline: 0;
+    border-radius: 14px;
+    background: var(--v32-glass);
+    -webkit-backdrop-filter: var(--v32-blur);
+    backdrop-filter: var(--v32-blur);
+    box-shadow: var(--v32-shadow);
+    color: var(--v32-ink);
+    text-shadow: none;
+    font: 700 15px/1 var(--v32-font);
+  }
+  #moulin-vallee-3d.v32.game22 .mode-trigger31 .game22-mode-icon {
+    color: var(--v32-accent);
+    filter: none;
+  }
+  #moulin-vallee-3d.v32.game22 .mode-switch {
+    top: 54px;
+    width: 220px;
+    margin: 0;
+    padding: 6px;
+    gap: 2px;
+    border-radius: 18px;
+    background: rgba(252, 253, 251, 0.95);
+  }
+  #moulin-vallee-3d.v32.game22 .mode-switch button {
+    height: 46px;
+    min-height: 46px;
+    padding: 0 12px;
+    gap: 12px;
+    font-size: 15px;
+    justify-content: flex-start;
+  }
+  #moulin-vallee-3d.v32.game22 .mode-switch .game22-mode-icon {
+    display: flex;
+    width: 22px;
+    height: 22px;
+    color: var(--v32-accent);
+    filter: none;
+  }
+  #moulin-vallee-3d.v32.game22 .mode-switch .game22-mode-icon svg {
+    width: 22px;
+    height: 22px;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 1.8;
+  }
+  #moulin-vallee-3d.v32.game22 .mode-switch button[aria-pressed="true"] .game22-mode-icon {
+    color: #fff;
+  }
+  #moulin-vallee-3d.v32.game22 .game19-actions > button.btn {
+    width: 46px;
+    height: 46px;
+    min-width: 46px;
+    min-height: 46px;
+    padding: 0;
+    justify-content: center;
+    border-radius: 14px;
+  }
+  #moulin-vallee-3d.v32.game22 .game22-minimap {
+    top: max(10px, env(safe-area-inset-top));
+    right: max(10px, env(safe-area-inset-right));
+    width: 74px;
+    padding: 4px;
+    border-radius: 16px;
+  }
+  #moulin-vallee-3d.v32.game22 .game22-map-toggle {
+    border-radius: 12px;
+  }
+  #moulin-vallee-3d.v32.game22 .game19-settings {
+    top: calc(max(10px, env(safe-area-inset-top)) + 56px);
+    left: max(10px, env(safe-area-inset-left));
+    width: min(360px, calc(100% - 20px));
+  }
+  #moulin-vallee-3d.v32.game22 .player19-hint {
+    padding: 8px 14px;
+    font-size: 12.5px;
+  }
+  #moulin-vallee-3d.v32.game22 .player19-actions {
+    gap: 10px;
+  }
+  #moulin-vallee-3d.v32.game22 .player19-hud .player21-jump,
+  #moulin-vallee-3d.v32.game22 .player19-hud .player21-boost,
+  #moulin-vallee-3d.v32.game22 .player19-hud .player24-dig,
+  #moulin-vallee-3d.v32.game22 .player19-hud .player20-brake {
+    width: 54px;
+    height: 54px;
+    min-width: 54px;
+    min-height: 54px;
+    border-radius: 17px;
+  }
+  #moulin-vallee-3d.v32.game22 .player19-hud .player19-run {
+    width: 66px;
+    height: 66px;
+    min-width: 66px;
+    min-height: 66px;
+    font-size: 12px;
+  }
+  #moulin-vallee-3d.v32.game22 .player19-zoom button {
+    width: 36px;
+    min-width: 36px;
+    height: 40px;
+    min-height: 40px;
+    border-radius: 12px;
+  }
+
+  /* Météo : la boule en haut, la fiche en bas (tirable). */
+  #moulin-vallee-3d.v32.game22 .v32-meteo {
+    top: auto;
+    left: max(8px, env(safe-area-inset-left));
+    right: max(8px, env(safe-area-inset-right));
+    bottom: calc(max(10px, env(safe-area-inset-bottom)) + 66px);
+    width: auto;
+    max-height: 46%;
+    border-radius: 22px;
+  }
+  #moulin-vallee-3d.v32.game22 .v32-meteo[data-sheet="peek"] .v32-detail {
+    display: none;
+  }
+  #moulin-vallee-3d.v32.game22 .v32-meteo[data-sheet="open"] {
+    max-height: 78%;
+  }
+  #moulin-vallee-3d.v32.game22 .v32-sheet-toggle {
+    display: grid;
+  }
+  #moulin-vallee-3d.v32.game22 .v32-meteo[data-sheet="open"] .v32-sheet-toggle svg {
+    transform: rotate(180deg);
+  }
+  #moulin-vallee-3d.v32.game22 .v32-meteo[data-sheet="peek"] .v32-sheet-toggle svg {
+    transform: rotate(180deg) scaleY(-1);
+  }
+  #moulin-vallee-3d.v32.game22 .v32-now {
+    grid-template-columns: 56px auto 1fr;
+    padding: 0 14px 8px;
+  }
+  #moulin-vallee-3d.v32.game22 .v32-now-icon svg {
+    width: 56px;
+    height: 56px;
+  }
+  #moulin-vallee-3d.v32.game22 .v32-now-temp strong {
+    font-size: 40px;
+  }
+  #moulin-vallee-3d.v32.game22 .v32-meteo-head {
+    padding: 8px 8px 0 10px;
+  }
+  #moulin-vallee-3d.v32.game22 .v32-timebar {
+    bottom: max(10px, env(safe-area-inset-bottom));
+    width: calc(100% - 16px);
+    gap: 8px;
+    padding: 6px 8px;
+    border-radius: 20px;
+  }
+  #moulin-vallee-3d.v32.game22 .v32-timebar .v32-pill {
+    display: none;
+  }
+  #moulin-vallee-3d.v32.game22 .v32-round {
+    width: 40px;
+    height: 40px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  #moulin-vallee-3d.v32.game22 .mode-switch button {
+    transition: none;
+  }
+}

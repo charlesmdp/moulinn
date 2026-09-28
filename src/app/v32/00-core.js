@@ -22,6 +22,7 @@
     sunTrue: { value: THREE ? new THREE.Vector3(-0.49, 0.74, 0.47).normalize() : null },
     moonDirection: { value: THREE ? new THREE.Vector3(0.3, 0.6, -0.5).normalize() : null },
     moonLight: { value: THREE ? new THREE.Vector2(0.5, 0.5) : null },
+    lightning: { value: 0 },
     daylight: { value: 1 },
     golden: { value: 0 },
     time: { value: 0 },

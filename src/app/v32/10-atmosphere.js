@@ -78,7 +78,8 @@
   // France : l'heure du lever et du coucher y reste juste à quelques minutes près.
   const DEFAULT_LOCATION = { latitude: 46.6, longitude: 2.45, name: "", admin: "", country: "FR", timezone: "Europe/Paris", fallback: true };
   const locationListeners = [];
-  V32.location = Object.assign({}, DEFAULT_LOCATION, V32.store.get("location", null) || {});
+  const storedLocation = V32.store.get("location", null);
+  V32.location = Object.assign({}, DEFAULT_LOCATION, storedLocation || {}, storedLocation ? { fallback: false } : {});
   V32.setLocation = function (location) {
     V32.location = Object.assign({}, DEFAULT_LOCATION, location, { fallback: !location });
     if (location) V32.store.set("location", V32.location);
@@ -184,12 +185,18 @@
         return true;
       }
 
-      function placeLight(direction) {
+      let lastPlaced = 0;
+      function placeLight(direction, force) {
+        // Pendant le défilement accéléré de l'onglet Météo, on limite le recalcul des
+        // ombres à une dizaine de fois par seconde.
+        const now = performance.now();
+        if (!force && V32.clock.preview !== null && now - lastPlaced < 110) return false;
         const previous = V32.sunOffset;
         offset.copy(direction).multiplyScalar(133);
         // Ombres trop rasantes : on garde un minimum de hauteur pour la caméra d'ombre.
         if (offset.y < 9) offset.y = 9;
         if (previous && previous.distanceToSquared(offset) < 0.04) return false;
+        lastPlaced = now;
         V32.sunOffset = (previous || new THREE.Vector3()).copy(offset);
         V32.sunVersion = (V32.sunVersion || 0) + 1;
         hooks.syncSun();
@@ -233,7 +240,7 @@
 
         // Direction de la lumière principale : soleil le jour, lune la nuit.
         const direction = live || preview ? (isNight ? state.moonDirection : state.sunDirection) : fixedDay;
-        if (direction.y > -0.2) dirty = placeLight(direction.y < 0.06 ? tmpDirection(direction) : direction) || dirty;
+        if (direction.y > -0.2) dirty = placeLight(direction.y < 0.06 ? tmpDirection(direction) : direction, force) || dirty;
         uniforms.sunDirection.value.copy(direction.y < 0.02 ? tmpDirection(direction) : direction);
 
         const mode = weather?.mode || "sun";

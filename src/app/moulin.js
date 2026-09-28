@@ -8406,8 +8406,13 @@ lawnWorld20=(modelMatrix*lawnP20).xyz;`,
         pink: a("#d9909f"),
         flower: a("#eee1c3"),
         gold: a("#d9b05d"),
-        tyre: a("#353c39"),
-        quad: a("#171d20"),
+        tyre: a("#2b302f"),
+        quad: a("#5b6b30", { roughness: 0.5, metalness: 0.05, flatShading: !1 }),
+        quadDark: a("#262b2c"),
+        quadSeat: a("#141617", { roughness: 0.86, flatShading: !1 }),
+        quadChrome: a("#aab2ab", { roughness: 0.42, metalness: 0.55 }),
+        quadLamp: a("#f2f6e8", { roughness: 0.3, emissive: 5855570, emissiveIntensity: 0.6 }),
+        quadRed: a("#b3322c", { emissive: 4194304, emissiveIntensity: 0.5 }),
         glass: a("#c4e2df", { roughness: 0.48 }),
         ember: a("#c98742", { emissive: 9056267, emissiveIntensity: 0.35 }),
         white: a("#e4e8d9"),
@@ -9798,24 +9803,55 @@ lawnWorld20=(modelMatrix*lawnP20).xyz;`,
           Ge("woodDark", [0, 0, 0], [0, 0.16, 0], 0.015);
           break;
         }
-        case "quad":
-          (Le("metal", [0, 0.43, 0], [0.98, 0.15, 1.78]),
-            Le("quad", [0, 0.65, -0.5], [1.08, 0.21, 0.72]),
-            Le("quad", [0, 0.68, 0.56], [1.04, 0.29, 0.55]),
-            Le("tyre", [0, 0.9, 0.05], [0.46, 0.14, 0.93]),
-            Le("quad", [0, 0.78, 0.34], [0.62, 0.19, 0.6]));
-          for (const y of [-0.65, 0.65])
-            for (const I of [-0.64, 0.64])
-              (Fe(S.cyl, "tyre", [y, 0.33, I], [0.33, 0.28, 0.33], [0, 0, Math.PI / 2]),
-                Fe(S.cyl, "metalLight", [y + Math.sign(y) * 0.145, 0.33, I], [0.15, 0.028, 0.15], [0, 0, Math.PI / 2]),
-                Le("quad", [y * 0.81, 0.76, I], [0.43, 0.1, 0.75]));
-          (Ge("metal", [0, 0.87, 0.39], [0, 1.18, 0.5], 0.034),
-            Ge("metal", [-0.43, 1.18, 0.5], [0.43, 1.18, 0.5], 0.028),
-            Ge("tyre", [-0.43, 1.18, 0.5], [-0.26, 1.18, 0.5], 0.046),
-            Ge("tyre", [0.43, 1.18, 0.5], [0.26, 1.18, 0.5], 0.046));
-          for (const y of [-0.31, 0.31]) Le("glass", [y, 0.78, 0.852], [0.22, 0.12, 0.035]);
-          (Le("metal", [0, 0.68, -0.91], [0.86, 0.055, 0.36]), at([-0.83, 0, -1.1], [0.83, 1.28, 1.02]));
+        case "quad": {
+          // V32 : meme quad olive que celui que l'on conduit (voir MoulinPlayer22).
+          const Q = Math.PI / 2;
+          (Le("metal", [0, 0.36, 0], [0.62, 0.1, 1.5]),
+            Le("quadDark", [0, 0.52, 0.04], [0.46, 0.3, 0.6]),
+            Fe(S.sphere, "quad", [0, 0.8, 0.32], [0.29, 0.16, 0.38]),
+            Fe(S.sphere, "quadSeat", [0, 0.9, -0.3], [0.2, 0.075, 0.44]),
+            Le("quadSeat", [0, 0.86, -0.31], [0.36, 0.08, 0.66]),
+            Le("quad", [0, 0.74, 0.66], [1.16, 0.1, 0.68], [0.06, 0, 0]),
+            Le("quad", [0, 0.64, 1.0], [1.02, 0.2, 0.08], [-0.55, 0, 0]),
+            Le("quad", [0, 0.76, -0.66], [1.16, 0.1, 0.64], [-0.05, 0, 0]),
+            Le("quad", [0, 0.67, -0.99], [1.02, 0.17, 0.08], [0.5, 0, 0]));
+          for (const y of [-0.64, 0.64])
+            for (const I of [-1, 1])
+              (Le("quad", [I * 0.66, 0.735, y], [0.37, 0.07, 0.44]),
+                Le("quad", [I * 0.66, 0.655, y + 0.29], [0.37, 0.06, 0.22], [-0.75, 0, 0]),
+                Le("quad", [I * 0.66, 0.655, y - 0.29], [0.37, 0.06, 0.22], [0.75, 0, 0]),
+                Fe(S.cyl, "tyre", [I * 0.68, 0.33, y], [0.31, 0.27, 0.31], [0, 0, Q]),
+                Fe(S.cyl, "quadChrome", [I * 0.684, 0.33, y], [0.19, 0.282, 0.19], [0, 0, Q]),
+                Fe(S.cyl, "metal", [I * 0.68, 0.33, y], [0.075, 0.292, 0.075], [0, 0, Q]));
+          for (const y of [-0.64, 0.64])
+            for (const I of [-1, 1])
+              for (let Be = 0; Be < 16; Be++) {
+                const Se = (Be / 16) * pe;
+                Le("tyre", [I * 0.68 + (Be % 2 ? 0.065 : -0.065), 0.33 + Math.cos(Se) * 0.318, y + Math.sin(Se) * 0.318], [0.125, 0.05, 0.075], [Se, 0, 0]);
+              }
+          for (const y of [-1, 1])
+            (Le("quadDark", [y * 0.36, 0.63, 0], [0.1, 0.2, 0.64]),
+              Le("quadDark", [y * 0.46, 0.42, -0.03], [0.24, 0.04, 0.48]),
+              Ge("quadChrome", [y * 0.34, 0.48, 1.06], [y * 0.34, 0.74, 1.06], 0.028),
+              Fe(S.cyl, "quadLamp", [y * 0.27, 0.76, 0.99], [0.075, 0.05, 0.075], [Q, 0, 0]),
+              Le("quadRed", [y * 0.34, 0.68, -1.01], [0.15, 0.06, 0.03]));
+          for (const [y, I] of [
+            [0.72, 0.5],
+            [-0.73, 0.56],
+          ]) {
+            for (const Be of [-1, 1]) Ge("quadChrome", [Be * 0.44, 0.87, y - I / 2], [Be * 0.44, 0.87, y + I / 2], 0.022);
+            for (const Be of [-I / 2, 0, I / 2]) Ge("quadChrome", [-0.45, 0.87, y + Be], [0.45, 0.87, y + Be], 0.022);
+          }
+          (Ge("quadChrome", [-0.36, 0.5, 1.07], [0.36, 0.5, 1.07], 0.03),
+            Ge("quadChrome", [-0.31, 0.72, 1.06], [0.31, 0.72, 1.06], 0.026),
+            Ge("quadChrome", [0, 0.86, 0.39], [0, 1.15, 0.47], 0.026),
+            Ge("metal", [-0.42, 1.153, 0.47], [0.42, 1.153, 0.47], 0.022),
+            Ge("quadDark", [-0.44, 1.153, 0.47], [-0.3, 1.153, 0.47], 0.036),
+            Ge("quadDark", [0.3, 1.153, 0.47], [0.44, 1.153, 0.47], 0.036),
+            Ge("metal", [0.3, 0.5, -0.8], [0.3, 0.6, -1.1], 0.045),
+            at([-0.83, 0, -1.1], [0.83, 1.28, 1.1]));
           break;
+        }
       }
       const ge = [];
       for (const [oe, y] of G) {
@@ -10400,20 +10436,23 @@ lawnWorld20=(modelMatrix*lawnP20).xyz;`,
         sole: "#d6d4c6",
         eye: "#2c2925",
         cord: "#c5b8a1",
-        olive: "#171d20",
-        metal: "#485953",
-        silver: "#99a39a",
-        tyre: "#353c39",
-        lamp: "#dfe8d5",
-        red: "#963b37",
+        olive: "#5b6b30",
+        metal: "#3f4843",
+        silver: "#aab2ab",
+        tyre: "#2b302f",
+        lamp: "#f2f6e8",
+        red: "#b3322c",
+        quadDark: "#262b2c",
+        seat: "#141617",
       },
       b = {};
     for (const [f, J] of Object.entries(h))
       b[f] = new t.MeshStandardMaterial({
         color: new t.Color(J).convertSRGBToLinear(),
-        roughness: f === "silver" ? 0.6 : 0.94,
-        metalness: f === "silver" ? 0.15 : 0,
-        flatShading: !0,
+        roughness: f === "silver" ? 0.42 : f === "olive" ? 0.5 : f === "seat" ? 0.86 : 0.94,
+        metalness: f === "silver" ? 0.55 : f === "olive" ? 0.05 : 0,
+        flatShading: f !== "olive" && f !== "seat",
+        emissive: f === "lamp" ? new t.Color(0.35, 0.35, 0.3) : f === "red" ? new t.Color(0.25, 0.02, 0.02) : new t.Color(0),
       });
     const p = new t.BoxGeometry(1, 1, 1),
       S = new t.IcosahedronGeometry(1, 0),
@@ -10553,43 +10592,60 @@ lawnWorld20=(modelMatrix*lawnP20).xyz;`,
     let ve = new t.Group();
     Ke.add(ve);
     let qe = [];
-    (C(p, "metal", [0, 0.45, 0], [0.96, 0.19, 1.45], null, ve),
-      C(S, "olive", [0, 0.68, 0.34], [0.56, 0.25, 0.77], null, ve),
-      C(p, "black", [0, 0.865, -0.12], [0.45, 0.17, 0.78], null, ve),
-      C(x, "black", [0, 0.94, -0.17], [0.23, 0.055, 0.39], null, ve));
-    for (const f of [-0.66, 0.65]) C(c, "metal", [0, 0.345, f], [0.052, 1.3, 0.052], [0, 0, pe / 2], ve);
+    // V32 : quad de jardin olive, lisible et realiste (carenages, garde-boues, porte-bagages,
+    // phares, pneus a crampons). Memes points d'ancrage que la V31 (roues, guidon, phares).
+    const rounded32 = new t.SphereGeometry(1, 14, 8);
+    (C(p, "metal", [0, 0.36, 0], [0.62, 0.1, 1.5], null, ve),
+      C(p, "quadDark", [0, 0.52, 0.04], [0.46, 0.3, 0.6], null, ve),
+      C(rounded32, "olive", [0, 0.8, 0.32], [0.29, 0.16, 0.38], null, ve),
+      C(rounded32, "seat", [0, 0.9, -0.3], [0.2, 0.075, 0.44], null, ve),
+      C(p, "seat", [0, 0.86, -0.31], [0.36, 0.08, 0.66], null, ve),
+      C(p, "olive", [0, 0.74, 0.66], [1.16, 0.1, 0.68], [0.06, 0, 0], ve),
+      C(p, "olive", [0, 0.64, 1.0], [1.02, 0.2, 0.08], [-0.55, 0, 0], ve),
+      C(p, "olive", [0, 0.76, -0.66], [1.16, 0.1, 0.64], [-0.05, 0, 0], ve),
+      C(p, "olive", [0, 0.67, -0.99], [1.02, 0.17, 0.08], [0.5, 0, 0], ve));
+    for (const f of [-0.66, 0.65])
+      for (const J of [-1, 1])
+        (C(p, "olive", [J * 0.66, 0.735, f], [0.37, 0.07, 0.44], null, ve),
+          C(p, "olive", [J * 0.66, 0.655, f + 0.29], [0.37, 0.06, 0.22], [-0.75, 0, 0], ve),
+          C(p, "olive", [J * 0.66, 0.655, f - 0.29], [0.37, 0.06, 0.22], [0.75, 0, 0], ve));
+    for (const f of [-1, 1])
+      (C(p, "quadDark", [f * 0.36, 0.63, 0], [0.1, 0.2, 0.64], null, ve),
+        C(p, "quadDark", [f * 0.46, 0.42, -0.03], [0.24, 0.04, 0.48], null, ve));
+    for (const [f, J] of [
+      [0.72, 0.5],
+      [-0.73, 0.56],
+    ]) {
+      for (const Ze of [-1, 1]) C(c, "silver", [Ze * 0.44, 0.87, f], [0.022, J, 0.022], [pe / 2, 0, 0], ve);
+      for (const Ze of [-J / 2, 0, J / 2]) C(c, "silver", [0, 0.87, f + Ze], [0.022, 0.9, 0.022], [0, 0, pe / 2], ve);
+    }
+    (C(c, "silver", [0, 0.5, 1.07], [0.03, 0.72, 0.03], [0, 0, pe / 2], ve),
+      C(c, "silver", [0, 0.72, 1.06], [0.026, 0.62, 0.026], [0, 0, pe / 2], ve));
+    for (const f of [-1, 1])
+      (C(c, "silver", [f * 0.34, 0.61, 1.06], [0.028, 0.26, 0.028], null, ve),
+        C(c, "lamp", [f * 0.27, 0.76, 0.99], [0.075, 0.05, 0.075], [pe / 2, 0, 0], ve),
+        C(p, "red", [f * 0.34, 0.68, -1.01], [0.15, 0.06, 0.03], null, ve));
+    (C(c, "silver", [0, 1.0, 0.43], [0.026, 0.32, 0.026], [-0.3, 0, 0], ve),
+      C(c, "metal", [0.3, 0.55, -0.95], [0.045, 0.32, 0.045], [pe / 2 - 0.2, 0, 0], ve));
     for (const f of [-0.66, 0.65])
       for (const J of [-1, 1]) {
-        C(p, "olive", [J * 0.57, 0.805, f], [0.51, 0.105, 0.58], [0, 0, J * 0.04], ve);
         const Ze = new t.Group();
         (Ze.position.set(J * 0.68, 0.33, f), ve.add(Ze));
         const Je = new t.Group();
         (Ze.add(Je),
           qe.push({ pivot: Ze, spin: Je, front: f > 0, side: J, z: f }),
           (Ze.name = "Suspension_" + (f > 0 ? "avant" : "arriere") + "_" + (J < 0 ? "gauche" : "droite")),
-          C(new t.CylinderGeometry(0.322, 0.322, 0.278, 12), "tyre", [0, 0, 0], [1, 1, 1], [0, 0, pe / 2], Je),
-          C(new t.CylinderGeometry(0.152, 0.152, 0.284, 8), "silver", [0, 0, 0], [1, 1, 1], [0, 0, pe / 2], Je),
-          C(new t.CylinderGeometry(0.067, 0.067, 0.298, 8), "metal", [0, 0, 0], [1, 1, 1], [0, 0, pe / 2], Je));
-        for (let ct = 0; ct < 12; ct++) {
-          const gt = (ct / 12) * pe * 2;
-          C(p, "tyre", [0, Math.cos(gt) * 0.318, Math.sin(gt) * 0.318], [0.297, 0.043, 0.105], [gt, 0, 0], Je);
+          C(new t.CylinderGeometry(0.31, 0.31, 0.27, 18), "tyre", [0, 0, 0], [1, 1, 1], [0, 0, pe / 2], Je),
+          C(new t.CylinderGeometry(0.19, 0.19, 0.282, 12), "silver", [J * 0.004, 0, 0], [1, 1, 1], [0, 0, pe / 2], Je),
+          C(new t.CylinderGeometry(0.075, 0.075, 0.292, 8), "metal", [0, 0, 0], [1, 1, 1], [0, 0, pe / 2], Je));
+        for (let ct = 0; ct < 18; ct++) {
+          const gt = (ct / 18) * pe * 2;
+          C(p, "tyre", [ct % 2 ? 0.065 : -0.065, Math.cos(gt) * 0.318, Math.sin(gt) * 0.318], [0.125, 0.05, 0.075], [gt, 0, 0], Je);
         }
       }
-    for (const f of [-1, 1])
-      (C(p, "metal", [f * 0.51, 0.34, -0.015], [0.29, 0.095, 0.59], null, ve),
-        C(p, "lamp", [f * 0.31, 0.722, 0.975], [0.19, 0.12, 0.06], null, ve),
-        C(p, "red", [f * 0.35, 0.62, -0.929], [0.17, 0.07, 0.045], null, ve));
-    for (const f of [-0.87, 0.86]) {
-      (C(p, "metal", [0, 0.832, f], [1.1, 0.055, 0.045], null, ve),
-        C(p, "metal", [0, 0.832, f + (f > 0 ? -0.23 : 0.23)], [1.1, 0.055, 0.045], null, ve));
-      for (const J of [-0.49, -0.17, 0.17, 0.49])
-        C(p, "metal", [J, 0.832, f + (f > 0 ? -0.115 : 0.115)], [0.037, 0.038, 0.26], null, ve);
-    }
-    (C(p, "metal", [0, 0.37, 1.045], [0.86, 0.063, 0.057], null, ve),
-      C(c, "silver", [0, 0.973, 0.4], [0.026, 0.36, 0.026], [-0.18, 0, 0], ve));
     let Xe = new t.Group();
-    (Xe.position.set(0, 1.153, 0.424), ve.add(Xe), C(p, "metal", [0, 0, 0], [0.79, 0.039, 0.045], null, Xe));
-    for (const f of [-1, 1]) C(c, "black", [f * 0.36, 0, 0], [0.031, 0.13, 0.031], [0, 0, pe / 2], Xe);
+    (Xe.position.set(0, 1.153, 0.424), ve.add(Xe), C(c, "metal", [0, 0, 0], [0.022, 0.84, 0.022], [0, 0, pe / 2], Xe));
+    for (const f of [-1, 1]) C(c, "quadDark", [f * 0.37, 0, 0], [0.036, 0.15, 0.036], [0, 0, pe / 2], Xe);
     Ne();
     const _t = { frame: ve, wheels: qe, steering: Xe },
       Mt = (n.parkedCars || []).map((f, J) => ({
@@ -11849,52 +11905,53 @@ lawnWorld20=(modelMatrix*lawnP20).xyz;`,
       }
       return !0;
     }
-    const Io = typeof matchMedia == "function" && matchMedia("(pointer:coarse)").matches ? 640 : 1200,
-      Dn = 160,
+    // V32 : traces de pneus nettes et durables. Chaque empreinte assombrit le sol par
+    // multiplication (herbe couchee, puis boue sous la pluie, ornieres sombres dans la
+    // neige), avec le dessin des crampons ; elles s'estompent en 7 a 15 minutes.
+    const Io = typeof matchMedia == "function" && matchMedia("(pointer:coarse)").matches ? 1100 : 2400,
+      Dn = 900,
       wn = { value: 0 },
       No = new t.PlaneGeometry(1, 1);
     No.rotateX(-pe / 2);
-    const rn = new t.InstancedBufferAttribute(new Float32Array(Io).fill(-1e3), 1);
-    No.setAttribute("tireBorn24", rn);
-    const Bn = new t.MeshBasicMaterial({
-      color: 4339756,
-      transparent: !0,
-      opacity: 0.13,
-      depthWrite: !1,
-      polygonOffset: !0,
-      polygonOffsetFactor: -2,
-      toneMapped: !0,
-    });
-    ((Bn.name = "Traces_legeres_pneus"),
-      (Bn.onBeforeCompile = (f) => {
-        ((f.uniforms.uTireTime24 = wn),
-          (f.vertexShader =
-            `attribute float tireBorn24; varying float vTireAge24; varying vec2 vTireUv24; uniform float uTireTime24;
-` + f.vertexShader),
-          (f.vertexShader = f.vertexShader.replace(
-            "#include <begin_vertex>",
-            `#include <begin_vertex>
-vTireAge24=uTireTime24-tireBorn24;vTireUv24=uv;`,
-          )),
-          (f.fragmentShader =
-            `varying float vTireAge24; varying vec2 vTireUv24;
-` + f.fragmentShader),
-          (f.fragmentShader = f.fragmentShader.replace(
-            "#include <color_fragment>",
-            `#include <color_fragment>
-diffuseColor.a*=(1.-smoothstep(85.,160.,vTireAge24))*smoothstep(0.,.18,vTireUv24.x)*(1.-smoothstep(.82,1.,vTireUv24.x))*(.78+.22*step(.45,fract(vTireUv24.y*3.)));`,
-          )));
-      }),
-      (Bn.customProgramCacheKey = () => "soft-tire-tracks24"));
+    const rn = new t.InstancedBufferAttribute(new Float32Array(Io).fill(-1e3), 1),
+      tireGrip32 = new t.InstancedBufferAttribute(new Float32Array(Io).fill(1), 1);
+    (No.setAttribute("tireBorn24", rn), No.setAttribute("tireGrip32", tireGrip32));
+    const tireWeather32 = () => {
+        var f, J;
+        return ((J = (f = n.weather) == null ? void 0 : f.call(n)) == null ? void 0 : J.uniforms) || {};
+      },
+      Bn = new t.ShaderMaterial({
+        transparent: !0,
+        depthWrite: !1,
+        polygonOffset: !0,
+        polygonOffsetFactor: -2,
+        polygonOffsetUnits: -2,
+        blending: t.CustomBlending,
+        blendEquation: t.AddEquation,
+        blendSrc: t.ZeroFactor,
+        blendDst: t.SrcColorFactor,
+        uniforms: { uTireTime24: wn, uTireWet32: { value: 0 }, uTireSnow32: { value: 0 } },
+        vertexShader:
+          "attribute float tireBorn24,tireGrip32;uniform float uTireTime24;varying float vTireAge24,vTireGrip32;varying vec2 vTireUv24;varying vec3 vTireWorld32;void main(){vTireAge24=uTireTime24-tireBorn24;vTireGrip32=tireGrip32;vTireUv24=uv;vec4 w=modelMatrix*instanceMatrix*vec4(position,1.);vTireWorld32=w.xyz;gl_Position=projectionMatrix*viewMatrix*w;}",
+        fragmentShader:
+          "uniform float uTireWet32,uTireSnow32;varying float vTireAge24,vTireGrip32;varying vec2 vTireUv24;varying vec3 vTireWorld32;float tireHash32(vec2 p){return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453);}void main(){if(vTireAge24<0.)discard;float fresh=1.-smoothstep(420.,900.,vTireAge24);float edge=smoothstep(0.,.2,vTireUv24.x)*(1.-smoothstep(.8,1.,vTireUv24.x));float chevron=fract(vTireUv24.y*6.+abs(vTireUv24.x-.5)*1.4);float lug=smoothstep(.3,.42,chevron)*(1.-smoothstep(.7,.82,chevron));float grain=.82+.18*tireHash32(floor(vTireWorld32.xz*16.));float crush=edge*(.62+.38*lug)*grain;vec3 tint=mix(vec3(.57,.64,.49),vec3(.45,.39,.32),uTireWet32);tint=mix(tint,vec3(.6,.62,.68),uTireSnow32);float amount=crush*fresh*vTireGrip32*mix(.8,1.,uTireWet32);gl_FragColor=vec4(mix(vec3(1.),tint,amount),1.);}",
+      });
+    ((Bn.name = "Traces_de_pneus_v32"),
+      (Bn.onBeforeRender = () => {
+        const f = tireWeather32();
+        ((Bn.uniforms.uTireWet32.value = f.wet ? f.wet.value : 0), (Bn.uniforms.uTireSnow32.value = f.snow ? f.snow.value : 0));
+      }));
     const mn = new t.InstancedMesh(No, Bn, Io);
-    ((mn.name = "Traces_discretes_des_pneus"),
+    ((mn.name = "Traces_de_pneus_du_quad"),
       (mn.userData.exportSkip = !0),
+      (mn.userData.noWeatherPaint22 = !0),
       (mn.frustumCulled = !1),
       (mn.renderOrder = 2),
+      (mn.onBeforeRender = Bn.onBeforeRender),
       R.add(mn));
     const Hn = new t.Matrix4(),
       sn = new t.Vector3(),
-      Qo = new t.Vector3(0.19, 1, 0.29),
+      Qo = new t.Vector3(0.27, 1, 0.42),
       un = new t.Quaternion(),
       Go = new t.Vector3(),
       kn = new t.Quaternion(),
@@ -11909,21 +11966,26 @@ diffuseColor.a*=(1.-smoothstep(85.,160.,vTireAge24))*smoothstep(0.,.18,vTireUv24
       const Ze = (Je = jt.supportHeight) == null ? void 0 : Je.call(jt, f, J);
       return Math.max(T(f, J), Number.isFinite(Ze) ? Ze : -1 / 0);
     }
-    function zn(f, J, Ze) {
+    function zn(f, J, Ze, length32 = 0.42, grip32 = 1) {
       if (ao(f, J) || uo(f, J)) return;
       const Je = _n(f, J),
+        ground32 = T(f, J),
         ct = (_n(f + 0.12, J) - _n(f - 0.12, J)) / 0.24,
         gt = (_n(f, J + 0.12) - _n(f, J - 0.12)) / 0.24;
+      // Pas de traces sur les dalles, marches et murets (support au-dessus du terrain).
       !Number.isFinite(Je) ||
+        Je - ground32 > 0.06 ||
         Math.hypot(ct, gt) > 2 ||
-        (sn.set(f, Je + 0.034, J),
+        (sn.set(f, Je + 0.03, J),
         Go.set(-ct, 1, -gt).normalize(),
         un.setFromUnitVectors(xn, Go),
         kn.setFromAxisAngle(xn, Ze),
         un.multiply(kn),
+        Qo.set(0.27, 1, length32),
         Hn.compose(sn, un, Qo),
         mn.setMatrixAt(hn, Hn),
         rn.setX(hn, wn.value),
+        tireGrip32.setX(hn, grip32),
         (hn = (hn + 1) % Io),
         Gn++);
     }
@@ -11942,20 +12004,24 @@ diffuseColor.a*=(1.-smoothstep(85.,160.,vTireAge24))*smoothstep(0.,.18,vTireUv24
         return;
       }
       let J = !1;
+      // Plus on va vite, plus l'herbe est arrachee (et l'accelerateur creuse davantage).
+      const grip32 = _e(0.72 + Math.abs(m.speed) * 0.025 + (m.boost ? 0.15 : 0), 0.72, 1);
       for (let Ze = 0; Ze < f.length; Ze++) {
         const Je = dn[Ze],
           ct = f[Ze],
           gt = Math.hypot(ct.x - Je.x, ct.z - Je.z);
-        if (gt < 0.2) continue;
-        const Gt = Math.min(8, Math.ceil(gt / 0.22));
-        if (gt < 3)
+        if (gt < 0.34) continue;
+        if (gt < 3) {
+          const Gt = Math.min(8, Math.ceil(gt / 0.36)),
+            heading32 = Math.atan2(ct.x - Je.x, ct.z - Je.z);
           for (let Ot = 1; Ot <= Gt; Ot++) {
-            const Xt = Ot / Gt;
-            (zn(Je.x + (ct.x - Je.x) * Xt, Je.z + (ct.z - Je.z) * Xt, m.yaw), (J = !0));
+            const Xt = (Ot - 0.5) / Gt;
+            (zn(Je.x + (ct.x - Je.x) * Xt, Je.z + (ct.z - Je.z) * Xt, heading32, gt / Gt + 0.07, grip32), (J = !0));
           }
+        }
         dn[Ze] = { x: ct.x, z: ct.z };
       }
-      J && ((mn.instanceMatrix.needsUpdate = !0), (rn.needsUpdate = !0));
+      J && ((mn.instanceMatrix.needsUpdate = !0), (rn.needsUpdate = !0), (tireGrip32.needsUpdate = !0));
     }
     function Xn(f) {
       var J, Ze;
@@ -12225,6 +12291,10 @@ diffuseColor.a*=(1.-smoothstep(85.,160.,vTireAge24))*smoothstep(0.,.18,vTireUv24
         total: Gn,
         active: rn.array.filter((f) => wn.value - f < Dn && f >= 0).length,
       }),
+      // V32 : trace une empreinte (essais, démonstrations). heading en radians.
+      stampTrack32: (f, J, Ze, Je = 0.42, ct = 1) => {
+        (zn(f, J, Ze, Je, ct), (mn.instanceMatrix.needsUpdate = !0), (rn.needsUpdate = !0), (tireGrip32.needsUpdate = !0));
+      },
       getAudioState: Cn,
       getLightAnchors: Zn,
       getLightMounts: Zn,
@@ -12273,7 +12343,7 @@ diffuseColor.a*=(1.-smoothstep(85.,160.,vTireAge24))*smoothstep(0.,.18,vTireUv24
       q = !1;
     const v = R("[data-mode-trigger31]"),
       k = R(".mode-switch"),
-      h = { orbit: "Vue 3D", fly: "Vue libre", editor: "Am\xE9nager", play: "Personnage", globe: "Boule de neige" };
+      h = { orbit: "Vue 3D", fly: "Vue libre", editor: "Am\xE9nager", play: "Personnage", globe: "M\xE9t\xE9o" };
     function b(ce, V = !1) {
       var Me;
       ((n.dataset.modeMenuOpen = String(!!ce)),
@@ -16650,6 +16720,11 @@ diffuseColor.a*=(1.-smoothstep(85.,160.,vTireAge24))*smoothstep(0.,.18,vTireUv24
         cameraRight: { value: new t.Vector3(1, 0, 0) },
         cameraUp: { value: new t.Vector3(0, 1, 0) },
         cloudTint: { value: new t.Color("#eef5f3").convertSRGBToLinear() },
+        sun32: globalThis.MoulinV32.uniforms.sunTrue,
+        light32: globalThis.MoulinV32.uniforms.sunDirection,
+        lightColour32: globalThis.MoulinV32.uniforms.sunColor,
+        lightning32: globalThis.MoulinV32.uniforms.lightning,
+        golden32: globalThis.MoulinV32.uniforms.golden,
       };
     function H(ue, se, Ve = !1) {
       const vt = /\bvoid\s+main\s*\(\s*(?:void)?\s*\)\s*\{/.exec(ue);
@@ -16798,9 +16873,22 @@ vec3 globeRoot27=(modelMatrix*vec4(instanceMatrix[3].xyz,1.)).xyz;globeRootInsid
         vt = ke({
           side: t.BackSide,
           depthWrite: !1,
-          uniforms: { night: xe.night, cover: xe.cover, starry: xe.starry, centre: xe.centre },
+          uniforms: {
+            night: xe.night,
+            cover: xe.cover,
+            starry: xe.starry,
+            centre: xe.centre,
+            sun32: xe.sun32,
+            lightning32: xe.lightning32,
+            golden32: xe.golden32,
+          },
           vertexShader: $e,
-          fragmentShader: `uniform float night,cover,starry;uniform vec3 centre;varying vec3 globePoint,globeNormal;void main(){float h=clamp((globePoint.y-centre.y+9.)/44.,0.,1.);vec3 daylight=mix(vec3(.72,.89,.94),vec3(.34,.66,.86),pow(h,.7));daylight=mix(daylight,mix(vec3(.52,.63,.67),vec3(.24,.36,.45),h),cover*.76);vec3 nightSky=mix(vec3(.032,.072,.14),vec3(.008,.019,.051),h);vec3 direction=normalize(globePoint-centre);float haze=exp(-pow((direction.x*.64+direction.z*.45+direction.y*.16-.24)*4.,2.));nightSky+=vec3(.018,.025,.046)*haze*starry;gl_FragColor=vec4(mix(daylight,nightSky,night),1.);${B}}`,
+          fragmentShader: `uniform float night,cover,starry,lightning32,golden32;uniform vec3 centre,sun32;varying vec3 globePoint,globeNormal;void main(){float h=clamp((globePoint.y-centre.y+9.)/44.,0.,1.);vec3 daylight=mix(vec3(.72,.89,.94),vec3(.30,.62,.86),pow(h,.7));daylight=mix(daylight,mix(vec3(.52,.63,.67),vec3(.24,.36,.45),h),cover*.76);vec3 direction=normalize(globePoint-centre);
+float toward=pow(max(dot(normalize(direction.xz+vec2(1e-4)),normalize(sun32.xz+vec2(1e-4))),0.)*.5+.5,2.);
+daylight=mix(daylight,mix(vec3(1.,.55,.28),vec3(.78,.42,.5),1.-toward)*(.75+.25*(1.-h)),golden32*(1.-h*.55)*(1.-cover*.6));
+float dusk=1.-smoothstep(-.16,.04,sun32.y);daylight=mix(daylight,mix(vec3(.3,.26,.44)*(.5+.5*toward),vec3(.05,.08,.2),h),dusk*.85);
+vec3 nightSky=mix(vec3(.032,.072,.14),vec3(.008,.019,.051),h);float haze=exp(-pow((direction.x*.64+direction.z*.45+direction.y*.16-.24)*4.,2.));nightSky+=vec3(.018,.025,.046)*haze*starry;
+vec3 c=mix(daylight,nightSky,night);c+=vec3(.5,.55,.75)*lightning32*(.3+.7*cover);gl_FragColor=vec4(c,1.);${B}}`,
         });
       ((je = rt(Ve, vt, "Ciel_interieur_de_la_boule")),
         je.position.copy(O),
@@ -16821,11 +16909,11 @@ vec3 globeRoot27=(modelMatrix*vec4(instanceMatrix[3].xyz,1.)).xyz;globeRootInsid
         M = Math.sqrt(T * T - (et - O.y) * (et - O.y)),
         ee = ke({
           side: t.FrontSide,
-          uniforms: { night: xe.night, time: xe.time, wind: xe.wind, drift: xe.drift, centre: xe.centre },
+          uniforms: { night: xe.night, time: xe.time, wind: xe.wind, drift: xe.drift, centre: xe.centre, light32: xe.light32 },
           vertexShader: $e,
           fragmentShader: `uniform float night,time,wind;
 uniform vec2 drift;
-uniform vec3 centre;
+uniform vec3 centre,light32;
 varying vec3 globePoint,globeNormal;
 float speck28(vec3 p,float scale,float phase){
  vec3 cell=floor(p*scale),q=fract(p*scale)-.5;
@@ -16845,7 +16933,7 @@ void main(){
  float a=sin(q.x*.88+sin(q.y*.71-t*.73)),b=sin(q.y*.95+sin(q.x*.66+t*.64));
  float caustic=pow(max(0.,1.-abs(a+b)*.79),9.);
  float current=sin(q.x*.13+q.y*.17-t*.42)*sin(q.y*.19-q.x*.11+t*.23);
- float lit=.51+.49*max(0.,dot(n,normalize(vec3(-.55,.65,.80))));
+ float lit=.51+.49*max(0.,dot(n,normalize(light32)));
  vec3 shallow=mix(vec3(.011,.265,.335),vec3(.025,.36,.40),lit);
  vec3 c=mix(shallow,vec3(.006,.045,.11),smoothstep(.02,.98,depth));
  c+=vec3(.039,.20,.18)*caustic*pow(1.-depth,.8)*.57;
@@ -16860,7 +16948,7 @@ void main(){
  c=mix(c,vec3(.12,.39,.48)*mix(1.,.32,depth),facing*.30);
  float meniscus=1.-smoothstep(.025,.24,abs(globePoint.y+.70));
  c+=vec3(.14,.27,.29)*meniscus;
- gl_FragColor=vec4(c*mix(1.,.43,night),1.);
+ gl_FragColor=vec4(c*mix(1.,.15,night),1.);
  ${B}
 }
 `,
@@ -16872,11 +16960,11 @@ void main(){
       ).position.copy(O);
       const ae = ke({
           side: t.DoubleSide,
-          uniforms: { night: xe.night, time: xe.time, wind: xe.wind, drift: xe.drift, centre: xe.centre },
+          uniforms: { night: xe.night, time: xe.time, wind: xe.wind, drift: xe.drift, centre: xe.centre, light32: xe.light32, lightColour32: xe.lightColour32 },
           vertexShader: $e,
           fragmentShader: `uniform float night,time,wind;
 uniform vec2 drift;
-uniform vec3 centre;
+uniform vec3 centre,light32,lightColour32;
 varying vec3 globePoint,globeNormal;
 void main(){
  vec2 p=globePoint.xz-centre.xz+drift*.012;
@@ -16893,10 +16981,10 @@ void main(){
  float crest=pow(max(0.,sin(a)*.7+sin(b)*.3),11.);
  float broken=.35+.65*smoothstep(-.2,.8,sin(p.y*.83+time*.31));
  c+=vec3(.12,.25,.26)*crest*broken*.23;
- float glint=pow(max(dot(normal,normalize(view+normalize(vec3(-.49,.74,.47)))),0.),94.);
- c+=vec3(.48,.53,.48)*glint;
+ float glint=pow(max(dot(normal,normalize(view+normalize(light32))),0.),94.);
+ c+=lightColour32*.5*glint*(1.-night);
  c+=vec3(.12,.25,.27)*(1.-smoothstep(.035,.21,abs(length(p)-43.91)))*.50;
- gl_FragColor=vec4(c*mix(1.,.40,night),1.);
+ gl_FragColor=vec4(c*mix(1.,.15,night),1.);
  ${B}
 }
 `,
@@ -16991,21 +17079,25 @@ void main(){
           wind: xe.wind,
           drift: xe.drift,
           centre: xe.centre,
+          light32: xe.light32,
+          lightColour32: xe.lightColour32,
+          lightning32: xe.lightning32,
+          golden32: xe.golden32,
         },
         vertexShader:
           "attribute vec4 cloudSeed27,cloudShape27;attribute vec3 cloudOffset27;uniform float time,cover,wind,night;uniform vec2 drift;uniform vec3 centre;varying vec3 cloudWorld27,cloudNormal27;varying float cloudVisible27,cloudLocal27,cloudSeedValue27;void main(){vec2 p=mod((cloudSeed27.xy-.5)*112.+drift+56.,112.)-56.;float h=36.0+cloudSeed27.z*7.0;float size=.78+cover*.26;vec3 puffCentre=vec3(centre.x+p.x,h,centre.z+p.y)+cloudOffset27*size;float puffRadius=max(cloudShape27.x,max(cloudShape27.y,cloudShape27.z))*size;float fit=clamp((45.15-length(puffCentre-centre))/puffRadius,0.,1.);vec3 world=puffCentre+position*cloudShape27.xyz*size*fit;cloudWorld27=world;cloudNormal27=normalize(normal/cloudShape27.xyz);cloudVisible27=step(cloudSeed27.w,mix(mix(.59,.18,night),1.,cover))*step(.015,fit);cloudLocal27=position.y;cloudSeedValue27=cloudShape27.w;gl_Position=projectionMatrix*viewMatrix*vec4(world,1.);}",
-        fragmentShader: `uniform float cover,night,time;uniform vec3 centre;varying vec3 cloudWorld27,cloudNormal27;varying float cloudVisible27,cloudLocal27,cloudSeedValue27;void main(){if(cloudVisible27<.5||length(cloudWorld27-centre)>45.3)discard;vec3 n=normalize(cloudNormal27);float top=dot(n,normalize(vec3(-.42,.78,.45)))*.5+.5;float puffShade=.68+.32*smoothstep(-.9,.75,cloudLocal27);float detail=sin(cloudWorld27.x*.77+cloudWorld27.z*.34)*sin(cloudWorld27.y*.91-cloudWorld27.z*.28)*.035;vec3 c=mix(vec3(.41,.52,.60),vec3(.98,.99,.96),top)*puffShade;float under=1.-smoothstep(-.50,.15,n.y);c*=1.-under*cover*.22;c=mix(c,c*vec3(.37,.46,.55),cover*.66);c+=detail;c=mix(c,vec3(.050,.091,.16)*(.63+top*.73)*puffShade,night);gl_FragColor=vec4(c,1.);${B}}`,
+        fragmentShader: `uniform float cover,night,time,lightning32,golden32;uniform vec3 centre,light32,lightColour32;varying vec3 cloudWorld27,cloudNormal27;varying float cloudVisible27,cloudLocal27,cloudSeedValue27;void main(){if(cloudVisible27<.5||length(cloudWorld27-centre)>45.3)discard;vec3 n=normalize(cloudNormal27);float top=dot(n,normalize(light32))*.5+.5;float puffShade=.68+.32*smoothstep(-.9,.75,cloudLocal27);float detail=sin(cloudWorld27.x*.77+cloudWorld27.z*.34)*sin(cloudWorld27.y*.91-cloudWorld27.z*.28)*.035;vec3 c=mix(vec3(.41,.52,.60),vec3(.98,.99,.96),top)*puffShade;float under=1.-smoothstep(-.50,.15,n.y);c*=1.-under*cover*.22;c=mix(c,c*vec3(.37,.46,.55),cover*.66);c+=detail;c*=mix(vec3(1.),lightColour32*vec3(1.08,.95,.9),golden32*.8);c=mix(c,vec3(.050,.091,.16)*(.63+top*.73)*puffShade,night);c+=vec3(.55,.6,.8)*lightning32*(.4+.6*(1.-top));gl_FragColor=vec4(c,1.);${B}}`,
       });
       ((V = rt(w, bt, "Nuages_volumineux_dans_la_boule")), (V.frustumCulled = !1));
       const mt = De(new t.SphereGeometry(1, 24, 16)),
         Ct = (Kt) =>
           ke({
-            uniforms: { night: xe.night },
+            uniforms: { night: xe.night, golden32: xe.golden32, sun32: xe.sun32 },
             vertexShader: $e,
             fragmentShader:
               Kt === "sun"
-                ? `varying vec3 globePoint,globeNormal;void main(){gl_FragColor=vec4(1.,.83,.49,1.);${B}}`
-                : `varying vec3 globePoint,globeNormal;void main(){vec3 n=normalize(globeNormal);float light=.39+.60*max(0.,dot(n,normalize(vec3(-1.,.4,.6))));float crater=sin(n.x*23.+n.y*13.)*sin(n.y*19.-n.z*17.)*.027;gl_FragColor=vec4(vec3(.70,.82,.97)*(light+crater),1.);${B}}`,
+                ? `uniform float golden32;varying vec3 globePoint,globeNormal;void main(){gl_FragColor=vec4(mix(vec3(1.,.86,.55),vec3(1.,.5,.2),golden32)*1.25,1.);${B}}`
+                : `uniform vec3 sun32;varying vec3 globePoint,globeNormal;void main(){vec3 n=normalize(globeNormal);float lit=smoothstep(-.08,.16,dot(n,normalize(sun32)));float crater=sin(n.x*23.+n.y*13.)*sin(n.y*19.-n.z*17.)*.027;gl_FragColor=vec4(vec3(.72,.82,.96)*(.05+lit*1.05+crater),1.);${B}}`,
           });
       ((Ke = rt(mt, Ct("sun"), "Soleil_bas_dans_la_boule")),
         Ke.position.set(O.x - 20, 37.5, O.z - 10),
@@ -17212,6 +17304,18 @@ void main(){
       }
       return ((se = n.markDirty) == null || se.call(n), he.autoRotate);
     }
+    const globe32Dusk = new t.Color("#27324d").convertSRGBToLinear(),
+      globe32Golden = new t.Color("#efc3a0").convertSRGBToLinear();
+    // V32 : le soleil et la lune suivent leur vraie course dans la boule.
+    function globe32PlaceSky(night, cover) {
+      const V32 = globalThis.MoulinV32,
+        sunDir = V32.uniforms.sunTrue.value,
+        moonDir = V32.uniforms.moonDirection.value;
+      (Ke.position.set(O.x + sunDir.x * 35, O.y + Math.max(sunDir.y, -0.1) * 30 + 2, O.z + sunDir.z * 35),
+        (Ke.visible = !night && sunDir.y > -0.04 && cover < 0.84),
+        ve.position.set(O.x + moonDir.x * 33, O.y + Math.max(moonDir.y, -0.1) * 28 + 2, O.z + moonDir.z * 33),
+        (ve.visible = (night || V32.uniforms.daylight.value < 0.55) && moonDir.y > -0.03 && cover < 0.9));
+    }
     function m(ue, se) {
       var de, oe, y, I, Be, Se, N, Ie, E, Y, w, be, ne, K, fe, Ee, bt, mt, Ct, Pt;
       if (!P) return !1;
@@ -17222,7 +17326,7 @@ void main(){
         vt = ((oe = (de = S()) == null ? void 0 : de.getState) == null ? void 0 : oe.call(de)) || { mode: "day" },
         me = (Ve == null ? void 0 : Ve.mode) || "sun",
         Re = vt.mode !== "day";
-      ((xe.night.value = Re ? 1 : 0),
+      ((xe.night.value = Re ? 1 : Math.pow(1 - globalThis.MoulinV32.uniforms.daylight.value, 1.7)),
         (xe.starry.value = vt.mode === "stars" ? 1 : 0),
         (xe.cover.value =
           ((I = (y = Ve == null ? void 0 : Ve.uniforms) == null ? void 0 : y.cover) == null ? void 0 : I.value) ??
@@ -17248,10 +17352,16 @@ void main(){
         (U += ue * M),
         Ve != null && Ve.sky && (Ve.sky.visible = !1),
         (be = S()) != null && be.stars && (S().stars.visible = !1),
-        A.fog && (A.fog.density = 0),
-        (ne = Ve == null ? void 0 : Ve.uniforms) != null && ne.fogDensity && (Ve.uniforms.fogDensity.value = 0));
+        A.fog && ((A.fog.density = me === "fog" ? 0.012 : 0), me === "fog" && A.fog.color.set(Re ? 1716530 : 13421772)),
+        (ne = Ve == null ? void 0 : Ve.uniforms) != null && ne.fogDensity && (Ve.uniforms.fogDensity.value = me === "fog" ? 0.012 : 0));
       const ee = me + "|" + vt.mode;
-      (st !== ee && ((st = ee), Ce.set(Re ? "#14253d" : me === "sun" ? "#c5dce4" : "#b4cbd5").convertSRGBToLinear()),
+      (((st = ee),
+        Ce.set(Re ? "#14253d" : me === "sun" || me === "partly" ? "#c5dce4" : "#b4cbd5").convertSRGBToLinear(),
+        Re ||
+          Ce.lerp(globe32Dusk, 1 - globalThis.MoulinV32.uniforms.daylight.value).lerp(
+            globe32Golden,
+            globalThis.MoulinV32.uniforms.golden.value * 0.45,
+          )),
         (K = A.background) != null && K.isColor ? A.background.copy(Ce) : (A.background = Ce.clone()),
         (bt =
           (Ee = (fe = Ve == null ? void 0 : Ve.particles) == null ? void 0 : fe.material) == null
@@ -17265,14 +17375,13 @@ void main(){
             : Ct.uniforms) != null &&
           Pt.extent &&
           (Ve.particles.material.uniforms.extent.value = 94),
-        (Ke.visible = !Re && me === "sun"),
-        (ve.visible = Re && me !== "storm" && me !== "rain"),
+        globe32PlaceSky(Re, xe.cover.value),
         (qe.visible = vt.mode === "stars"),
         (Xe.intensity = Re ? (vt.mode === "stars" ? 0.38 : 0.26) : 0),
         (_t.intensity = Re ? (vt.mode === "stars" ? 0.42 : 0.26) : 0),
         (Xe.visible = _t.visible = Re));
       const ge = (Mt + 4) % 31,
-        ae = me === "sun" && !Re && ge < 10;
+        ae = (me === "sun" || me === "partly") && !Re && ge < 10;
       if (((Me.visible = ae), (He = ae ? 3 : 0), Me.geometry.setDrawRange(0, ae ? 18 : 0), ae)) {
         const jt = Me.geometry.attributes.position.array;
         for (let Dt = 0; Dt < 3; Dt++) {
@@ -18129,6 +18238,64 @@ void main(){
           light: 0.63,
           ambient: 0.9,
         },
+        // V32 : conditions supplementaires, utilisees par la meteo en direct.
+        partly: {
+          label: "\xC9claircies",
+          cover: 0.55,
+          snow: 0,
+          rain: 0,
+          wet: 0,
+          fog: 0.002,
+          sky: "#a8c3d3",
+          light: 1.55,
+          ambient: 0.78,
+        },
+        fog: {
+          label: "Brouillard",
+          cover: 0.9,
+          snow: 0,
+          rain: 0,
+          wet: 0.3,
+          fog: 0.017,
+          sky: "#c1c8cb",
+          light: 0.32,
+          ambient: 1.05,
+        },
+        drizzle: {
+          label: "Bruine",
+          cover: 0.93,
+          snow: 0,
+          rain: 0.36,
+          wet: 0.62,
+          fog: 0.0045,
+          sky: "#98a4aa",
+          light: 0.28,
+          ambient: 0.8,
+        },
+        showers: {
+          label: "Averses",
+          cover: 0.8,
+          snow: 0,
+          rain: 0.78,
+          wet: 0.8,
+          fog: 0.0032,
+          sky: "#8d9ea8",
+          light: 0.66,
+          ambient: 0.74,
+        },
+        hail: {
+          label: "Gr\xEAle",
+          cover: 1,
+          snow: 0.12,
+          rain: 0.9,
+          wet: 0.95,
+          fog: 0.0055,
+          sky: "#6b7884",
+          light: 0.13,
+          ambient: 0.58,
+          storm: 1,
+          hail: 1,
+        },
       },
       h = {
         storm: { value: 0 },
@@ -18140,12 +18307,26 @@ void main(){
         rain: { value: 0 },
         fogDensity: { value: 0 },
         fogColor: { value: new t.Color() },
+        hail: { value: 0 },
+        lightning: globalThis.MoulinV32.uniforms.lightning,
       },
       b = X.querySelector("[data-weather]");
     if (b && !b.querySelector("option[value=storm]")) {
       const K = document.createElement("option");
       ((K.value = "storm"), (K.textContent = "Temp\xEAte"), b.appendChild(K));
     }
+    if (b)
+      for (const [K, fe] of [
+        ["partly", "\xC9claircies"],
+        ["fog", "Brouillard"],
+        ["drizzle", "Bruine"],
+        ["showers", "Averses"],
+        ["hail", "Gr\xEAle"],
+      ])
+        if (!b.querySelector("option[value=" + K + "]")) {
+          const Ee = document.createElement("option");
+          ((Ee.value = K), (Ee.textContent = fe), b.appendChild(Ee));
+        }
     let p = "sun",
       S = !1,
       x = 0,
@@ -18263,11 +18444,12 @@ void main(){
           sunDirection24: { value: new t.Vector3(-65, 98, 62).normalize() },
           moonDirection32: globalThis.MoulinV32.uniforms.moonDirection,
           moonLight32: globalThis.MoulinV32.uniforms.moonLight,
+          lightning32: globalThis.MoulinV32.uniforms.lightning,
         },
         vertexShader:
           "varying vec3 skyWorld;void main(){vec4 world=modelMatrix*vec4(position,1.0);skyWorld=world.xyz;gl_Position=projectionMatrix*viewMatrix*world;}",
         fragmentShader: `
-  uniform sampler2D noiseMap;uniform float weatherTime,cover,night,rain,snow,windStrength24,skyDetail24,storm25;uniform vec2 wind24,cloudAdvection25;uniform vec3 sunDirection24,moonDirection32;uniform vec2 moonLight32;varying vec3 skyWorld;
+  uniform sampler2D noiseMap;uniform float weatherTime,cover,night,rain,snow,windStrength24,skyDetail24,storm25;uniform vec2 wind24,cloudAdvection25;uniform vec3 sunDirection24,moonDirection32;uniform vec2 moonLight32;uniform float lightning32;varying vec3 skyWorld;
   float cloudNoise(vec2 p){return texture2D(noiseMap,p).r*.54+texture2D(noiseMap,p*2.03+.13).r*.28+texture2D(noiseMap,p*4.07-.19).r*.18;}
   void main(){
    vec3 ray=normalize(skyWorld-cameraPosition);float h=clamp(ray.y,0.,1.),haze=exp(-h*6.2);float overcast=smoothstep(.42,.92,cover);
@@ -18317,6 +18499,8 @@ void main(){
    sky+=warm*smoothstep(.99955,.99984,angle)*(1.-density)*(1.-bank)*(1.-night)*(1.-overcast*.98)*1.9;
    // Lower hemisphere and distant haze match the terrain fog, without a hard seam.
    sky=mix(sky,mix(vec3(.49,.59,.65)*(1.-rain*.23),vec3(.025,.043,.068),night),1.-smoothstep(-.08,.055,ray.y));
+   // V32 : eclair qui illumine les nuages de l'interieur.
+   sky+=vec3(.62,.66,.86)*lightning32*(.18+.82*density)*smoothstep(-.05,.2,ray.y);
    gl_FragColor=vec4(sky,1.);
    #include <tonemapping_fragment>
    #include <encodings_fragment>
@@ -18385,6 +18569,7 @@ void main(){
           weatherTime: h.time,
           rain: h.rain,
           snow: h.snow,
+          hail: h.hail,
           night: h.night,
           groundMap: { value: Ce },
           groundBounds: { value: new t.Vector4(pe.x0, pe.x1, pe.z0, pe.z1) },
@@ -18396,10 +18581,10 @@ void main(){
           shelterHeights: { value: H },
         },
         vertexShader: `
-  attribute vec4 dropSeed;uniform float weatherTime,rain,snow,extent,windStrength24;uniform vec2 wind24;uniform vec3 centre;uniform sampler2D groundMap;uniform vec4 groundBounds,shelterRects[24];uniform float shelterHeights[24];
+  attribute vec4 dropSeed;uniform float weatherTime,rain,snow,hail,extent,windStrength24;uniform vec2 wind24;uniform vec3 centre;uniform sampler2D groundMap;uniform vec4 groundBounds,shelterRects[24];uniform float shelterHeights[24];
   varying vec2 dropUv;varying float aboveGround,fade,dropShade;
   void main(){
-   float fallSpeed=mix(.75+dropSeed.w*1.1,17.+dropSeed.w*10.,rain),column=58.;float age=mod(dropSeed.y*column-weatherTime*fallSpeed,column);
+   float fallSpeed=mix(mix(.75+dropSeed.w*1.1,17.+dropSeed.w*10.,rain),13.+dropSeed.w*6.,hail*step(.72,dropSeed.x)),column=58.;float age=mod(dropSeed.y*column-weatherTime*fallSpeed,column);
    float gust=.75+.25*sin(weatherTime*.63+dropSeed.w*6.28);vec2 drift=wind24*windStrength24*gust;
    vec3 p=vec3((dropSeed.x-.5)*extent,age,(dropSeed.z-.5)*extent);
    p.xz+=drift*(column-age)*mix(.30,.43,rain);p.xz=mod(p.xz+extent*.5,extent)-extent*.5;
@@ -18409,12 +18594,13 @@ void main(){
    for(int i=0;i<24;i++){vec4 b=shelterRects[i];if(p.x>b.x&&p.x<b.y&&p.z>b.z&&p.z<b.w)ground=max(ground,shelterHeights[i]);}
    aboveGround=p.y-ground;vec4 viewPosition=viewMatrix*vec4(p,1.);float distanceToEye=max(0.,-viewPosition.z);
    float size=mix(.054,.016,rain)*(1.+dropSeed.w*.95);vec3 velocity=vec3(drift.x*fallSpeed*.43,-fallSpeed,drift.y*fallSpeed*.43);vec2 v=(viewMatrix*vec4(velocity,0.)).xy;vec2 axis=length(v)>.001?normalize(v):vec2(0.,-1.);vec2 side=vec2(-axis.y,axis.x);
-   float lengthDrop=mix(size,.40+dropSeed.w*.72,rain);viewPosition.xy+=side*position.x*size+axis*position.y*lengthDrop;
-   gl_Position=projectionMatrix*viewPosition;dropUv=uv;fade=smoothstep(.75,3.,distanceToEye)*(1.-smoothstep(extent*.45,extent*.82,distanceToEye));dropShade=.72+dropSeed.w*.28;
+   float hailStone32=hail*step(.72,dropSeed.x);size=mix(size,.034+dropSeed.w*.03,hailStone32);
+   float lengthDrop=mix(mix(size,.40+dropSeed.w*.72,rain),size*1.35,hailStone32);viewPosition.xy+=side*position.x*size+axis*position.y*lengthDrop;dropShade=mix(.72+dropSeed.w*.28,2.2,hailStone32);
+   gl_Position=projectionMatrix*viewPosition;dropUv=uv;fade=smoothstep(.75,3.,distanceToEye)*(1.-smoothstep(extent*.45,extent*.82,distanceToEye));
   }`,
         fragmentShader: `
    uniform float rain,snow,night;varying vec2 dropUv;varying float aboveGround,fade,dropShade;
-   void main(){if(aboveGround<.05)discard;vec2 q=dropUv-.5;float flake=1.-smoothstep(.09,.5,length(q));float streak=(1.-smoothstep(.035,.48,abs(q.x)))*pow(max(0.,1.-abs(q.y)*2.),.7);float a=mix(flake,streak,rain)*max(snow,rain)*fade*mix(.84,.62,rain)*dropShade;if(a<.012)discard;gl_FragColor=vec4(mix(vec3(.86,.92,.96),vec3(.43,.57,.72),night*.65),a);
+   void main(){if(aboveGround<.05)discard;vec2 q=dropUv-.5;float flake=1.-smoothstep(.09,.5,length(q));float streak=(1.-smoothstep(.035,.48,abs(q.x)))*pow(max(0.,1.-abs(q.y)*2.),.7);float stone32=step(1.5,dropShade);float a=mix(mix(flake,streak,rain),1.-smoothstep(.22,.5,length(q)),stone32)*max(snow,rain)*fade*mix(.84,.62,rain)*mix(dropShade,1.1,stone32);if(a<.012)discard;gl_FragColor=vec4(mix(mix(vec3(.86,.92,.96),vec3(.95,.97,1.),stone32),vec3(.43,.57,.72),night*.65),min(a,1.));
    #include <tonemapping_fragment>
    #include <encodings_fragment>
   }`,
@@ -18579,9 +18765,9 @@ void main(){
       const K = k[p];
       A.background = new t.Color(K.sky).convertSRGBToLinear();
       const fe = new t.Color(S ? "#24394d" : K.sky).convertSRGBToLinear();
-      ((A.fog = new t.FogExp2(fe, K.fog)),
+      ((A.fog = new t.FogExp2(fe, w.fog32 ?? K.fog)),
         h.fogColor.value.copy(fe),
-        (h.fogDensity.value = K.fog),
+        (h.fogDensity.value = w.fog32 ?? K.fog),
         (te.intensity = S ? 0.31 : K.ambient),
         (O.intensity = S ? 0.13 : K.light),
         (T.intensity = S ? 0.12 : p === "rain" ? 0.18 : 0.17),
@@ -18590,10 +18776,11 @@ void main(){
         (h.night.value = S ? 1 : 0),
         (he.shadowMap.needsUpdate = !0));
     }
-    function w(K, fe = !1) {
+    function w(K, fe = !1, live32 = null) {
       if (!k[K]) return;
       p = K;
-      const Ee = k[K];
+      const Ee = Object.assign({}, k[K], live32 || {});
+      w.fog32 = live32 && Number.isFinite(live32.fog) ? live32.fog : null;
       if (
         ((X.querySelector("[data-weather]").value = K),
         (X.dataset.weather = K),
@@ -18605,8 +18792,9 @@ void main(){
             wet: h.wet.value,
             rain: h.rain.value,
             cover: h.cover.value,
+            hail: h.hail.value,
           },
-          to: { storm: Ee.storm || 0, snow: Ee.snow, wet: Ee.wet, rain: Ee.rain, cover: Ee.cover },
+          to: { storm: Ee.storm || 0, snow: Ee.snow, wet: Ee.wet, rain: Ee.rain, cover: Ee.cover, hail: Ee.hail || 0 },
         }),
         fe || window.matchMedia("(prefers-reduced-motion: reduce)").matches)
       ) {
@@ -18640,7 +18828,7 @@ void main(){
         globalThis.MoulinV32.uniforms.sunTrue.value.lengthSq() > 0.5
           ? st.uniforms.sunDirection24.value.copy(globalThis.MoulinV32.uniforms.sunTrue.value)
           : st.uniforms.sunDirection24.value.copy(O.position).sub(O.target.position).normalize());
-      const Pt = k[p].fog / Math.max(1, 1 + Math.max(0, R.position.y - 60) / 110);
+      const Pt = (w.fog32 ?? k[p].fog) / Math.max(1, 1 + Math.max(0, R.position.y - 60) / 110);
       return (
         A.fog && (A.fog.density = Pt),
         (h.fogDensity.value = Pt),
