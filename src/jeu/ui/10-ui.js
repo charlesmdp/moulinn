@@ -651,7 +651,13 @@
     this.prepEl = h(
       "div",
       { class: "ptmt-prep" },
-      h("div", { class: "head" }, h("h2", {}, h("small", {}, "Prochaine vague"), title), h("div", { class: "threat", "data-level": pv.level }, "Menace " + pv.level.toLowerCase()), toggle),
+      // Le titre et la menace partagent une ligne, la menace passe dessous si la place manque.
+      h(
+        "div",
+        { class: "head" },
+        h("h2", {}, h("small", {}, "Prochaine vague"), h("span", { class: "ttl" }, h("span", { class: "num" }, title), h("span", { class: "threat", "data-level": pv.level }, "Menace " + pv.level.toLowerCase()))),
+        toggle,
+      ),
       mini,
       pv.boss ? h("div", { class: "ptmt-boss-warning" }, pv.eliteBoss ? "Attention : Limousine-tondeuse !" : "Attention : le chef en tondeuse blindée arrive !") : null,
       h("div", { class: "ptmt-fronts" }, fronts),
@@ -994,7 +1000,7 @@
     this.updateWaveBar();
     const L = game.L;
     this.levelChip.children[0].textContent = `${game.level}. ${L.name}`;
-    this.levelChip.children[1].textContent = s.endless ? `Sans fin · vague ${s.endlessCount}` : s.phase === "prep" ? `Préparation · vague ${s.wave + 1}/${s.waveCount}` : `Vague ${s.wave}/${s.waveCount}`;
+    this.levelChip.children[1].textContent = s.endless ? (s.phase === "prep" ? `Sans fin · préparation vague ${s.endlessCount + 1}` : `Sans fin · vague ${s.endlessCount}`) : s.phase === "prep" ? `Préparation · vague ${s.wave + 1}/${s.waveCount}` : `Vague ${s.wave}/${s.waveCount}`;
     this.goldChip.children[1].textContent = Math.floor(s.gold);
     this.manaBar.style.width = (100 * s.mana) / s.manaMax + "%";
     this.manaText.textContent = `${Math.floor(s.mana)}/${s.manaMax}`;

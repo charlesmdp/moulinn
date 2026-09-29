@@ -768,6 +768,14 @@ body {
   line-height: 1.1;
   flex: 1;
   min-width: 0;
+}
+.ptmt-prep h2 .ttl {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 3px 8px;
+}
+.ptmt-prep h2 .num {
   white-space: nowrap;
 }
 .ptmt-prep h2 small {
@@ -784,6 +792,8 @@ body {
   border-radius: 20px;
   font-weight: 800;
   font-size: 12px;
+  line-height: 1.3;
+  color: #fff;
   background: #3b7c44;
   white-space: nowrap;
 }
