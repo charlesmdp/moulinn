@@ -671,6 +671,9 @@
       this.pr = new Float32Array(NB * 3);
       this.pt = new Float32Array(NB * 3);
       this.ps = new Float32Array(NB * 3);
+      const pr = this.pr, pt = this.pt;
+      this._R = (b, x, y, z) => { pr[b * 3] += x; pr[b * 3 + 1] += y; pr[b * 3 + 2] += z; };
+      this._T = (b, x, y, z) => { pt[b * 3] += x; pt[b * 3 + 1] += y; pt[b * 3 + 2] += z; };
       this.armCur = { l: new Float32Array(10), r: new Float32Array(10) };
       this.armTmp = new Float32Array(10);
       this.w = {};
@@ -880,8 +883,7 @@
       ps.fill(1);
       const mo = this.spec.motion, g = this.gait, w = this.w;
       const t = this.time;
-      const R = (b, x, y, z) => { pr[b * 3] += x; pr[b * 3 + 1] += y; pr[b * 3 + 2] += z; };
-      const T = (b, x, y, z) => { pt[b * 3] += x; pt[b * 3 + 1] += y; pt[b * 3 + 2] += z; };
+      const R = this._R, T = this._T;
       const swim = mo.swims && inWater && !mo.boat;
       const boatIn = mo.boat && inWater;
       const seated = mo.vehicle || boatIn;
