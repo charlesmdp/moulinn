@@ -766,6 +766,9 @@ body {
   font-size: 18px;
   color: #ffe7a3;
   line-height: 1.1;
+  flex: 1;
+  min-width: 0;
+  white-space: nowrap;
 }
 .ptmt-prep h2 small {
   display: block;
@@ -1085,6 +1088,19 @@ body {
   opacity: 0.8;
   animation: none;
   transform: translate(-50%, calc(-100% - 10px)) scale(0.88);
+}
+/* Porte trop près du haut de l'écran : le repère passe dessous, la pointe vers le haut. */
+.ptmt-gate.below {
+  transform: translate(-50%, 10px);
+}
+.ptmt-gate.below[data-mode="after"] {
+  transform: translate(-50%, 10px) scale(0.88);
+}
+.ptmt-gate.below .pin {
+  bottom: auto;
+  top: -13px;
+  border-top: 0;
+  border-bottom: 11px solid var(--c);
 }
 @keyframes ptmt-gate-pulse {
   50% {

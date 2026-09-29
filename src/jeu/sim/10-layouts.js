@@ -604,6 +604,8 @@
       b.woods(b.circle(29, 12.5, 1.8));
       b.woods(b.circle(35, 22.5, 1.8));
       b.woods(b.circle(35, 10.5, 1.6));
+      b.woods(b.circle(16, 4, 1.5));
+      b.woods(b.circle(46, 4, 1.5));
       b.woods(b.circle(41, 4, 2.4));
       b.woods(b.circle(15, 40, 2.4));
       b.woods(b.circle(55, 26, 2.2));
@@ -712,6 +714,8 @@
       b.woods(b.circle(41, 17, 1.6));
       b.woods(b.circle(18, 9, 1.6));
       b.woods(b.circle(49, 7, 1.6));
+      b.woods(b.circle(44, 24, 1.5));
+      b.woods(b.circle(20, 24, 1.5));
 
       b.grove(32, 17, 6, 26, "oak", 31);
       b.grove(3, 2, 3, 6, "pine", 32);
@@ -831,9 +835,11 @@
       b.zone("ice", box(1, 24, 20, 41));
       b.zone("fire", box(22, 38, 46, 41));
       b.zone("ice", box(50, 30, 63, 44));
-      b.islet("fire", 41, 17, 1.5);
+      // Îlots rocheux au bord des voies des nageurs : deux pour l'eau, un pour la glace.
+      b.islet("water", 41, 17, 1.5);
       b.islet("ice", 37, 23, 1.4);
-      b.islet("fire", 19, 25, 1.4);
+      b.islet("water", 19, 25, 1.4);
+      b.islet("fire", 23, 29, 1.4);
       b.woods(b.circle(15, 3.5, 2.2));
       b.woods(b.circle(44, 2.5, 2));
       b.woods(b.circle(58, 16, 2.2));
@@ -854,6 +860,8 @@
       b.woods(b.circle(8, 38, 1.5));
       b.woods(b.circle(52, 16, 1.5));
       b.woods(b.circle(58, 38, 1.5));
+      b.woods(b.circle(14, 38, 1.5));
+      b.woods(b.circle(58, 28, 1.5));
 
       b.grove(4, 4, 3.5, 8, "pine", 41);
       b.grove(60, 5, 3.5, 8, "oak", 42);
@@ -893,32 +901,32 @@
         atelier: [55.6, 11.6],
       });
       b.building("grange", { id: "grange", x: 12, z: 35, rot: 0, w: 8, d: 4.6, door: "n", reserve: { id: "B", name: "La grange", treasures: 2 } });
-      b.building("crypte", { id: "crypte", x: 52, z: 35, rot: 0, w: 5, d: 4.2, door: "n", reserve: { id: "C", name: "La crypte", treasures: 2 } });
+      b.building("crypte", { id: "crypte", x: 46, z: 39, rot: 0, w: 5, d: 4.2, door: "n", reserve: { id: "C", name: "La crypte", treasures: 2 } });
       b.bridge(24, 10.4, Math.PI / 2, 3.2, 1.4);
 
-      b.node("W", [-0.5, 24], { entry: "land", exit: true, label: "Lisière ouest" });
+      b.node("W", [-0.5, 18], { entry: "land", exit: true, label: "Lisière ouest" });
       b.node("N", [24, -0.5], { entry: "land", exit: true, label: "Chemin du nord" });
-      b.node("E", [64.5, 18], { entry: "land", exit: true, label: "Route de l'est" });
-      b.node("S", [22, 44.5], { exit: true, label: "Gué du sud" });
-      b.node("SE", [64.5, 40], { exit: true, label: "Talus du sud-est" });
-      b.node("w1", [6, 24]);
+      b.node("E", [64.5, 24], { entry: "land", exit: true, label: "Route de l'est" });
+      b.node("S", [30, 44.5], { exit: true, label: "Gué du sud" });
+      b.node("SE", [64.5, 41], { exit: true, label: "Talus du sud-est" });
+      b.node("w1", [6, 18]);
       b.node("n1", [24, 7.4]);
       b.node("n2", [24, 13.4]);
       b.node("H", [32, 24]);
-      b.node("e1", [58, 19]);
-      b.edge("W", "w1", [[3, 24]]); // 0
-      b.edge("w1", "doorB", [[6, 28], [9, 30.4]]); // 1
-      b.edge("w1", "H", [[11, 21], [18, 19], [24, 21], [28, 24]]); // 2
+      b.node("e1", [58, 23]);
+      b.edge("W", "w1", [[3, 18]]); // 0
+      b.edge("w1", "doorB", [[5, 22], [5, 27], [8, 30.2]]); // 1
+      b.edge("w1", "H", [[11, 19.5], [18, 19], [24, 21], [28, 24]]); // 2
       b.edge("N", "n1", [[24, 3]]); // 3
       b.edge("n1", "n2", [[24, 10.4]], "bridge"); // 4
       b.edge("n2", "H", [[25, 17], [31, 18], [33, 21]]); // 5
       b.edge("n2", "doorA", [[28, 15], [36, 13.6], [41, 13.4], [45, 14]]); // 6
-      b.edge("E", "e1", [[61, 18]]); // 7
-      b.edge("e1", "doorA", [[55, 16.4], [50, 15.4]]); // 8
-      b.edge("e1", "doorC", [[60, 24], [57, 28], [54, 30.6]]); // 9
-      b.edge("H", "doorC", [[36, 27], [42, 25], [47, 28], [51, 31]]); // 10
-      b.edge("doorB", "S", [[16, 31.4], [19, 35], [21, 40]]); // 11
-      b.edge("doorC", "SE", [[56, 31], [59, 35], [61, 40]]); // 12
+      b.edge("E", "e1", [[61, 24]]); // 7
+      b.edge("e1", "doorA", [[60, 18], [56, 15.6], [51, 15]]); // 8
+      b.edge("e1", "doorC", [[59, 28], [56, 31], [51, 32], [47, 34]]); // 9
+      b.edge("H", "doorC", [[36, 27], [41, 28], [44, 32]]); // 10
+      b.edge("doorB", "S", [[17, 31.4], [22, 34], [26, 38], [29, 42]]); // 11
+      b.edge("doorC", "SE", [[51, 35.6], [56, 38], [60, 41]]); // 12
 
       b.trap(1, 0.5);
       b.trap(2, 0.3);
@@ -937,13 +945,17 @@
       b.zone("water", box(18, 4, 46, 17));
       b.basin(2.8, 34.4, 1.3, 1, 21);
       b.zone("water", box(1, 27, 9, 38));
-      b.basin(61, 28, 1.2, 1, 17);
-      b.zone("water", box(56, 22, 63, 33));
-      b.zone("ice", box(1, 16, 20, 28));
+      b.basin(62, 31, 1.2, 1, 17);
+      b.zone("water", box(55, 26, 63, 35));
+      b.basin(41.4, 38.6, 1.3, 1, 19);
+      b.zone("water", box(36, 33, 45, 44));
+      b.zone("ice", box(1, 12, 20, 29));
       b.zone("fire", box(24, 16, 42, 31));
-      b.zone("ice", box(44, 15, 63, 24));
-      b.zone("fire", box(36, 27, 56, 40), { near: 4.5 });
-      b.zone("fire", box(14, 30, 30, 44));
+      b.zone("fire", box(42, 16, 52, 20));
+      b.zone("ice", box(44, 15, 63, 26));
+      b.zone("ice", box(48, 29, 58, 38));
+      b.zone("fire", box(40, 26, 58, 44), { near: 4.5 });
+      b.zone("fire", box(12, 30, 34, 44));
       b.woods(b.circle(28, 3.5, 2));
       b.woods(b.circle(16, 22.5, 2.2));
       b.woods(b.circle(37.5, 17.5, 2));
@@ -957,6 +969,9 @@
       b.woods(b.circle(28, 20, 1.5));
       b.woods(b.circle(50, 18, 1.5));
       b.woods(b.circle(34, 29, 1.5));
+      b.woods(b.circle(36, 22, 1.5));
+      b.woods(b.circle(26, 34, 1.5));
+      b.woods(b.circle(30, 40, 1.5));
 
       b.grove(33, 31, 3, 6, "oak", 51);
       b.grove(3, 42, 3, 6, "oak", 52);

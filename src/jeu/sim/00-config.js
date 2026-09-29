@@ -21,7 +21,8 @@
     forest: { cost: 30, costStep: 5, costMax: 60, duration: 4 },
 
     economy: {
-      startGold: { 1: 500, 2: 650, 3: 800, 4: 900, 5: 1050 },
+      // Les niveaux 4 et 5 ouvrent sur plusieurs fronts rapides (nageurs, sprinteurs de l'est).
+      startGold: { 1: 500, 2: 650, 3: 800, 4: 1100, 5: 1350 },
       sellRatio: 0.7,
       treasuresTotal: 6,
     },
@@ -216,9 +217,11 @@
       nageur: { name: "Nageur en flamant rose", eliteName: "Pirate en pédalo", hp: 75, speed: 0.9, waterSpeed: 1.15, bounty: 12, klass: "normal", swimmer: true, eliteWater: 1.25, eliteLand: 0.8 },
       boss: { name: "Chef en tondeuse blindée", eliteName: "Limousine-tondeuse", hp: 900, speed: 0.55, bounty: 150, klass: "boss", overheatAfter: 6, overheatFor: 3, overheatVuln: 0.5, rage: { at: 0.5, pct: 0.5, duration: 3 } },
       elite: { hp: 1.5, bounty: 1.4 },
-      // Multiplicateur de PV : 1 + 0,20 × (niveau − 1) + 0,035 × (vague − 1)
+      // Multiplicateur de PV : (1 + 0,20 × (niveau − 1) + 0,035 × (vague − 1)) × facteur du niveau.
+      // Le facteur compense la longueur des chemins de chaque disposition (plus de temps sous le feu).
       hpPerLevel: 0.2,
       hpPerWave: 0.035,
+      levelHp: { 1: 1.2, 2: 1.1, 3: 1.25, 4: 1, 5: 1 },
       endlessHpPerBlock: 0.1, // +10 % par bloc de cinq vagues supplémentaires
       maxActive: { desktop: 70, mobile: 45 },
       waitForSack: 4, // attente maximale quand les derniers trésors sont transportés

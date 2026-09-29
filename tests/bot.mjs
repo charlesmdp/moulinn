@@ -33,9 +33,32 @@ export function makeBot(P, game, opts = {}) {
     return pts;
   }
   const samples = routeSamples();
+  // Comme un joueur qui lit l'annonce : les trajets de la prochaine vague (et leur retour vers la
+  // sortie la plus proche) comptent en plus.
+  let nextSamples = [];
+  function readNextWave() {
+    nextSamples = [];
+    const pv = opts.preview === false ? null : game.preview();
+    if (!pv) return;
+    const exits = L.exits.filter((e) => e.kind === "land").map((e) => e.node);
+    for (const r of pv.routes) {
+      const line = G.polyline(r.pts);
+      for (let s = 0; s < line.length; s += 0.8) {
+        const p = G.at(line, s);
+        nextSamples.push({ x: p.x, z: p.z, w: 0.8 + (s / line.length) * 1.2 });
+      }
+      const back = R.route(game.graph, game.reserve(r.target).doorNode, exits, "walker");
+      if (back)
+        for (let s = 0; s < back.line.length; s += 0.8) {
+          const p = G.at(back.line, s);
+          nextSamples.push({ x: p.x, z: p.z, w: 1.4 });
+        }
+    }
+  }
   function coverage(x, z, range) {
     let c = 0;
     for (const p of samples) if ((p.x - x) ** 2 + (p.z - z) ** 2 <= range * range && game.los(x, z, p.x, p.z)) c += p.w;
+    for (const p of nextSamples) if ((p.x - x) ** 2 + (p.z - z) ** 2 <= range * range && game.los(x, z, p.x, p.z)) c += p.w;
     return c;
   }
   function counts() {
@@ -72,6 +95,7 @@ export function makeBot(P, game, opts = {}) {
   let cutsDone = 0;
   function prep() {
     const s = game.state;
+    readNextWave();
     // Revenus : la meule s'amortit en quelques vagues.
     if (s.wave >= 1 && s.mill.meule === 0 && s.gold >= 80 + 90) game.upgradeMill("meule");
     // Atelier dès qu'une tour peut évoluer.

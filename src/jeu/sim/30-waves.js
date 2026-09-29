@@ -69,7 +69,7 @@
     4: [
       [g("nageur", 5, "Ww", "B")],
       [g("voleur", 6, "N", "B"), g("nageur", 4, "Ww", "A", { delay: 5 })],
-      [g("nageur", 6, "Ww", "A"), g("sprinteur", 5, "N", "C", { delay: 3 })],
+      [g("nageur", 5, "Ww", "A"), g("sprinteur", 4, "N", "C", { delay: 3 })],
       [g("demenageur", 3, "S", "A"), g("nageur", 5, "Ww", "C", { delay: 4 })],
       [g("fumigene", 4, "S", "B"), g("nageur", 6, "Ww", "A", { delay: 6 })],
       [E("nageur", 3, "Ww", "B"), g("voleur", 8, "N", "C", { delay: 2 })],
@@ -87,9 +87,9 @@
     // sud-est ne servent qu'à fuir.
     5: [
       [g("voleur", 6, "W", "B"), g("voleur", 6, "N", "A", { delay: 3 })],
-      [g("sprinteur", 6, "E", "C"), g("voleur", 6, "W", "B", { delay: 3 })],
+      [g("sprinteur", 5, "E", "C"), g("voleur", 6, "W", "B", { delay: 3 })],
       [g("demenageur", 3, "N", "A"), g("fumigene", 4, "E", "C", { delay: 4 })],
-      [g("voleur", 6, "W", "B"), g("voleur", 6, "N", "C"), g("sprinteur", 6, "E", "A", { delay: 6 })],
+      [g("voleur", 6, "W", "B"), g("voleur", 6, "N", "C"), g("sprinteur", 5, "E", "A", { delay: 6 })],
       [E("voleur", 5, "N", "A"), g("demenageur", 3, "W", "B", { delay: 5 })],
       [g("fumigene", 6, "W", "B"), E("sprinteur", 5, "E", "C", { delay: 4 })],
       [g("demenageur", 4, "E", "A"), g("voleur", 8, "W", "C", { delay: 2 }), g("sprinteur", 6, "N", "B", { delay: 8 })],

@@ -192,9 +192,12 @@
     hpMultiplier() {
       const s = this.state;
       const waveNo = s.endless ? s.waveCount + s.endlessCount : s.wave;
-      let m = 1 + C.enemies.hpPerLevel * (this.level - 1) + C.enemies.hpPerWave * (waveNo - 1);
+      let m = (1 + C.enemies.hpPerLevel * (this.level - 1) + C.enemies.hpPerWave * (waveNo - 1)) * this.levelHp();
       if (s.endless) m *= 1 + C.enemies.endlessHpPerBlock * Math.floor((s.endlessCount - 1) / 5);
       return m;
+    }
+    levelHp() {
+      return (C.enemies.levelHp && C.enemies.levelHp[this.level]) || 1;
     }
     spawnDue() {
       const s = this.state;
@@ -1711,7 +1714,7 @@
       let threat = 0,
         total = 0;
       const waveNo = s.endless ? s.waveCount + s.endlessCount + 1 + offset : s.wave + 1 + offset;
-      let hpm = 1 + C.enemies.hpPerLevel * (this.level - 1) + C.enemies.hpPerWave * (waveNo - 1);
+      let hpm = (1 + C.enemies.hpPerLevel * (this.level - 1) + C.enemies.hpPerWave * (waveNo - 1)) * this.levelHp();
       if (s.endless) hpm *= 1 + C.enemies.endlessHpPerBlock * Math.floor((s.endlessCount + offset) / 5);
       for (const gdef of def.groups) {
         const e = this.entryOf(gdef);

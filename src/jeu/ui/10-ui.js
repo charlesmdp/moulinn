@@ -832,13 +832,17 @@
       let sx = ((anchor.x + 1) / 2) * w,
         sy = ((1 - anchor.y) / 2) * hgt;
       const behind = anchor.z > 1;
-      // Le repère (environ 90 px de haut au-dessus du point) doit tenir dans la zone libre.
-      const inside = !behind && sx > side + 40 && sx < w - side - 40 && sy > top + 96 && sy < hgt - bottom && !blocked(sx, sy - 50);
-      if (inside) {
+      // Le repère (environ 90 px de haut) se pose au-dessus de la porte, ou en dessous si la
+      // porte est trop près du haut de l'écran ; il doit tenir dans la zone libre.
+      const onScreen = !behind && sx > side + 40 && sx < w - side - 40 && sy > top + 10 && sy < hgt - bottom;
+      const above = sy > top + 96 && !blocked(sx, sy - 50);
+      const below = sy + 110 < hgt - bottom && !blocked(sx, sy + 60);
+      if (onScreen && (above || below)) {
         mk.el.style.display = "";
         mk.edge.style.display = "none";
+        mk.el.classList.toggle("below", !above);
         mk.el.style.left = sx + "px";
-        mk.el.style.top = sy + "px";
+        mk.el.style.top = (above ? sy : sy + 30) + "px";
       } else {
         mk.el.style.display = "none";
         mk.edge.style.display = "";

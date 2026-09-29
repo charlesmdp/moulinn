@@ -116,12 +116,12 @@ test("chaque réserve est accessible et reliée à une sortie ; les nageurs ont 
   ok(P.layouts[4].edges.some((e) => e.kind === "shore"), "niveau 4 : débarcadères");
 });
 
-test("terrain à cases : 50 à 95 cases libres et 15 à 40 cases boisées par niveau, trois sols, des tours côte à côte", () => {
+test("terrain à cases : 50 à 90 cases libres et 15 à 40 cases boisées par niveau, trois sols, des tours côte à côte", () => {
   for (let lv = 1; lv <= 5; lv++) {
     const L = P.layouts[lv];
     const free = L.sockets.filter((s) => !s.forest),
       wood = L.sockets.filter((s) => s.forest);
-    ok(free.length >= 50 && free.length <= 95, `niveau ${lv} : ${free.length} cases libres`);
+    ok(free.length >= 50 && free.length <= 90, `niveau ${lv} : ${free.length} cases libres`);
     ok(wood.length >= 15 && wood.length <= 40, `niveau ${lv} : ${wood.length} cases boisées`);
     for (const k of ["fire", "ice", "water"]) ok(free.filter((s) => s.kind === k).length >= 12, `niveau ${lv} : au moins 12 cases ${k}`);
     // Cases voisines (côte à côte) du même sol : on peut aligner des tours.
