@@ -100,7 +100,7 @@ async function main() {
   // personnages, effets, rendu, interface, puis main.js qui démarre la partie).
   const jeuDir = path.join(src, "jeu");
   const jeuFiles = [];
-  for (const part of ["core", "sim", "models", "actors", "fx", "render", "ui"]) jeuFiles.push(...(await listFiles(path.join(jeuDir, part), ".js")));
+  for (const part of ["core", "sim", "models", "fx", "actors", "render", "ui"]) jeuFiles.push(...(await listFiles(path.join(jeuDir, part), ".js")));
   jeuFiles.push(path.join(jeuDir, "main.js"));
   for (const file of jeuFiles)
     await transform(await fs.readFile(file, "utf8"), { loader: "js", sourcefile: path.relative(root, file) }).catch((error) => {

@@ -34,9 +34,15 @@
   // Chargement
   // ---------------------------------------------------------------------------------------------
   async function fetchGlb(url) {
-    const res = await fetch(url);
-    if (!res.ok) throw new Error("PTMT.actors : le personnage n’a pas pu être téléchargé (" + res.status + ")");
-    let buf = await res.arrayBuffer();
+    // Accepte une adresse ou des octets déjà téléchargés (le chargeur du jeu les récupère d'avance).
+    let buf;
+    if (url instanceof ArrayBuffer) buf = url;
+    else if (ArrayBuffer.isView(url)) buf = url.buffer.slice(url.byteOffset, url.byteOffset + url.byteLength);
+    else {
+      const res = await fetch(url);
+      if (!res.ok) throw new Error("PTMT.actors : le personnage n’a pas pu être téléchargé (" + res.status + ")");
+      buf = await res.arrayBuffer();
+    }
     const head = new Uint8Array(buf, 0, 2);
     if (head[0] === 0x1f && head[1] === 0x8b) {
       if (typeof DecompressionStream !== "undefined") {

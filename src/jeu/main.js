@@ -182,7 +182,8 @@
     }
     if (PTMT.actors && PTMT.actors.load) {
       try {
-        await PTMT.actors.load(assets.avatar, { mobile: app.mobile, base: assets.base });
+        PTMT.actors.mobile = app.mobile;
+        await PTMT.actors.load(assets.avatar);
       } catch (e) {
         console.warn("Personnages indisponibles", e);
       }
