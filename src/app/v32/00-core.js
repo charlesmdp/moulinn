@@ -59,15 +59,22 @@
   };
 
   /**
-   * Retouches V32 gardées à part (berges, recalage IGN) : elles voyagent avec les
-   * retouches du jeu dans le fichier « Moulin-mes-retouches.json ».
+   * Retouches V32 gardées à part (berges, recalage IGN, zones de sous-bois) : elles
+   * voyagent avec les retouches du jeu dans le fichier « Moulin-mes-retouches.json ».
    */
-  V32.exportEdits32 = () => ({ version: 1, berges: V32.store.get("berges", []), reliefIGN: V32.store.get("relief-ign", null) });
+  V32.exportEdits32 = () => ({
+    version: 1,
+    berges: V32.store.get("berges", []),
+    reliefIGN: V32.store.get("relief-ign", null),
+    sousBois: V32.store.get("sous-bois", []),
+  });
   V32.importEdits32 = function (data) {
     if (!data || typeof data !== "object") return null;
     const done = {};
     if ("berges" in data && V32.berges) done.berges = V32.berges.load(data.berges);
     if ("reliefIGN" in data && V32.reliefIGN) done.reliefIGN = V32.reliefIGN.load(data.reliefIGN);
+    // Zones relues et nettoyées par le module (mélange connu, points finis, surface bornée).
+    if ("sousBois" in data && V32.sousBois) done.sousBois = V32.sousBois.load(data.sousBois);
     return done;
   };
 

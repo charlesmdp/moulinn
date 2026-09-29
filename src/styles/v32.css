@@ -1449,6 +1449,158 @@
   border: 0;
   background: none;
 }
+/* Plantes & objets › Sous-bois : zones dessinées au sol. */
+#moulin-vallee-3d.v32.game22 .v32-bench.v32-sousbois {
+  border-color: rgba(143, 214, 128, 0.36);
+  background: linear-gradient(180deg, rgba(96, 168, 92, 0.14), rgba(255, 255, 255, 0.03));
+}
+#moulin-vallee-3d.v32.game22 .v32-sousbois .v32-bench-status {
+  color: #d3f0c9;
+}
+#moulin-vallee-3d.v32.game22 .v32-sousbois .v32-bench-start[aria-pressed="true"] {
+  background: linear-gradient(180deg, #5fa75a, #397a3f);
+  border-color: rgba(196, 240, 180, 0.6);
+}
+#moulin-vallee-3d.v32.game22 .v32-sb-mixes {
+  grid-template-columns: repeat(3, 1fr);
+}
+#moulin-vallee-3d.v32.game22 .v32-sb-mixes .btn span {
+  line-height: 1.15;
+}
+#moulin-vallee-3d.v32.game22 .v32-sb-scale {
+  display: flex;
+  justify-content: space-between;
+  margin-top: -7px;
+  color: rgba(238, 242, 236, 0.58);
+  font-size: 11px;
+}
+#moulin-vallee-3d.v32.game22 .v32-sb-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+#moulin-vallee-3d.v32.game22 .v32-sb-list:empty {
+  display: none;
+}
+#moulin-vallee-3d.v32.game22 .v32-sb-list li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 34px;
+  padding: 2px 3px 2px 10px;
+  border-radius: 10px;
+  background: rgba(0, 0, 0, 0.2);
+  color: rgba(238, 242, 236, 0.9);
+  font-size: 12px;
+}
+#moulin-vallee-3d.v32.game22 .v32-sb-list li > span:nth-child(2) {
+  flex: 1;
+  min-width: 0;
+}
+#moulin-vallee-3d.v32.game22 .v32-sb-swatch {
+  flex-shrink: 0;
+  width: 10px;
+  height: 10px;
+  border-radius: 3px;
+  background: #6fa34f;
+}
+#moulin-vallee-3d.v32.game22 .v32-sb-swatch[data-mix="ronces"] {
+  background: #8c3d52;
+}
+#moulin-vallee-3d.v32.game22 .v32-sb-swatch[data-mix="mele"] {
+  background: #a88f4c;
+}
+#moulin-vallee-3d.v32.game22 .v32-sb-remove {
+  flex-shrink: 0;
+  width: 34px;
+  height: 30px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.07);
+  color: #f1f5f0;
+  font: 600 17px/1 var(--v32-font);
+  cursor: pointer;
+}
+#moulin-vallee-3d.v32.game22 .v32-sb-remove:hover {
+  background: rgba(255, 138, 101, 0.25);
+}
+#moulin-vallee-3d.v32.game22 .v32-sousbois .btn.is-armed {
+  border-color: rgba(255, 150, 110, 0.7);
+  background: rgba(214, 92, 58, 0.35);
+}
+/* Sous-bois : barre posée sur la vue pendant le tracé quand les outils sont repliés (téléphone). */
+#moulin-vallee-3d.v32.game22 .v32-sb-bar {
+  position: absolute;
+  z-index: 19;
+  left: max(10px, env(safe-area-inset-left));
+  right: max(10px, env(safe-area-inset-right));
+  bottom: max(12px, env(safe-area-inset-bottom));
+  max-width: 440px;
+  margin: 0 auto;
+  padding: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 18px;
+  background: rgba(21, 31, 28, 0.86);
+  -webkit-backdrop-filter: var(--v32-blur);
+  backdrop-filter: var(--v32-blur);
+  box-shadow: var(--v32-shadow);
+  color: #eef2ec;
+  font: 13px/1.35 var(--v32-font);
+  touch-action: manipulation;
+}
+#moulin-vallee-3d.v32.game22 .v32-sb-bar[hidden] {
+  display: none;
+}
+#moulin-vallee-3d.v32.game22 .v32-sb-bar p {
+  margin: 0 2px;
+}
+#moulin-vallee-3d.v32.game22 .v32-sb-bar-head {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  color: #fff;
+  font-size: 12px;
+  font-weight: 650;
+}
+#moulin-vallee-3d.v32.game22 .v32-sb-bar .v32-sb-bar-status {
+  margin: 3px 2px 9px;
+  color: #d3f0c9;
+  font-size: 12.5px;
+}
+#moulin-vallee-3d.v32.game22 .v32-sb-bar-actions {
+  display: grid;
+  grid-template-columns: 1.25fr 1fr auto;
+  gap: 6px;
+}
+#moulin-vallee-3d.v32.game22 .v32-sb-bar .btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 46px;
+  padding: 6px 10px;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.08);
+  box-shadow: none;
+  color: #f1f5f0;
+  text-shadow: none;
+  font: 650 13px/1.15 var(--v32-font);
+}
+#moulin-vallee-3d.v32.game22 .v32-sb-bar .btn svg {
+  flex-shrink: 0;
+}
+#moulin-vallee-3d.v32.game22 .v32-sb-bar .btn.primary {
+  background: linear-gradient(180deg, #438068, #2f5b4a);
+  border-color: rgba(143, 224, 176, 0.45);
+  color: #fff;
+}
+#moulin-vallee-3d.v32.game22 .v32-sb-bar .btn:disabled {
+  opacity: 0.45;
+}
 @media (max-width: 700px), (pointer: coarse) and (max-height: 520px) {
   #moulin-vallee-3d.v32.game22 .v32-tab {
     min-height: 54px;
