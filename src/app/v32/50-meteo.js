@@ -38,16 +38,22 @@
       if (!live) return null;
 
       // --- Shaders préparés d'avance ------------------------------------------------
-      // Six secondes de jeu après le chargement, la boule (construite cachée), la lampe tenue en
-      // main et les faisceaux sont compilés en une fois : ni la première entrée dans l'onglet
-      // Météo ni le premier allumage de la lampe ne marquent ensuite d'à-coup.
-      let prewarmIn = 6;
+      // Six secondes après le chargement, la boule (construite cachée), la lampe tenue en main
+      // et les faisceaux sont compilés en une fois : ni la première entrée dans l'onglet Météo
+      // ni le premier allumage de la lampe ne marquent ensuite d'à-coup.
+      const prewarmAt = performance.now() + 6000;
+      let prewarmed = false;
       function prewarm() {
         try {
           const globe = hooks.globe();
           if (globe && globe.prepare) globe.prepare();
           const player = typeof game.player === "function" ? game.player() : game.player;
           if (player && player.avatar && player.avatar.holdTorch32) player.avatar.holdTorch32();
+          // Les retouches de la météo (pluie, neige) et de la nuit s'appliquent d'abord aux
+          // matières créées depuis le démarrage, puis la découpe de la boule, puis on compile.
+          const weather = typeof game.weather === "function" ? game.weather() : game.weather;
+          if (weather && weather.decorate) weather.decorate();
+          if (game.night22 && game.night22.refreshMaterials) game.night22.refreshMaterials();
           game.scene.onBeforeRender(game.renderer, game.scene, game.camera, null);
           game.renderer.compile(game.scene, game.camera);
           hooks.markDirty();
@@ -528,7 +534,10 @@
 
       return {
         update(dt) {
-          if (prewarmIn > 0 && (prewarmIn -= Math.min(dt || 0, 0.25)) <= 0) prewarm();
+          if (!prewarmed && performance.now() > prewarmAt) {
+            prewarmed = true;
+            prewarm();
+          }
           const globe = hooks.getMode() === "globe";
           if (globe !== active) setActive(globe);
           if (!active) return false;
