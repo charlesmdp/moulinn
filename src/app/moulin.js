@@ -20821,30 +20821,8 @@ void main(){
               height: 0.52,
               width: 0.55,
             },
-            {
-              name: "Muret_entree_cote_colline",
-              points: [
-                [-4.9, -43],
-                [-5.8, -36],
-                [-5.7, -31.6],
-                [-4.8, -28.5],
-              ],
-              levels: null,
-              height: 0.64,
-              width: 0.52,
-            },
-            {
-              name: "Muret_entree_cote_jardin",
-              points: [
-                [0.2, -43],
-                [-0.9, -36],
-                [-0.7, -31.3],
-                [0.9, -27.8],
-              ],
-              levels: null,
-              height: 0.58,
-              width: 0.5,
-            },
+            // V32 : pas de murets le long de l'allée principale (seulement des talus assez
+            // raides de part et d'autre) ; les murets de l'entrée du moulin restent.
           ],
         };
       Se[0] = N.drive;

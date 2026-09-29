@@ -16,7 +16,8 @@
 // moins réguliers, sans changer de forme.
 // Les pierres sont instanciées (quelques formes, une teinte par pierre, voir 73-stones).
 // Les deux murets de l'allée d'entrée (Muret_entree_cote_colline et
-// Muret_entree_cote_jardin) ne sont pas repris : ils vont disparaître.
+// Muret_entree_cote_jardin) ne sont pas repris : ils ont été retirés du plan (l'allée
+// n'est bordée que de talus).
 (function () {
   "use strict";
   const V32 = globalThis.MoulinV32;
@@ -269,7 +270,7 @@
       // --- 0. Murets demandés par d'autres modules (bief approfondi, 36-hydrologie) -------
       for (const w of V32.extraWalls32 || []) {
         if (!w.points || w.points.length < 2 || !FAMILIES[w.kind]) continue;
-        wallAlong({ kind: w.kind, base: w.base, height: w.height, width: w.width, cap: { height: 0.1, width: w.width + 0.1 }, bury: 0.05 }, w.points);
+        wallAlong({ kind: w.kind, base: w.base, height: w.height, width: w.width, cap: { height: 0.1, width: w.width + 0.1 }, bury: 0.05, skip: w.skip }, w.points);
         report.push([w.name, 1, { meshes: 0, triangles: 0, missing: 0 }]);
       }
 

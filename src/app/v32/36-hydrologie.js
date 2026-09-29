@@ -95,6 +95,26 @@
   // descend sans toucher aux abords, deux murs de pierre tiennent les berges.
   const WALLED_CUT = { Bief_du_moulin: [196, 219.2] };
   const FADE = 5; // mètres pour revenir au relief d'origine autour d'un ouvrage protégé
+  // Véranda de plain-pied : le jardin vient jusqu'à son plancher et le bief passe dessous
+  // en buse (rectangle de la véranda dans ses axes, prolongé jusqu'au mur du moulin et
+  // d'1,5 m côté jardin ; la roue, juste au sud, reste à l'air libre).
+  const CULVERT = {
+    centre: [5.675, 0.495],
+    u: [0.9713, 0.2377],
+    v: [-0.2377, 0.9713],
+    u0: -2.05,
+    u1: 2.95,
+    v0: -3.3,
+    v1: 3.3,
+    level: 1.12,
+    blend: 1.4,
+  };
+  const toCulvert = (x, z) => {
+    const dx = x - CULVERT.centre[0],
+      dz = z - CULVERT.centre[1];
+    return [dx * CULVERT.u[0] + dz * CULVERT.u[1], dx * CULVERT.v[0] + dz * CULVERT.v[1]];
+  };
+  const fromCulvert = (u, v) => [CULVERT.centre[0] + u * CULVERT.u[0] + v * CULVERT.v[0], CULVERT.centre[1] + u * CULVERT.u[1] + v * CULVERT.v[1]];
   const CELL = 1; // pas de la grille des écarts (m)
 
   const clamp01 = (v) => (v < 0 ? 0 : v > 1 ? 1 : v);
@@ -309,16 +329,29 @@
         const b = field[k + nx] + (field[k + nx + 1] - field[k + nx]) * tx;
         return a + (b - a) * tz;
       };
+      // Jardin de plain-pied devant la véranda (on ne fait que remonter le sol).
+      const culvert = (x, z, h) => {
+        const [u, v] = toCulvert(x, z);
+        const du = Math.max(CULVERT.u0 - u, 0, u - CULVERT.u1);
+        const dv = Math.max(CULVERT.v0 - v, 0, v - CULVERT.v1);
+        const d = Math.hypot(du, dv);
+        if (d >= CULVERT.blend || h >= CULVERT.level) return h;
+        const w = 1 - smooth(0, CULVERT.blend, d);
+        return h + (CULVERT.level - h) * w;
+      };
       let moved = 0;
       for (let v = 0; v < positions.length; v += 3) {
         const dh = sample(positions[v], positions[v + 2]);
-        if (dh) {
-          positions[v + 1] += dh;
+        const before = positions[v + 1] + dh;
+        const after = culvert(positions[v], positions[v + 2], before);
+        if (after !== positions[v + 1]) {
+          positions[v + 1] = after;
           moved++;
         }
       }
       if (grid)
-        for (const row of grid) for (const point of row) point[1] += sample(point[0], point[2]);
+        for (const row of grid)
+          for (const point of row) point[1] = culvert(point[0], point[2], point[1] + sample(point[0], point[2]));
       state.grid = { sample };
       state.reshaped = moved;
       return moved;
@@ -370,6 +403,47 @@
             return game.terrainHeight(x + ((x - best.p.x) / len) * 0.6, z + ((z - best.p.z) / len) * 0.6);
           };
           specs.push({ name: "Mur_du_bief_creuse_" + (side < 0 ? "gauche" : "droit"), kind: "granit", points, height: 1.12, width: 0.36, base: (x, z) => outside(x, z) - 1.1 });
+        }
+      }
+      // Buse sous la véranda : têtes de buse en pierres sèches et fond sombre.
+      const bief = game.channels.find((c) => c.name === "Bief_du_moulin");
+      if (bief && context.THREE) {
+        const THREE = context.THREE;
+        const half = (bief.widths ? Math.max(...bief.widths) : bief.width) / 2;
+        const dark = new THREE.MeshBasicMaterial({ color: 0x0b0f0d });
+        for (const edge of [CULVERT.v0, CULVERT.v1]) {
+          // Point où le bief traverse le bord de la buse.
+          let hit = null;
+          for (let i = 0; i < bief.line.length - 1 && !hit; i++) {
+            const [ua, va] = toCulvert(bief.line[i][0], bief.line[i][1]);
+            const [ub, vb] = toCulvert(bief.line[i + 1][0], bief.line[i + 1][1]);
+            if ((va - edge) * (vb - edge) > 0 || va === vb) continue;
+            const t = (edge - va) / (vb - va);
+            const u = ua + (ub - ua) * t;
+            if (u > CULVERT.u0 && u < CULVERT.u1) hit = u;
+          }
+          if (hit === null) continue;
+          const out = edge < 0 ? -1 : 1;
+          const line = [fromCulvert(hit - half - 0.75, edge + out * 0.18), fromCulvert(hit + half + 0.95, edge + out * 0.18)];
+          const opening = 1.05;
+          specs.push({
+            name: "Tete_de_buse_sous_la_veranda",
+            kind: "granit",
+            points: line,
+            height: CULVERT.level + 0.06 + 0.55,
+            width: 0.36,
+            base: () => -0.55,
+            skip: (x, z, y) => {
+              const [u] = toCulvert(x, z);
+              return Math.abs(u - hit) < half + 0.06 && y < opening;
+            },
+          });
+          const [bx, bz] = fromCulvert(hit, edge - out * 0.35);
+          const back = new THREE.Mesh(new THREE.PlaneGeometry(half * 2 + 0.1, opening), dark);
+          back.position.set(bx, -0.55 + opening / 2, bz);
+          back.rotation.y = Math.atan2(CULVERT.v[0] * out, CULVERT.v[1] * out);
+          back.name = "Fond_de_la_buse_v32";
+          game.scene.add(back);
         }
       }
       return { walls: specs.length };
