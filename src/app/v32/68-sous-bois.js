@@ -1793,12 +1793,18 @@ varying float vSbUp;
   vSbUp=inverseTransformDirection(transformedNormal,viewMatrix).y;`;
   const FRAGMENT_PARS = `uniform float uSbCoverage;
 uniform float uSbSnow;
+uniform float uSbTexSize;
 varying float vSbUp;
 `;
   // Atlas en alpha prémultiplié (décodé sRGB) : on retrouve la couleur des feuilles ; bords
-  // découpés en couverture alpha sur l'écran anticrénelé, test alpha ailleurs.
+  // découpés en couverture alpha sur l'écran anticrénelé, test alpha ailleurs. Au loin, les
+  // mipmaps moyennent folioles et vides : l'alpha est relevé selon le niveau de mipmap pour
+  // que les frondes gardent leur couverture (sinon, vues de haut, elles s'effacent en voile).
   const FRAGMENT_ALPHA = `float sbAlpha=diffuseColor.a;
   diffuseColor.rgb/=max(pow(sbAlpha,2.2),.004);
+  vec2 sbTexel=vUv*uSbTexSize;
+  vec2 sbDx=dFdx(sbTexel),sbDy=dFdy(sbTexel);
+  sbAlpha*=1.+max(0.,.5*log2(max(dot(sbDx,sbDx),dot(sbDy,sbDy))))*.25;
   if(uSbCoverage>.5){
    diffuseColor.a=clamp((sbAlpha-.45)/max(fwidth(sbAlpha),.0001)+.5,0.,1.);
    if(diffuseColor.a<.02)discard;
@@ -2081,10 +2087,14 @@ varying float vSbUp;
 
       // --- Atlas, matières, formes (au premier besoin) -------------------------------------
       let kit = null;
+      // thin : distance où l'éclaircissement commence (repoussée jusqu'à far quand la vue
+      // contient peu de plantes, tant que les triangles tiennent dans tris).
       const lodSettings = () => {
         const q = hooks.getQuality ? hooks.getQuality() : "balanced";
         const k = q === "fast" ? 0.72 : q === "detail" ? 1.25 : 1;
-        return mobile ? { near: 11 * k, thin: 22 * k, cut: 150 * k, fade: 30 * k, max: 2.4 } : { near: 18 * k, thin: 34 * k, cut: 240 * k, fade: 40 * k, max: 2.4 };
+        return mobile
+          ? { near: 11 * k, thin: 22 * k, far: 110 * k, cut: 150 * k, fade: 30 * k, max: 2.4, tris: 70000 * k }
+          : { near: 18 * k, thin: 34 * k, far: 190 * k, cut: 240 * k, fade: 40 * k, max: 2.4, tris: 200000 * k };
       };
       function makeKit() {
         const started = performance.now();
@@ -2122,6 +2132,7 @@ varying float vSbUp;
           shader.uniforms.uSbLod = uniforms.lod;
           shader.uniforms.uSbCoverage = uniforms.coverage;
           shader.uniforms.uSbSnow = uniforms.snow;
+          shader.uniforms.uSbTexSize = { value: size };
           shader.vertexShader = VERTEX_PARS + shader.vertexShader.replace("#include <begin_vertex>", VERTEX_MAIN).replace("#include <project_vertex>", VERTEX_UP);
           // Les deux faces d'une carte s'éclairent comme le dessus de la plante.
           shader.vertexShader = shader.vertexShader.replace(
@@ -2544,6 +2555,50 @@ varying float vSbUp;
       const camera = { force: true, x: 0, y: 0, z: 0, fx: 0, fy: 0, fz: -1, fov: 0, aspect: 0, quality: "" };
       const _cp = new THREE.Vector3();
       const _cd = new THREE.Vector3();
+      const THIN_BINS = 48;
+      const thinWeights = new Float64Array(THIN_BINS);
+      /**
+       * Distance d'éclaircissement pour cette vue. Une plante de rang u (0‒1) reste tant que
+       * (thin / d)² > u, c.-à-d. thin > d·√u : on range le poids en triangles de chaque plante
+       * du champ selon ce seuil, puis on prend le plus grand thin qui tient dans le budget.
+       * Vue plongeante sur une zone moyenne : toutes les plantes restent ; grande zone vue de
+       * loin ou à hauteur d'homme : même éclaircissement qu'avant (thin de base).
+       */
+      function thinFor(c, lod) {
+        const base = lod.thin;
+        const top = Math.max(base, Math.min(lod.far, lod.cut));
+        if (top <= base * 1.01) return base;
+        const span = Math.log(top / base);
+        const cut = lod.cut + 3;
+        const cut2 = cut * cut;
+        thinWeights.fill(0);
+        let sum = 0;
+        for (const name of KIND_NAMES) {
+          const d = kit.batches[name].data;
+          const tri = kit.triangles[name];
+          const wNear = tri[0];
+          const wFar = tri[1] || tri[0];
+          for (let i = 0; i < d.n; i++) {
+            const dx = d.pos[i * 3] - c.x;
+            const dy = d.pos[i * 3 + 1] - c.y;
+            const dz = d.pos[i * 3 + 2] - c.z;
+            const d2 = dx * dx + dy * dy + dz * dz;
+            if (d2 > cut2) continue;
+            const dist = Math.sqrt(d2);
+            if (dist > 4 && dx * c.fx + dy * c.fy + dz * c.fz < c.cos * dist) continue;
+            const w = dist < lod.near ? wNear : wFar;
+            const need = (dist - 3) * Math.sqrt(d.inst[i * 4]);
+            if (need <= base) sum += w;
+            else if (need < top) thinWeights[Math.min(THIN_BINS - 1, Math.floor((Math.log(need / base) / span) * THIN_BINS))] += w;
+          }
+        }
+        if (sum >= lod.tris) return base;
+        for (let b = 0; b < THIN_BINS; b++) {
+          if (sum + thinWeights[b] > lod.tris) return base * Math.exp((span * b) / THIN_BINS);
+          sum += thinWeights[b];
+        }
+        return top;
+      }
       function classify() {
         if (!kit) return false;
         const cam = game.camera;
@@ -2562,17 +2617,17 @@ varying float vSbUp;
         camera.fz = _cd.z;
         camera.fov = cam.fov;
         camera.aspect = cam.aspect;
-        if (quality !== camera.quality) {
-          camera.quality = quality;
-          const l = lodSettings();
-          kit.uniforms.lod.value.set(l.thin, l.cut, l.fade, l.max);
-        }
+        camera.quality = quality;
         const lod = lodSettings();
         lod.near *= state.nearScale || 1;
         const halfV = ((cam.fov || 50) * Math.PI) / 360;
         const halfDiag = Math.atan(Math.tan(halfV) * Math.sqrt(1 + (cam.aspect || 1) ** 2));
         camera.cos = Math.cos(Math.min(Math.PI * 0.97, halfDiag + 0.32));
         const started = performance.now();
+        // Même seuil pour le tri ici et pour le fondu dans le shader.
+        lod.thin = thinFor(camera, lod);
+        state.thin = lod.thin;
+        kit.uniforms.lod.value.set(lod.thin, lod.cut, lod.fade, lod.max);
         let changed = false;
         let near = 0;
         for (const name of KIND_NAMES) {
@@ -2823,7 +2878,7 @@ varying float vSbUp;
             swatch.className = "v32-sb-swatch";
             swatch.dataset.mix = zone.mix;
             const text = document.createElement("span");
-            text.textContent = MIXES[zone.mix].label + " · " + fmt(polygonArea(zone.points)) + " m² · " + densityWord(zone.density) + (finite(zone._count) ? " · " + fmt(zone._count) : "");
+            text.textContent = MIXES[zone.mix].label + " · " + fmt(polygonArea(zone.points)) + " m² · " + densityWord(zone.density) + (finite(zone._count) ? " · " + fmt(zone._count) + (zone._count > 1 ? " plantes" : " plante") : "");
             const remove = document.createElement("button");
             remove.type = "button";
             remove.className = "v32-sb-remove";
@@ -3075,6 +3130,10 @@ varying float vSbUp;
           pointers.add(event.pointerId);
           if (!state.drawing || hooks.getMode() !== "editor") return;
           lastPointer = event.pointerType === "touch" ? "touch" : "mouse";
+          // La vue ne prend pas le focus : sans cela, Entrée « cliquerait » encore le dernier
+          // bouton touché (« Dessiner une zone » arrêterait le tracé au lieu de le terminer).
+          const active = document.activeElement;
+          if (active && active !== document.body && root.contains(active) && typeof active.blur === "function") active.blur();
           if (pointers.size > 1) {
             // Deux doigts : la vue garde la main (pincer, tourner).
             if (press && !press.lasso) cancelPress();
@@ -3408,6 +3467,7 @@ varying float vSbUp;
             replayFrameMs: Math.round(state.replayFrameMs || 0),
             classifyMs: state.classifyMs,
             nearScale: +(state.nearScale || 1).toFixed(2),
+            thin: +(state.thin || 0).toFixed(1),
             kitMs: kit ? kit.ms : 0,
             paintMs: kit ? kit.paintMs : 0,
             drawn,

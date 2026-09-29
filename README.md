@@ -11,6 +11,14 @@ hébergement statique en HTTPS). Les sources modifiables sont dans `src/`.
 
 ## Dernières retouches
 
+- **Atelier › Plantes & objets › Sous-bois** : on dessine une grande zone au
+  sol (coins posés au doigt ou à la souris, ou trait à main levée en gardant
+  l'appui) et elle se remplit toute seule de fougères, de ronces ou d'un
+  sous-bois mêlé (lierre, feuilles mortes, jeunes pousses, pierres moussues,
+  bois mort), en touffes plus denses au cœur. L'eau, les chemins, les murets,
+  les ponts, les bâtiments et l'abord du moulin restent dégagés. Densité
+  réglable, liste des zones, « Annuler la dernière zone », « Tout effacer » ;
+  sur téléphone, le panneau se replie pendant le tracé.
 - **L'eau coule dans le bon sens** : du ruisseau du sud-ouest au grand étang,
   puis par le bief jusqu'au moulin et vers la rivière de l'est. Rides, écume,
   chutes et roue à aubes suivent ce sens ; les niveaux d'eau et les lits ont
@@ -46,8 +54,9 @@ hébergement statique en HTTPS). Les sources modifiables sont dans `src/`.
   retirer ou poser des berges (terre, roseaux, carex, iris, pierres) ; les
   gestes sont gardés dans le navigateur, avec « Annuler » et « Tout rétablir ».
 - **Fichier de retouches complet** : « Exporter mes retouches » emporte aussi
-  les berges et le recalage IGN ; l'import les rétablit (le recalage s'applique
-  au chargement suivant). Les fichiers exportés avant restent lisibles.
+  les berges, le recalage IGN et les zones de sous-bois ; l'import les rétablit
+  (le recalage s'applique au chargement suivant). Les fichiers exportés avant
+  restent lisibles.
 - **Atelier › Relief › Relief réel (IGN RGE ALTI)** : mesure depuis le
   navigateur l'altitude IGN d'environ 400 points (le zéro est la surface du
   grand étang), affiche les écarts point par point et peut recaler le relief en
@@ -258,6 +267,7 @@ Modules de la version 32 (`src/app/v32/`, chargés dans l'ordre des noms) :
 | `65-atelier.js` | Atelier en onglets et chemins taillés dans la pente |
 | `66-berges.js` | Atelier : gommer ou ajouter des berges (terre, roseaux, carex, iris, pierres), gestes gardés et rejoués |
 | `67-relief-ign.js` | Atelier : mesure du relief IGN RGE ALTI depuis le navigateur, comparaison et recalage doux (hors maison et bords de l'eau) |
+| `68-sous-bois.js` | Atelier : zones de sous-bois dessinées au sol (fougères, ronces, sous-bois mêlé), remplies en touffes hors eau, chemins, murets et bâtiments ; tableaux d'instances, budget de plantes, zones gardées, rejouées et exportées |
 | `70-birds.js` | Oiseaux et colverts |
 | `72-materials.js` | Moellons, ardoises, arbustes et massifs lissés |
 | `73-stones.js` | Outils des pierres sèches (pierres, roche moussue, lots instanciés) |
@@ -310,8 +320,8 @@ git push origin main
 Les retouches faites dans l'éditeur, le lieu du moulin et les réglages restent
 dans le navigateur utilisé, pour l'adresse du site concernée. GitHub et
 Cloudflare ne les synchronisent pas entre appareils : utilise l'export et
-l'import des retouches dans l'éditeur pour les transférer (berges et recalage
-IGN compris).
+l'import des retouches dans l'éditeur pour les transférer (berges, recalage
+IGN et zones de sous-bois compris).
 
 Le jeu nécessite JavaScript et WebGL. Les essais automatisés (ordinateur et
 téléphone simulés, météo simulée) ne remplacent pas une vérification sur un
