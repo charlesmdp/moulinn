@@ -153,6 +153,7 @@ Modules de la version 32 (`src/app/v32/`, chargés dans l'ordre des noms) :
 | `30-water.js` | Feuilles à la dérive et ronds de poissons |
 | `32-veranda.js` | Soubassement en moellons de la véranda |
 | `35-rivers.js` | Lits naturels des rivières, berges et plantes de berge |
+| `36-hydrologie.js` | Sens réel de l'eau (sud-ouest → grand étang → moulin → est), niveaux et relief qui suivent, bief maçonné le long du carport |
 | `38-waterflow.js` | Roue à aubes, chutes, embruns et remous |
 | `40-weather-live.js` | Météo réelle Open-Meteo et éclairs |
 | `45-weather-icons.js` | Pictogrammes météo |
@@ -161,6 +162,10 @@ Modules de la version 32 (`src/app/v32/`, chargés dans l'ordre des noms) :
 | `65-atelier.js` | Atelier en onglets et chemins taillés dans la pente |
 | `70-birds.js` | Oiseaux et colverts |
 | `72-materials.js` | Moellons, ardoises, arbustes et massifs lissés |
+| `73-stones.js` | Outils des pierres sèches (pierres, roche moussue, lots instanciés) |
+| `74-walls.js` | Murets de pierres sèches, marches de granit, maçonnerie des bâtiments |
+| `75-rockery.js` | Rocaille du talus : niche voûtée, blocs de granit, hostas, camélia fleuri |
+| `76-details.js` | Petits objets du jardin (pots, lanternes, bûches, outils, vélo…) |
 
 Après une modification :
 
