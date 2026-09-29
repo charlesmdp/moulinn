@@ -329,6 +329,20 @@
   padding: 11px 16px;
 }
 @media (pointer: fine) and (min-width: 701px) {
+  /* Plus de carte à gauche : un espace vide équilibre les réglages de droite pour que les
+     onglets restent au centre de l'écran. */
+  #moulin-vallee-3d.v32.game22 .moulin-toolbar::before {
+    content: "";
+    flex: 1 1 0;
+    min-width: 0;
+  }
+  #moulin-vallee-3d.v32.game22 .moulin-toolbar .mode-switch {
+    margin: 0;
+  }
+  #moulin-vallee-3d.v32.game22 .moulin-toolbar .game19-actions {
+    flex: 1 1 0;
+    justify-content: flex-end;
+  }
   /* Sur ordinateur, la pastille « Promenade » reste affichée (comme sur la maquette). */
   #moulin-vallee-3d.v32.game22[data-ui22-guides="hidden"] .player19-hint {
     opacity: 1;
@@ -665,8 +679,56 @@
   background: rgba(47, 91, 74, 0.08);
   color: var(--v32-ink);
 }
-#moulin-vallee-3d.v32.game22 .v32-sheet-toggle {
+#moulin-vallee-3d.v32.game22 .v32-sheet-toggle,
+#moulin-vallee-3d.v32.game22 .v32-meteo-hide {
   display: none;
+}
+/* Téléphone : la boule seule ; la pastille déplie la météo. */
+#moulin-vallee-3d.v32.game22 .v32-meteo-chip {
+  position: absolute;
+  z-index: 18;
+  left: 50%;
+  bottom: calc(max(12px, env(safe-area-inset-bottom)) + 4px);
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  max-width: calc(100% - 32px);
+  height: 50px;
+  padding: 0 14px 0 8px;
+  border: 1px solid var(--v32-glass-border);
+  border-radius: 25px;
+  background: var(--v32-glass);
+  -webkit-backdrop-filter: var(--v32-blur);
+  backdrop-filter: var(--v32-blur);
+  box-shadow: var(--v32-shadow);
+  color: var(--v32-ink);
+  font: 600 15px/1 var(--v32-font);
+  cursor: pointer;
+  pointer-events: auto;
+}
+#moulin-vallee-3d.v32.game22 .v32-meteo-chip[hidden] {
+  display: none;
+}
+#moulin-vallee-3d.v32.game22 .v32-meteo-chip-icon svg {
+  display: block;
+  width: 34px;
+  height: 34px;
+}
+#moulin-vallee-3d.v32.game22 .v32-meteo-chip strong {
+  font-size: 18px;
+  font-weight: 750;
+}
+#moulin-vallee-3d.v32.game22 .v32-meteo-chip-label {
+  overflow: hidden;
+  color: var(--v32-muted);
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+#moulin-vallee-3d.v32.game22 .v32-meteo-chip > svg:last-child {
+  flex: none;
+  transform: rotate(180deg) scaleY(-1);
+  color: var(--v32-muted);
 }
 #moulin-vallee-3d.v32.game22 .v32-now {
   display: grid;
@@ -1229,7 +1291,8 @@
   #moulin-vallee-3d.v32.game22 .v32-meteo[data-sheet="open"] {
     max-height: 78%;
   }
-  #moulin-vallee-3d.v32.game22 .v32-sheet-toggle {
+  #moulin-vallee-3d.v32.game22 .v32-sheet-toggle,
+  #moulin-vallee-3d.v32.game22 .v32-meteo-hide {
     display: grid;
   }
   #moulin-vallee-3d.v32.game22 .v32-meteo[data-sheet="open"] .v32-sheet-toggle svg {

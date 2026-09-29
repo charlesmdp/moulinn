@@ -37,6 +37,25 @@
       const live = V32.weatherLive;
       if (!live) return null;
 
+      // --- Shaders préparés d'avance ------------------------------------------------
+      // Six secondes de jeu après le chargement, la boule (construite cachée), la lampe tenue en
+      // main et les faisceaux sont compilés en une fois : ni la première entrée dans l'onglet
+      // Météo ni le premier allumage de la lampe ne marquent ensuite d'à-coup.
+      let prewarmIn = 6;
+      function prewarm() {
+        try {
+          const globe = hooks.globe();
+          if (globe && globe.prepare) globe.prepare();
+          const player = typeof game.player === "function" ? game.player() : game.player;
+          if (player && player.avatar && player.avatar.holdTorch32) player.avatar.holdTorch32();
+          game.scene.onBeforeRender(game.renderer, game.scene, game.camera, null);
+          game.renderer.compile(game.scene, game.camera);
+          hooks.markDirty();
+        } catch (error) {
+          console.warn("[Moulin V32] préparation des shaders", error);
+        }
+      }
+
       // --- L'onglet : « Boule de neige » devient « Météo » -------------------------
       const tab = root.querySelector('.mode-switch [data-mode="globe"]');
       if (tab) {
@@ -58,6 +77,7 @@
           <button type="button" class="v32-place" data-v32-place>${icon("pin", 18)}<span data-v32-place-name>Lieu du moulin</span>${icon("chevron", 16)}</button>
           <button type="button" class="v32-icon-btn" data-v32-refresh aria-label="Actualiser la météo" title="Actualiser">${icon("refresh", 18)}</button>
           <button type="button" class="v32-icon-btn v32-sheet-toggle" data-v32-sheet aria-label="Afficher tout le détail" aria-expanded="false">${icon("chevron", 18)}</button>
+          <button type="button" class="v32-icon-btn v32-meteo-hide" data-v32-hide aria-label="Masquer la météo (la boule seule)" title="Masquer la météo">${icon("close", 18)}</button>
         </header>
         <div class="v32-now">
           <div class="v32-now-icon" data-v32-now-icon></div>
@@ -92,6 +112,16 @@
         <button type="button" class="v32-round" data-v32-rotate aria-pressed="true" aria-label="Faire tourner la boule" title="Faire tourner la boule">${icon("rotate", 20)}</button>`;
       mount.appendChild(timebar);
 
+      // Téléphone : la boule seule par défaut ; cette pastille (temps, température) déplie la
+      // météo et la frise des heures.
+      const chip = document.createElement("button");
+      chip.type = "button";
+      chip.className = "v32-meteo-chip";
+      chip.hidden = true;
+      chip.setAttribute("aria-label", "Afficher la météo");
+      chip.innerHTML = `<span class="v32-meteo-chip-icon" data-v32-chip-icon></span><strong data-v32-chip-temp>–</strong><span class="v32-meteo-chip-label" data-v32-chip-label>Météo</span>${icon("chevron", 16)}`;
+      mount.appendChild(chip);
+
       const picker = document.createElement("div");
       picker.className = "v32-picker";
       picker.hidden = true;
@@ -121,7 +151,9 @@
       let lastRender = "";
       let askedForPlace = false;
       let sheetOpen = false;
+      let collapsed = false;
       let viewOffset = { x: 0, y: 0 };
+      const phone = () => typeof matchMedia === "function" && matchMedia("(pointer: coarse), (max-width: 700px)").matches;
 
       function timeZone() {
         return live.state.data?.timezone || V32.location.timezone || undefined;
@@ -171,6 +203,9 @@
         if (!c) {
           $("[data-v32-now-icon]").innerHTML = V32.weatherIcon("partly", true);
           $("[data-v32-now-temp]").textContent = "–";
+          $("[data-v32-chip-icon]", chip).innerHTML = V32.weatherIcon("partly", true);
+          $("[data-v32-chip-temp]", chip).textContent = "–";
+          $("[data-v32-chip-label]", chip).textContent = "Météo";
           $("[data-v32-now-label]").textContent =
             state.status === "error" ? "Météo indisponible" : state.status === "loading" ? "Chargement de la météo…" : "Météo en attente";
           $("[data-v32-now-feels]").textContent = state.error || "";
@@ -183,6 +218,9 @@
         $("[data-v32-now-icon]").innerHTML = V32.weatherIcon(c.icon, sunUp);
         $("[data-v32-now-temp]").textContent = round(c.temperature);
         $("[data-v32-now-label]").textContent = c.label;
+        $("[data-v32-chip-icon]", chip).innerHTML = V32.weatherIcon(c.icon, sunUp);
+        $("[data-v32-chip-temp]", chip).textContent = round(c.temperature) + "°";
+        $("[data-v32-chip-label]", chip).textContent = c.label;
         $("[data-v32-now-feels]").textContent = "Ressenti " + round(c.apparent) + " °C";
 
         const data = state.data;
@@ -313,6 +351,25 @@
       });
       $("[data-v32-refresh]").addEventListener("click", () => live.refresh(true).then(() => render(true)));
       $("[data-v32-sheet]").addEventListener("click", () => setSheet(!sheetOpen));
+      $("[data-v32-hide]").addEventListener("click", () => setCollapsed(true));
+      chip.addEventListener("click", () => setCollapsed(false));
+      /** Téléphone : replie la météo (la boule seule, revenue à l'heure actuelle) ou la déplie. */
+      function setCollapsed(value) {
+        collapsed = value;
+        if (value) {
+          setPlaying(false);
+          setOffset(0);
+        }
+        layoutMeteo();
+      }
+      function layoutMeteo() {
+        const hide = active && collapsed && phone();
+        panel.hidden = !active || hide;
+        timebar.hidden = !active || hide;
+        chip.hidden = !hide;
+        root.dataset.meteoCollapsed32 = String(hide);
+        requestAnimationFrame(frameGlobe);
+      }
       function setSheet(open) {
         sheetOpen = open;
         panel.dataset.sheet = open ? "open" : "peek";
@@ -430,20 +487,21 @@
         const rect = mount.getBoundingClientRect();
         const box = panel.getBoundingClientRect();
         const wide = rect.width >= 860;
-        const x = wide ? Math.round(Math.min(box.width + 24, rect.width * 0.42) / 2) : 0;
-        const y = wide ? 0 : -Math.round(Math.max(0, rect.bottom - box.top - 70) / 2);
+        const x = panel.hidden ? 0 : wide ? Math.round(Math.min(box.width + 24, rect.width * 0.42) / 2) : 0;
+        const y = panel.hidden || wide ? 0 : -Math.round(Math.max(0, rect.bottom - box.top - 70) / 2);
         if (x === viewOffset.x && y === viewOffset.y && camera.view?.enabled) return;
         viewOffset = { x, y };
         camera.setViewOffset(rect.width, rect.height, x, -y, rect.width, rect.height);
         hooks.markDirty();
       }
-      window.addEventListener("resize", () => active && requestAnimationFrame(frameGlobe));
+      window.addEventListener("resize", () => active && layoutMeteo());
 
       function setActive(value) {
         if (active === value) return;
         active = value;
-        panel.hidden = !value;
-        timebar.hidden = !value;
+        // Sur téléphone, l'onglet s'ouvre sur la boule seule.
+        collapsed = value && phone();
+        layoutMeteo();
         root.dataset.meteo32 = String(value);
         if (value) {
           live.refresh();
@@ -470,6 +528,7 @@
 
       return {
         update(dt) {
+          if (prewarmIn > 0 && (prewarmIn -= Math.min(dt || 0, 0.25)) <= 0) prewarm();
           const globe = hooks.getMode() === "globe";
           if (globe !== active) setActive(globe);
           if (!active) return false;

@@ -94,7 +94,33 @@ async function main() {
   let html = await fs.readFile(path.join(src, "index.html"), "utf8");
   html = html.replaceAll("{{asset:styles}}", cssFile).replaceAll("{{asset:start}}", startFile);
   if (/\{\{asset:/.test(html)) throw new Error("Jeton {{asset:…}} non remplacé dans index.html");
-  await fs.writeFile(path.join(stage, "index.html"), html);
+  // Trois adresses pour la même page : l'accueil (Personnage, Vue libre, Météo, Jeu), /3D (avec
+  // la vue 3D) et /build (vue 3D et atelier « Aménager »), pour que l'atelier ne soit ouvert
+  // qu'à qui connaît l'adresse. Les sous-pages lisent les ressources à la racine (<base>).
+  const pageFor = (route) => {
+    const drop = (mode) => {
+      const button = new RegExp(`\\n[ \\t]*<button type="button" data-mode="${mode}"[^\\n]*?</button>`);
+      if (!button.test(page)) throw new Error(`Bouton « ${mode} » introuvable dans index.html`);
+      page = page.replace(button, "");
+    };
+    let page = html.replace(/<p data-help-route="([^"]+)">.*?<\/p>/g, (paragraph, routes) =>
+      routes.split(" ").includes(route) ? paragraph.replace(/ data-help-route="[^"]+"/, "") : "",
+    );
+    if (route !== "3d" && route !== "build") drop("orbit");
+    if (route !== "build") drop("editor");
+    if (route) {
+      if (!page.includes('<html lang="fr">') || !page.includes("<head>")) throw new Error("En-tête de index.html inattendu");
+      page = page
+        .replace('<html lang="fr">', `<html lang="fr" data-route="${route}">`)
+        .replace("<head>", '<head>\n<base href="../">' + (route === "build" ? '\n<meta name="robots" content="noindex,nofollow">' : ""));
+    }
+    return page;
+  };
+  await fs.writeFile(path.join(stage, "index.html"), pageFor(""));
+  for (const [dir, route] of [["3D", "3d"], ["build", "build"]]) {
+    await fs.mkdir(path.join(stage, dir), { recursive: true });
+    await fs.writeFile(path.join(stage, dir, "index.html"), pageFor(route));
+  }
 
   // Jeu « Pas touche à mes trésors » : page /jeu/ et ses scripts (socle, simulation, modèles,
   // personnages, effets, rendu, interface, puis main.js qui démarre la partie).

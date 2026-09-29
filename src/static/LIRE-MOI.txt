@@ -12,7 +12,21 @@ branches et feuillages réalistes, allégés au loin), traces de quad qui
 s'effacent, oiseaux modelés. Atelier en quatre onglets avec les chemins
 taillés dans la pente.
 
-DERNIERES RETOUCHES
+LES ADRESSES DU SITE
+/        l'accueil des visiteurs : Personnage, Vue libre, Météo et Jeu ;
+/3D/     la même page avec la Vue 3D en plus ;
+/build/  la vue 3D et l'atelier Aménager (non indexée par les moteurs de
+         recherche) ;
+/jeu/    le jeu « Pas touche à mes trésors ».
+
+NOUVEAUTES DE CETTE SERIE
+Plus de gel d'une dizaine de secondes en allumant la lampe ou les phares, au
+lever et au coucher du soleil, ni en entrant dans la boule à neige. Plus rien
+ne dépasse de la boule. Sur téléphone, l'onglet Météo montre la boule seule
+(la pastille du bas déplie la météo) et le personnage court par défaut
+(bouton « Marcher »). La carte en haut à gauche a disparu.
+
+RETOUCHES PRECEDENTES
 L'eau coule dans le bon sens (sud-ouest, grand étang, bief, moulin, est),
 avec le bief encaissé entre deux murets de granit le long du carport. Véranda
 de plain-pied avec le jardin, le bief passant dessous en buse. Allée
@@ -63,7 +77,8 @@ RETROUVER VOS RETOUCHES
 L'hébergement du jeu ne synchronise pas les sauvegardes. Elles sont stockées
 sur chaque navigateur et chaque adresse de site. Avant de changer d'appareil
 ou de passer de l'ancienne adresse à Cloudflare, utilisez l'export des
-retouches dans l'éditeur, puis importez ce fichier sur la nouvelle adresse.
+retouches dans l'atelier (adresse /build/), puis importez ce fichier sur la
+nouvelle adresse.
 Le fichier emporte aussi les berges gommées ou ajoutées et le recalage IGN.
 
 MISES A JOUR

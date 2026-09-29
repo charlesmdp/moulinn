@@ -9,7 +9,40 @@ tactiles, avec la météo et l'heure réelles. L'onglet **Jeu** ouvre
 Le dossier `dist/` est le site prêt à publier (Cloudflare Pages ou tout
 hébergement statique en HTTPS). Les sources modifiables sont dans `src/`.
 
-## Dernières retouches
+## Les adresses du site
+
+| Adresse | Contenu |
+| --- | --- |
+| `/` | L'accueil des visiteurs : Personnage, Vue libre, Météo et Jeu |
+| `/3D/` | La même page avec la **Vue 3D** en plus |
+| `/build/` | La vue 3D et l'atelier **Aménager** (page non indexée par les moteurs de recherche) |
+| `/jeu/` | Le jeu « Pas touche à mes trésors » |
+
+`/3d` ou `/Build` (autres majuscules, avec ou sans « / ») mènent aux mêmes
+pages. Rappel : les retouches faites dans l'atelier restent dans le navigateur
+qui les a faites ; `/build` évite surtout que les visiteurs tombent sur
+l'atelier.
+
+## Nouveautés de cette série
+
+- **Plus de gel quand la lumière change** : allumer la lampe torche ou les
+  phares du quad, le lever et le coucher du soleil (y compris en faisant
+  défiler les heures dans la boule) et l'entrée dans l'onglet Météo ne
+  recompilent plus les shaders de tout le jardin, ce qui figeait le jeu une
+  dizaine de secondes : le nombre de lumières et d'ombres de la scène ne
+  change plus jamais (une lumière éteinte a une intensité nulle), et les
+  matières de la lampe et des faisceaux sont préparées au démarrage.
+- **Boule à neige** : plus rien ne dépasse de la boule (les murets, herbes,
+  objets et plantes ajoutés récemment sont découpés comme le reste). Sur
+  téléphone, l'onglet Météo montre la boule seule ; la pastille du bas (temps
+  et température) déplie la météo et la frise des heures, la croix la replie.
+- **Personnage sur téléphone** : il court par défaut ; le bouton « Marcher » le
+  fait marcher, un nouvel appui (« Courir ») le refait courir. Sur le quad, le
+  bouton reste « Gaz ».
+- **En-tête allégé** : la carte « Saint-Christophe » en haut à gauche a
+  disparu, les onglets restent au centre.
+
+## Retouches précédentes
 
 - **L'eau coule dans le bon sens** : du ruisseau du sud-ouest au grand étang,
   puis par le bief jusqu'au moulin et vers la rivière de l'est. Rides, écume,
@@ -310,8 +343,8 @@ git push origin main
 Les retouches faites dans l'éditeur, le lieu du moulin et les réglages restent
 dans le navigateur utilisé, pour l'adresse du site concernée. GitHub et
 Cloudflare ne les synchronisent pas entre appareils : utilise l'export et
-l'import des retouches dans l'éditeur pour les transférer (berges et recalage
-IGN compris).
+l'import des retouches dans l'atelier (adresse `/build/`) pour les transférer
+(berges et recalage IGN compris).
 
 Le jeu nécessite JavaScript et WebGL. Les essais automatisés (ordinateur et
 téléphone simulés, météo simulée) ne remplacent pas une vérification sur un

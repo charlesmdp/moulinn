@@ -41,6 +41,16 @@
   V32.lerp = (a, b, t) => a + (b - a) * t;
   V32.damp = (current, target, rate, dt) => current + (target - current) * (1 - Math.exp(-rate * dt));
 
+  /**
+   * Adresse ouverte (attribut data-route de la page générée par le build) :
+   *  - "" : l'accueil — Personnage, Vue libre, Météo et Jeu ;
+   *  - "3d" : /3D — la vue 3D en plus ;
+   *  - "build" : /build — la vue 3D et l'atelier « Aménager ».
+   */
+  V32.route = ((typeof document !== "undefined" && document.documentElement.dataset.route) || "").toLowerCase();
+  V32.modeAllowed = (mode) => (mode === "editor" ? V32.route === "build" : mode === "orbit" ? V32.route !== "" : true);
+  V32.startMode = V32.route === "build" ? "editor" : V32.route === "3d" ? "orbit" : "play";
+
   /** Petit stockage local tolérant (navigation privée, stockage bloqué). */
   V32.store = {
     get(key, fallback) {

@@ -1120,11 +1120,17 @@
       He = [new t.Vector3(), new t.Vector3()],
       Ce = new t.Group();
     ((Ce.name = "Lumieres_portatives_v22"), (Ce.userData.exportSkip = !0), (Ce.userData.night22 = !0), R.add(Ce));
+    // V32 : allumer la lampe ou les phares ne change plus le nombre de lumières ni d'ombres de
+    // la scène. Avant, chaque projecteur apparaissait à l'allumage : three.js recompilait alors
+    // les shaders de tout le jardin (une dizaine de secondes de gel). Deux projecteurs sont
+    // toujours là, d'intensité nulle quand ils sont éteints, et servent soit à la lampe torche
+    // (faisceau + halo), soit aux deux phares du quad. Le premier porte la seule ombre de
+    // projecteur ; éteint, il est rangé sous le sol, où son ombre ne coûte rien.
     function xe(w, be, ne, K, fe) {
       const Ee = new t.SpotLight(be, 0, ne, K, fe, 1.35);
       return (
         (Ee.name = w),
-        (Ee.visible = !1),
+        (Ee.visible = !0),
         (Ee.castShadow = !1),
         Ee.shadow.mapSize.set(a ? 512 : 1024, a ? 512 : 1024),
         (Ee.shadow.camera.near = 0.12),
@@ -1138,9 +1144,19 @@
         Ee
       );
     }
-    const H = xe("Torche_faisceau_principal", 16774629, 88, 0.37, 0.4),
-      W = xe("Torche_lumiere_peripherique", 16773081, 36, 0.76, 0.9),
-      D = [xe("Phare_quad_gauche", 16774367, 72, 0.36, 0.36), xe("Phare_quad_droit", 16774367, 72, 0.36, 0.36)],
+    const H = xe("Projecteur_portatif_principal", 16774629, 88, 0.37, 0.4),
+      W = xe("Projecteur_portatif_secondaire", 16773081, 36, 0.76, 0.9),
+      D = [H, W],
+      spotPresets32 = {
+        torch: [
+          { color: 16774629, distance: 88, angle: 0.37, penumbra: 0.4, intensity: 8.6 },
+          { color: 16773081, distance: 36, angle: 0.76, penumbra: 0.9, intensity: 0.62 },
+        ],
+        quad: [
+          { color: 16774367, distance: 72, angle: 0.36, penumbra: 0.36, intensity: 5.2 },
+          { color: 16774367, distance: 72, angle: 0.36, penumbra: 0.36, intensity: 5.2 },
+        ],
+      },
       De = [],
       ke = [],
       rt = new Set(),
@@ -1419,6 +1435,7 @@ if(length(gl_PointCoord-vec2(.5))>.5)discard;`,
           (X.intensity = ne.mode === "rain" ? 0.18 : 0.17),
           T.color.set(ne.mode === "sun" ? 16773858 : 14018554),
           (T.castShadow = !0),
+          (T.shadow.autoUpdate = !0),
           (O.toneMappingExposure = ne.mode === "snow" ? 0.92 : 1));
       else {
         const Dt = c === "black";
@@ -1426,7 +1443,12 @@ if(length(gl_PointCoord-vec2(.5))>.5)discard;`,
           (T.intensity = Dt ? 0.014 : 0.058),
           (X.intensity = Dt ? 0.005 : 0.008),
           T.color.set(9087700),
-          (T.castShadow = !1),
+          // V32 : la lune garde l'ombre du soleil (même nombre d'ombres jour et nuit, donc pas
+          // de recompilation au lever ni au coucher) ; son ombre, très faible, n'est
+          // recalculée qu'au changement d'ambiance pour ne pas s'ajouter à celle de la lampe.
+          (T.castShadow = !0),
+          (T.shadow.autoUpdate = !1),
+          (T.shadow.needsUpdate = !0),
           (O.toneMappingExposure = 0.95),
           R.background.set(Dt ? 132106 : 66314),
           R.fog && R.fog.color.set(Dt ? 132106 : 66314),
@@ -1437,9 +1459,9 @@ if(length(gl_PointCoord-vec2(.5))>.5)discard;`,
       for (const [Dt, we] of b) Dt !== T && Dt !== le && Dt !== X && (Dt.intensity = c === "day" ? we.intensity : 0);
       // V32 : lampes du moulin et du jardin eteintes apres 23 h 30 (voir setHouseLights).
       for (const Dt of n.lamps || []) Dt.intensity = c === "day" || !houseLights32 ? 0 : 2.2;
-      for (const Dt of De)
-        ((Dt.intensity = c === "day" || !houseLights32 ? 0 : Dt.userData.nightPower23), (Dt.visible = Dt.intensity > 0));
-      for (const [Dt] of b) Dt.visible = Dt.intensity > 1e-5;
+      // V32 : les lumières restent dans la scène, éteintes par leur seule intensité : les
+      // retirer ou les remettre changeait le nombre de lumières et recompilait tout le jardin.
+      for (const Dt of De) Dt.intensity = c === "day" || !houseLights32 ? 0 : Dt.userData.nightPower23;
       ((n.waterDaylight.value = c === "day" ? 1 : c === "stars" ? 0.055 : 0.03),
         (Pt = (Ct = n.forest) == null ? void 0 : Ct.setDaylight) == null ||
           Pt.call(Ct, c === "day" ? 1 : c === "stars" ? 0.07 : 0.035),
@@ -1496,6 +1518,26 @@ if(length(gl_PointCoord-vec2(.5))>.5)discard;`,
     function I(w, be, ne) {
       (w.position.copy(be), w.target.position.copy(be).addScaledVector(ne, w.distance || 45));
     }
+    // V32 : règle les deux projecteurs pour la lampe (« torch »), les phares (« quad ») ou les
+    // éteint (""), sans jamais les retirer de la scène.
+    let spotMode32 = null;
+    const parked32 = new t.Vector3(0, -4e3, 0),
+      down32 = new t.Vector3(0, -1, 0);
+    function spots32(mode) {
+      if (mode === spotMode32) return;
+      spotMode32 = mode;
+      const presets = spotPresets32[mode] || spotPresets32.torch;
+      D.forEach((light, i) => {
+        const p = presets[i];
+        (light.color.set(p.color), (light.distance = p.distance), (light.angle = p.angle), (light.penumbra = p.penumbra));
+        light.intensity = mode ? p.intensity : 0;
+      });
+      if (!mode) for (const light of D) I(light, parked32, down32);
+      // Éteint, le projecteur ne recalcule plus son ombre (une dernière fois pour la vider).
+      ((H.shadow.autoUpdate = !!mode), (H.shadow.needsUpdate = !0));
+    }
+    H.castShadow = !0;
+    spots32("");
     function Be(w = 0, be = 0) {
       var Dt, we, We, yt, Ft, Bt, Rt, qt, Kt, ro, oo, uo;
       if (Me) return !1;
@@ -1543,40 +1585,36 @@ if(length(gl_PointCoord-vec2(.5))>.5)discard;`,
         torch32.dir.copy(Xe);
         if (torch32.on && torch32.ready) (st.copy(torch32.tip), Xe.copy(torch32.worldDir));
       }
-      (I(H, st, Xe),
-        I(W, st, Xe),
-        (H.intensity = C ? 8.6 : 0),
-        (W.intensity = C ? 0.62 : 0));
-      for (let Tt = 0; Tt < 2; Tt++) D[Tt].intensity = Ne ? 5.2 : 0;
-      H.visible = W.visible = C;
-      for (const Tt of D) Tt.visible = Ne;
-      if (Ne) {
-        const Tt = fe.vehicleChassis || ((Bt = fe.vehicleRoot) == null ? void 0 : Bt.children[0]);
-        if (Tt) {
-          (Tt.updateWorldMatrix(!0, !1), Tt.getWorldQuaternion($), U.set(0, -0.1, 1).applyQuaternion($).normalize());
-          for (let Jt = 0; Jt < 2; Jt++)
-            ((Rt = Ct == null ? void 0 : Ct.headlights) != null && Rt[Jt]
-              ? He[Jt].copy(Ct.headlights[Jt])
-              : (He[Jt].set(Jt === 0 ? -0.31 : 0.31, 0.722, 0.995), Tt.localToWorld(He[Jt])),
-              I(D[Jt], He[Jt], U));
-        }
+      // V32 : sur le quad, les deux projecteurs deviennent les phares ; sinon, la lampe torche.
+      const chassis32 = Ne ? fe.vehicleChassis || ((Bt = fe.vehicleRoot) == null ? void 0 : Bt.children[0]) : null,
+        mode32 = chassis32 ? "quad" : C ? "torch" : "";
+      spots32(mode32);
+      if (mode32 === "torch") (I(H, st, Xe), I(W, st, Xe));
+      else if (mode32 === "quad") {
+        (chassis32.updateWorldMatrix(!0, !1),
+          chassis32.getWorldQuaternion($),
+          U.set(0, -0.1, 1).applyQuaternion($).normalize());
+        for (let Jt = 0; Jt < 2; Jt++)
+          ((Rt = Ct == null ? void 0 : Ct.headlights) != null && Rt[Jt]
+            ? He[Jt].copy(Ct.headlights[Jt])
+            : (He[Jt].set(Jt === 0 ? -0.31 : 0.31, 0.722, 0.995), chassis32.localToWorld(He[Jt])),
+            I(D[Jt], He[Jt], U));
       }
       ((G.uniforms.uTime.value = z), (G.uniforms.uGain.value = c === "day" ? 0.12 : 1));
       for (let Tt = 0; Tt < Qe.length; Tt++) {
+        // Faisceaux visibles : celui de la lampe, ou ceux des deux phares.
         const Jt = [H, ...D][Tt],
           io = Qe[Tt];
-        if (((io.visible = Jt.visible), !io.visible)) continue;
+        if (((io.visible = Tt === 0 ? mode32 === "torch" : mode32 === "quad"), !io.visible)) continue;
         const po = Tt === 0 ? 46 : 36;
         (Le.copy(Jt.target.position).sub(Jt.position).normalize(),
           io.position.copy(Jt.position),
           io.quaternion.setFromUnitVectors(Fe, Le),
           io.scale.set(Math.tan(Jt.angle) * po, po, Math.tan(Jt.angle) * po));
       }
-      const Pt = C ? H : Ne ? D[0] : null;
-      if (Pt !== qe) {
-        for (const Tt of [H, ...D]) Tt.castShadow = Tt === Pt;
-        ((qe = Pt), (je = !0), (O.shadowMap.needsUpdate = !0));
-      }
+      // Le premier projecteur garde toujours l'ombre (même nombre d'ombres allumé ou éteint).
+      const Pt = mode32 ? H : null;
+      if (Pt !== qe) ((qe = Pt), (je = !0), (O.shadowMap.needsUpdate = !0));
       if (Pt) {
         const Tt = a || ((qt = n.getQuality) == null ? void 0 : qt.call(n)) === "fast" ? 512 : 1024;
         Pt.shadow.mapSize.x !== Tt &&
@@ -1644,7 +1682,8 @@ if(length(gl_PointCoord-vec2(.5))>.5)discard;`,
         headlightsActive: Ne,
         starsVisible: Ve.visible,
         starsCount: pt,
-        shadowSpotlights: [H, ...D].filter((w) => w.castShadow).length,
+        shadowSpotlights: spotMode32 ? 1 : 0,
+        spotMode: spotMode32,
         shadowSize: (qe == null ? void 0 : qe.shadow.mapSize.x) || 0,
         sunShadow: T.castShadow,
         ambient: le.intensity,
@@ -1657,7 +1696,7 @@ if(length(gl_PointCoord-vec2(.5))>.5)discard;`,
         lights: { torch: H.intensity, spill: W.intensity, headlights: D.map((w) => w.intensity) },
         materials: h.size,
         nightOccluders: p.size,
-        visibleSpots: [H, W, ...D].filter((w) => w.visible).length,
+        visibleSpots: spotMode32 ? 2 : 0,
       };
     }
     return {
@@ -10467,7 +10506,8 @@ lawnWorld20=(modelMatrix*lawnP20).xyz;`,
       g = ke.querySelector("[data-vehicle-label]"),
       G = ke.querySelector(".player20-brake");
     let Qe = null,
-      Fe = null;
+      Fe = null,
+      walk32 = !1;
     const Le = ke.querySelector(".player21-jump"),
       pt = ke.querySelector(".player21-boost"),
       Ge = {
@@ -10481,6 +10521,10 @@ lawnWorld20=(modelMatrix*lawnP20).xyz;`,
         distance: 7.2,
         blocked: null,
       },
+      // V32 : sur écran tactile, le personnage court par défaut ; le bouton « Marcher » le fait
+      // marcher (un nouvel appui le refait courir). Au clavier, Maj fait toujours courir.
+      touchRun32 = typeof matchMedia == "function" && matchMedia("(pointer:coarse)").matches,
+      cruise32 = () => touchRun32 && !walk32 && !m.record,
       m = {
         record: null,
         speed: 0,
@@ -11111,7 +11155,7 @@ lawnWorld20=(modelMatrix*lawnP20).xyz;`,
       }
       const Je = Math.hypot(J, Ze);
       Je > 1 && ((J /= Je), (Ze /= Je));
-      const ct = Ge.running || kt.has("shift") ? 5.25 : 1.85,
+      const ct = Ge.running || kt.has("shift") || cruise32() ? 5.25 : 1.85,
         gt = (-Math.sin(Ge.yaw) * J + Math.cos(Ge.yaw) * Ze) * ct,
         Gt = (-Math.cos(Ge.yaw) * J - Math.sin(Ge.yaw) * Ze) * ct,
         Ot = 1 - Math.exp(-(at.grounded ? 11 : 4.5) * f);
@@ -11274,7 +11318,7 @@ lawnWorld20=(modelMatrix*lawnP20).xyz;`,
           k.rotation.set(0, Y, se),
           H.update(f, {
             speed: ft,
-            running: Ge.running || kt.has("shift"),
+            running: Ge.running || kt.has("shift") || cruise32(),
             grounded: at.grounded,
             verticalSpeed: at.verticalSpeed,
             riding: !1,
@@ -11388,9 +11432,7 @@ lawnWorld20=(modelMatrix*lawnP20).xyz;`,
         (Le.hidden = !!m.record),
         (pt.hidden = !m.record),
         pt.classList.toggle("is-held", !!m.boost),
-        (B.querySelector("span").textContent = m.record ? "Gaz" : "Courir"),
-        B.setAttribute("aria-label", m.record ? "Maintenir pour acc\xE9l\xE9rer" : "Maintenir pour courir"),
-        (ke.querySelector(".player19-pad-label").textContent = m.record ? "CONDUIRE" : "MARCHER"),
+        runLabel32(),
         (ke.querySelector(".player19-hint strong").textContent = m.record ? (U() ? "Voiture" : "Quad") : "Promenade"),
         (ke.querySelector(".player19-desktop").textContent = m.record
           ? "Z/S : avancer / reculer \xB7 Q/D : tourner \xB7 Maj : BOOST \xB7 Espace : frein \xB7 E : descendre"
@@ -11872,14 +11914,26 @@ lawnWorld20=(modelMatrix*lawnP20).xyz;`,
     }
     for (const f of ["pointerup", "pointercancel", "lostpointercapture"]) rt.addEventListener(f, gn);
     B.addEventListener("pointerdown", (f) => {
-      Ge.enabled &&
-        (f.preventDefault(),
-        f.stopPropagation(),
-        (fe = f.pointerId),
-        B.setPointerCapture(f.pointerId),
-        (Ge.running = !0),
-        B.classList.add("is-held"));
+      if (Ge.enabled) {
+        if ((f.preventDefault(), f.stopPropagation(), touchRun32 && !m.record)) {
+          // V32 : à pied sur écran tactile, le bouton bascule entre marcher et courir.
+          ((walk32 = !walk32), runLabel32(), n.markDirty());
+          return;
+        }
+        ((fe = f.pointerId), B.setPointerCapture(f.pointerId), (Ge.running = !0), B.classList.add("is-held"));
+      }
     });
+    function runLabel32() {
+      const label = m.record ? "Gaz" : touchRun32 && !walk32 ? "Marcher" : "Courir";
+      ((B.querySelector("span").textContent = label),
+        B.setAttribute(
+          "aria-label",
+          m.record ? "Maintenir pour acc\xE9l\xE9rer" : touchRun32 ? label : "Maintenir pour courir",
+        ),
+        B.classList.toggle("is-walking32", touchRun32 && walk32 && !m.record),
+        (ke.querySelector(".player19-pad-label").textContent = m.record ? "CONDUIRE" : cruise32() ? "COURIR" : "MARCHER"));
+    }
+    runLabel32();
     function ea(f) {
       f.pointerId === fe && ((fe = null), (Ge.running = !1), B.classList.remove("is-held"));
     }
@@ -12070,7 +12124,7 @@ lawnWorld20=(modelMatrix*lawnP20).xyz;`,
         z: M.z,
         forward: Ge.forward,
         right: Ge.right,
-        running: Ge.running || kt.has("shift"),
+        running: Ge.running || kt.has("shift") || cruise32(),
         grounded: at.grounded,
         verticalSpeed: at.verticalSpeed,
         boost: m.boost,
@@ -15509,6 +15563,9 @@ lawnWorld20=(modelMatrix*lawnP20).xyz;`,
     }
     function Fn(i) {
       var d, Z, ye, nt, xt;
+      // V32 : la vue 3D n'existe qu'à l'adresse /3D et l'atelier qu'à /build ; ailleurs, les
+      // retours vers ces modes (Échap, sortie de la boule…) ramènent au personnage.
+      globalThis.MoulinV32 && !MoulinV32.modeAllowed(i) && (i = "play");
       if ((i === "editor" && ke && J(!1), !(!["orbit", "fly", "editor", "play", "globe"].includes(i) || g === i))) {
         if (
           ((d = n.beforeModeChange) == null || d.call(n, i, g),
@@ -16312,14 +16369,26 @@ lawnWorld20=(modelMatrix*lawnP20).xyz;`,
     }
     function W(ue) {
       var kt;
-      if (!ue || v.has(ue) || ((kt = ue.userData) != null && kt.globe26)) return;
-      const se = ue.onBeforeCompile,
-        Ve = ue.customProgramCacheKey,
-        vt = (Ve == null ? void 0 : Ve.call(ue)) || "",
+      if (!ue || ((kt = ue.userData) != null && kt.globe26)) return;
+      // V32 : déjà préparé et intact, rien à faire. Si un autre module a enveloppé la découpe
+      // (le mode nuit, par exemple), elle reste dans la chaîne : on l'adopte telle quelle. Si
+      // un module a remplacé son onBeforeCompile, on prépare le nouveau.
+      const done32 = v.get(ue);
+      if (done32 && (ue.onBeforeCompile !== done32.wrapped || ue.customProgramCacheKey !== done32.cacheKey)) {
+        const key32 = ue.customProgramCacheKey ? String(ue.customProgramCacheKey.call(ue)) : "";
+        key32.includes("|moulin-globe27|") && ((done32.wrapped = ue.onBeforeCompile), (done32.cacheKey = ue.customProgramCacheKey));
+      }
+      const intact32 = !!done32 && ue.onBeforeCompile === done32.wrapped && ue.customProgramCacheKey === done32.cacheKey;
+      if (intact32 && done32.rooted === k.has(ue)) return;
+      wrapped32++;
+      const se = intact32 ? done32.previous : ue.onBeforeCompile,
+        Ve = intact32 ? done32.previousKey : ue.customProgramCacheKey,
+        vt = intact32 ? done32.baseKey : (Ve == null ? void 0 : Ve.call(ue)) || "",
         me = k.has(ue),
         Re = function (M, ee) {
-          (se == null || se.call(this, M, ee),
-            Object.assign(M.uniforms, pe),
+          // La découpe n'est injectée qu'une fois, même si elle figure deux fois dans la chaîne.
+          if ((se == null || se.call(this, M, ee), M.vertexShader.includes("globeInverseProjectionView26"))) return;
+          (Object.assign(M.uniforms, pe),
             (M.vertexShader =
               `uniform mat4 globeInverseProjectionView26;varying vec3 globeWorld26;
 ` +
@@ -16354,21 +16423,36 @@ vec3 globeRoot27=(modelMatrix*vec4(instanceMatrix[3].xyz,1.)).xyz;globeRootInsid
               )));
         },
         et = () => vt + "|moulin-globe27|" + (me ? "rooted-tree" : "world");
-      (v.set(ue, { previous: se, previousKey: Ve, wrapped: Re, cacheKey: et }),
+      (v.set(ue, { previous: se, previousKey: Ve, wrapped: Re, cacheKey: et, rooted: me, baseKey: vt }),
         (ue.onBeforeCompile = Re),
         (ue.customProgramCacheKey = et),
         (ue.needsUpdate = !0));
     }
+    // V32 : tous les matériaux de la scène (pas seulement ceux du modèle d'origine : murets,
+    // herbes, objets et plantes des modules V32 aussi) reçoivent la découpe de la boule une
+    // fois pour toutes, avant leur première compilation ; l'uniforme globeClip26 l'active.
+    // Entrer dans la boule ou en sortir ne recompile donc plus rien. Un objet ajouté à la
+    // scène relance une passe avant l'image suivante ; une passe de contrôle a lieu toutes
+    // les deux secondes pour les matériaux changés en place.
+    let wrapped32 = 0,
+      sweepDirty32 = !0,
+      sweepAt32 = 0;
+    function walk32(o, fn) {
+      if (o.userData && o.userData.globe26) return;
+      fn(o);
+      const children = o.children;
+      for (let i = 0; i < children.length; i++) walk32(children[i], fn);
+    }
     function D() {
       var se;
-      if (!P) return;
-      (re.traverse((Ve) => {
+      ((sweepDirty32 = !1), (wrapped32 = 0));
+      (walk32(A, (Ve) => {
         var vt;
         if ((vt = Ve.userData) != null && vt.treeIds)
           for (const me of Array.isArray(Ve.material) ? Ve.material : [Ve.material]) me && k.add(me);
       }),
-        re.traverse((Ve) => {
-          for (const vt of Array.isArray(Ve.material) ? Ve.material : [Ve.material]) W(vt);
+        walk32(A, (Ve) => {
+          if (Ve.material) for (const vt of Array.isArray(Ve.material) ? Ve.material : [Ve.material]) W(vt);
         }));
       const ue = p();
       for (const Ve of [
@@ -16378,8 +16462,47 @@ vec3 globeRoot27=(modelMatrix*vec4(instanceMatrix[3].xyz,1.)).xyz;globeRootInsid
         ue == null ? void 0 : ue.pondDrops,
       ])
         Ve != null && Ve.material && W(Ve.material);
-      (se = n.markDirty) == null || se.call(n);
+      wrapped32 && ((se = n.markDirty) == null || se.call(n));
     }
+    if (!t.Object3D.prototype.globeSweep32) {
+      const add = t.Object3D.prototype.add;
+      ((t.Object3D.prototype.add = function () {
+        return (t.Object3D.prototype.globeSweep32(), add.apply(this, arguments));
+      }),
+        (t.Object3D.prototype.globeSweep32 = () => {}));
+    }
+    t.Object3D.prototype.globeSweep32 = () => {
+      sweepDirty32 = !0;
+    };
+    // V32 : les deux lumières de la boule existent dès le départ, hors du groupe de la boule
+    // (qui est masqué hors de l'onglet Météo), à intensité nulle en dehors de la boule de nuit :
+    // le nombre de lumières de la scène ne change donc jamais.
+    ((Xe = new t.HemisphereLight(11717370, 3165023, 0)),
+      (Xe.name = "Lumiere_de_presentation_boule"),
+      (Xe.userData.night22 = !0),
+      (Xe.userData.exportSkip = !0),
+      A.add(Xe),
+      (_t = new t.DirectionalLight(11258619, 0)),
+      (_t.name = "Clair_de_lune_boule"),
+      _t.position.set(O.x - 26, O.y + 36, O.z + 31),
+      _t.target.position.set(O.x, 1, O.z),
+      (_t.castShadow = !1),
+      (_t.userData.night22 = !0),
+      (_t.userData.exportSkip = !0),
+      A.add(_t, _t.target));
+    const beforeRender32 = A.onBeforeRender;
+    A.onBeforeRender = function () {
+      const now = performance.now();
+      if (sweepDirty32 || now > sweepAt32) {
+        sweepAt32 = now + 2e3;
+        try {
+          D();
+        } catch (error) {
+          console.error("[Moulin V32] découpe de la boule", error);
+        }
+      }
+      return beforeRender32.apply(this, arguments);
+    };
     function De(ue) {
       return (h.add(ue), ue);
     }
@@ -16738,18 +16861,7 @@ void main(){
       ((Bt.userData.night22 = !0),
         (Bt.userData.globe26 = !0),
         (Me = rt(yt, Bt, "Oiseaux_de_passage_dans_la_boule")),
-        (Me.frustumCulled = !1),
-        (Xe = new t.HemisphereLight(11717370, 3165023, 0)),
-        (Xe.name = "Lumiere_de_presentation_boule"),
-        (Xe.userData.night22 = !0),
-        z.add(Xe),
-        (_t = new t.DirectionalLight(11258619, 0)),
-        (_t.name = "Clair_de_lune_boule"),
-        _t.position.set(O.x - 26, O.y + 36, O.z + 31),
-        _t.target.position.set(O.x, 1, O.z),
-        (_t.castShadow = !1),
-        (_t.userData.night22 = !0),
-        z.add(_t, _t.target));
+        (Me.frustumCulled = !1));
     }
     function g() {
       (R.updateMatrixWorld(!0),
@@ -16828,12 +16940,8 @@ void main(){
       );
     }
     function Le() {
-      pe.globeClip26.value = 0;
-      for (const [ue, se] of v)
-        (ue.onBeforeCompile === se.wrapped && (ue.onBeforeCompile = se.previous),
-          ue.customProgramCacheKey === se.cacheKey && (ue.customProgramCacheKey = se.previousKey),
-          (ue.needsUpdate = !0));
-      v.clear();
+      // V32 : la découpe reste en place (désactivée par l'uniforme) : rien à recompiler.
+      ((pe.globeClip26.value = 0), (Xe.intensity = 0), (_t.intensity = 0));
     }
     function pt() {
       var Ve, vt, me, Re, et, kt, M, ee, ge, ae, de, oe, y, I, Be;
@@ -16974,8 +17082,7 @@ void main(){
         globe32PlaceSky(Re, xe.cover.value),
         (qe.visible = vt.mode === "stars"),
         (Xe.intensity = Re ? (vt.mode === "stars" ? 0.38 : 0.26) : 0),
-        (_t.intensity = Re ? (vt.mode === "stars" ? 0.42 : 0.26) : 0),
-        (Xe.visible = _t.visible = Re));
+        (_t.intensity = Re ? (vt.mode === "stars" ? 0.42 : 0.26) : 0));
       const ge = (Mt + 4) % 31,
         ae = (me === "sun" || me === "partly") && !Re && ge < 10;
       if (((Me.visible = ae), (He = ae ? 3 : 0), Me.geometry.setDrawRange(0, ae ? 18 : 0), ae)) {
@@ -17054,6 +17161,8 @@ void main(){
       recenter: Qe,
       setRotating: Ge,
       refreshMaterials: D,
+      /** V32 : construit la boule (cachée) pour que ses matières soient compilées d'avance. */
+      prepare: F,
       preset: G,
       getState: at,
       dispose: ft,
@@ -17448,8 +17557,10 @@ void main(){
         (oe.rotation.z = Math.sin(de) * 0.15),
         U.add(oe));
     }
+    // V32 : la lueur du coffre reste dans la scène même coffre caché (intensité nulle) : sinon
+    // son apparition ajoutait une lumière et recompilait tout le jardin.
     const H = new t.PointLight(16766087, 0, 4, 2);
-    (H.position.set(0, 0.75, 0), U.add(H));
+    (H.position.set(U.position.x, U.position.y + 0.75, U.position.z), a.add(H));
     const W = new t.Group();
     ((W.name = "Terre_excavee"), a.add(W));
     let D = "",
@@ -17665,6 +17776,7 @@ void main(){
         (!R.enabled || I.vehicle) && (ue.hidden || vt(), (rt = !1)));
       const Ie = te(le.x, le.z);
       let E = oe || Math.abs(U.position.y - Ie - 0.06) > 1e-4;
+      ((H.position.y = Ie + 0.81), U.visible || (H.intensity = 0));
       if (((U.position.y = Ie + 0.06), (je.position.y = Ie + 0.055), U.visible)) {
         const be = ke;
         ((ke = y.opened27 ? Math.min(1, ke + de * 1.6) : 0),
@@ -24541,7 +24653,7 @@ transformed.x+=sway*breezeStrength20;transformed.z+=sway*.36*breezeStrength20;`,
             Po = !0;
           },
         })),
-        v.setMode("play"),
+        v.setMode(globalThis.MoulinV32 ? MoulinV32.startMode : "play"),
         (V = MoulinInteractions25(a, { root: T, model: Xe, player: k, props: h, camera: ko, renderer: xo })),
         (ce = MoulinAdventure24(a, {
           root: T,
@@ -24607,6 +24719,9 @@ transformed.x+=sway*breezeStrength20;transformed.z+=sway*.36*breezeStrength20;`,
           var e;
           return (e = te.yield) == null ? void 0 : e.call(te);
         }),
+        // V32 : la boule prépare ses matériaux avant la première image (aucune recompilation
+        // à l'entrée dans l'onglet Météo).
+        Or(),
         Vi(),
         (R = te.finish) == null || R.call(te),
         xo.domElement.addEventListener("webglcontextlost", (e) => {

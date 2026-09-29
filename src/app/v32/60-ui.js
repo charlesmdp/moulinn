@@ -1,9 +1,9 @@
 // Moulin V32 — habillage de l'interface.
 //
 // Même organisation que la V31 (les boutons et leurs fonctions ne changent pas) mais
-// une présentation plus légère : carte « Saint-Christophe » en haut à gauche, onglets
-// réunis dans une pilule claire au centre, réglages à droite, aide et zoom en verre
-// fumé en bas. Tout le style est dans src/styles/v32.css (classe .v32 sur la racine).
+// une présentation plus légère : onglets réunis dans une pilule claire au centre,
+// réglages à droite, aide et zoom en verre fumé en bas. Tout le style est dans
+// src/styles/v32.css (classe .v32 sur la racine).
 (function () {
   "use strict";
   const V32 = globalThis.MoulinV32;
@@ -15,14 +15,13 @@
       const root = hooks.root;
       root.classList.add("v32");
 
-      const toolbar = root.querySelector(".moulin-toolbar");
-      if (toolbar && !toolbar.querySelector(".v32-brand")) {
-        const brand = document.createElement("div");
-        brand.className = "v32-brand";
-        brand.innerHTML =
-          '<span class="v32-mark" aria-hidden="true">M</span><span class="v32-brand-text"><strong>Saint-Christophe</strong><span>Le moulin · votre jardin vivant</span></span>';
-        toolbar.prepend(brand);
-      }
+      // Plus de carte « Saint-Christophe » en haut à gauche : les onglets suffisent.
+      root.querySelector(".moulin-toolbar .v32-brand")?.remove();
+
+      // Vue 3D et atelier « Aménager » ne sont proposés qu'aux adresses /3D et /build (la page
+      // générée pour chaque adresse n'a déjà que ses boutons ; ceci couvre les autres cas).
+      for (const mode of ["orbit", "editor"])
+        if (!V32.modeAllowed(mode)) root.querySelector('.mode-switch [data-mode="' + mode + '"]')?.remove();
 
       // Pictogrammes au trait pour les actions de droite.
       const settings = root.querySelector("[data-ui-settings] > span[aria-hidden]");
@@ -77,7 +76,7 @@
           document.body.appendChild(veil);
           requestAnimationFrame(() => {
             veil.classList.add("is-on");
-            setTimeout(() => location.assign(new URL("jeu/", location.href).href), 180);
+            setTimeout(() => location.assign(new URL("jeu/", document.baseURI).href), 180);
           });
         });
       }
