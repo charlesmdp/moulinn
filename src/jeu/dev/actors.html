@@ -20,6 +20,7 @@
   #portraits .chip.light { background: #f6efdc; color: #2b2317; }
   #portraits .chip svg { width: 34px; height: 34px; display: block; }
   #portraits .chip.small svg { width: 28px; height: 28px; }
+  @media (max-width: 700px) { #portraits { gap: 3px; } #portraits .chip span { display: none; } #portraits .chip svg { width: 28px; height: 28px; } #stats { white-space: pre-wrap; } }
   .label { position: fixed; transform: translate(-50%, -100%); font-size: 11px; font-weight: 600; color: #fff; text-shadow: 0 1px 2px #000, 0 0 4px #000; pointer-events: none; white-space: nowrap; }
   .label.elite { color: var(--accent); }
   body.clean #ui, body.clean .label, body.clean #portraits { display: none; }

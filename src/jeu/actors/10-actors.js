@@ -488,7 +488,7 @@
       const t0 = k.tris;
       k.defaultBone = "p_sack";
       const sp = spec.sack.pos;
-      PTMT.gfx.addSack(k, { bone: "p_sack", pos: sp, rot: spec.sack.rot || ZERO3, scale: spec.sack.scale || 1 });
+      A.buildSack(k, { bone: "p_sack", pos: sp, rot: spec.sack.rot || ZERO3, scale: spec.sack.scale || 1 });
       props.sack = k.tris - t0;
     }
     k.defaultBone = "root";
@@ -574,13 +574,13 @@
   A.ARM_POSES = ARM;
   // Démarches : longueur de cycle (m), amplitude des jambes, genoux, rebond, bras, penchée, roulis…
   const GAIT = {
-    walk: { stride: 1.15, leg: 0.6, knee: 0.95, bob: 0.08, arm: 0.65, fore: 0.35, lean: 0.12, roll: 0.06, twist: 0.12 },
-    sneak: { stride: 1.25, leg: 0.62, knee: 1.55, bob: 0.1, arm: 0.12, fore: 0.1, lean: 0.34, roll: 0.07, twist: 0.1, crouch: 0.06 },
-    jog: { stride: 1.45, leg: 0.8, knee: 1.35, bob: 0.1, arm: 0.9, fore: 1.25, lean: 0.24, roll: 0.05, twist: 0.16 },
-    run: { stride: 1.75, leg: 0.95, knee: 1.55, bob: 0.13, arm: 1.15, fore: 1.45, lean: 0.3, roll: 0.05, twist: 0.2 },
-    heavy: { stride: 0.8, leg: 0.42, knee: 0.6, bob: 0.05, arm: 0.3, fore: 0.3, lean: 0.1, roll: 0.13, twist: 0.06 },
-    skate: { stride: 2.6, leg: 0.22, knee: 0.45, bob: 0.03, arm: 0.95, fore: 0.3, lean: 0.34, roll: 0.14, twist: 0.26, skate: 1 },
-    waddle: { stride: 0.85, leg: 0.48, knee: 1.05, bob: 0.07, arm: 0.3, fore: 0.3, lean: 0.0, roll: 0.17, twist: 0.05, flap: 1 },
+    walk: { stride: 1.15, leg: 0.6, knee: 0.95, bob: 0.08, arm: 0.65, fore: 0.35, lean: 0.12, roll: 0.06, twist: 0.12, hop: 0.05 },
+    sneak: { stride: 1.25, leg: 0.62, knee: 1.55, bob: 0.1, arm: 0.12, fore: 0.1, lean: 0.34, roll: 0.07, twist: 0.1, crouch: 0.06, hop: 0.06 },
+    jog: { stride: 1.45, leg: 0.8, knee: 1.35, bob: 0.1, arm: 0.9, fore: 1.25, lean: 0.24, roll: 0.05, twist: 0.16, hop: 0.07 },
+    run: { stride: 1.75, leg: 0.95, knee: 1.55, bob: 0.13, arm: 1.15, fore: 1.45, lean: 0.3, roll: 0.05, twist: 0.2, hop: 0.09 },
+    heavy: { stride: 0.8, leg: 0.42, knee: 0.6, bob: 0.05, arm: 0.3, fore: 0.3, lean: 0.1, roll: 0.13, twist: 0.06, hop: 0.02 },
+    skate: { stride: 2.6, leg: 0.22, knee: 0.45, bob: 0.03, arm: 0.95, fore: 0.3, lean: 0.34, roll: 0.14, twist: 0.26, skate: 1, hop: 0, squash: 0.3 },
+    waddle: { stride: 0.85, leg: 0.48, knee: 1.05, bob: 0.07, arm: 0.3, fore: 0.3, lean: 0.0, roll: 0.17, twist: 0.05, flap: 1, hop: 0.06 },
     drive: { stride: 1.2, leg: 0, knee: 0, bob: 0, arm: 0, fore: 0, lean: 0, roll: 0, twist: 0 },
   };
   A.GAITS = GAIT;
@@ -610,9 +610,13 @@
       this.type = tpl.type;
       this.elite = tpl.elite;
       this.label = tpl.spec.label;
-      this.height = tpl.spec.height;
       this.dims = tpl.spec.dims;
       this.scale = tpl.spec.scale || 1;
+      /** Sommet (m) : sert à placer la barre de vie ; monte avec le sac tenu au-dessus de la tête. */
+      this.baseHeight = tpl.spec.height;
+      this.height = this.baseHeight;
+      const sk = tpl.spec.sack;
+      this.carryLift = sk && (sk.parent === "body" || sk.parent === "p_mattress") ? Math.max(0, (sk.pos[1] + 0.82 * (sk.scale || 1)) * this.scale + 0.05 - this.baseHeight) : 0;
       /** Vitesse (m/s) de démonstration (galerie) : celle du jeu pour ce type. */
       this.naturalSpeed = tpl.spec.motion.natural;
       this.gait = Object.assign({}, GAIT[tpl.spec.motion.gait || "walk"], tpl.spec.motion.gaitOver || null);
@@ -687,6 +691,7 @@
       const w = this.w;
       for (const k of ["carry", "frozen", "wet", "burn", "net", "lure", "ghost", "heat", "boost", "water", "armL", "armR", "flash", "lean", "move", "diss", "steal", "scared"]) w[k] = 0;
       this.prev = { carrying: false, hitFlash: 0 };
+      this.height = this.baseHeight;
       this.react = null;
       this.reactT = 0;
       this.finished = false;
@@ -852,6 +857,7 @@
       w.move = smooth(w.move, moving ? 1 : 0, dt, 7);
       w.steal = smooth(w.steal, s.stealing && !moving ? 1 : 0, dt, 8);
       w.flash = Math.max(hf, react === "hit" ? Math.max(0, 1 - rt / REACT.hit) * 0.8 : 0);
+      this.height = this.baseHeight + this.carryLift * w.carry;
       if (s.carrying && !this.prev.carrying) this.sackPop = 0;
       this.sackPop = Math.min(1, this.sackPop + dt / 0.35);
       this.prev.carrying = !!s.carrying;
@@ -1137,12 +1143,12 @@
       if (mo.swims && !mo.boat) y += w.water * (this.spec.swimY + Math.sin(t * 2.6 + this.id) * 0.04);
       else if (mo.boat) y += w.water * this.spec.boatY;
       else if (!mo.vehicle) y += w.water * -0.42;
-      // démarches : petit bond rebondi (dessin animé)
-      if (moving && !mo.vehicle && !(mo.swims && inWater)) {
-        const hop = Math.abs(Math.sin(ph)) * (this.gait.hop || 0);
-        y += hop;
-        const sq = Math.cos(ph * 2);
-        sy *= 1 + sq * 0.025; sx *= 1 - sq * 0.02;
+      // démarches : petit bond à chaque pas (en l'air au passage des jambes, écrasé au contact)
+      if (!mo.vehicle && !(mo.swims && inWater) && w.move > 0.01) {
+        const g = this.gait, up = Math.abs(Math.cos(ph)), k = w.move * (g.squash === undefined ? 1 : g.squash);
+        y += up * (g.hop || 0) * w.move;
+        sy *= 1 + (up - 0.5) * 0.07 * k;
+        sx *= 1 - (up - 0.5) * 0.045 * k;
       }
       // véhicule : cahots, vibration en surchauffe
       if (mo.vehicle) {

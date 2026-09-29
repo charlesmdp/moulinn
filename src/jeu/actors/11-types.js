@@ -405,7 +405,7 @@
     eliteLabel: "Patineur du dimanche",
     elite: {
       look: { shirt: 0x9b4dff, pants: 0x1fc9b4, pantsLen: 0.45 },
-      motion: { gait: "skate", natural: 2.9 },
+      motion: { gait: "skate", natural: 2.9, skate: 1 },
       scale: 0.97,
       height: 2.38,
       hatH: 0.14,
@@ -590,7 +590,7 @@
     mood: "sad",
     scale: 0.96,
     motion: { gait: "waddle", natural: 1.62, moveArms: "waist", idleArms: "waist", swims: 1 },
-    sack: { parent: "p_float", pos: [0, 0.84, -0.64], scale: 1.2, hold: "waist" },
+    sack: { parent: "p_float", pos: [-0.6, 0.84, 0.12], scale: 1.2, hold: "waist" },
     swimY: -0.36,
     dims: { w: 1.5, h: 2.3, d: 1.5 },
     height: 2.28,
@@ -836,6 +836,40 @@
     for (let i = 0; i < 5; i++) k.add(G.cone(0.06, 0.24, 6), { pos: [-0.52 + i * 0.26, 0.56, fz + 0.18], rot: [Math.PI / 2, 0, 0], color: 0xd6dade, mat: 3, outline: false });
     k.add(G.box(0.94, 0.08, 0.05), { pos: [0, 1.22, fz - 0.07], color: plate, mat: 3, outline: false });
   }
+
+  // ---------------------------------------------------------------------------------------------
+  // Sac de trésor porté : même sac doré que le sac tombé, mais lisible d'avion (haut froncé doré,
+  // ruban rouge, pièces qui dépassent ; pas de contour sur les petites pièces). Origine : fond du sac.
+  // ---------------------------------------------------------------------------------------------
+  A.buildSack = function (k, opt) {
+    const s = opt.scale || 1, bone = opt.bone;
+    const base = new THREE.Matrix4().compose(
+      new THREE.Vector3().fromArray(opt.pos || [0, 0, 0]),
+      new THREE.Quaternion().setFromEuler(new THREE.Euler((opt.rot || [0, 0, 0])[0], (opt.rot || [0, 0, 0])[1], (opt.rot || [0, 0, 0])[2])),
+      new THREE.Vector3(s, s, s),
+    );
+    const put = (geo, color, mat, x, y, z, rx, ry, rz, sx, sy, sz, extra) => {
+      const m = new THREE.Matrix4().compose(new THREE.Vector3(x, y, z), new THREE.Quaternion().setFromEuler(new THREE.Euler(rx || 0, ry || 0, rz || 0)), new THREE.Vector3(sx || 1, sy || sx || 1, sz || sx || 1));
+      k.add(geo, Object.assign({ matrix: new THREE.Matrix4().multiplyMatrices(base, m), color, mat, bone }, extra || {}));
+    };
+    const MAT = PTMT.gfx.MAT;
+    // corps ventru, col serré, haut froncé
+    put(G.lathe("sack", [[0.0, 0.0], [0.2, 0.02], [0.32, 0.12], [0.36, 0.26], [0.34, 0.4], [0.25, 0.52], [0.13, 0.6], [0.1, 0.63]], 12), 0xeea01a, MAT.gold, 0, 0, 0, 0, 0.2, 0, 1, 1, 0.94, { jitter: 0.03, seed: 11, outline: true });
+    put(G.lathe("sackTop", [[0.09, 0.62], [0.15, 0.68], [0.22, 0.76], [0.2, 0.79], [0.12, 0.77], [0.001, 0.72]], 10), 0xf7b52a, MAT.gold, 0, 0, 0, 0, 0, 0, 1, 1, 1, { jitter: 0.02, seed: 5, outline: true });
+    // ruban rouge noué
+    put(G.torus(0.11, 0.032, 5, 12), 0xe0262c, MAT.gloss || 2, 0, 0.625, 0, Math.PI / 2, 0, 0, 1, 1, 1, { outline: false });
+    put(G.torus(0.06, 0.022, 4, 8), 0xe0262c, 2, 0.1, 0.64, 0.1, 0.4, 0.8, 0.3, 1, 1, 1, { outline: false });
+    put(G.torus(0.06, 0.022, 4, 8), 0xe0262c, 2, -0.02, 0.64, 0.14, -0.3, -0.6, -0.2, 1, 1, 1, { outline: false });
+    // pièces qui dépassent
+    const coin = G.cyl(0.075, 0.075, 0.02, 10);
+    put(coin, 0xffe066, MAT.gold, 0.04, 0.8, 0.02, 0.5, 0, 0.3, 1, 1, 1, { outline: false });
+    put(coin, 0xffd23a, MAT.gold, -0.07, 0.79, -0.04, -0.4, 0, -0.5, 1, 1, 1, { outline: false });
+    // écusson « $ »
+    put(G.cyl(0.13, 0.13, 0.03, 12), 0xffe27a, MAT.gold, 0, 0.27, 0.315, Math.PI / 2, 0, 0, 1, 1, 1, { outline: false });
+    put(G.torus(0.045, 0.014, 4, 8, Math.PI * 1.3), 0x9a5c06, MAT.gold, 0, 0.3, 0.335, 0, 0, 0.6, 1, 1, 1, { outline: false });
+    put(G.torus(0.045, 0.014, 4, 8, Math.PI * 1.3), 0x9a5c06, MAT.gold, 0, 0.24, 0.335, 0, 0, 0.6 + Math.PI, 1, 1, 1, { outline: false });
+    put(G.box(0.018, 0.19, 0.012), 0x9a5c06, MAT.gold, 0, 0.27, 0.338, 0, 0, 0, 1, 1, 1, { outline: false });
+  };
 
   // ---------------------------------------------------------------------------------------------
   // Assemblage d'une variante (type + élite éventuel)

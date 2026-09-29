@@ -10,7 +10,6 @@
     geometry: "../assets/geometry.dee3e21d6384.bin.gz",
     mill: "../assets/td-moulin.35fdce48df0e.glb.gz",
     dependance: "../assets/td-dependance.9b97687f855f.glb.gz",
-    avatar: "../assets/visitor.0ad88b8a340a.glb.gz",
   };
   const root = document.getElementById("ptmt");
   const loading = root.querySelector("[data-loading]");
@@ -58,7 +57,7 @@
     return;
   }
   let done = 0;
-  const total = 8;
+  const total = 7;
   function step(label) {
     done++;
     bar.style.width = Math.min(100, 6 + (done / total) * 94) + "%";
@@ -106,7 +105,9 @@
       await script(A.game);
       step("Règles du jeu chargées");
     })();
-    const [plan, geometry, mill, dependance, avatar] = await Promise.all([get(A.plan, "json"), get(A.geometry), get(A.mill), get(A.dependance), get(A.avatar), libs]);
+    // Les voleurs sont entièrement procéduraux : plus de personnage à télécharger (avatar: null).
+    const [plan, geometry, mill, dependance] = await Promise.all([get(A.plan, "json"), get(A.geometry), get(A.mill), get(A.dependance), libs]);
+    const avatar = null;
     detail.textContent = "Préparation du domaine…";
     const base = new URL("../", location.href).href;
     await window.PTMT.main.start({ root, canvas, gl, mobile, plan, geometry, mill, dependance, avatar, base, loading });
