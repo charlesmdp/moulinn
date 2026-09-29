@@ -16009,7 +16009,9 @@ lawnWorld20=(modelMatrix*lawnP20).xyz;`,
             const v32 = file && file.v32 && globalThis.MoulinV32 && MoulinV32.importEdits32 ? MoulinV32.importEdits32(file.v32) : null;
             v32 &&
               ne(
-                "Les objets, les arbres, le relief, les sentiers et les berges ont \xE9t\xE9 restaur\xE9s." +
+                ("sousBois" in v32
+                  ? "Les objets, les arbres, le relief, les sentiers, les berges et le sous-bois ont \xE9t\xE9 restaur\xE9s."
+                  : "Les objets, les arbres, le relief, les sentiers et les berges ont \xE9t\xE9 restaur\xE9s.") +
                   (v32.reliefIGN ? " Le recalage IGN s’appliquera au prochain chargement." : ""),
               );
           } catch (Z) {
