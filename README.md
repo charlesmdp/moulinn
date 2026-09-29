@@ -2,10 +2,101 @@
 
 Le jardin interactif 3D du moulin, **version 32** : le moulin, la dépendance,
 les jardins, l'eau, les véhicules, les animaux, l'aménagement et les commandes
-tactiles, avec la météo et l'heure réelles.
+tactiles, avec la météo et l'heure réelles. L'onglet **Jeu** ouvre
+« Pas touche à mes trésors », un tower defense dans le domaine du moulin
+(adresse `/jeu/`).
 
 Le dossier `dist/` est le site prêt à publier (Cloudflare Pages ou tout
 hébergement statique en HTTPS). Les sources modifiables sont dans `src/`.
+
+## Dernières retouches
+
+- **L'eau coule dans le bon sens** : du ruisseau du sud-ouest au grand étang,
+  puis par le bief jusqu'au moulin et vers la rivière de l'est. Rides, écume,
+  chutes et roue à aubes suivent ce sens ; les niveaux d'eau et les lits ont
+  été recalés, sans toucher à la maison, au carport, aux passerelles ni à la
+  vanne. Le long du carport, le bief est encaissé entre deux murets de granit
+  en pierres sèches.
+- **Véranda de plain-pied** : le jardin devant la véranda est au niveau de son
+  plancher ; le bief passe dessous dans une buse, avec une tête en pierres
+  sèches à chaque bout.
+- **Allée sans murets** : l'allée principale n'est bordée que de talus ; les
+  murets de l'entrée du moulin restent.
+- **Pierres sèches et rocaille** : murets, piliers du portail, mur de
+  soutènement et murs du bief montés pierre à pierre (chaperons moussus,
+  valériane et fougères dans les joints) ; marches de granit dans l'escalier de
+  la rocaille ; talus de rocaille avec une niche voûtée en pierres sèches (à la
+  place de l'ancienne fontaine), blocs de granit, hostas, hortensia,
+  rhododendron et camélia fleuri.
+- **Petits objets partout** : pots et jardinières, lanternes allumées le soir,
+  tas de bois et billot, outils, récupérateur d'eau, dévidoir, vélo, bancs,
+  brouette, arrosoirs, pas japonais, mangeoire, nichoir, boîte aux lettres,
+  feuilles mortes.
+- **Collines dégagées** : 164 arbres retirés des pentes ouvertes et des champs
+  d'après la couverture du sol réelle (ESA WorldCover) ; la forêt ne monte plus
+  jusqu'aux champs du haut, quelques bosquets et haies restent.
+- **Bruine et ciel couvert** : la bruine se voit dans la scène (fines stries et
+  brume) et dans la boule à neige ; par temps couvert, toute la boule se
+  remplit de nuages.
+- **Lampe torche** : tenue dans la main droite, bras tendu, le faisceau part de
+  la lentille.
+- **Téléphone** : plus de touche « E » ; les bulles « Monter » (quad) et
+  « Lire » (panneaux) se touchent du doigt.
+- **Atelier › Relief › Berges** : pinceaux « Gommer » et « Ajouter » pour
+  retirer ou poser des berges (terre, roseaux, carex, iris, pierres) ; les
+  gestes sont gardés dans le navigateur, avec « Annuler » et « Tout rétablir ».
+- **Atelier › Relief › Relief réel (IGN RGE ALTI)** : mesure depuis le
+  navigateur l'altitude IGN d'environ 400 points (le zéro est la surface du
+  grand étang), affiche les écarts point par point et peut recaler le relief en
+  douceur au chargement suivant, loin de la maison et de l'eau, avec un écart
+  borné à ± 6 m.
+
+## Le jeu « Pas touche à mes trésors »
+
+Onglet **Jeu** de la barre des modes, ou adresse `/jeu/`. Des voleurs
+farfelus viennent prendre les six trésors cachés dans le moulin et ses
+dépendances : tours, pièges et sorts les arrêtent avant qu'ils ne repartent
+avec leur sac. Un voleur mis KO lâche son butin, que l'on peut reprendre ; le
+sort Rappel le ramène, et un sac tombé à l'eau flotte.
+
+- **Cinq niveaux** : Bienvenue chez moi (10 vagues), Le domaine coupé en deux
+  (12), Les trois mauvaises portes (15), Les pirates du pédalo (15), Le grand
+  cambriolage (20). Chaque niveau gagné peut continuer sans fin.
+- **Trois familles de tours**, chacune avec deux branches d'évolution :
+  - Feu : Brasier grognon → Souffle infernal → Dragon de la fournaise, ou
+    Crache-lave → Volcan furieux ;
+  - Glace : Obélisque givré → Crypte du gel → Trône du zéro absolu, ou
+    Souffleur de blizzard → Tempête polaire ;
+  - Eau : Gargouille cracheuse → Bélier hydraulique → Canon tsunami, ou
+    Fontaine siphon → Maelström glouton.
+
+  Les socles de pierre accueillent le feu, les cercles de runes la glace, les
+  berges et conduites l'eau. Les tours gagnent de l'expérience ; faire évoluer
+  une tour demande l'Atelier.
+- **Pièges** : filet entre les arbres, ressort farceur, faux coffre.
+- **Sorts** (mana) : Météore et Rappel dès le niveau 1, Gel instantané au
+  niveau 2, Vague de crue au 3, Frénésie au 4.
+- **Onglet Moulin** : Meule, Roue magique et Atelier ; talents entre les
+  niveaux.
+- **Voleurs** : voleur du dimanche, sprinteur en claquettes, déménageur en
+  matelas, voleur au fumigène, nageur en flamant rose, chef en tondeuse blindée,
+  et leurs versions d'élite.
+- **Étoiles** : trois sans aucun vol, deux sans perte définitive.
+
+Commandes :
+
+| | Ordinateur | Téléphone et tablette |
+| --- | --- | --- |
+| Déplacer la vue | glisser, ou ZQSD / WASD / flèches | glisser un doigt |
+| Zoomer | molette, `+` et `-` | pincer |
+| Tourner | clic droit ou Maj + glisser | tourner deux doigts |
+| Construire | choisir une tour ou un piège en bas, puis cliquer un support | pareil, en touchant |
+| Pause, vitesse ×2 | Espace ou P, F | boutons en haut à droite |
+| Lancer la vague | Entrée | « Lancer la vague » |
+| Sorts | touches 1 à 5 | onglet Sorts |
+
+La progression (étoiles, talents, records) reste dans le navigateur ; une
+partie se reprend entre deux vagues.
 
 ## Nouveautés de la version 32
 
@@ -32,7 +123,7 @@ hébergement statique en HTTPS). Les sources modifiables sont dans `src/`.
   30 m au-delà de la véranda ; ailleurs, l'eau coule plus bas que la prairie,
   dans un lit plus profond bordé de légers fossés, de roseaux, carex, iris,
   reine-des-prés, salicaires, fougères et pierres.
-- **Arbres détaillés** : les 1 260 arbres ne sont plus des volumes à facettes.
+- **Arbres détaillés** : les arbres ne sont plus des volumes à facettes.
   Chênes au tronc évasé et aux charpentières noueuses, vieux chênes étalés, pins
   sylvestres au fût orangé et jeunes pins en étages, bouleaux blancs aux rameaux
   retombants : écorces en relief, couronnes faites de milliers de bouquets de
@@ -43,8 +134,7 @@ hébergement statique en HTTPS). Les sources modifiables sont dans `src/`.
   osciller les branches et frémir les feuilles.
 - **Nature plus réaliste** : vent à l'échelle réelle (les arbres oscillent
   sans à-coups ni ralentissement, même en tempête), pelouse aux teintes
-  naturelles, murs en moellons avec leurs joints, ardoises gris-bleu. La
-  véranda repose sur son soubassement.
+  naturelles, murs en moellons avec leurs joints, ardoises gris-bleu.
 - **Lumières du moulin** : allumées au crépuscule, éteintes à 23 h 30.
 - **Quad** redessiné (carénages, garde-boue, porte-bagages, pneus à crampons) :
   il laisse des traces dans l'herbe, de la boue sous la pluie et des ornières
@@ -136,9 +226,11 @@ besoin d'un serveur HTTP ou HTTPS.
 | `src/app/v32/` | Modules de la version 32, chargés avant le jeu (voir ci-dessous) |
 | `src/styles/base.css` | Styles de la version 31 |
 | `src/styles/v32.css` | Habillage de la version 32 (ordinateur et téléphone) |
+| `src/jeu/` | Jeu « Pas touche à mes trésors » (page `/jeu/`, voir plus bas) |
 | `src/static/` | Ressources recopiées telles quelles (modèles, textures, sons, `_headers`) |
 | `scripts/build.mjs` | Construction de `dist/` avec esbuild |
 | `scripts/serve.mjs` | Petit serveur local |
+| `tests/` | Vérifications de la simulation du jeu (`npm test`) |
 
 Modules de la version 32 (`src/app/v32/`, chargés dans l'ordre des noms) :
 
@@ -170,6 +262,26 @@ Modules de la version 32 (`src/app/v32/`, chargés dans l'ordre des noms) :
 | `75-rockery.js` | Rocaille du talus : niche voûtée, blocs de granit, hostas, camélia fleuri |
 | `76-details.js` | Petits objets du jardin (pots, lanternes, bûches, outils, vélo…) |
 
+Jeu « Pas touche à mes trésors » (`src/jeu/`, réuni en un seul script dans cet
+ordre) :
+
+| Emplacement | Rôle |
+| --- | --- |
+| `core/` | Socle commun (espace de noms, unités, couleurs, matières) |
+| `sim/` | Simulation sans rendu : équilibrage (`00-config.js`), niveaux, trajets, vagues, talents, partie, progression |
+| `models/` | Modèles 3D procéduraux : tours, pièges, socles, coffres, bâtiments, améliorations du moulin |
+| `fx/` | Effets feu, glace et eau, zones, objets d'effets |
+| `actors/` | Voleurs animés (six types et leurs élites) et leurs états visibles |
+| `render/` | Terrain, eau et décor des niveaux, entités, caméra |
+| `ui/` | Interface, pictogrammes, écrans (menu, talents, résultats) |
+| `main.js` | Application : rendu, boucle de jeu, niveaux, sauvegardes |
+| `index.html`, `boot.js`, `jeu.css` | Page, chargement et styles |
+| `vendor/` | Chargeurs three.js (GLTFLoader, SkeletonUtils, BufferGeometryUtils) |
+| `dev/` | Pages d'essai des modèles, personnages et effets (non publiées) |
+
+`npm test` rejoue la simulation : règles des tours, pièges, sorts, trésors,
+sauvegardes, talents, et un joueur automatique qui doit gagner chaque niveau.
+
 Après une modification :
 
 ```sh
@@ -185,7 +297,7 @@ Modifier seulement `src/` ne met pas à jour le jeu publié : enregistre les
 sources et le dossier `dist/` reconstruit dans le même commit.
 
 ```sh
-git add src scripts dist package.json package-lock.json README.md
+git add src scripts tests dist package.json package-lock.json README.md
 git commit -m "Mettre à jour le jardin"
 git push origin main
 ```

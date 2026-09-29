@@ -1,5 +1,5 @@
 MOULIN DE SAINT CHRISTOPHE — VERSION CLOUDFLARE PAGES
-Export web du 28 septembre 2026, version 32 du jardin.
+Export web du 29 septembre 2026, version 32 du jardin.
 
 NOUVEAUTES V32
 Rendu net sur téléphone et interface de jeu. Heure réelle : soleil, lune et
@@ -11,6 +11,25 @@ ardoises, arbres détaillés (chênes, vieux chênes, pins, bouleaux : écorces,
 branches et feuillages réalistes, allégés au loin), traces de quad qui
 s'effacent, oiseaux modelés. Atelier en quatre onglets avec les chemins
 taillés dans la pente.
+
+DERNIERES RETOUCHES
+L'eau coule dans le bon sens (sud-ouest, grand étang, bief, moulin, est),
+avec le bief encaissé entre deux murets de granit le long du carport. Véranda
+de plain-pied avec le jardin, le bief passant dessous en buse. Allée
+principale sans murets. Murets, piliers et murs du bief en pierres sèches,
+rocaille avec niche voûtée, marches de granit et petits objets dans tout le
+jardin. Collines dégagées d'après la couverture du sol réelle. Bruine visible
+et boule à neige remplie de nuages par temps couvert. Lampe torche tenue en
+main. Sur téléphone, bulles « Monter » et « Lire » sans touche E. Atelier :
+gommer ou ajouter des berges, comparer et recaler le relief sur l'IGN.
+
+LE JEU « PAS TOUCHE A MES TRESORS »
+L'onglet Jeu (ou l'adresse /jeu/ du site) ouvre un tower defense dans le
+domaine du moulin : cinq niveaux, tours de feu, de glace et d'eau qui
+évoluent, pièges, sorts, améliorations du moulin et talents. Sur ordinateur :
+glisser pour déplacer la vue, molette pour zoomer, Espace pour la pause,
+Entrée pour lancer la vague. Sur téléphone : un doigt pour glisser, deux
+pour zoomer et tourner. La progression reste dans le navigateur.
 
 LE LIEU DU MOULIN
 Le jeu est réglé sur le Moulin de Saint-Christophe, 56250 Elven. Un autre
