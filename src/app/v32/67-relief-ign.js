@@ -56,8 +56,28 @@
     };
   }
 
+  /** Recalage relu d'un fichier importé : structure vérifiée, écarts bornés. */
+  function sanitize(data) {
+    if (!data || typeof data !== "object" || data.apply !== true || !Array.isArray(data.samples)) return null;
+    const samples = data.samples
+      .filter((s) => s && Number.isFinite(s.x) && Number.isFinite(s.z) && Math.abs(s.x) < 5000 && Math.abs(s.z) < 5000)
+      .slice(0, 2000)
+      .map((s) => ({ x: s.x, z: s.z, d: Number.isFinite(s.d) ? Math.max(-50, Math.min(50, s.d)) : null, water: !!s.water }));
+    if (!samples.length) return null;
+    return { apply: true, samples, zero: Number.isFinite(data.zero) ? data.zero : null, date: typeof data.date === "string" ? data.date.slice(0, 40) : "" };
+  }
+
   V32.reliefIGN = {
     toLonLat,
+    /** Remplace le recalage enregistré (import du fichier « mes retouches ») ; appliqué au prochain chargement. */
+    load(data) {
+      const had = !!V32.store.get(KEY, null);
+      const clean = sanitize(data);
+      V32.store.set(KEY, clean);
+      if (this.onChange) this.onChange(clean, had);
+      return !!clean;
+    },
+    onChange: null,
     /** Appelé par le jeu pendant la construction du relief (après les niveaux d'eau). */
     reshape({ positions, grid, water, bounds }) {
       const stored = V32.store.get(KEY, null);
@@ -233,6 +253,15 @@
         status.textContent = "Recalage retiré : le relief d’origine revient au prochain chargement.";
         hooks.invalidate();
       });
+      V32.reliefIGN.onChange = (clean, had) => {
+        if (!clean && !had) return;
+        clearButton.disabled = !clean;
+        for (const child of [...markers.children]) markers.remove(child);
+        status.textContent = clean
+          ? "Recalage importé (" + clean.samples.length + " points" + (clean.date ? ", " + clean.date : "") + ") : il sera appliqué au prochain chargement de la page."
+          : "Recalage retiré : le relief d’origine revient au prochain chargement.";
+        hooks.invalidate();
+      };
       return {
         update() {
           const visible = hooks.getMode() === "editor";

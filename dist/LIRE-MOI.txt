@@ -64,6 +64,7 @@ L'hébergement du jeu ne synchronise pas les sauvegardes. Elles sont stockées
 sur chaque navigateur et chaque adresse de site. Avant de changer d'appareil
 ou de passer de l'ancienne adresse à Cloudflare, utilisez l'export des
 retouches dans l'éditeur, puis importez ce fichier sur la nouvelle adresse.
+Le fichier emporte aussi les berges gommées ou ajoutées et le recalage IGN.
 
 MISES A JOUR
 Dans le même projet Cloudflare, utilisez Create a new deployment, choisissez

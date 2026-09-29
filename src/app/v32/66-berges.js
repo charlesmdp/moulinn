@@ -23,6 +23,15 @@
   };
   const icon = (name, size = 20) =>
     `<svg viewBox="0 0 24 24" width="${size}" height="${size}" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICON[name]}</svg>`;
+  // Gestes relus (stockage local ou fichier importé) : on ne garde que des gestes valides.
+  const finite = (v) => typeof v === "number" && Number.isFinite(v);
+  const sanitize = (list) =>
+    Array.isArray(list)
+      ? list
+          .filter((s) => s && (s.m === "erase" || s.m === "add") && finite(s.x) && finite(s.z) && Math.abs(s.x) < 5000 && Math.abs(s.z) < 5000 && finite(s.r) && s.r >= 0.5 && s.r <= 12)
+          .slice(0, 4000)
+          .map((s) => ({ m: s.m, x: s.x, z: s.z, r: s.r, s: finite(s.s) ? s.s | 0 : 1 }))
+      : [];
 
   V32.register(
     "berges",
@@ -59,8 +68,7 @@
       const navigateBox = root.querySelector("[data-editor-navigate]");
 
       // --- État : gestes enregistrés ---------------------------------------------------
-      let strokes = V32.store.get(KEY, []);
-      if (!Array.isArray(strokes)) strokes = [];
+      let strokes = sanitize(V32.store.get(KEY, []));
       const state = { mode: null, navigateBefore: false, applied: 0, pending: strokes.length > 0 };
 
       // Originaux pour tout rétablir : matrices d'instances et index des lots fusionnés.
@@ -423,6 +431,15 @@
           return count;
         },
         reset: () => resetButton.click(),
+        /** Remplace tous les gestes (import du fichier « mes retouches »). */
+        load(list) {
+          strokes = sanitize(list);
+          save();
+          if (state.located) replay();
+          else state.pending = true;
+          status.textContent = strokes.length ? strokes.length + " geste(s) gardé(s)." : "Aucun geste.";
+          return strokes.length;
+        },
         get strokes() {
           return strokes.slice();
         },

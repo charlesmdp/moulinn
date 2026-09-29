@@ -45,6 +45,9 @@ hébergement statique en HTTPS). Les sources modifiables sont dans `src/`.
 - **Atelier › Relief › Berges** : pinceaux « Gommer » et « Ajouter » pour
   retirer ou poser des berges (terre, roseaux, carex, iris, pierres) ; les
   gestes sont gardés dans le navigateur, avec « Annuler » et « Tout rétablir ».
+- **Fichier de retouches complet** : « Exporter mes retouches » emporte aussi
+  les berges et le recalage IGN ; l'import les rétablit (le recalage s'applique
+  au chargement suivant). Les fichiers exportés avant restent lisibles.
 - **Atelier › Relief › Relief réel (IGN RGE ALTI)** : mesure depuis le
   navigateur l'altitude IGN d'environ 400 points (le zéro est la surface du
   grand étang), affiche les écarts point par point et peut recaler le relief en
@@ -307,7 +310,8 @@ git push origin main
 Les retouches faites dans l'éditeur, le lieu du moulin et les réglages restent
 dans le navigateur utilisé, pour l'adresse du site concernée. GitHub et
 Cloudflare ne les synchronisent pas entre appareils : utilise l'export et
-l'import des retouches dans l'éditeur pour les transférer.
+l'import des retouches dans l'éditeur pour les transférer (berges et recalage
+IGN compris).
 
 Le jeu nécessite JavaScript et WebGL. Les essais automatisés (ordinateur et
 téléphone simulés, météo simulée) ne remplacent pas une vérification sur un

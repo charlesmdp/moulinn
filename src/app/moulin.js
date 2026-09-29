@@ -14626,7 +14626,10 @@ lawnWorld20=(modelMatrix*lawnP20).xyz;`,
     }
     function io() {
       We();
-      const i = new Blob([JSON.stringify(ke || bt(), null, 2)], { type: "application/json" }),
+      // V32 : les berges et le recalage IGN voyagent avec les retouches.
+      const base = ke || bt(),
+        v32 = globalThis.MoulinV32 && MoulinV32.exportEdits32 ? MoulinV32.exportEdits32() : null,
+        i = new Blob([JSON.stringify(v32 ? { ...base, v32 } : base, null, 2)], { type: "application/json" }),
         d = URL.createObjectURL(i),
         Z = document.createElement("a");
       ((Z.href = d),
@@ -15944,7 +15947,14 @@ lawnWorld20=(modelMatrix*lawnP20).xyz;`,
         if (d) {
           try {
             if (d.size > 3e7) throw Error("Le fichier est trop volumineux.");
-            uo(JSON.parse(await d.text()));
+            const file = JSON.parse(await d.text());
+            uo(file);
+            const v32 = file && file.v32 && globalThis.MoulinV32 && MoulinV32.importEdits32 ? MoulinV32.importEdits32(file.v32) : null;
+            v32 &&
+              ne(
+                "Les objets, les arbres, le relief, les sentiers et les berges ont \xE9t\xE9 restaur\xE9s." +
+                  (v32.reliefIGN ? " Le recalage IGN s’appliquera au prochain chargement." : ""),
+              );
           } catch (Z) {
             ne(Z.message || "Impossible de lire ce fichier.", !0);
           }
