@@ -148,6 +148,7 @@ Modules de la version 32 (`src/app/v32/`, chargés dans l'ordre des noms) :
 | `05-render.js` | Définition adaptative et anticrénelage |
 | `10-atmosphere.js` | Heure réelle, soleil, lune, lieu du moulin |
 | `15-arbres.js` | Arbres détaillés : atlas de feuillages, écorces, essences, niveaux de détail, vent (remplace l'ancienne forêt de `moulin.js`) |
+| `16-clairieres.js` | Clairières : arbres retirés des pentes ouvertes et des champs d'après la couverture du sol réelle (ESA WorldCover) |
 | `20-foliage.js` | Horloge et vent partagés par les shaders de végétation |
 | `25-lawn.js` | Teinte naturelle de la pelouse |
 | `30-water.js` | Feuilles à la dérive et ronds de poissons |
@@ -161,6 +162,7 @@ Modules de la version 32 (`src/app/v32/`, chargés dans l'ordre des noms) :
 | `60-ui.js` | Habillage de l'interface |
 | `65-atelier.js` | Atelier en onglets et chemins taillés dans la pente |
 | `66-berges.js` | Atelier : gommer ou ajouter des berges (terre, roseaux, carex, iris, pierres), gestes gardés et rejoués |
+| `67-relief-ign.js` | Atelier : mesure du relief IGN RGE ALTI depuis le navigateur, comparaison et recalage doux (hors maison et bords de l'eau) |
 | `70-birds.js` | Oiseaux et colverts |
 | `72-materials.js` | Moellons, ardoises, arbustes et massifs lissés |
 | `73-stones.js` | Outils des pierres sèches (pierres, roche moussue, lots instanciés) |

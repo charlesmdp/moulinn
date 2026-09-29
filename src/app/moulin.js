@@ -21096,6 +21096,22 @@ void main(){
         }
         // V32 : le relief suit les nouveaux niveaux d'eau (lits et berges déplacés).
         globalThis.MoulinV32.hydro32 && globalThis.MoulinV32.hydro32.reshape({ positions: e, grid: L, bounds: Bt });
+        // V32 : recalage facultatif sur le RGE ALTI de l'IGN (mesuré depuis l'atelier).
+        globalThis.MoulinV32.reliefIGN &&
+          globalThis.MoulinV32.reliefIGN.reshape({
+            positions: e,
+            grid: L,
+            bounds: Bt,
+            water: (x, z) => {
+              let d = 60;
+              for (const r of Re) d = Math.min(d, ue([x, z], r.poly) ? 0 : se([x, z], r.poly, !0, 60));
+              for (const c of ee) {
+                const w = ge([x, z], c, 60);
+                d = Math.min(d, w.distance - (w.width || 1.5) / 2);
+              }
+              return d;
+            },
+          });
         // V32 : berges naturelles creusées dans le relief avant de construire le maillage.
         globalThis.MoulinV32.riverbeds &&
           globalThis.MoulinV32.riverbeds.carve({ positions: e, colors: o, sample: ge, channels: ee });
@@ -23047,6 +23063,8 @@ void main(){
         ca
           .filter(
             (e) =>
+              // V32 : pas d'arbres là où le terrain est ouvert en réalité (pentes vers les champs).
+              !(globalThis.MoulinV32.clearings32 && globalThis.MoulinV32.clearings32.has(e.id)) &&
               (!we(e.x, e.z) || e.label !== "Arbre feuillu" || e.id === "arbre-274") &&
               (!ae([e.x, e.z], 1) || et.some((o) => ue([e.x, e.z], o))) &&
               !ue([e.x, e.z], N.forecourt) &&
