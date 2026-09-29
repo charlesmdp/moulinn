@@ -8094,7 +8094,9 @@ lawnWorld20=(modelMatrix*lawnP20).xyz;`,
           0,
           Math.min(2, typeof vt == "number" ? vt : ((vt == null ? void 0 : vt.strength) ?? 0.65)),
         )),
-        _e.rotor && (_e.rotor.rotation.x = -se * 0.28));
+        _e.rotor &&
+          (_e.rotor.rotation.x =
+            -se * 0.28 * (globalThis.MoulinV32.hydro32 && globalThis.MoulinV32.hydro32.flip ? -1 : 1)));
     }
     return {
       group: a,
@@ -18623,6 +18625,12 @@ void main(){
                   ? 0.12 - (0.08 * (s.along - _)) / (o.length - _)
                   : 0.88 - 0.76 * (s.along - _ + 0.35);
           }
+          // V32 : niveaux du réseau remis dans le bon sens, courant inversé.
+          const hydro32 = globalThis.MoulinV32.hydro32;
+          if (hydro32 && hydro32.state.enabled) {
+            s.height += hydro32.delta(o, s.along);
+            if (hydro32.flip) s.flow = [-s.flow[0], -s.flow[1]];
+          }
           // V32 : l'eau coule plus bas que la prairie dans les tronçons naturels.
           const sink32 = globalThis.MoulinV32.riverbeds ? globalThis.MoulinV32.riverbeds.sink(o, s.along) : 0;
           return (sink32 && (s.height -= sink32), s);
@@ -20156,6 +20164,8 @@ void main(){
           return (o.computeBoundingSphere(), (this.p = this.n = this.c = this.uv = this.idx = null), r);
         }
       }
+      // V32 : sens réel de l'eau (sud-ouest → grand étang → moulin → est) et niveaux cohérents.
+      globalThis.MoulinV32.hydro32 && globalThis.MoulinV32.hydro32.transform(X);
       const vt = X.ponds.map((e) => ({ ...e, poly: Ve(e.outline.map(He), 2) })),
         me = X.extraPools.map((e) => ({ ...e, poly: Ve(e.outline.map(He), 2) })),
         Re = [...vt, ...me],
@@ -21106,6 +21116,8 @@ void main(){
           }
           upgrade32 = !1;
         }
+        // V32 : le relief suit les nouveaux niveaux d'eau (lits et berges déplacés).
+        globalThis.MoulinV32.hydro32 && globalThis.MoulinV32.hydro32.reshape({ positions: e, grid: L, bounds: Bt });
         // V32 : berges naturelles creusées dans le relief avant de construire le maillage.
         globalThis.MoulinV32.riverbeds &&
           globalThis.MoulinV32.riverbeds.carve({ positions: e, colors: o, sample: ge, channels: ee });
