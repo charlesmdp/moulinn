@@ -266,6 +266,13 @@
         if (object.name === "Poterie_sur_muret") pots.push(object.getWorldPosition(new THREE.Vector3()));
       });
 
+      // --- 0. Murets demandés par d'autres modules (bief approfondi, 36-hydrologie) -------
+      for (const w of V32.extraWalls32 || []) {
+        if (!w.points || w.points.length < 2 || !FAMILIES[w.kind]) continue;
+        wallAlong({ kind: w.kind, base: w.base, height: w.height, width: w.width, cap: { height: 0.1, width: w.width + 0.1 }, bury: 0.05 }, w.points);
+        report.push([w.name, 1, { meshes: 0, triangles: 0, missing: 0 }]);
+      }
+
       // --- 1. Murets de la colline (siteLayout.hillWalls) --------------------------------
       const hillWalls = ((game.siteLayout && game.siteLayout.hillWalls) || []).filter((w) => w.points && w.points.length > 1);
       const rebuilt = hillWalls.filter((w) => !SKIP.has(w.name));

@@ -228,7 +228,7 @@
       for (const channel of state.channels) {
         const coreWidth = channel.width / 2 + 1.2;
         const cut = WALLED_CUT[channel.name];
-        const cutWidth = channel.width / 2 + 0.42;
+        const cutWidth = channel.width / 2 + 0.38;
         const maxReach = coreWidth + Math.max(...channel.table.map((row) => reach(row[1])));
         let bx0 = Infinity,
           bx1 = -Infinity,
@@ -254,7 +254,7 @@
           if (Math.abs(delta) < 1e-3) return;
           const walled = cut && along >= cut[0] && along <= cut[1];
           const inner = walled ? cutWidth : coreWidth;
-          const w = best <= inner ? 1 : walled ? smooth(inner + 0.25, inner, best) : smooth(coreWidth + reach(delta), coreWidth, best);
+          const w = best <= inner ? 1 : walled ? smooth(inner + 0.12, inner, best) : smooth(coreWidth + reach(delta), coreWidth, best);
           if (w <= 0) return;
           num[k] += delta * w;
           den[k] += w;
@@ -330,83 +330,49 @@
     },
   };
 
-  // Murs de pierre des tronçons maçonnés (construits une fois le relief et l'eau en place).
+  // Murs de pierre des tronçons maçonnés (construits une fois le relief et l'eau en place) :
+  // deux murets de granit en pierres sèches, confiés au module des murets (74-walls).
   V32.register(
     "hydro32-walls",
     function (context) {
-      const { THREE, game, hooks } = context;
-      if (!state.enabled || !game || !game.channels) return null;
-      const sample = game.channelSample;
-      const height = hooks.terrainHeight || game.terrainHeight;
-      if (!sample || !height) return null;
-      const stone = (hooks.materials && (hooks.materials.masonry || hooks.materials.stone)) || new THREE.MeshStandardMaterial({ color: 0x9d978a, roughness: 0.95 });
-      const material = stone.clone();
-      material.side = THREE.DoubleSide;
-      material.vertexColors = false;
-      const group = new THREE.Group();
-      group.name = "Murs_du_bief_creuse_v32";
-      group.userData.exportSkip = true;
+      const { game } = context;
+      if (!state.enabled || !game || !game.channels || !game.terrainHeight) return null;
+      const specs = (V32.extraWalls32 = V32.extraWalls32 || []);
       for (const channel of game.channels) {
         const range = WALLED_CUT[channel.name];
         if (!range) continue;
         const half = (channel.widths ? Math.max(...channel.widths) : channel.width) / 2;
-        const pos = [],
-          uv = [],
-          idx = [];
+        const at = (along) => {
+          let i = 0;
+          while (i < channel.lengths.length - 2 && channel.lengths[i + 1] < along) i++;
+          const a = channel.line[i],
+            b = channel.line[i + 1];
+          const seg = channel.lengths[i + 1] - channel.lengths[i] || 1;
+          const t = (along - channel.lengths[i]) / seg;
+          return { x: a[0] + (b[0] - a[0]) * t, z: a[1] + (b[1] - a[1]) * t, dx: (b[0] - a[0]) / seg, dz: (b[1] - a[1]) / seg };
+        };
         for (const side of [-1, 1]) {
-          let prev = -1,
-            run = 0;
-          for (let along = range[0]; along <= Math.min(range[1], channel.length); along += 0.4) {
-            let i = 0;
-            while (i < channel.lengths.length - 2 && channel.lengths[i + 1] < along) i++;
-            const a = channel.line[i],
-              b = channel.line[i + 1];
-            const seg = channel.lengths[i + 1] - channel.lengths[i] || 1;
-            const t = (along - channel.lengths[i]) / seg;
-            const cx = a[0] + (b[0] - a[0]) * t,
-              cz = a[1] + (b[1] - a[1]) * t;
-            const dx = (b[0] - a[0]) / seg,
-              dz = (b[1] - a[1]) / seg;
-            const nx = -dz * side,
-              nz = dx * side;
-            const water = sample([cx, cz], channel);
-            const level = water && Number.isFinite(water.height) ? water.height : 0;
-            const ground = height(cx + nx * (half + 0.95), cz + nz * (half + 0.95));
-            const top = Math.max(ground + 0.06, level + 0.3);
-            const bottom = level - 0.6;
-            const inX = cx + nx * (half + 0.04),
-              inZ = cz + nz * (half + 0.04),
-              outX = cx + nx * (half + 0.4),
-              outZ = cz + nz * (half + 0.4);
-            const base = pos.length / 3;
-            pos.push(inX, bottom, inZ, inX, top, inZ, outX, top, outZ, outX, bottom, outZ);
-            uv.push(run, 0, run, (top - bottom) * 0.9, run + 0.1, (top - bottom) * 0.9 + 0.3, run + 0.1, 0);
-            if (prev >= 0)
-              for (const [p, q] of [
-                [0, 1],
-                [1, 2],
-                [2, 3],
-              ])
-                idx.push(prev + p, base + p, base + q, prev + p, base + q, prev + q);
-            prev = base;
-            run += 0.4 * 0.9;
+          const points = [];
+          for (let along = range[0]; along <= Math.min(range[1], channel.length) + 1e-6; along += 1.2) {
+            const p = at(along);
+            points.push([p.x - p.dz * side * (half + 0.22), p.z + p.dx * side * (half + 0.22)]);
           }
+          if (points.length < 2) continue;
+          // Pied du mur sous l'eau, sommet au ras de la prairie derrière lui.
+          const outside = (x, z) => {
+            let best = null;
+            for (let along = range[0]; along <= range[1]; along += 0.6) {
+              const p = at(along);
+              const d = (x - p.x) ** 2 + (z - p.z) ** 2;
+              if (!best || d < best.d) best = { d, p };
+            }
+            const len = Math.sqrt(best.d) || 1;
+            return game.terrainHeight(x + ((x - best.p.x) / len) * 0.6, z + ((z - best.p.z) / len) * 0.6);
+          };
+          specs.push({ name: "Mur_du_bief_creuse_" + (side < 0 ? "gauche" : "droit"), kind: "granit", points, height: 1.12, width: 0.36, base: (x, z) => outside(x, z) - 1.1 });
         }
-        if (!pos.length) continue;
-        const geometry = new THREE.BufferGeometry();
-        geometry.setAttribute("position", new THREE.Float32BufferAttribute(pos, 3));
-        geometry.setAttribute("uv", new THREE.Float32BufferAttribute(uv, 2));
-        geometry.setIndex(idx);
-        geometry.computeVertexNormals();
-        const mesh = new THREE.Mesh(geometry, material);
-        mesh.name = "Murs_maconnes_" + channel.name;
-        mesh.castShadow = mesh.receiveShadow = true;
-        group.add(mesh);
       }
-      if (!group.children.length) return null;
-      game.scene.add(group);
-      if (hooks.markDirty) hooks.markDirty();
-      return { group };
+      return { walls: specs.length };
     },
     37,
   );
