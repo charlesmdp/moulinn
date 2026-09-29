@@ -848,7 +848,9 @@
   W.treeGeometries = function () {
     if (this._treeGeo) return this._treeGeo;
     const merge = (parts) => {
-      // Fusion simple de géométries non indexées avec couleurs.
+      // Fusion simple de géométries non indexées avec couleurs (les géométries indexées sont
+      // d'abord dépliées : on compte leurs sommets après dépliage).
+      for (const p of parts) if (p.g.index) p.g = p.g.toNonIndexed();
       let n = 0;
       for (const p of parts) n += p.g.attributes.position.count;
       const pos = new Float32Array(n * 3),
@@ -857,7 +859,7 @@
         sway = new Float32Array(n);
       let o = 0;
       for (const p of parts) {
-        const g = p.g.index ? p.g.toNonIndexed() : p.g;
+        const g = p.g;
         g.computeVertexNormals();
         const P = g.attributes.position,
           N = g.attributes.normal;

@@ -345,7 +345,7 @@
         atelier: [47.6, 40.4],
       });
       b.building("grange", { id: "grange", x: 9.4, z: 22, rot: Math.PI / 2, w: 9, d: 5, door: "n", reserve: { id: "B", name: "La grange", treasures: 3 } });
-      b.bridge(33.2, 14.6, Math.PI / 2 + 0.12, 3.6, 1.4);
+      b.bridge(33.2, 14.6, 0.04, 3.6, 1.4);
       b.bridge(61.2, 36.4, 1.9, 2.8, 1.3);
 
       b.node("NW", [12, -0.5], { entry: "land", exit: true, label: "Chemin des champs" });
@@ -455,7 +455,7 @@
         outflow: [[34.6, 38.9], [38.6, 40], [42.4, 41.4], [46, 42.6], [49.4, 44.8]],
         atelier: [40.8, 28.6],
       });
-      b.bridge(43.6, 41.8, 0.35, 2.8, 1.3);
+      b.bridge(43.6, 41.8, 1.26, 2.8, 1.3);
 
       b.node("W", [-0.5, 24], { entry: "land", exit: true, label: "Porte de l'ouest" });
       b.node("N", [31, -0.5], { entry: "land", exit: true, label: "Porte du nord" });
