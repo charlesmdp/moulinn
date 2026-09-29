@@ -137,7 +137,7 @@
     const millPad = L.mill ? padLevels[padLevels.length - 1] : null;
     const terrace = L.mill && L.mill.terrace && millPad ? { poly: L.mill.terrace, level: millPad.level } : null;
     this.terrace = terrace;
-    return function (x, z) {
+    const base = function (x, z) {
       let h = raw(x, z);
       for (const pd of padLevels) {
         if (pd.level === null) continue;
@@ -150,6 +150,37 @@
         if (d > -0.8) h = h + (terrace.level - h) * smooth(-0.8, 0.05, d);
       }
       return h;
+    };
+    // Cases de construction : le sol est aplani sous chaque case (les tours posent à plat), les
+    // cases de berge restent au-dessus de l'eau. Les cases voisines se raccordent en douceur.
+    const T = L.tile || 2;
+    const levels = new Map();
+    for (const s of L.sockets || []) {
+      let lv = base(s.x, s.z);
+      if (s.kind === "water" || s.islet) lv = Math.max(lv, s.islet ? 0.5 : 0.46);
+      levels.set(s.i + ":" + s.j, lv);
+    }
+    this.tileLevel = (s) => levels.get(s.i + ":" + s.j);
+    const f = (d) => 1 - smooth(0.82, 1.22, d);
+    return function (x, z) {
+      let h = base(x, z);
+      if (!levels.size) return h;
+      const i0 = Math.floor(x / T),
+        j0 = Math.floor(z / T);
+      let wSum = 0,
+        acc = 0;
+      for (let j = j0 - 1; j <= j0 + 1; j++)
+        for (let i = i0 - 1; i <= i0 + 1; i++) {
+          const lv = levels.get(i + ":" + j);
+          if (lv === undefined) continue;
+          const w = f(Math.abs(x - (i + 0.5) * T)) * f(Math.abs(z - (j + 0.5) * T));
+          if (w <= 0) continue;
+          wSum += w;
+          acc += w * lv;
+        }
+      if (wSum <= 0) return h;
+      const k = Math.min(1, wSum);
+      return h * (1 - k) + (acc / wSum) * k;
     };
   };
 
@@ -179,7 +210,12 @@
     this.buildBuildings(L);
     this.buildTrees(L);
     this.buildRocks(L);
-    this.buildSockets(L);
+    // Cases (dalles de rocaille, de givre et de berge), grille de construction, forêts à couper,
+    // portes d'entrée et halos des réserves : render/15-cases.js.
+    this.buildTiles(L);
+    this.buildForests(L);
+    this.buildGates(L);
+    this.buildReserveGlow(L);
     this.buildTrapSlots(L);
     this.root.updateMatrixWorld(true);
   };
@@ -212,15 +248,17 @@
     mat.onBeforeCompile = (sh) => {
       sh.uniforms.uGrass = { value: tex.grass };
       sh.uniforms.uGravel = { value: tex.gravel };
+      sh.uniforms.uStone = { value: tex.stone || tex.gravel };
       sh.uniforms.uMask = { value: splat.mask };
       sh.uniforms.uExtent = { value: extent };
       sh.vertexShader = sh.vertexShader
         .replace("#include <common>", "#include <common>\nvarying vec3 vWorldPos;")
         .replace("#include <worldpos_vertex>", "#include <worldpos_vertex>\nvWorldPos = (modelMatrix * vec4(transformed, 1.0)).xyz;");
+      // Masque : r = chemins (gravier), g = rocaille (pierre), b = givre (lisse et clair).
       sh.fragmentShader = sh.fragmentShader
         .replace(
           "#include <common>",
-          "#include <common>\nvarying vec3 vWorldPos;\nuniform sampler2D uGrass, uGravel, uMask;\nuniform vec4 uExtent;",
+          "#include <common>\nvarying vec3 vWorldPos;\nuniform sampler2D uGrass, uGravel, uStone, uMask;\nuniform vec4 uExtent;",
         )
         .replace(
           "#include <map_fragment>",
@@ -230,12 +268,16 @@
           vec3 grassD = texture2D(uGrass, vWorldPos.xz * 0.21).rgb;
           vec3 grassD2 = texture2D(uGrass, vWorldPos.xz * 0.043 + 0.37).rgb;
           vec3 gravelD = texture2D(uGravel, vWorldPos.xz * 0.35).rgb;
+          vec3 stoneD = texture2D(uStone, vWorldPos.xz * 0.3).rgb;
           float gl = dot(grassD, vec3(0.333)) * 0.6 + dot(grassD2, vec3(0.333)) * 0.4;
           float gv = dot(gravelD, vec3(0.333));
-          vec3 detail = mix(vec3(0.62 + gl * 0.8), vec3(0.55 + gv * 0.9), mk.r);
+          float sv = dot(stoneD, vec3(0.333));
+          vec3 detail = mix(vec3(0.66 + gl * 0.7), vec3(0.62 + gv * 0.75), mk.r);
+          detail = mix(detail, vec3(0.58 + sv * 0.85), mk.g);
+          detail = mix(detail, vec3(0.9 + gl * 0.18), mk.b);
           float slope = 1.0 - normalize(vNormal).y;
           vec3 base = tint.rgb * detail;
-          base = mix(base, base * vec3(0.92, 0.86, 0.78), smoothstep(0.08, 0.3, slope));
+          base = mix(base, base * vec3(0.92, 0.86, 0.78), smoothstep(0.08, 0.3, slope) * (1.0 - mk.b));
           diffuseColor.rgb *= base;`,
         );
     };
@@ -255,9 +297,16 @@
     this.root.add(ring);
   };
 
-  /** Peint la couleur des sols (herbe, chemins, berges, champs) et le masque des chemins. */
+  // Couleurs peintes des sols, façon carte de jeu de stratégie vue d'avion.
+  const ZONE_PAINT = {
+    fire: { rim: "#8c5634", base: "#c48a58", light: "#e2b27c", dark: "#7b4a2d", mask: "rgb(0,255,0)" },
+    ice: { rim: "#7aaed0", base: "#d2e8f5", light: "#ffffff", dark: "#a9cfe4", mask: "rgb(0,0,255)" },
+    water: { rim: "#48603a", base: "#6f8a4c", light: "#8fae63", dark: "#51693a", mask: "rgb(0,0,0)" },
+  };
+
+  /** Peint la couleur des sols (herbe, zones de construction, chemins, berges, champs) et le masque. */
   W.paintGround = function (L) {
-    const px = this.ctx.mobile ? 3 : 4.5; // pixels par mètre
+    const px = this.ctx.mobile ? 4 : 6; // pixels par mètre
     const { x0, x1, z0, z1 } = this.bounds;
     const w = Math.round((x1 - x0) * px),
       h = Math.round((z1 - z0) * px);
@@ -269,32 +318,59 @@
     mk.width = w;
     mk.height = h;
     const m = mk.getContext("2d");
+    m.fillStyle = "#000";
+    m.fillRect(0, 0, w, h);
+    const S = U * px; // pixels par U
     const P = (x, z) => [((x - MAP_W / 2) * U - x0) * px, ((z - MAP_H / 2) * U - z0) * px];
     const rng = PTMT.rng(L.seed);
-    // Herbe de base avec des nuances.
-    c.fillStyle = "#86a857";
-    c.fillRect(0, 0, w, h);
-    for (let i = 0; i < 900; i++) {
-      const x = rng() * w,
-        y = rng() * h,
-        r = (4 + rng() * 16) * px;
+    const path = (ctx2, pts, closed) => {
+      ctx2.beginPath();
+      pts.forEach((q, i) => (i ? ctx2.lineTo(...P(q[0], q[1])) : ctx2.moveTo(...P(q[0], q[1]))));
+      if (closed) ctx2.closePath();
+    };
+    const stroke = (pts, widthM, color, closed, ctx2 = c) => {
+      path(ctx2, pts, closed);
+      ctx2.lineWidth = widthM * px;
+      ctx2.lineJoin = ctx2.lineCap = "round";
+      ctx2.strokeStyle = color;
+      ctx2.stroke();
+    };
+    const fill = (poly, color, grow = 0, ctx2 = c) => {
+      path(ctx2, poly, true);
+      ctx2.fillStyle = color;
+      ctx2.fill();
+      if (grow) {
+        ctx2.lineWidth = grow * px;
+        ctx2.lineJoin = "round";
+        ctx2.strokeStyle = color;
+        ctx2.stroke();
+      }
+    };
+    const blobAt = (x, y, r, color) => {
       const g = c.createRadialGradient(x, y, 0, x, y, r);
-      const col = rng() < 0.5 ? "rgba(112,150,62,0.35)" : rng() < 0.6 ? "rgba(160,178,86,0.28)" : "rgba(92,128,58,0.3)";
-      g.addColorStop(0, col);
+      g.addColorStop(0, color);
       g.addColorStop(1, "rgba(0,0,0,0)");
       c.fillStyle = g;
       c.fillRect(x - r, y - r, 2 * r, 2 * r);
+    };
+    // Herbe vive de base avec de grandes nuances.
+    c.fillStyle = "#83b04c";
+    c.fillRect(0, 0, w, h);
+    for (let i = 0; i < 700; i++) {
+      const x = rng() * w,
+        y = rng() * h,
+        r = (5 + rng() * 16) * px;
+      const k = rng();
+      blobAt(x, y, r, k < 0.4 ? "rgba(108,156,58,0.32)" : k < 0.75 ? "rgba(156,194,86,0.26)" : "rgba(92,138,52,0.3)");
     }
     // Champs autour (labours et cultures).
     for (const f of L.fields || []) {
       c.save();
-      c.beginPath();
-      f.poly.forEach((q, i) => (i ? c.lineTo(...P(q[0], q[1])) : c.moveTo(...P(q[0], q[1]))));
-      c.closePath();
-      c.fillStyle = f.kind === "crop" ? "#a58a5c" : "#9ab65f";
+      path(c, f.poly, true);
+      c.fillStyle = f.kind === "crop" ? "#b59360" : "#9cc05f";
       c.fill();
       c.clip();
-      c.strokeStyle = f.kind === "crop" ? "rgba(90,66,38,0.45)" : "rgba(120,150,70,0.5)";
+      c.strokeStyle = f.kind === "crop" ? "rgba(96,70,40,0.4)" : "rgba(120,150,70,0.45)";
       c.lineWidth = 0.7 * px;
       for (let k = -h; k < w + h; k += 1.6 * px) {
         c.beginPath();
@@ -304,47 +380,44 @@
       }
       c.restore();
     }
-    // Hors carte : champs lointains autour du domaine.
+    // Hors carte : champs lointains autour du domaine, un peu assombris pour cadrer le jeu.
     const edge = [
-      [-10, -20, 30, 12, "#a58a5c"],
+      [-10, -20, 30, 12, "#a88a58"],
       [36, -24, 44, 16, "#b39a64"],
-      [-26, 18, 18, 22, "#95ad5a"],
-      [74, 12, 16, 24, "#a58a5c"],
-      [10, 52, 36, 14, "#9ab65f"],
+      [-26, 18, 18, 22, "#8fa956"],
+      [74, 12, 16, 24, "#a88a58"],
+      [10, 52, 36, 14, "#94b05a"],
       [54, 54, 26, 14, "#b39a64"],
     ];
     for (const [ex, ez, ew, eh, col] of edge) {
       const [a, b] = P(ex, ez),
         [cc, d] = P(ex + ew, ez + eh);
       c.fillStyle = col;
-      c.globalAlpha = 0.9;
+      c.globalAlpha = 0.85;
       c.fillRect(a, b, cc - a, d - b);
       c.globalAlpha = 1;
+    }
+    {
+      const [a, b] = P(0, 0),
+        [cc, d] = P(MAP_W, MAP_H);
+      c.save();
+      c.beginPath();
+      c.rect(0, 0, w, h);
+      c.rect(a - 2 * S, b - 2 * S, cc - a + 4 * S, d - b + 4 * S);
+      c.fillStyle = "rgba(40,52,30,0.16)";
+      c.fill("evenodd");
+      c.restore();
     }
     // Sous les bosquets : sol plus sombre, feuilles.
     for (const g of L.groves) {
       const [x, y] = P(g.x, g.z);
-      const r = (g.r + 1.5) * U * px;
-      const gr = c.createRadialGradient(x, y, 0, x, y, r);
-      gr.addColorStop(0, g.species === "pine" ? "rgba(96,88,52,0.75)" : "rgba(88,104,52,0.7)");
-      gr.addColorStop(1, "rgba(0,0,0,0)");
-      c.fillStyle = gr;
-      c.fillRect(x - r, y - r, 2 * r, 2 * r);
+      blobAt(x, y, (g.r + 1.5) * S, g.species === "pine" ? "rgba(86,86,50,0.7)" : "rgba(80,104,50,0.65)");
     }
     // Berges : terre et joncs autour de l'eau.
-    const stroke = (pts, width, color, closed, ctx2 = c) => {
-      ctx2.beginPath();
-      pts.forEach((q, i) => (i ? ctx2.lineTo(...P(q[0], q[1])) : ctx2.moveTo(...P(q[0], q[1]))));
-      if (closed) ctx2.closePath();
-      ctx2.lineWidth = width * px;
-      ctx2.lineJoin = ctx2.lineCap = "round";
-      ctx2.strokeStyle = color;
-      ctx2.stroke();
-    };
     for (const p of L.ponds) {
-      stroke(p.poly, p.small ? 2.2 : 4.2, "rgba(110,98,62,0.85)", true);
-      stroke(p.poly, p.small ? 1.1 : 2.2, "rgba(86,74,48,0.9)", true);
-      if (p.island) stroke(p.island, 1.8, "rgba(110,98,62,0.8)", true);
+      stroke(p.poly, p.small ? 2.4 : 4.4, "rgba(108,96,60,0.85)", true);
+      stroke(p.poly, p.small ? 1.2 : 2.3, "rgba(84,72,46,0.9)", true);
+      if (p.island) stroke(p.island, 1.8, "rgba(108,96,60,0.8)", true);
     }
     c.save();
     if (L.mill && L.mill.terrace) {
@@ -355,47 +428,145 @@
       c.closePath();
       c.clip("evenodd");
     }
-    for (const st of L.streams) stroke(st.pts, st.width * U + 2.4, "rgba(104,94,60,0.85)", false);
+    for (const st of L.streams) stroke(st.pts, st.width * U + 2.4, "rgba(100,90,58,0.85)", false);
     c.restore();
-    // Plateformes des bâtiments : gravier.
-    const fill = (poly, color, grow = 0) => {
-      c.beginPath();
-      poly.forEach((q, i) => (i ? c.lineTo(...P(q[0], q[1])) : c.moveTo(...P(q[0], q[1]))));
-      c.closePath();
-      c.fillStyle = color;
-      c.fill();
-      if (grow) {
-        c.lineWidth = grow * px;
-        c.strokeStyle = color;
-        c.stroke();
-      }
+    // Zones de construction : rocaille, givre, berge. Chaque case est un carreau arrondi ; les
+    // carreaux voisins se soudent en une plaque avec un liseré plus sombre sur le pourtour.
+    const T = L.tile || 2;
+    const tiles = L.sockets || [];
+    const tileRect = (ctx2, s, growU, rU) => {
+      const [cx, cy] = P(s.x, s.z);
+      const half = (T / 2 + growU) * S,
+        r = rU * S;
+      ctx2.beginPath();
+      if (ctx2.roundRect) ctx2.roundRect(cx - half, cy - half, half * 2, half * 2, r);
+      else ctx2.rect(cx - half, cy - half, half * 2, half * 2);
     };
+    for (const kind of ["water", "fire", "ice"]) {
+      const Z = ZONE_PAINT[kind];
+      const list = tiles.filter((s) => s.kind === kind);
+      if (!list.length) continue;
+      for (const s of list) {
+        tileRect(c, s, 0.42, 0.8);
+        c.fillStyle = Z.rim;
+        c.fill();
+        tileRect(m, s, 0.3, 0.7);
+        m.fillStyle = Z.mask;
+        m.fill();
+      }
+      for (const s of list) {
+        tileRect(c, s, 0.26, 0.7);
+        c.fillStyle = Z.base;
+        c.fill();
+      }
+      // Détails peints dans la plaque (galets, givre, flaques), découpés au contour.
+      c.save();
+      c.beginPath();
+      for (const s of list) {
+        const [cx, cy] = P(s.x, s.z);
+        const half = (T / 2 + 0.24) * S;
+        c.rect(cx - half, cy - half, half * 2, half * 2);
+      }
+      c.clip();
+      for (const s of list) {
+        const [cx, cy] = P(s.x, s.z);
+        const half = (T / 2 + 0.3) * S;
+        const n = kind === "fire" ? 26 : kind === "ice" ? 14 : 10;
+        for (let k = 0; k < n; k++) {
+          const x = cx + (rng() * 2 - 1) * half,
+            y = cy + (rng() * 2 - 1) * half;
+          if (kind === "fire") {
+            // Galets et pierres plates, ombre en dessous.
+            const r = (0.08 + rng() * 0.2) * S;
+            c.fillStyle = "rgba(90,52,30,0.45)";
+            c.beginPath();
+            c.ellipse(x + r * 0.25, y + r * 0.3, r, r * 0.7, rng() * 3, 0, Math.PI * 2);
+            c.fill();
+            c.fillStyle = rng() < 0.5 ? Z.light : rng() < 0.5 ? "#b0764a" : "#d49d68";
+            c.beginPath();
+            c.ellipse(x, y, r, r * 0.7, rng() * 3, 0, Math.PI * 2);
+            c.fill();
+          } else if (kind === "ice") {
+            // Plaques de givre et éclats de cristaux.
+            if (rng() < 0.5) blobAt(x, y, (0.3 + rng() * 0.5) * S, "rgba(170,210,236,0.45)");
+            c.strokeStyle = "rgba(255,255,255,0.85)";
+            c.lineWidth = Math.max(1, 0.03 * S);
+            const r = (0.08 + rng() * 0.12) * S;
+            c.beginPath();
+            for (let a = 0; a < 3; a++) {
+              const ang = (a / 3) * Math.PI + rng() * 0.2;
+              c.moveTo(x - Math.cos(ang) * r, y - Math.sin(ang) * r);
+              c.lineTo(x + Math.cos(ang) * r, y + Math.sin(ang) * r);
+            }
+            c.stroke();
+          } else {
+            // Flaques, touffes de joncs, boue plus sombre.
+            if (k < 2) {
+              const rx = (0.2 + rng() * 0.25) * S;
+              c.fillStyle = "rgba(60,74,44,0.5)";
+              c.beginPath();
+              c.ellipse(x, y, rx * 1.25, rx * 0.8, rng() * 3, 0, Math.PI * 2);
+              c.fill();
+              c.fillStyle = "rgba(118,168,190,0.75)";
+              c.beginPath();
+              c.ellipse(x, y, rx, rx * 0.6, rng() * 3, 0, Math.PI * 2);
+              c.fill();
+            } else {
+              c.strokeStyle = rng() < 0.5 ? "#3f5a2a" : "#5d7b35";
+              c.lineWidth = Math.max(1, 0.035 * S);
+              for (let q = 0; q < 4; q++) {
+                c.beginPath();
+                c.moveTo(x, y);
+                c.lineTo(x + (rng() - 0.5) * 0.25 * S, y - (0.12 + rng() * 0.2) * S);
+                c.stroke();
+              }
+            }
+          }
+        }
+        // Joints de la grille, très discrets : les cases se devinent sans être dessinées.
+        c.strokeStyle = kind === "ice" ? "rgba(120,160,190,0.35)" : "rgba(40,28,16,0.18)";
+        c.lineWidth = Math.max(1, 0.05 * S);
+        c.strokeRect(cx - (T / 2) * S, cy - (T / 2) * S, T * S, T * S);
+      }
+      c.restore();
+    }
+    // Plateformes des bâtiments : gravier.
     const pads = [...L.buildings.filter((b) => !b.island && !b.onWater).map((b) => b.footprint), L.mill ? L.mill.footprint : null].filter(Boolean);
-    for (const f of pads) fill(f, "#a39a86", 2.6);
-    // Chemins : terre battue, bords plus sombres ; masque pour le gravier.
-    for (const e of L.edges) {
-      if (e.kind === "water" || e.kind === "shore") continue;
-      stroke(e.pts, 3.6, "rgba(120,104,70,0.55)", false);
-      stroke(e.pts, 2.7, "#b8a275", false);
-      stroke(e.pts, 1.5, "#c9b58a", false);
-      stroke(e.pts, 3.0, "#ffffff", false, m);
+    for (const f of pads) fill(f, "#aca28c", 2.6);
+    // Chemins de terre battue : bord sombre net, chaussée claire, bande centrale, cailloux.
+    const roads = L.edges.filter((e) => e.kind !== "water" && e.kind !== "shore");
+    for (const e of roads) stroke(e.pts, 5.2, "rgba(58,40,22,0.28)", false);
+    for (const e of roads) stroke(e.pts, 4.2, "#86603a", false);
+    for (const e of roads) stroke(e.pts, 3.5, "#d7b27b", false);
+    for (const e of roads) stroke(e.pts, 1.7, "rgba(240,214,160,0.6)", false);
+    for (const e of roads) stroke(e.pts, 3.8, "#ff0000", false, m);
+    for (const e of roads) {
+      const line = G.polyline(e.pts);
+      for (let s = 0; s < line.length; s += 0.55) {
+        const p = G.at(line, s);
+        const side = rng() < 0.5 ? -1 : 1,
+          off = 0.72 + rng() * 0.2;
+        const [x, y] = P(p.x - p.dz * side * off, p.z + p.dx * side * off);
+        c.fillStyle = rng() < 0.5 ? "#9a7650" : "#efd6a4";
+        c.beginPath();
+        c.ellipse(x, y, (0.05 + rng() * 0.07) * S, (0.04 + rng() * 0.05) * S, rng() * 3, 0, Math.PI * 2);
+        c.fill();
+      }
     }
     for (const f of pads) {
-      m.beginPath();
-      f.forEach((q, i) => (i ? m.lineTo(...P(q[0], q[1])) : m.moveTo(...P(q[0], q[1]))));
-      m.closePath();
-      m.fillStyle = "#b0b0b0";
+      path(m, f, true);
+      m.fillStyle = "#b00000";
       m.fill();
       m.lineWidth = 2.4 * px;
-      m.strokeStyle = "#8a8a8a";
+      m.strokeStyle = "#8a0000";
       m.stroke();
     }
-    // Petits cailloux et fleurs.
+    // Petites fleurs dans l'herbe.
     for (let i = 0; i < 2600; i++) {
       const x = rng() * w,
         y = rng() * h;
-      c.fillStyle = rng() < 0.7 ? "rgba(255,244,200,0.35)" : rng() < 0.5 ? "rgba(240,200,230,0.45)" : "rgba(255,255,255,0.4)";
-      c.fillRect(x, y, 1.5, 1.5);
+      c.fillStyle = rng() < 0.6 ? "rgba(255,244,190,0.4)" : rng() < 0.5 ? "rgba(240,190,230,0.5)" : "rgba(255,255,255,0.45)";
+      c.fillRect(x, y, 1.6, 1.6);
     }
     const color = new THREE.CanvasTexture(cv);
     color.encoding = THREE.sRGBEncoding;
@@ -1023,7 +1194,12 @@
       for (const st of L.streams) if (G.polylineDist(x, z, st.pts) < st.width / 2 + 1 + clear) return false;
       for (const poly of L.blockers) if (polySigned(x, z, poly) > -1.8 - clear) return false;
       if (L.mill && polySigned(x, z, L.mill.footprint) > -3) return false;
-      for (const s of L.sockets) if (Math.hypot(s.x - x, s.z - z) < 1.9 + clear) return false;
+      // Cases de construction (et leur liseré) : jamais d'arbre décoratif dessus.
+      const T = L.tile || 2,
+        mg = 0.9 + Math.max(0, clear);
+      for (let j = Math.floor((z - mg) / T); j <= Math.floor((z + mg) / T); j++)
+        for (let i = Math.floor((x - mg) / T); i <= Math.floor((x + mg) / T); i++) if (L.tileAt && L.tileAt[i + ":" + j]) return false;
+      for (const g of L.gates || []) if (Math.hypot(g.x - x, g.z - z) < 4 + clear) return false;
       for (const b of L.bridges) if (Math.hypot(b.x - x, b.z - z) < 2.5) return false;
       if (L.mill) {
         for (const a of [L.mill.meule, L.mill.atelier]) if (Math.hypot(a[0] - x, a[1] - z) < 2.8) return false;
@@ -1126,46 +1302,6 @@
       for (let i = 0; i < p.poly.length; i += 2) if (rng() < 0.5) add(p.poly[i][0], p.poly[i][1], 0.35 + rng() * 0.3);
     }
   };
-  W.buildSockets = function (L) {
-    this.socketViews = new Map();
-    for (const s of L.sockets) {
-      let view = null;
-      if (PTMT.models.socket) {
-        try {
-          view = PTMT.models.socket(s.kind);
-        } catch (e) {
-          view = null;
-        }
-      }
-      if (!view) view = this.fallbackSocket(s.kind);
-      const y = s.islet ? 0.5 : this.heightU(s.x, s.z);
-      view.object.position.copy(this.toWorld(s.x, s.z, y + 0.03));
-      view.object.name = "Support_" + s.id;
-      view.object.userData.socket = s.id;
-      this.root.add(view.object);
-      this.socketViews.set(s.id, view);
-    }
-  };
-  W.fallbackSocket = function (kind) {
-    const col = { fire: "#b5673d", ice: "#6fb8d8", water: "#3c7fb8" }[kind];
-    const g = new THREE.Group();
-    const disc = new THREE.Mesh(new THREE.CylinderGeometry(1.45, 1.6, 0.22, 20), new THREE.MeshStandardMaterial({ color: PTMT.color("#a09a8c"), map: this.textures.stone, roughness: 0.9 }));
-    disc.position.y = 0.11;
-    disc.receiveShadow = true;
-    g.add(disc);
-    const ring = new THREE.Mesh(new THREE.TorusGeometry(1.1, 0.09, 6, 28), new THREE.MeshStandardMaterial({ color: PTMT.color(col), emissive: PTMT.color(col), emissiveIntensity: 0.6 }));
-    ring.rotation.x = Math.PI / 2;
-    ring.position.y = 0.24;
-    g.add(ring);
-    return {
-      object: g,
-      setState(st) {
-        g.visible = st !== "hidden";
-        ring.material.emissiveIntensity = st === "hover" ? 1.6 : st === "valid" ? 1.1 : st === "invalid" ? 0.1 : 0.6;
-      },
-      update() {},
-    };
-  };
   W.buildTrapSlots = function (L) {
     this.slotViews = new Map();
     const mat = PTMT.mat("td:slot", () => new THREE.MeshStandardMaterial({ color: PTMT.color("#e8d9a8"), transparent: true, opacity: 0.55, roughness: 1 }));
@@ -1190,7 +1326,8 @@
       if (a.kind === "wheel") a.obj.rotation.x += dt * a.speed;
       else if (a.kind === "view") a.view.update(dt, time);
     }
-    for (const v of this.socketViews ? this.socketViews.values() : []) if (v.update) v.update(dt, time);
+    // Cases, forêts, portes et halos (render/15-cases.js).
+    if (this.updateCases) this.updateCases(dt, time, camera);
   };
   /** Points à dégager (porteurs, sacs, sélection) : les arbres devant eux deviennent transparents. */
   W.setFocus = function (points) {

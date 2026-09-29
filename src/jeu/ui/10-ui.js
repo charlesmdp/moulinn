@@ -27,6 +27,31 @@
   const FAM = { fire: "Feu", ice: "Glace", water: "Eau" };
   const SPELL_ICON = { meteor: "meteor", freeze: "freeze", flood: "flood", frenzy: "frenzy", recall: "recall" };
   const ENEMY_SHORT = { voleur: "Voleurs", sprinteur: "Sprinteurs", demenageur: "Déménageurs", fumigene: "Fumigènes", nageur: "Nageurs", boss: "Chef tondeuse" };
+  // Portraits de secours (disque coloré et initiale) quand PTMT.portraits n'est pas chargé.
+  const ENEMY_INITIAL = { voleur: "V", sprinteur: "S", demenageur: "D", fumigene: "F", nageur: "N", boss: "B" };
+  const ENEMY_TINT = { voleur: "#59607e", sprinteur: "#e39a2d", demenageur: "#8d6440", fumigene: "#68707d", nageur: "#ef75a6", boss: "#a8322b" };
+  // Traits affichés dans l'annonce de vague.
+  const TRAIT = {
+    voleur: "Voleurs",
+    sprinteur: "Rapides",
+    demenageur: "Lourds, lents",
+    fumigene: "Invisibles au 1er coup",
+    nageur: "Nagent",
+    boss: "Boss : surchauffe",
+  };
+  const ELITE_TRAIT = {
+    voleur: "Casque (1er coup ÷ 2)",
+    sprinteur: "Filent avec un sac",
+    demenageur: "Canapé protecteur",
+    fumigene: "Long rideau de fumée",
+    nageur: "Pédalo rapide",
+    boss: "Rage à mi-vie",
+  };
+  const ZONE = {
+    fire: { name: "Rocaille", sol: "de rocaille", tower: "de feu", forest: "Pinède sur la rocaille" },
+    ice: { name: "Givre", sol: "de givre", tower: "de glace", forest: "Sapins givrés" },
+    water: { name: "Berge", sol: "de berge", tower: "d'eau", forest: "Bosquet de la berge" },
+  };
   const TARGETING = [
     ["auto", "Porteurs puis réserves"],
     ["carriers", "Porteurs d'abord"],
@@ -100,6 +125,7 @@
     this.buildMode = null;
     if (this.aim) this.stopAim();
     this.app.setSocketHighlight(null);
+    this.setBuildPreview(null);
   };
   P.renderTray = function () {
     const app = this.app;
@@ -184,9 +210,16 @@
       return;
     }
     this.buildMode = mode;
+    this.closePanel();
     app.setSocketHighlight(mode);
+    this.setBuildPreview(null);
     this.renderTray();
-    this.tip("build", mode.kind === "tower" ? "Touche un support libre pour y construire la tour. Les socles de pierre accueillent le feu, les cercles de runes la glace, les berges et conduites l'eau." : "Touche un emplacement sur un chemin pour y poser le piège.");
+    this.tip(
+      "build",
+      mode.kind === "tower"
+        ? "Les cases qui s'allument accueillent cette tour : la rocaille (dalles de pierre) pour le feu, le givre (cercles de runes) pour la glace, la berge et le marais pour l'eau. Les tours se posent côte à côte. Une case boisée se libère en coupant sa forêt."
+        : "Touche un emplacement sur un chemin pour y poser le piège.",
+    );
   };
 
   // ── Visée des sorts ─────────────────────────────────────────────────────────
@@ -238,7 +271,7 @@
     if (!this.panel) return;
     const { kind, id } = this.panel;
     if (kind === "tower") this.showTowerPanel(id);
-    else if (kind === "socket") this.showSocketPanel(id);
+    else if (kind === "socket" || kind === "forest") this.showSocketPanel(id);
     else if (kind === "trap") this.showTrapPanel(id);
     else if (kind === "slot") this.showSlotPanel(id);
     else if (kind === "reserve") this.showReservePanel(id);
@@ -336,11 +369,17 @@
     const app = this.app,
       game = app.game;
     const so = game.socket(id);
+    if (game.isForest(id)) return this.showForestPanel(id);
+    const built = game.towerAt(id);
+    if (built) return this.showTowerPanel(built.id);
     const fam = so.kind;
     const f = C.towers[fam].forms["1"];
     app.select({ kind: "socket", id, x: so.x, z: so.z, range: f.range * (fam === "ice" ? game.T.iceRange : 1), family: fam });
     this.openPanel("socket", id, (el) => {
-      el.append(h("h2", {}, "Support " + { fire: "de feu (socle de pierre)", ice: "de glace (cercle de runes)", water: "d'eau (berge ou conduite)" }[fam]));
+      el.append(
+        h("h2", {}, "Case " + ZONE[fam].sol),
+        h("div", { class: "sub" }, { fire: "Dalle de pierre : tours de feu", ice: "Cercle de runes : tours de glace", water: "Berge et marais : tours d'eau" }[fam]),
+      );
       el.append(h("p", { class: "ptmt-note" }, C.towers[fam].role));
       const stats = game.towerStats({ family: fam, tier: 1, branch: null, frenzyT: 0 });
       el.append(this.statsList(this.towerRows(stats, fam)));
@@ -352,6 +391,46 @@
         ),
       );
     });
+  };
+  /** Case boisée : couper la forêt (or, quelques secondes), puis y bâtir. */
+  P.showForestPanel = function (id) {
+    const app = this.app,
+      game = app.game;
+    const so = game.socket(id);
+    const fam = so.kind;
+    app.select({ kind: "forest", id, x: so.x, z: so.z, range: 0, family: fam });
+    this.openPanel("forest", id, (el) => {
+      const inf = game.cutInfo(id);
+      el.append(h("h2", {}, ZONE[fam].forest), h("div", { class: "sub" }, `Case ${ZONE[fam].sol} boisée`));
+      el.append(h("p", { class: "ptmt-note" }, `Une fois la forêt coupée, la case accueille une tour ${ZONE[fam].tower}. Les bûcherons travaillent aussi entre les vagues.`));
+      if (inf.progress !== null) {
+        el.append(h("h3", {}, `Bûcherons au travail · ${Math.round(inf.progress * 100)} %`), h("div", { class: "ptmt-xp ptmt-cutbar" }, h("i", { style: `width:${Math.round(inf.progress * 100)}%` })));
+      } else {
+        const ok = !inf.reason;
+        el.append(
+          h(
+            "div",
+            { class: "ptmt-row" },
+            h(
+              "button",
+              { class: "ptmt-btn " + (ok ? "ptmt-btn-gold" : ""), "aria-disabled": ok ? "false" : "true", onclick: () => this.cutAt(id) },
+              h("span", { html: I.axe, style: "width:20px;height:20px;display:inline-flex" }),
+              h("span", {}, "Couper la forêt"),
+              h("span", { class: "cost" }, inf.cost + " or"),
+              inf.reason ? h("span", { class: "ptmt-reason" }, inf.reason) : h("small", {}, `${fmt(inf.duration)} s de travail · le prix monte à chaque coupe`),
+            ),
+          ),
+        );
+      }
+    });
+  };
+  P.cutAt = function (id) {
+    const game = this.app.game;
+    const res = game.cut(id);
+    if (!res.ok) return this.flash(res.reason);
+    this.app.progressTutorial("cut");
+    this.refreshPanel();
+    this.renderTray();
   };
   P.buildAt = function (socketId, fam) {
     const game = this.app.game;
@@ -478,7 +557,54 @@
     });
   };
 
-  // ── Préparation d'une vague ─────────────────────────────────────────────────
+  // ── Portraits des voleurs ─────────────────────────────────────────────────────
+  /** Portrait d'un type d'ennemi (PTMT.portraits si présent, sinon disque coloré et initiale). */
+  P.portrait = function (type, elite, small) {
+    const key = elite ? type + "_elite" : type;
+    const def = C.enemies[type] || {};
+    const src = PTMT.portraits && (PTMT.portraits[key] || PTMT.portraits[type]);
+    const el = h("span", { class: "ptmt-portrait" + (small ? " small" : "") + (elite ? " elite" : "") + (type === "boss" ? " boss" : "") + (type === "nageur" ? " swim" : ""), title: elite ? def.eliteName : def.name });
+    if (typeof src === "string" && src.trim().startsWith("<")) el.innerHTML = src;
+    else {
+      el.classList.add("fallback");
+      el.style.setProperty("--tint", ENEMY_TINT[type] || "#666");
+      el.append(h("b", {}, ENEMY_INITIAL[type] || "?"));
+    }
+    if (elite) el.append(h("i", { class: "flag-elite", title: "Élite" }, "★"));
+    if (type === "boss") el.append(h("i", { class: "flag-boss", title: "Boss" }, "♛"));
+    if (type === "nageur") el.append(h("i", { class: "flag-swim", title: "Nageur" }, "≈"));
+    return el;
+  };
+  /** Portraits × nombres d'une liste de groupes { type, elite, count }. */
+  P.foes = function (groups, small, max = 6) {
+    const order = { boss: 0, demenageur: 1, fumigene: 2, nageur: 3, sprinteur: 4, voleur: 5 };
+    const list = groups.slice().sort((a, b) => (order[a.type] ?? 9) - (order[b.type] ?? 9) || (b.elite ? 1 : 0) - (a.elite ? 1 : 0));
+    const out = list.slice(0, max).map((g) => h("span", { class: "ptmt-foe" }, this.portrait(g.type, g.elite, small), h("em", {}, "×" + g.count)));
+    if (list.length > max) out.push(h("span", { class: "ptmt-foe more" }, "…"));
+    return out;
+  };
+  /** Groupes (type, élite, nombre) de toute une vague, fronts confondus. */
+  const mergeGroups = (fronts) => {
+    const m = new Map();
+    for (const f of fronts)
+      for (const g of f.groups) {
+        const k = g.type + (g.elite ? "*" : "");
+        if (!m.has(k)) m.set(k, { type: g.type, elite: g.elite, count: 0 });
+        m.get(k).count += g.count;
+      }
+    return [...m.values()];
+  };
+  P.traits = function (fronts) {
+    const set = [];
+    for (const g of mergeGroups(fronts)) {
+      const t = g.elite ? ELITE_TRAIT[g.type] : TRAIT[g.type];
+      if (t && !set.includes(t) && g.type !== "voleur") set.push(t);
+      if (g.elite && !set.includes("Élites")) set.unshift("Élites");
+    }
+    return set;
+  };
+
+  // ── Préparation d'une vague : « Prochaine vague » ─────────────────────────────────
   P.showPrep = function () {
     const app = this.app,
       game = app.game;
@@ -486,40 +612,364 @@
     this.prepEl = null;
     if (!game || game.state.phase !== "prep") return;
     const pv = game.preview();
+    this.pv = pv;
     if (!pv) return;
     const s = game.state;
-    const n = s.wave + 1;
-    const title = s.endless ? `Sans fin · vague ${s.endlessCount + 1}` : `Vague ${n} / ${s.waveCount}`;
-    const chips = Object.entries(pv.types).map(([k, c]) => {
-      const elite = k.endsWith("*");
-      const type = k.replace("*", "");
-      return h("span", { class: "ptmt-enemy-chip" + (elite ? " elite" : "") }, `${c} ${elite ? C.enemies[type].eliteName : ENEMY_SHORT[type]}`);
-    });
-    const byEntry = {};
-    for (const r of pv.routes) (byEntry[r.entry] = byEntry[r.entry] || new Set()).add(r.target);
-    const routeText = Object.entries(byEntry)
-      .map(([e, set]) => {
-        const lab = (game.L.entries.find((x) => x.node === e) || {}).label || e;
-        return `${lab} → ${[...set].map((id) => game.reserve(id).name).join(", ")}`;
-      })
-      .join(" · ");
+    const title = s.endless ? `Sans fin · vague ${pv.number}` : `Vague ${pv.number} / ${s.waveCount}`;
+    const fronts = pv.fronts.map((f) =>
+      h(
+        "button",
+        { class: "ptmt-front", style: `--c:${f.color}`, title: "Voir la porte", onclick: () => app.focusGate(f.entry) },
+        h("span", { class: "where" }, h("i", { class: "dot" }), h("b", {}, f.label), h("span", { class: "arrow" }, "→"), f.targets.map((id) => game.reserve(id).name).join(", ")),
+        h("span", { class: "foes" }, this.foes(f.groups)),
+      ),
+    );
+    const traits = this.traits(pv.fronts);
+    const timeline = pv.upcoming.length
+      ? h(
+          "div",
+          { class: "ptmt-timeline" },
+          h("span", { class: "lbl" }, "Ensuite"),
+          pv.upcoming.map((u) =>
+            h(
+              "span",
+              { class: "ptmt-next" + (u.boss ? " boss" : ""), title: `Vague ${u.number} · menace ${u.level.toLowerCase()}` },
+              h("b", {}, (u.endless ? "S" : "V") + u.number),
+              h("span", { class: "dots" }, u.fronts.map((f) => h("i", { style: `background:${f.color}`, title: f.label }))),
+              this.foes(mergeGroups(u.fronts), true, 3),
+            ),
+          ),
+        )
+      : h("div", { class: "ptmt-timeline" }, h("span", { class: "lbl" }, pv.last ? "Dernière vague !" : ""));
+    // Résumé compact (téléphone en construction, ou sur demande) : portes et nombres seulement.
+    const mini = h(
+      "div",
+      { class: "mini" },
+      pv.fronts.map((f) => h("button", { class: "ptmt-front-mini", style: `--c:${f.color}`, title: f.label, onclick: () => app.focusGate(f.entry) }, h("i", { class: "dot" }), this.foes(f.groups, true, 2))),
+    );
+    const toggle = h("button", { class: "ptmt-prep-toggle", title: "Réduire ou déplier l'annonce", onclick: () => this.togglePrep() });
     this.prepEl = h(
       "div",
       { class: "ptmt-prep" },
-      h("h2", {}, title),
-      h("div", { class: "threat", "data-level": pv.level }, "Menace " + pv.level.toLowerCase()),
+      h("div", { class: "head" }, h("h2", {}, h("small", {}, "Prochaine vague"), title), h("div", { class: "threat", "data-level": pv.level }, "Menace " + pv.level.toLowerCase()), toggle),
+      mini,
       pv.boss ? h("div", { class: "ptmt-boss-warning" }, pv.eliteBoss ? "Attention : Limousine-tondeuse !" : "Attention : le chef en tondeuse blindée arrive !") : null,
-      h("div", { class: "ptmt-enemies" }, chips),
-      h("p", { class: "routes" }, routeText),
-      h("button", { class: "ptmt-btn ptmt-btn-go", onclick: () => app.launchWave() }, h("span", { html: I.swords, style: "width:20px;height:20px;display:inline-flex" }), "Lancer la vague"),
+      h("div", { class: "ptmt-fronts" }, fronts),
+      traits.length ? h("div", { class: "ptmt-traits" }, traits.map((t) => h("span", {}, t))) : null,
+      timeline,
+      h("button", { class: "ptmt-btn ptmt-btn-go launch", onclick: () => app.launchWave() }, h("span", { html: I.swords, style: "width:20px;height:20px;display:inline-flex" }), "Lancer la vague"),
     );
     this.root.append(this.prepEl);
+    this.updatePrepMode();
     app.entities.showRoutes(pv.routes);
+    this.markerSig = null;
+  };
+  /** Annonce réduite : au choix du joueur (retenu dans ce navigateur), ou d'office sur téléphone
+   * pendant la construction et la visée ; masquée sur téléphone quand un panneau est ouvert. */
+  P.togglePrep = function () {
+    this.prepUserCompact = !this.isPrepCompact();
+    try {
+      localStorage.setItem("ptmt.prepCompact", this.prepUserCompact ? "1" : "0");
+    } catch (e) {}
+    this.prepForced = null;
+    this.updatePrepMode();
+  };
+  P.isPrepCompact = function () {
+    const mobile = window.innerWidth < 720;
+    if (this.prepUserCompact === undefined) {
+      try {
+        this.prepUserCompact = localStorage.getItem("ptmt.prepCompact") === "1";
+      } catch (e) {
+        this.prepUserCompact = false;
+      }
+    }
+    return this.prepUserCompact || (mobile && (!!this.buildMode || !!this.aim));
+  };
+  P.updatePrepMode = function () {
+    if (!this.prepEl) return;
+    const mobile = window.innerWidth < 720;
+    const compact = this.isPrepCompact();
+    this.prepEl.classList.toggle("compact", compact);
+    this.prepEl.style.display = mobile && this.panel ? "none" : "";
   };
   P.hidePrep = function () {
     if (this.prepEl) this.prepEl.remove();
     this.prepEl = null;
     this.app.entities.showRoutes(null);
+    this.markerSig = null;
+  };
+
+  // ── Pendant l'attaque : ce qui arrive encore, et la vague d'après ─────────────────
+  /** Fronts des apparitions restantes de la vague en cours (par porte). */
+  P.pendingFronts = function () {
+    const game = this.app.game,
+      s = game.state;
+    const m = new Map();
+    for (const sp of s.spawns) {
+      const e = game.L.entries.find((x) => x.node === sp.entry) || { node: sp.entry, label: sp.entry, color: "#e8453c" };
+      if (!m.has(sp.entry)) m.set(sp.entry, { entry: sp.entry, label: e.label, color: e.color, targets: [], groups: [], count: 0, first: sp.at });
+      const f = m.get(sp.entry);
+      if (!f.targets.includes(sp.target)) f.targets.push(sp.target);
+      let g = f.groups.find((x) => x.type === sp.type && x.elite === !!sp.elite);
+      if (!g) f.groups.push((g = { type: sp.type, elite: !!sp.elite, count: 0 }));
+      g.count++;
+      f.count++;
+    }
+    return [...m.values()];
+  };
+  /** Aperçu de la vague suivante, calculé une fois par vague. */
+  P.nextPreview = function () {
+    const game = this.app.game,
+      s = game.state;
+    const key = s.wave + ":" + s.endless + ":" + s.endlessCount + ":" + s.phase;
+    if (this.nextKey !== key) {
+      this.nextKey = key;
+      this.nextPv = game.preview();
+    }
+    return this.nextPv;
+  };
+  P.updateWaveBar = function () {
+    const app = this.app,
+      game = app.game,
+      s = game.state;
+    if (s.phase !== "wave") {
+      if (this.waveBar) this.waveBar.remove();
+      this.waveBar = null;
+      return;
+    }
+    const pending = this.pendingFronts();
+    const onField = s.enemies.length;
+    const nx = this.nextPreview();
+    if (this.waveBar) this.waveBar.style.display = window.innerWidth < 720 && this.panel ? "none" : "";
+    const sig = JSON.stringify([s.wave, onField, pending.map((f) => [f.entry, f.count]), nx && nx.number]);
+    if (sig === this.waveBarSig && this.waveBar) return;
+    this.waveBarSig = sig;
+    if (!this.waveBar) {
+      this.waveBar = h("div", { class: "ptmt-wavebar" });
+      this.root.append(this.waveBar);
+    }
+    const bar = this.waveBar;
+    bar.innerHTML = "";
+    const now = h("div", { class: "now" }, h("b", {}, s.endless ? `Sans fin ${s.endlessCount}` : `Vague ${s.wave}`), h("span", { class: "field" }, `${onField} sur le terrain`));
+    if (pending.length) now.append(h("span", { class: "sep" }, "· encore"), ...pending.map((f) => h("span", { class: "ptmt-front-mini", style: `--c:${f.color}` }, h("i", { class: "dot" }), this.foes(f.groups, true, 3))));
+    bar.append(now);
+    if (nx) bar.append(h("div", { class: "after" }, h("span", { class: "lbl" }, "Ensuite"), h("b", {}, (nx.endless ? "S" : "V") + nx.number), h("span", { class: "dots" }, nx.fronts.map((f) => h("i", { style: `background:${f.color}`, title: f.label }))), this.foes(mergeGroups(nx.fronts), true, 4)));
+    else if (!s.endless) bar.append(h("div", { class: "after" }, h("span", { class: "lbl" }, "Dernière vague")));
+  };
+
+  // ── Repères de portes sur la carte (et flèches au bord de l'écran) ─────────────────
+  P.markerFronts = function () {
+    const game = this.app.game,
+      s = game.state;
+    if (s.phase === "prep") return { fronts: this.pv ? this.pv.fronts : [], mode: "next" };
+    if (s.phase === "wave") {
+      const pending = this.pendingFronts();
+      if (pending.length) return { fronts: pending, mode: "now" };
+      const nx = this.nextPreview();
+      return { fronts: nx ? nx.fronts : [], mode: "after" };
+    }
+    return { fronts: [], mode: "none" };
+  };
+  P.updateMarkers = function () {
+    const app = this.app,
+      game = app.game;
+    const { fronts, mode } = this.markerFronts();
+    const cam = app.camera;
+    const w = app.canvas.clientWidth,
+      hgt = app.canvas.clientHeight;
+    this.markers = this.markers || new Map();
+    const seen = new Set();
+    const sigAll = mode + fronts.map((f) => f.entry).join(",");
+    if (sigAll !== this.markerSig) {
+      this.markerSig = sigAll;
+      app.world.setActiveGates && app.world.setActiveGates(mode === "none" ? [] : fronts.map((f) => f.entry));
+    }
+    const v = new THREE.Vector3();
+    // Zone libre de la carte : sous la barre du haut, au-dessus des onglets, hors des panneaux.
+    const rectOf = (el) => (el && el.isConnected && el.style.display !== "none" ? el.getBoundingClientRect() : null);
+    const topBar = rectOf(this.top),
+      bottomBar = rectOf(this.bottom);
+    const top = (topBar ? topBar.bottom : 60) + 6,
+      side = 30;
+    let bottom = hgt - (bottomBar ? bottomBar.top : hgt - 190) + 6;
+    const blocks = [rectOf(this.prepEl), rectOf(this.waveBar), rectOf(this.panelEl)].filter((r) => r && r.width > 0);
+    // Un panneau posé en bas sur toute la largeur (téléphone) remonte la limite basse.
+    for (const r of blocks) if (r.width > w * 0.8 && r.top > hgt * 0.35) bottom = Math.max(bottom, hgt - r.top + 6);
+    const lateral = blocks.filter((r) => !(r.width > w * 0.8 && r.top > hgt * 0.35));
+    const blocked = (x, y) => lateral.some((r) => x > r.left - 12 && x < r.right + 12 && y > r.top - 12 && y < r.bottom + 40);
+    for (const f of fronts) {
+      seen.add(f.entry);
+      let mk = this.markers.get(f.entry);
+      if (!mk) {
+        const el = h("button", { class: "ptmt-gate", onclick: () => app.focusGate(f.entry) });
+        const edge = h("button", { class: "ptmt-edge", onclick: () => app.focusGate(f.entry) });
+        this.overlay.append(el, edge);
+        mk = { el, edge, sig: null };
+        this.markers.set(f.entry, mk);
+      }
+      const sig = mode + JSON.stringify(f.groups) + f.color;
+      if (sig !== mk.sig) {
+        mk.sig = sig;
+        mk.el.style.setProperty("--c", f.color);
+        mk.edge.style.setProperty("--c", f.color);
+        mk.el.dataset.mode = mode;
+        mk.edge.dataset.mode = mode;
+        mk.el.innerHTML = "";
+        mk.el.append(
+          h("span", { class: "tag" }, mode === "now" ? "Ils arrivent" : mode === "after" ? "Vague suivante" : "Prochaine vague", h("b", {}, f.label)),
+          h("span", { class: "foes" }, this.foes(f.groups, true, 4)),
+          h("span", { class: "pin" }),
+        );
+        mk.edge.innerHTML = "";
+        mk.edge.append(h("span", { class: "chev" }), h("span", { class: "n" }, String(f.count)));
+      }
+      const anchor = app.world.gateAnchor ? app.world.gateAnchor(f.entry, v) : null;
+      if (!anchor) {
+        mk.el.style.display = mk.edge.style.display = "none";
+        continue;
+      }
+      anchor.project(cam);
+      let sx = ((anchor.x + 1) / 2) * w,
+        sy = ((1 - anchor.y) / 2) * hgt;
+      const behind = anchor.z > 1;
+      // Le repère (environ 90 px de haut au-dessus du point) doit tenir dans la zone libre.
+      const inside = !behind && sx > side + 40 && sx < w - side - 40 && sy > top + 96 && sy < hgt - bottom && !blocked(sx, sy - 50);
+      if (inside) {
+        mk.el.style.display = "";
+        mk.edge.style.display = "none";
+        mk.el.style.left = sx + "px";
+        mk.el.style.top = sy + "px";
+      } else {
+        mk.el.style.display = "none";
+        mk.edge.style.display = "";
+        // Direction depuis le centre de la zone libre vers la porte, rabattue sur son bord.
+        const x0 = side,
+          x1 = w - side,
+          y0 = top + 28,
+          y1 = hgt - bottom - 28;
+        const cx = (x0 + x1) / 2,
+          cy = (y0 + y1) / 2;
+        let dx = sx - cx,
+          dy = sy - cy;
+        if (behind) (dx = -dx), (dy = -dy);
+        const k = Math.min((x1 - x0) / 2 / Math.max(1e-3, Math.abs(dx)), (y1 - y0) / 2 / Math.max(1e-3, Math.abs(dy)));
+        let ex = cx + dx * k,
+          ey = cy + dy * k;
+        // Pas sous un panneau : on glisse la flèche juste à côté.
+        for (const r of lateral)
+          if (ex > r.left - 28 && ex < r.right + 28 && ey > r.top - 28 && ey < r.bottom + 28) {
+            if (r.left < w / 2) ex = r.right + 30;
+            else ex = r.left - 30;
+          }
+        mk.edge.style.left = ex + "px";
+        mk.edge.style.top = ey + "px";
+        const tx = behind ? cx - (sx - cx) * 50 : sx,
+          ty = behind ? cy - (sy - cy) * 50 : sy;
+        mk.edge.style.setProperty("--rot", Math.atan2(ty - ey, tx - ex) + "rad");
+      }
+    }
+    for (const [id, mk] of this.markers)
+      if (!seen.has(id)) {
+        mk.el.remove();
+        mk.edge.remove();
+        this.markers.delete(id);
+      }
+  };
+  P.clearMarkers = function () {
+    if (this.markers) for (const mk of this.markers.values()) (mk.el.remove(), mk.edge.remove());
+    this.markers = new Map();
+    this.markerSig = null;
+    this.nextKey = null;
+    if (this.waveBar) this.waveBar.remove();
+    this.waveBar = null;
+    this.waveBarSig = null;
+  };
+
+  // ── Coupes en cours : anneau de progression au-dessus de la case ────────────────────
+  P.updateCutRings = function () {
+    const app = this.app,
+      game = app.game,
+      s = game.state;
+    this.cutRings = this.cutRings || new Map();
+    const w = app.canvas.clientWidth,
+      hgt = app.canvas.clientHeight;
+    const v = new THREE.Vector3();
+    const seen = new Set();
+    for (const j of s.cutting) {
+      seen.add(j.id);
+      let el = this.cutRings.get(j.id);
+      if (!el) {
+        el = h("div", {
+          class: "ptmt-cut",
+          html: `<svg viewBox="0 0 40 40"><circle cx="20" cy="20" r="16" class="bg"/><circle cx="20" cy="20" r="16" class="fg"/></svg><span class="axe">${I.axe || ""}</span>`,
+        });
+        this.overlay.append(el);
+        this.cutRings.set(j.id, el);
+      }
+      const so = game.socket(j.id);
+      app.world.toWorld(so.x, so.z, app.world.tileY(so) + 4.2, v);
+      v.project(app.camera);
+      el.style.display = v.z < 1 ? "" : "none";
+      el.style.left = ((v.x + 1) / 2) * w + "px";
+      el.style.top = ((1 - v.y) / 2) * hgt + "px";
+      const p = game.cutProgress(j.id) || 0;
+      el.querySelector(".fg").style.strokeDashoffset = String(100.5 * (1 - p));
+    }
+    for (const [id, el] of this.cutRings) if (!seen.has(id)) (el.remove(), this.cutRings.delete(id));
+  };
+
+  // ── Mode construction : case visée, portée, prix ───────────────────────────────
+  /** Case prévisualisée en mode construction (survol à la souris, premier toucher au doigt). */
+  P.setBuildPreview = function (id) {
+    this.preview = id || null;
+    const app = this.app,
+      game = app.game;
+    if (!this.buildMode || this.buildMode.kind !== "tower" || !id) {
+      if (this.buildTag) this.buildTag.style.display = "none";
+      if (!this.panel) app.entities.showRange(0, 0, 0);
+      return;
+    }
+    const so = game.socket(id);
+    const fam = this.buildMode.family;
+    const f = C.towers[fam].forms["1"];
+    const col = { fire: 0xff9a52, ice: 0x9fe8ff, water: 0x62b4ff }[fam];
+    if (so.kind === fam && !game.towerAt(id) && !game.isForest(id)) app.entities.showRange(so.x, so.z, game.towerStats({ family: fam, tier: 1, branch: null, frenzyT: 0 }).range, col);
+    else app.entities.showRange(0, 0, 0);
+    if (!this.buildTag) {
+      this.buildTag = h("div", { class: "ptmt-buildtag" });
+      this.overlay.append(this.buildTag);
+    }
+    const tag = this.buildTag;
+    tag.innerHTML = "";
+    tag.dataset.ok = "false";
+    if (game.towerAt(id)) tag.append(h("b", {}, "Case occupée"));
+    else if (so.kind !== fam) tag.append(h("b", {}, `Sol ${ZONE[so.kind].sol}`), h("span", {}, `Tours ${ZONE[so.kind].tower} seulement`));
+    else if (game.isForest(id)) {
+      const inf = game.cutInfo(id);
+      tag.append(h("b", {}, ZONE[so.kind].forest), h("span", {}, inf.progress !== null ? "Coupe en cours…" : `Touche pour couper · ${inf.cost} or`));
+    } else {
+      tag.dataset.ok = game.state.gold >= f.cost ? "true" : "false";
+      tag.append(h("b", {}, f.name), h("span", { class: "cost" }, `${f.cost} or`));
+      if (this.touch) tag.append(h("span", { class: "hint" }, "Touche encore pour construire"));
+    }
+    tag.style.display = "";
+    this.previewPos = so;
+  };
+  P.updateBuildTag = function () {
+    if (!this.buildTag || this.buildTag.style.display === "none" || !this.previewPos) return;
+    const app = this.app;
+    const so = this.previewPos;
+    const v = app.world.toWorld(so.x, so.z, app.world.tileY(so) + 0.4);
+    v.project(app.camera);
+    const w = app.canvas.clientWidth,
+      hgt = app.canvas.clientHeight;
+    const tw = this.buildTag.offsetWidth || 120,
+      th = this.buildTag.offsetHeight || 40;
+    // Au-dessus de la case (sans la cacher), et entière à l'écran.
+    const x =Math.max(tw / 2 + 6, Math.min(w - tw / 2 - 6, ((v.x + 1) / 2) * w));
+    const y = Math.max(th + 70, Math.min(hgt - 200, ((1 - v.y) / 2) * hgt - 34));
+    this.buildTag.style.left = x + "px";
+    this.buildTag.style.top = y + "px";
   };
 
   // ── Mise à jour régulière ─────────────────────────────────────────────────────
@@ -530,8 +980,14 @@
     const s = game.state;
     this.updateLabels();
     this.updateFloaters(dt);
-    if (time - this.last < 0.12) return;
+    this.updatePrepMode();
+    this.updateMarkers();
+    this.updateCutRings();
+    this.updateBuildTag();
+    if (time - this.last < 0.12 && this.lastGame === game) return;
     this.last = time;
+    this.lastGame = game;
+    this.updateWaveBar();
     const L = game.L;
     this.levelChip.children[0].textContent = `${game.level}. ${L.name}`;
     this.levelChip.children[1].textContent = s.endless ? `Sans fin · vague ${s.endlessCount}` : s.phase === "prep" ? `Préparation · vague ${s.wave + 1}/${s.waveCount}` : `Vague ${s.wave}/${s.waveCount}`;
@@ -581,6 +1037,10 @@
     if (p.kind === "reserve") {
       const r = game.reserve(p.id);
       return [r.tier, r.stock.length, s.gold, s.mill.atelier];
+    }
+    if (p.kind === "forest" || p.kind === "socket") {
+      const pr = game.cutProgress(p.id);
+      return [s.gold, game.isForest(p.id), pr === null ? -1 : Math.floor(pr * 20), !!game.towerAt(p.id)];
     }
     return [s.gold, s.traps.length, s.mill.atelier];
   };
