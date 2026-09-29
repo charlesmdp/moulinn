@@ -160,6 +160,7 @@ Modules de la version 32 (`src/app/v32/`, chargés dans l'ordre des noms) :
 | `50-meteo.js` | Onglet Météo et boule à neige |
 | `60-ui.js` | Habillage de l'interface |
 | `65-atelier.js` | Atelier en onglets et chemins taillés dans la pente |
+| `66-berges.js` | Atelier : gommer ou ajouter des berges (terre, roseaux, carex, iris, pierres), gestes gardés et rejoués |
 | `70-birds.js` | Oiseaux et colverts |
 | `72-materials.js` | Moellons, ardoises, arbustes et massifs lissés |
 | `73-stones.js` | Outils des pierres sèches (pierres, roche moussue, lots instanciés) |
