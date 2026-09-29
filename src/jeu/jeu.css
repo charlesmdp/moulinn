@@ -1209,3 +1209,30 @@ body {
     bottom: calc(200px + var(--safe-bottom));
   }
 }
+
+/* Petits téléphones : les quatre onglets tiennent sur une ligne, la jauge de mana reste lisible. */
+@media (max-width: 440px) {
+  .ptmt-tabs {
+    gap: 4px;
+    padding: 5px;
+  }
+  .ptmt-tabs .ptmt-btn {
+    font-size: 13px;
+    padding: 7px 8px;
+    gap: 5px;
+  }
+  .ptmt-tabs .ptmt-btn svg {
+    width: 16px;
+    height: 16px;
+  }
+  .ptmt-mana {
+    min-width: 128px;
+  }
+  .ptmt-mana-bar {
+    min-width: 66px;
+  }
+  .ptmt-mana-bar em {
+    font-size: 9px;
+    letter-spacing: -0.02em;
+  }
+}
