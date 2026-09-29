@@ -15,9 +15,14 @@
   #ui button.on { background: var(--accent); color: #2a2206; font-weight: 600; }
   #ui button.ev { background: #4b3a52; }
   #stats { color: var(--muted); font: 11px/1.35 ui-monospace, Menlo, monospace; white-space: pre; margin-top: 4px; }
+  #portraits { position: fixed; left: 8px; bottom: 8px; display: flex; flex-wrap: wrap; gap: 6px; max-width: calc(100vw - 16px); }
+  #portraits .chip { display: flex; align-items: center; gap: 4px; padding: 3px 7px 3px 3px; border-radius: 999px; font-size: 11px; background: rgba(20, 24, 18, 0.82); color: #f4efe1; }
+  #portraits .chip.light { background: #f6efdc; color: #2b2317; }
+  #portraits .chip svg { width: 34px; height: 34px; display: block; }
+  #portraits .chip.small svg { width: 28px; height: 28px; }
   .label { position: fixed; transform: translate(-50%, -100%); font-size: 11px; font-weight: 600; color: #fff; text-shadow: 0 1px 2px #000, 0 0 4px #000; pointer-events: none; white-space: nowrap; }
   .label.elite { color: var(--accent); }
-  body.clean #ui, body.clean .label { display: none; }
+  body.clean #ui, body.clean .label, body.clean #portraits { display: none; }
 </style>
 </head>
 <body>
@@ -28,15 +33,15 @@
   <div class="row" id="views"></div>
   <div id="stats"></div>
 </div>
+<div id="portraits"></div>
 <script src="../../static/assets/engine-0.40e246fcf208.js"></script>
 <script src="../../static/assets/engine-1.f10ee4887053.js"></script>
-<script src="../vendor/GLTFLoader.js"></script>
-<script src="../vendor/SkeletonUtils.js"></script>
 <script src="../core/00-ptmt.js"></script>
 <script src="../fx/05-kit.js"></script>
 <script src="../actors/10-actors.js"></script>
 <script src="../actors/11-types.js"></script>
 <script src="../actors/12-overlay.js"></script>
+<script src="../ui/06-portraits.js"></script>
 <script>
 (async function () {
   "use strict";
@@ -109,7 +114,11 @@
     if (v === "face") { dist = 2.3; pitch = 6; yaw = 18; target.set(solo ? -1.6 : 0, 1.72, 0); }
     if (v === "side") { dist = 16; pitch = 18; yaw = 38; }
     if (v === "far") { dist = 55; pitch = 50; }
-    if (count) { dist = v === "close" ? 22 : 34; }
+    // distances du jeu : vue d'ensemble d'un niveau (≈ 123 m, 54°) et zoom intermédiaire
+    if (v === "jeu") { dist = 123; pitch = 54.4; }
+    if (v === "mi") { dist = 45; pitch = 54.4; }
+    if (count && v !== "jeu" && v !== "mi") { dist = v === "close" ? 22 : 34; }
+    scene.fog.near = dist + 30; scene.fog.far = dist + 110;
     const p = pitch * Math.PI / 180, y = yaw * Math.PI / 180;
     camera.position.set(target.x + Math.sin(y) * Math.cos(p) * dist, target.y + Math.sin(p) * dist, target.z + Math.cos(y) * Math.cos(p) * dist);
     controls.target.copy(target);
@@ -118,7 +127,7 @@
   }
 
   PTMT.actors.mobile = mobile;
-  await PTMT.actors.load("../../static/assets/visitor.0ad88b8a340a.glb.gz");
+  await PTMT.actors.load();
 
   // --- ennemis ---
   const TYPES = PTMT.actors.TYPES;
@@ -159,7 +168,7 @@
   const STATE_KEYS = [
     ["moving", "Marche", "m"], ["carrying", "Sac", "c"], ["frozen", "Gelé", "f"], ["burning", "En feu", "b"],
     ["wet", "Mouillé", "w"], ["netted", "Filet", "n"], ["untargetable", "Fumée", "u"], ["inWater", "Dans l’eau", "i"],
-    ["overheated", "Surchauffe", "o"], ["lured", "Attiré", "l"], ["boosted", "Accéléré", "s"], ["tenacity", "Ténacité", "t"], ["lowHp", "PV bas", "p"],
+    ["overheated", "Surchauffe", "o"], ["lured", "Attiré", "l"], ["boosted", "Accéléré", "s"], ["tenacity", "Ténacité", "t"], ["lowHp", "PV bas", "p"], ["stealing", "Vol en cours", "g"],
   ];
   const EVENTS = [["hit", "h"], ["knockback", "k"], ["pull", "v"], ["ko", "x"], ["steal", "1"], ["drop", "2"], ["helmetOff", "3"], ["flipflops", "4"], ["smokePuff", "5"], ["overheat", "6"], ["rage", "7"], ["splash", "8"], ["fooled", "9"]];
   const global = { moving: !params.has("idle") };
@@ -189,7 +198,7 @@
     b.onclick = () => fire(name);
     eventsEl.appendChild(b);
   }
-  for (const v of ["aerial", "close", "three", "back", "side", "far"]) {
+  for (const v of ["aerial", "close", "three", "back", "side", "far", "mi", "jeu"]) {
     const b = document.createElement("button"); b.textContent = "vue " + v; b.onclick = () => setView(v); viewsEl.appendChild(b);
   }
   addEventListener("keydown", (e) => {
@@ -199,6 +208,23 @@
     if (ev) return fire(ev[0]);
   });
   addEventListener("resize", () => { renderer.setSize(innerWidth, innerHeight); camera.aspect = innerWidth / innerHeight; camera.updateProjectionMatrix(); });
+
+  // --- triangles par variante et portraits ---
+  const vs = PTMT.actors.stats();
+  const triLine = "\n" + Object.keys(vs).map((k) => k.replace(":elite", "+") + " " + (vs[k].triangles / 1000).toFixed(1) + "k").join(" · ");
+  const pEl = document.getElementById("portraits");
+  if (PTMT.portraits && !count) {
+    for (const t of TYPES) for (const e of [false, true]) {
+      const key = t + (e ? "_elite" : "");
+      for (const light of [false, true]) {
+        const chip = document.createElement("div");
+        chip.className = "chip" + (light ? " light" : "") + (e ? " small" : "");
+        chip.innerHTML = PTMT.portraits[key] + "<span>" + PTMT.portraits.names[key] + "</span>";
+        if (light || e) chip.lastChild.remove();
+        pEl.appendChild(chip);
+      }
+    }
+  }
 
   // --- boucle ---
   const statsEl = document.getElementById("stats");
@@ -236,7 +262,7 @@
       st.carrying = !!global.carrying; st.frozen = !!global.frozen; st.burning = !!global.burning; st.wet = !!global.wet;
       st.netted = !!global.netted; st.untargetable = !!global.untargetable; st.inWater = !!global.inWater; st.overheated = !!global.overheated;
       st.lured = !!global.lured; st.boosted = !!global.boosted; st.hitFlash = it.flash;
-      st.tenacity = global.tenacity ? 0.7 : 0; st.hpFrac = global.lowHp ? 0.2 : 1;
+      st.tenacity = global.tenacity ? 0.7 : 0; st.hpFrac = global.lowHp ? 0.2 : 1; st.stealing = !!global.stealing;
       a.update(dt, time, st);
     }
     updMs = updMs * 0.9 + (performance.now() - t0) * 0.1;
@@ -261,14 +287,14 @@
       it.label.style.visibility = tmp.z < 1 ? "visible" : "hidden";
     }
     const info = renderer.info.render;
-    statsEl.textContent = `${items.length} ennemis · ${fps.toFixed(0)} i/s · maj ${updMs.toFixed(2)} ms · rendu ${frameMs.toFixed(1)} ms\nappels ${info.calls} · triangles ${(info.triangles / 1000).toFixed(0)} k`;
+    statsEl.textContent = `${items.length} ennemis · ${fps.toFixed(0)} i/s · maj ${updMs.toFixed(2)} ms · rendu ${frameMs.toFixed(1)} ms\nappels ${info.calls} · triangles ${(info.triangles / 1000).toFixed(0)} k` + triLine;
   }
   frame();
 
   // --- pilotage pour les captures ---
   window.gallery = {
     set(k, v) { global[k] = v; refreshButtons(); },
-    fire, setView, items, renderer, scene, camera,
+    fire, setView, items, renderer, scene, camera, controls,
     pause(p) { paused = p; },
     advance(sec, stepDt) { const d = stepDt || 1 / 30; for (let t = 0; t < sec; t += d) step(d); renderer.render(scene, camera); step(0); },
     stats() {

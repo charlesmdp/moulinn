@@ -1,6 +1,6 @@
 // « Pas touche à mes trésors » — tours d'EAU (repousser, regrouper, seconde chance).
 //
-//  I     Gargouille cracheuse : petite gargouille qui gonfle les joues avant de cracher.
+//  I     Cygne grincheux      : grand cygne blanc sur son nid, ailes en voûte, qui crache en donnant du cou.
 //  II-A  Bélier hydraulique   : deux grosses pompes et un canon qui tremble sous la pression.
 //  III-A Canon tsunami        : énorme gueule de carpe qui libère une vague.
 //  II-B  Fontaine siphon      : une fontaine qui aspire bruyamment l'eau (et les voleurs).
@@ -65,7 +65,11 @@
     return s;
   }
 
-  /* ---------------------------------------------------------------- I · Gargouille cracheuse */
+  /* ---------------------------------------------------------------- I · Cygne grincheux */
+  // Grand cygne blanc de mauvaise humeur, assis sur son nid au milieu d'un petit bassin de pierre.
+  // Repos : le cou ondule, les plumes frémissent de temps en temps. Élan : il recule le cou, lève les
+  // ailes en voûte et plisse les yeux. Tir : coup de cou vers l'avant, bec grand ouvert, jet d'eau.
+  const SW = { white: "#f7f7f2", shade: "#d9dee6", beak: "#ff8a1a", beakD: "#e2640c", black: "#15151a", nest: "#8a5a33", nestD: "#5e3b1f", pad: "#4f9a3a" };
   K.defTower("water1", {
     windup: 0.34,
     fireDur: 0.55,
@@ -73,147 +77,129 @@
     haloR: 1.2,
     recoil: 2.6,
     build(c) {
-      const b = K.part("w1:base");
-      basin(b, "w1", 0.92, 0.33, 0.14, 0.22, 18);
-      b.add(G.ring(0.4, 0.8, 24, 3), "water", { p: [0, 0.21, 0] });
-      b.add(G.cyl(0.36, 0.42, 0.78, 10), "stone", { p: [0, 0.39, 0], c: C.stoneL, uv: [2.5, 0.8] });
-      b.add(G.torus(0.37, 0.035, 3, 14), "metal", { p: [0, 0.72, 0], r: [Math.PI / 2, 0, 0], c: C.bronze });
+      // Bassin de pierre, eau, piédestal et nid de brindilles.
+      const b = K.part("w1s:base");
+      basin(b, "w1s", 0.92, 0.3, 0.13, 0.2, 20);
+      b.add(G.ring(0.4, 0.8, 24, 3), "water", { p: [0, 0.2, 0] });
+      b.add(G.cyl(0.36, 0.42, 0.36, 12), "stone", { p: [0, 0.18, 0], c: SW.shade, uv: [2.5, 0.6] });
+      b.add(G.cyl(0.47, 0.47, 0.06, 14), "wood", { p: [0, 0.39, 0], c: C.wood, uv: [1.5, 0.3] });
+      b.add(G.torus(0.35, 0.1, 5, 14), "matte", { p: [0, 0.46, 0], r: [Math.PI / 2, 0, 0], g: [SW.nestD, SW.nest, 0.4, 0.52], j: 0.12 });
+      for (let i = 0; i < 7; i++) {
+        const a = (i / 7) * TAU + 0.3;
+        b.add(G.cyl(0.014, 0.014, 0.34, 4), "matte", { p: [Math.cos(a) * 0.36, 0.5, Math.sin(a) * 0.36], r: [0.5 * Math.sin(a * 3), a, Math.PI / 2 - 0.25], c: i % 2 ? SW.nest : SW.nestD });
+      }
+      for (const q of [[0.62, -0.3, 0.14], [-0.5, 0.48, 0.12], [-0.2, -0.64, 0.1]]) b.add(G.cyl(q[2], q[2], 0.015, 9), "satin", { p: [q[0], 0.215, q[1]], c: SW.pad });
       mossPatches(b, [
-        [0.7, 0.33, 0.45, 0.13],
-        [-0.55, 0.33, -0.65, 0.15],
-        [0.2, 0.78, -0.3, 0.12],
+        [0.7, 0.3, 0.45, 0.13],
+        [-0.55, 0.3, -0.65, 0.15],
       ]);
       c.root.add(b.build());
-      const garg = K.node(c.yaw, 0, 0.78, 0);
-      const gp = K.part("w1:body");
-      gp.add(G.sphere(0.3, 10, 8), "stone", { p: [0, 0.27, -0.06], s: [1.05, 0.9, 1], g: [C.gargD, C.garg, 0, 0.5], uv: [3, 2] });
-      for (const sx of [-1, 1]) {
-        gp.add(G.sphere(0.16, 8, 6), "stone", { p: [sx * 0.21, 0.13, -0.12], s: [0.9, 0.8, 1.2], c: C.garg, uv: [0.8, 0.8] });
-        gp.add(G.sphere(0.085, 6, 5), "stone", { p: [sx * 0.15, 0.05, 0.22], s: [1, 0.8, 1.2], c: C.garg });
-        for (const k of [-1, 0, 1]) gp.add(G.cone(0.02, 0.06, 4), "glossy", { p: [sx * 0.15 + k * 0.035, 0.03, 0.31], r: [Math.PI / 2 + 0.3, 0, 0], c: C.bone });
-      }
-      gp.add(
-        G.tube(
-          "w1:tail",
-          [
-            [0, 0.12, -0.3],
-            [0.1, 0.06, -0.5],
-            [0.28, 0.12, -0.58],
-            [0.36, 0.3, -0.5],
-          ],
-          [0.06, 0.02],
-          8,
-          5,
-        ),
-        "stone",
-        { c: C.gargD },
-      );
-      gp.add(G.cone(0.06, 0.12, 4), "stone", { p: [0.37, 0.36, -0.47], r: [0.3, 0, -0.3], c: C.gargD });
-      garg.add(gp.build());
-      // Ailes repliées.
+
+      // Le cygne (tourne vers sa cible).
+      const swan = K.node(c.yaw, 0, 0.46, 0);
+      const bp = K.part("w1s:body");
+      bp.add(G.sphere(0.44, 14, 10), "satin", { p: [0, 0.3, -0.1], s: [0.9, 0.7, 1.22], g: [SW.white, SW.shade, 0.36, -0.04] });
+      bp.add(G.sphere(0.3, 12, 9), "satin", { p: [0, 0.34, 0.26], s: [0.95, 1, 0.9], g: [SW.white, SW.shade, 0.4, 0.05] });
+      bp.add(G.cone(0.22, 0.46, 8), "satin", { p: [0, 0.46, -0.6], r: [-2.25, 0, 0], s: [1, 1, 0.55], c: SW.white });
+      for (const k of [-1, 0, 1]) bp.add(G.cone(0.08, 0.26, 5), "satin", { p: [k * 0.09, 0.6, -0.7], r: [-2.5 + Math.abs(k) * 0.2, 0, k * 0.4], c: SW.white });
+      swan.add(bp.build());
+      // Ailes levées en voûte (menaçantes), plumes en festons.
+      const wingShape = [
+        [0, 0], [0.12, 0.2], [0.32, 0.34], [0.54, 0.4], [0.74, 0.38], [0.9, 0.28], [0.98, 0.14],
+        [0.86, 0.1], [0.84, 0.02], [0.72, 0.05], [0.68, -0.04], [0.56, 0.0], [0.5, -0.08], [0.4, -0.02], [0.32, -0.1], [0.2, -0.04], [0.1, -0.06],
+      ];
       const wings = [];
       for (const sx of [-1, 1]) {
-        const wn = K.node(garg, sx * 0.16, 0.42, -0.2);
-        const wp = K.part("w1:wing");
-        wp.add(
-          G.extrude(
-            "w1:wing",
-            [
-              [0, 0],
-              [0.18, 0.2],
-              [0.42, 0.28],
-              [0.36, 0.14],
-              [0.3, 0.02],
-              [0.18, 0.06],
-              [0.12, -0.08],
-            ],
-            0.03,
-            0,
-          ),
-          "stone",
-          { r: [0, -Math.PI / 2 + 0.5, 0], g: [C.gargD, C.garg, 0, 0.25] },
-        );
+        const wn = K.node(swan, sx * 0.27, 0.46, 0.18);
+        const wp = K.part("w1s:wing");
+        wp.add(G.extrude("w1s:wing", wingShape, 0.06, 0), "satin", { r: [0, Math.PI / 2, 0], s: [1, 1.05, 0.95], g: [SW.white, SW.shade, 0.36, -0.08] });
+        wp.add(G.extrude("w1s:wing2", wingShape.map(([x, y]) => [x * 0.8, y * 0.7 + 0.02]), 0.07, 0), "satin", { p: [0.03, 0.02, 0], r: [0, Math.PI / 2, 0], c: SW.white });
         const wm = wp.build();
-        wm.scale.set(sx, 1, 1);
+        wm.scale.set(sx * 1.25, 1.25, 1.25);
         wn.add(wm);
         wings.push(wn);
       }
-      // Tête, joues, bec-fontaine.
-      const head = K.node(garg, 0, 0.6, 0.08);
-      const hp = K.part("w1:head");
-      hp.add(G.sphere(0.24, 10, 8), "stone", { s: [1.1, 0.95, 1], g: [C.gargD, C.garg, -0.2, 0.2], uv: [2.6, 2] });
-      hp.add(G.rbox(0.2, 0.12, 0.16, 0.05), "stone", { p: [0, -0.07, 0.2], c: C.garg });
-      for (const sx of [-1, 1]) {
-        hp.add(G.cone(0.07, 0.2, 4), "stone", { p: [sx * 0.2, 0.18, -0.02], r: [0, 0, -sx * 0.7], c: C.gargD });
-        hp.add(
-          G.tube(
-            "w1:horn",
-            [
-              [0, 0, 0],
-              [0.03, 0.08, -0.05],
-              [0.02, 0.14, -0.14],
-            ],
-            [0.03, 0.004],
-            5,
-            4,
-          ),
-          "glossy",
-          { p: [sx * 0.09, 0.19, 0.02], s: [sx, 1, 1], c: C.bone },
-        );
-      }
-      hp.add(G.cyl(0.05, 0.06, 0.22, 8, true), "metal", { p: [0, -0.08, 0.34], r: [Math.PI / 2 - 0.15, 0, 0], c: C.bronze });
-      hp.add(G.torus(0.055, 0.018, 3, 10), "metal", { p: [0, -0.1, 0.45], r: [-0.15, 0, 0], c: C.bronze });
-      hp.add(G.disc(0.045, 8), "water", { p: [0, -0.1, 0.44], r: [-0.15, 0, 0] });
+      // Cou en S (deux tronçons articulés) et tête.
+      const neck = K.node(swan, 0, 0.52, 0.34);
+      const np = K.part("w1s:neck");
+      np.add(G.tube("w1s:neckA", [[0, -0.1, -0.02], [0, 0.12, 0.15], [0, 0.32, 0.15], [0, 0.48, 0.02]], [0.13, 0.1], 10, 8), "satin", { c: SW.white });
+      np.add(G.sphere(0.1, 8, 6), "satin", { p: [0, 0.48, 0.02], c: SW.white });
+      neck.add(np.build());
+      const neck2 = K.node(neck, 0, 0.48, 0.02);
+      const n2 = K.part("w1s:neck2");
+      n2.add(G.tube("w1s:neckB", [[0, 0, 0], [0, 0.14, -0.11], [0, 0.3, -0.09], [0, 0.42, 0.04]], [0.1, 0.09], 10, 8), "satin", { c: SW.white });
+      neck2.add(n2.build());
+      const head = K.node(neck2, 0, 0.44, 0.05);
+      const hp = K.part("w1s:head");
+      hp.add(G.sphere(0.19, 12, 9), "satin", { p: [0, 0.03, 0.03], s: [0.84, 0.88, 1.16], c: SW.white });
+      hp.add(G.sphere(0.07, 10, 7), "matte", { p: [0, 0.005, 0.18], s: [1.15, 0.72, 0.6], c: SW.black });
+      hp.add(G.cone(0.08, 0.36, 10), "glossy", { p: [0, -0.005, 0.37], r: [Math.PI / 2 + 0.1, 0, 0], s: [1, 1, 0.62], g: [SW.beak, SW.beakD, 0.4, 0.2, "z"] });
+      hp.add(G.sphere(0.065, 8, 6), "glossy", { p: [0, 0.06, 0.21], s: [0.9, 1, 1.1], c: SW.black });
+      hp.add(G.sphere(0.028, 6, 5), "glossy", { p: [0, -0.03, 0.54], s: [1.2, 0.8, 1], c: SW.black });
       head.add(hp.build());
-      const cheeks = K.node(head, 0, -0.07, 0.12);
-      const cp = K.part("w1:cheeks");
-      for (const sx of [-1, 1]) cp.add(G.sphere(0.1, 8, 6), "stone", { p: [sx * 0.14, 0, 0], c: "#a3ad9c" });
-      cheeks.add(cp.build());
-      const face = c.face(head, { key: "w1", p: [0, 0.08, 0.19], r: [-0.2, 0, 0], gap: 0.1, eye: 0.075, skin: C.garg, lidMat: "stone", brow: C.gargD, slant: 0.3, rest: 0.05 });
-      // Filet d'eau qui bave du bec.
-      const drib = K.part("w1:drib");
-      drib.add(
-        G.tube(
-          "w1:drib",
-          [
-            [0, 0, 0],
-            [0, -0.15, 0.12],
-            [0, -0.5, 0.2],
-            [0, -1.15, 0.24],
-          ],
-          [0.02, 0.012],
-          8,
-          4,
-        ),
-        "waterFx",
-        {},
-      );
-      const dribble = drib.build();
-      dribble.position.set(0, 0.5, 0.56);
-      dribble.userData.noBounds = true;
-      garg.add(dribble);
-      const spr = splash(head, 0, -0.1, 0.5, 0.6);
-      c.muzzle(head, 0, -0.1, 0.48);
-      let puff = 0;
+      const jaw = K.node(head, 0, -0.045, 0.21);
+      const jp = K.part("w1s:jaw");
+      jp.add(G.cone(0.058, 0.28, 8), "glossy", { p: [0, -0.01, 0.14], r: [Math.PI / 2, 0, 0], s: [1, 1, 0.38], c: SW.beakD });
+      jaw.add(jp.build());
+      const face = c.face(head, { key: "w1s", p: [0, 0.1, 0.12], r: [-0.12, 0, 0], gap: 0.092, eye: 0.058, skin: SW.white, lidMat: "satin", brow: SW.black, browT: 0.02, browW: 0.09, slant: 0.55, rest: 0.22, pupil: 0.58 });
+      // Jet d'eau craché par le bec (visible au tir).
+      const jet = K.node(head, 0, -0.035, 0.53);
+      const jp2 = K.part("w1s:jet");
+      jp2.add(G.tube("w1s:jet", [[0, 0, 0], [0, -0.02, 0.35], [0, -0.08, 0.7], [0, -0.18, 1.05]], [0.045, 0.1], 10, 6), "waterFx", {});
+      for (let i = 0; i < 3; i++) jp2.add(G.ico(0.05, 0), "waterFx", { p: [(i - 1) * 0.08, -0.16 - i * 0.03, 1.02 + (i % 2) * 0.06] });
+      const jm = jp2.build({ mats: { waterFx: c.inst("waterFx") } });
+      jm.userData.noBounds = true;
+      jet.add(jm);
+      const jetMat = jm.children[0].material;
+      jet.visible = false;
+      // Gouttes qui perlent du bec au repos.
+      const drip = K.node(head, 0, -0.07, 0.5);
+      const dp = K.part("w1s:drip");
+      dp.add(G.sphere(0.022, 6, 5), "waterFx", { s: [1, 1.4, 1] });
+      drip.add(dp.build({ mats: { waterFx: jetMat } }));
+      const spr = splash(head, 0, -0.02, 0.56, 0.5);
+      c.muzzle(head, 0, -0.02, 0.56);
+      let open = 0;
       return {
         pose(st, dt) {
           const t = st.t + st.phase;
           const w = easeInOut(st.w);
+          const f = st.fire;
+          const strike = f * f * (3 - 2 * f);
+          const fid = bump(1 - st.fidget);
           const rec = st.recoil.x;
+          // Respiration, plumes ébouriffées de temps en temps.
           const br = Math.sin(t * 2);
-          garg.scale.set(1.15 * (1 + br * 0.015), 1.15 * (1 + br * 0.02 + w * 0.04), 1.15 * (1 + br * 0.015));
-          head.position.set(0, 0.6 + Math.sin(t * 1.4) * 0.015 + w * 0.03, 0.08 - w * 0.06 + rec * 0.6);
-          head.rotation.set(-w * 0.2 + st.fire * 0.25, Math.sin(t * 0.8) * 0.12 * (1 - w), Math.sin(t * 1.1) * 0.04);
-          puff = damp(puff, st.fire > 0.05 ? -0.2 : w, st.fire > 0.05 ? 30 : 9, dt);
-          const cs = 1 + Math.max(0, puff) * 0.95 + st.pulse * 0.3;
-          cheeks.scale.set(cs, cs * 0.92, cs);
-          const flap = bump(1 - st.fidget) * 0.7 + st.fire * 0.4 + Math.sin(t * 1.3) * 0.05;
-          wings[0].rotation.set(0, -flap, flap * 0.3);
-          wings[1].rotation.set(0, flap, -flap * 0.3);
-          dribble.scale.set(1, 1 - st.fire * 0.8, 1);
-          spr.scale.setScalar(0.3 + st.flash * 1.4 + w * 0.3);
-          face.setOpen(st.fire > 0.2 ? -0.6 : w * 1.1);
-          face.look(st.w > 0.05 ? 0 : null, 0);
+          const ruffle = fid * Math.sin(t * 38) * 0.05;
+          swan.scale.set(1.12 * (1 + br * 0.012 + ruffle + w * 0.03), 1.12 * (1 + br * 0.018 - w * 0.02), 1.12 * (1 + ruffle));
+          swan.rotation.set(-strike * 0.12 + w * 0.06, 0, Math.sin(t * 1.3) * 0.02);
+          // Cou : ondulation au repos, recul à l'élan, coup vers l'avant au tir.
+          neck.rotation.set(-0.08 + Math.sin(t * 1.1) * 0.06 - w * 0.42 + strike * 0.62 - rec * 0.25, Math.sin(t * 0.7) * 0.16 * (1 - w), Math.sin(t * 0.9) * 0.05);
+          neck2.rotation.set(0.1 + Math.sin(t * 1.1 + 0.8) * 0.07 - w * 0.35 + strike * 0.5, Math.sin(t * 0.7 + 0.6) * 0.1 * (1 - w), 0);
+          head.rotation.set(-0.02 + w * 0.55 - strike * 0.75 + Math.sin(t * 1.5) * 0.04, Math.sin(t * 0.8 + 1) * 0.12 * (1 - w) + ruffle * 3, 0);
+          // Bec : sifflement de temps en temps, grand ouvert au tir.
+          const hiss = Math.max(0, Math.sin(t * 0.9) - 0.93) * 6;
+          open = damp(open, f > 0.05 ? 0.75 : w * 0.3 + hiss * 0.3, f > 0.05 ? 30 : 10, dt);
+          jaw.rotation.x = 0.04 + open;
+          // Ailes en voûte : se lèvent à l'élan, claquent au tir, frissonnent quand il s'ébroue.
+          for (let i = 0; i < 2; i++) {
+            const sx = i ? 1 : -1;
+            const lift = 0.35 + w * 0.35 + strike * 0.25 + fid * 0.2 + Math.sin(t * 1.4 + i) * 0.03 + ruffle * 2;
+            wings[i].rotation.set(0.2 + lift * 0.55, sx * 0.15, sx * (0.1 + lift * 0.7));
+          }
+          // Jet d'eau et éclat au bec.
+          jet.visible = f > 0.02;
+          if (jet.visible) {
+            const k = Math.sqrt(f);
+            jet.scale.set(0.8 + k * 0.5, 0.8 + k * 0.5, 0.15 + k * 1.1);
+            jetMat.opacity = 0.35 + 0.55 * k;
+          }
+          const dk = (t * 0.6) % 1;
+          drip.position.set(0, -0.07 - dk * dk * 0.5, 0.5);
+          drip.scale.setScalar(dk < 0.9 && f < 0.05 ? 1 : 0.001);
+          spr.scale.setScalar(0.25 + st.flash * 1.3 + w * 0.25);
+          face.setOpen(f > 0.2 ? 1 : w > 0.1 ? -0.7 * w : fid * 0.8);
+          face.look(st.w > 0.05 ? 0 : null, -0.1);
         },
       };
     },
