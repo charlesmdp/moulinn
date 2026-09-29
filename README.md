@@ -126,7 +126,8 @@ sort Rappel le ramène, et un sac tombé à l'eau flotte.
     Crache-lave → Volcan furieux ;
   - Glace : Obélisque givré → Crypte du gel → Trône du zéro absolu, ou
     Souffleur de blizzard → Tempête polaire ;
-  - Eau : Cygne grincheux → Bélier hydraulique → Canon tsunami, ou
+  - Eau : Cygne grincheux (un cygne en colère qui crache de l'eau) →
+    Bélier hydraulique → Canon tsunami, ou
     Fontaine siphon → Maelström glouton.
 
   Les tours gagnent de l'expérience ; faire évoluer une tour demande l'Atelier.
@@ -138,7 +139,10 @@ sort Rappel le ramène, et un sac tombé à l'eau flotte.
   niveaux.
 - **Voleurs** : voleur du dimanche, sprinteur en claquettes, déménageur en
   matelas, voleur au fumigène, nageur en flamant rose, chef en tondeuse blindée,
-  et leurs versions d'élite.
+  et leurs versions d'élite (voleur à casserole, patineur, forteresse canapé,
+  ninja au rideau de douche, pirate en pédalo, limousine-tondeuse). Ce sont des
+  personnages de dessin animé (grosse tête, couleurs vives, contour sombre),
+  lisibles vus d'en haut, qui brandissent le sac doré quand ils ont volé.
 - **Étoiles** : trois sans aucun vol, deux sans perte définitive.
 
 Commandes :
@@ -331,9 +335,9 @@ ordre) :
 | `sim/` | Simulation sans rendu : équilibrage (`00-config.js`), niveaux, trajets, vagues, talents, partie, progression |
 | `models/` | Modèles 3D procéduraux : tours, pièges, socles, coffres, bâtiments, améliorations du moulin |
 | `fx/` | Effets feu, glace et eau, zones, objets d'effets |
-| `actors/` | Voleurs animés (six types et leurs élites) et leurs états visibles |
-| `render/` | Terrain, eau et décor des niveaux, entités, caméra |
-| `ui/` | Interface, pictogrammes, écrans (menu, talents, résultats) |
+| `actors/` | Voleurs de dessin animé sur un squelette procédural léger (six types et leurs élites) et leurs états visibles |
+| `render/` | Terrain, eau et décor des niveaux, cases de construction et forêts à couper, entités, caméra |
+| `ui/` | Interface, pictogrammes, portraits des voleurs, écrans (menu, talents, résultats) |
 | `main.js` | Application : rendu, boucle de jeu, niveaux, sauvegardes |
 | `index.html`, `boot.js`, `jeu.css` | Page, chargement et styles |
 | `vendor/` | Chargeurs three.js (GLTFLoader, SkeletonUtils, BufferGeometryUtils) |
