@@ -16369,6 +16369,8 @@ lawnWorld20=(modelMatrix*lawnP20).xyz;`,
         ue.slice(et - 1)
       );
     }
+    // V32 : la découpe est posée en permanence sur les matériaux ; tout ce qu'elle retire (y
+    // compris les arbres dont le pied est hors de la boule) ne l'est que si globeClip26 vaut 1.
     function W(ue) {
       var kt;
       if (!ue || ((kt = ue.userData) != null && kt.globe26)) return;
@@ -16414,7 +16416,7 @@ vec3 globeRoot27=(modelMatrix*vec4(instanceMatrix[3].xyz,1.)).xyz;globeRootInsid
 ` + M.vertexShader),
               (M.fragmentShader =
                 `varying float globeRootInside27;
-` + H(M.fragmentShader, "if(globeRootInside27<.5)discard;", !0))),
+` + H(M.fragmentShader, "if(globeClip26>.5&&globeRootInside27<.5)discard;", !0))),
             (M.fragmentShader =
               `uniform vec3 globeCentre26,globeRadius26;uniform float globeClip26;varying vec3 globeWorld26;
 ` +
