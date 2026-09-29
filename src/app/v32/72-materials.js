@@ -1,12 +1,12 @@
-// Moulin V32 — matières de jeu : moellons, ardoises, feuillages arrondis.
+// Moulin V32 — matières de jeu : moellons, ardoises, arbustes et massifs lissés.
 //
 // Les textures de la V27 étaient très stylisées (pierres presque lisses, ardoises bleu
-// vif) et les couronnes d'arbres montraient leurs facettes : un rendu de logiciel de
-// modélisation plus que de jeu. On régénère ici, au chargement et sans fichier en plus :
+// vif) et les massifs montraient leurs facettes : un rendu de logiciel de modélisation
+// plus que de jeu. On régénère ici, au chargement et sans fichier en plus :
 //  - les moellons : pierre bombée, joints de mortier sombres, piqûres, veines et lichens ;
 //  - les ardoises : gris-bleu nuancé, chaque rang ombrant celui du dessous, épaufrures ;
-// et l'on arrondit l'éclairage des couronnes (normales tournées vers le centre de la
-// couronne), ce qui efface les facettes tout en gardant la silhouette.
+// et l'on lisse l'éclairage des arbustes et des massifs. Les arbres ont désormais leurs
+// propres feuillages détaillés (src/app/v32/15-arbres.js).
 (function () {
   "use strict";
   const V32 = globalThis.MoulinV32;
@@ -199,44 +199,12 @@
 
   const FOLIAGE = /Feuill|Couronne|Massif|Arbuste|Camelia|rhododendron|hortensia|Buisson|Volume_du|bruyere|Charmille|Haie|Bush|_leaf|_green|_rose|_cream|couvre_sol/i;
 
-  function roundCanopy(THREE, geometry) {
-    if (!geometry || geometry.userData.v32Rounded) return false;
-    const position = geometry.attributes.position;
-    const normal = geometry.attributes.normal;
-    if (!position || !normal) return false;
-    geometry.computeBoundingBox();
-    const box = geometry.boundingBox;
-    const centre = new THREE.Vector3();
-    box.getCenter(centre);
-    const size = new THREE.Vector3();
-    box.getSize(size);
-    // Centre un peu bas : le dessus de la couronne reçoit la lumière, le dessous s'ombre.
-    centre.y -= size.y * 0.12;
-    const p = new THREE.Vector3();
-    const n = new THREE.Vector3();
-    const r = new THREE.Vector3();
-    for (let i = 0; i < position.count; i++) {
-      p.fromBufferAttribute(position, i);
-      n.fromBufferAttribute(normal, i);
-      r.copy(p).sub(centre);
-      r.x /= Math.max(1e-4, size.x);
-      r.y /= Math.max(1e-4, size.y);
-      r.z /= Math.max(1e-4, size.z);
-      r.normalize();
-      n.lerp(r, 0.5).normalize();
-      normal.setXYZ(i, n.x, n.y, n.z);
-    }
-    normal.needsUpdate = true;
-    geometry.userData.v32Rounded = true;
-    return true;
-  }
-
   V32.register(
     "materials",
     function (context) {
       const { THREE, game, hooks } = context;
       const surfaces = hooks.surfaces || {};
-      const stats = { textures: 0, canopies: 0 };
+      const stats = { textures: 0 };
       // Téléphone : textures en 256 px (quatre fois moins de calcul au démarrage).
       SIZE = hooks.mobile ? 256 : 512;
       const started = performance.now();
@@ -263,13 +231,9 @@
             material.userData.v32Tuned = true;
           }
         }
-        // Couronnes des arbres : touffes lissées puis éclairage arrondi.
-        if (object.isMesh && object.userData.treePart === 2) {
-          smoothNormals(THREE, object.geometry, 0.2);
-          if (roundCanopy(THREE, object.geometry)) stats.canopies++;
-        }
-        // Arbustes, massifs et haies : plus de facettes calculées au pixel.
-        if (object.isMesh && FOLIAGE.test(object.name)) {
+        // Arbustes, massifs et haies : plus de facettes calculées au pixel. Les arbres
+        // détaillés (userData.forest32) ont déjà des normales de couronne arrondies.
+        if (object.isMesh && !object.userData.forest32 && FOLIAGE.test(object.name)) {
           for (const material of list)
             if (material && material.flatShading) {
               material.flatShading = false;
