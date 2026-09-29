@@ -32,10 +32,19 @@ hébergement statique en HTTPS). Les sources modifiables sont dans `src/`.
   30 m au-delà de la véranda ; ailleurs, l'eau coule plus bas que la prairie,
   dans un lit plus profond bordé de légers fossés, de roseaux, carex, iris,
   reine-des-prés, salicaires, fougères et pierres.
+- **Arbres détaillés** : les 1 260 arbres ne sont plus des volumes à facettes.
+  Chênes au tronc évasé et aux charpentières noueuses, vieux chênes étalés, pins
+  sylvestres au fût orangé et jeunes pins en étages, bouleaux blancs aux rameaux
+  retombants : écorces en relief, couronnes faites de milliers de bouquets de
+  feuilles (chêne lobé, bouleau, aiguilles) éclairées comme un volume, avec la
+  lumière qui les traverse à contre-jour et des ombres qui laissent passer le
+  soleil entre les feuilles. Près de la caméra l'arbre est complet, au loin une
+  version allégée prend le relais en fondu ; le vent balance l'arbre, fait
+  osciller les branches et frémir les feuilles.
 - **Nature plus réaliste** : vent à l'échelle réelle (les arbres oscillent
-  sans à-coups ni ralentissement, même en tempête), feuillages arrondis et
-  éclairés par transparence, pelouse aux teintes naturelles, murs en moellons
-  avec leurs joints, ardoises gris-bleu. La véranda repose sur son soubassement.
+  sans à-coups ni ralentissement, même en tempête), pelouse aux teintes
+  naturelles, murs en moellons avec leurs joints, ardoises gris-bleu. La
+  véranda repose sur son soubassement.
 - **Lumières du moulin** : allumées au crépuscule, éteintes à 23 h 30.
 - **Quad** redessiné (carénages, garde-boue, porte-bagages, pneus à crampons) :
   il laisse des traces dans l'herbe, de la boue sous la pluie et des ornières
@@ -138,7 +147,8 @@ Modules de la version 32 (`src/app/v32/`, chargés dans l'ordre des noms) :
 | `00-core.js` | Socle commun, étalonnage des couleurs, stockage local |
 | `05-render.js` | Définition adaptative et anticrénelage |
 | `10-atmosphere.js` | Heure réelle, soleil, lune, lieu du moulin |
-| `20-foliage.js` | Feuillages et vent dans les arbres |
+| `15-arbres.js` | Arbres détaillés : atlas de feuillages, écorces, essences, niveaux de détail, vent (remplace l'ancienne forêt de `moulin.js`) |
+| `20-foliage.js` | Horloge et vent partagés par les shaders de végétation |
 | `25-lawn.js` | Teinte naturelle de la pelouse |
 | `30-water.js` | Feuilles à la dérive et ronds de poissons |
 | `32-veranda.js` | Soubassement en moellons de la véranda |
@@ -150,7 +160,7 @@ Modules de la version 32 (`src/app/v32/`, chargés dans l'ordre des noms) :
 | `60-ui.js` | Habillage de l'interface |
 | `65-atelier.js` | Atelier en onglets et chemins taillés dans la pente |
 | `70-birds.js` | Oiseaux et colverts |
-| `72-materials.js` | Moellons, ardoises et feuillages arrondis |
+| `72-materials.js` | Moellons, ardoises, arbustes et massifs lissés |
 
 Après une modification :
 
