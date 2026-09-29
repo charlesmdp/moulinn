@@ -174,21 +174,23 @@
   }
   function rnd() { return Math.random(); }
 
-  // Points d'ancrage (monde) d'un ennemi : tête, poitrine, sac, pot d'échappement, avant, droite
+  // Points d'ancrage (monde) d'un ennemi : centre de la tête, sommet (chapeau compris), poitrine, yeux,
+  // sac, pot d'échappement, avant, droite
   function anchors(a) {
     a.object.updateMatrixWorld(true);
-    const B = a.B, an = a.anchor;
-    B.Head.getWorldPosition(an.head);
-    B.spine_03.getWorldPosition(an.chest);
-    if (B.p_sack) B.p_sack.localToWorld(an.sack.set(0, 0.45, 0)); else an.sack.copy(an.chest);
-    if (B.p_vehicle) B.p_vehicle.localToWorld(an.exhaust.set(0.45, 1.6, a.spec.seat.z - 0.5));
+    const B = a.B, an = a.anchor, sp = a.spec, off = a.offsets;
+    B.head.localToWorld(an.head.copy(off.head));
+    B.body.localToWorld(an.chest.copy(off.chest));
+    B.eye_l.getWorldPosition(an.eyeL);
+    B.eye_r.getWorldPosition(an.eyeR);
+    if (B.p_sack) B.p_sack.localToWorld(an.sack.set(0, 0.42 * ((sp.sack && sp.sack.scale) || 1), 0)); else an.sack.copy(an.chest);
+    if (B.p_vehicle && sp.exhaust) B.p_vehicle.localToWorld(an.exhaust.set(sp.exhaust[0], sp.exhaust[1], sp.exhaust[2]));
     an.feet.copy(a.object.position);
     const yaw = a.object.rotation.y;
     an.fwd.set(Math.sin(yaw), 0, Math.cos(yaw));
     an.right.set(-Math.cos(yaw), 0, Math.sin(yaw));
-    // sommet du crâne (tête grossie)
-    an.headTop = an.headTop || new THREE.Vector3();
-    an.headTop.copy(an.head).addScaledVector(UP, 0.26 * (a.spec.body.head || 1));
+    // sommet : crâne + couvre-chef
+    an.headTop.copy(an.head).addScaledVector(UP, (sp.headR + (sp.hatH === undefined ? 0.12 : sp.hatH)) * a.scale);
   }
   function every(a, key, period, dt) {
   if (ov.mobile) period *= 2; // mobile : moitié moins de particules
@@ -241,7 +243,7 @@
     // ombre portée douce (lisibilité vue de haut)
     if (ov.blobShadows && a.object.visible) {
       const k = react === "ko" ? Math.max(0, 1 - (rt - 1.3) / 0.45) : 1;
-      now.put(pos.x, pos.y + 0.025, pos.z, d.w * 0.95, C.shadow, 0.02, 0.02, 0.04, 0.34 * k * (1 - 0.6 * w.ghost), yaw - Math.PI / 2, 0, 1, d.d / d.w);
+      now.put(pos.x, pos.y + 0.025, pos.z, d.w * 1.02, C.shadow, 0.02, 0.02, 0.04, 0.42 * k * (1 - 0.6 * w.ghost), yaw - Math.PI / 2, 0, 1, d.d / d.w);
     }
     // gelé : glaçon + yeux écarquillés qui roulent
     if (w.frozen > 0.05) {
@@ -257,13 +259,15 @@
         if (a.lookT <= 0) { a.lookT = 0.25 + rnd() * 0.5; a.lookTo[0] = (rnd() - 0.5) * 2; a.lookTo[1] = (rnd() - 0.5) * 2; }
         a.look[0] += (a.lookTo[0] - a.look[0]) * Math.min(1, dt * 18);
         a.look[1] += (a.lookTo[1] - a.look[1]) * Math.min(1, dt * 18);
-        const ey = Math.min(an.head.y + 0.05, pos.y + d.h * 0.86);
-        const ez = d.d * 0.5 + 0.02;
+        const ez = d.d * 0.5 + 0.03;
+        const es = 0.3 * a.scale;
         for (let si = 0; si < 2; si++) {
-          const sgn = si ? 1 : -1;
-          v1.set(pos.x, ey, pos.z).addScaledVector(an.fwd, ez).addScaledVector(an.right, sgn * 0.13);
-          now.put(v1.x, v1.y, v1.z, 0.24, C.eyeWhite, 1, 1, 1, 1, 0, 0);
-          now.put(v1.x + an.right.x * a.look[0] * 0.04, v1.y + a.look[1] * 0.04, v1.z + an.right.z * a.look[0] * 0.04, 0.1, C.pupil, 1, 1, 1, 1, 0, 0);
+          const e = si ? an.eyeR : an.eyeL;
+          // projeté sur la face avant du glaçon
+          const dz = (e.x - pos.x) * an.fwd.x + (e.z - pos.z) * an.fwd.z;
+          v1.copy(e).addScaledVector(an.fwd, Math.max(0, ez - dz));
+          now.put(v1.x, v1.y, v1.z, es, C.eyeWhite, 1, 1, 1, 1, 0, 0);
+          now.put(v1.x + an.right.x * a.look[0] * es * 0.2, v1.y + a.look[1] * es * 0.2, v1.z + an.right.z * a.look[0] * es * 0.2, es * 0.42, C.pupil, 1, 1, 1, 1, 0, 0);
         }
         if (every(a, "mist", 0.18, dt)) fx.emitR(R.mist, pos.x + (rnd() - 0.5) * d.w, pos.y + d.h * rnd(), pos.z + (rnd() - 0.5) * d.d, (rnd() - 0.5) * 0.3, -0.2, 0);
       }
@@ -276,8 +280,8 @@
         const p = pts[i];
         const fl = 0.75 + 0.35 * Math.sin(t * (13 + i * 3.1) + i * 1.7) + 0.15 * Math.sin(t * 29 + i);
         if (i === 0) v1.copy(an.headTop);
-        else v1.copy(an.chest).addScaledVector(an.right, p[0] * d.w * 0.5).addScaledVector(an.fwd, p[2] * 0.3).addScaledVector(UP, p[1]);
-        now.put(v1.x, v1.y + 0.12 * fl, v1.z, (p[3] || 0.42) * fl * k, C.flame, 1, 1, 1, 0.95, Math.sin(t * 7 + i) * 0.15, 0.35, 3);
+        else v1.copy(an.chest).addScaledVector(an.right, p[0] * d.w * 0.42).addScaledVector(an.fwd, p[2] * 0.4 * a.scale).addScaledVector(UP, p[1] * 1.3 * a.scale);
+        now.put(v1.x, v1.y + 0.15 * fl, v1.z, (p[3] || 0.42) * 1.35 * a.scale * fl * k, C.flame, 1, 1, 1, 0.95, Math.sin(t * 7 + i) * 0.15, 0.35, 3);
       }
       const n = every(a, "smoke", 0.09, dt);
       for (let i = 0; i < n; i++) {
@@ -311,12 +315,10 @@
     if (w.lure > 0.05) {
       const heart = a.lureKind === "heart";
       const cell = heart ? C.heart : C.dollar;
-      const hs = a.spec.body.head || 1;
       const beat = 1 + 0.18 * Math.max(0, Math.sin(t * 9));
       for (let si = 0; si < 2; si++) {
-        const sgn = si ? 1 : -1;
-        v1.copy(an.head).addScaledVector(UP, 0.1 * hs).addScaledVector(an.fwd, 0.13 * hs).addScaledVector(an.right, sgn * 0.05 * hs);
-        now.put(v1.x, v1.y, v1.z, 0.24 * beat * w.lure * hs, cell, 1, 1, 1, 1, 0, 0);
+        v1.copy(si ? an.eyeR : an.eyeL).addScaledVector(an.fwd, 0.12 * a.scale);
+        now.put(v1.x, v1.y, v1.z, 0.36 * a.scale * beat * w.lure, cell, 1, 1, 1, 1, 0, 0);
       }
       if (every(a, "hearts", 0.3, dt)) fx.emitR(heart ? R.heart : R.dollar, an.headTop.x + (rnd() - 0.5) * 0.3, an.headTop.y + 0.1, an.headTop.z + (rnd() - 0.5) * 0.3, (rnd() - 0.5) * 0.3, 0.9, 0);
     }
@@ -366,7 +368,7 @@
       R.ripple.s0 = d.w * 0.7; R.ripple.s1 = d.w * 2.0;
       for (let i = 0; i < n; i++) fx.emitR(R.ripple, pos.x - an.fwd.x * 0.2, pos.y + 0.03, pos.z - an.fwd.z * 0.2, 0, 0, 0);
       if (a.spec.motion.swims && !a.spec.motion.boat && every(a, "paddle", 0.16, dt)) {
-        v1.copy(pos).addScaledVector(an.fwd, 0.35).addScaledVector(an.right, (rnd() > 0.5 ? 1 : -1) * 0.45);
+        v1.copy(pos).addScaledVector(an.fwd, 0.5 * a.scale).addScaledVector(an.right, (rnd() > 0.5 ? 1 : -1) * 0.6 * a.scale);
         for (let i = 0; i < 3; i++) fx.emitR(R.paddle, v1.x, pos.y + 0.1, v1.z, (rnd() - 0.5) * 1.2, 1.5 + rnd() * 1.2, (rnd() - 0.5) * 1.2, pos.y);
       }
     }
@@ -379,31 +381,31 @@
     const ten = s.tenacity || 0;
     if (ten > 0.02 && react !== "ko") {
       v1.copy(an.headTop).addScaledVector(UP, 0.32);
-      now.put(v1.x, v1.y, v1.z, 0.2 + 0.12 * ten, C.shield, 1, 1, 1, 0.45 + 0.55 * ten, 0, 0);
+      now.put(v1.x, v1.y, v1.z, (0.26 + 0.14 * ten) * a.scale, C.shield, 1, 1, 1, 0.45 + 0.55 * ten, 0, 0);
     }
     // à bout de forces : gouttes de sueur
     if (s.hpFrac !== undefined && s.hpFrac < 0.3 && react !== "ko" && every(a, "sweat", 0.45, dt)) {
       const sgn = rnd() > 0.5 ? 1 : -1;
-      v1.copy(an.headTop).addScaledVector(an.right, sgn * 0.15);
+      v1.copy(an.headTop).addScaledVector(an.right, sgn * 0.3 * a.scale).addScaledVector(UP, -0.15 * a.scale);
       R.sweat.rot = -sgn * 0.5;
       fx.emitR(R.sweat, v1.x, v1.y, v1.z, an.right.x * sgn * 1.2, 1.4, an.right.z * sgn * 1.2);
     }
     // K.-O. : étoiles qui tournent, puis « pouf »
     if (react === "ko") {
       if (rt < 1.35) {
-        const hs = a.spec.body.head || 1;
-        for (let i = 0; i < 4; i++) {
-          const ang = t * 6 + (i * Math.PI * 2) / 4;
-          v1.copy(an.head).addScaledVector(UP, 0.12 * hs);
-          now.put(v1.x + Math.cos(ang) * 0.3 * hs, v1.y + 0.15 + Math.sin(ang * 2) * 0.05, v1.z + Math.sin(ang) * 0.3 * hs, 0.17 * hs, C.star, 1, 1, 1, 1, ang, 0);
+        const hs = a.scale;
+        for (let i = 0; i < 5; i++) {
+          const ang = t * 6 + (i * Math.PI * 2) / 5;
+          v1.copy(an.head).addScaledVector(UP, 0.35 * hs);
+          now.put(v1.x + Math.cos(ang) * 0.55 * hs, v1.y + 0.2 + Math.sin(ang * 2) * 0.06, v1.z + Math.sin(ang) * 0.55 * hs, 0.26 * hs, C.star, 1, 1, 1, 1, ang, 0);
         }
       }
       if (rt > 1.2 && !a._poofed) {
         a._poofed = true;
-        const cy = pos.y + (a.spec.motion.vehicle ? 1.0 : 0.35);
+        const cy = pos.y + (a.spec.motion.vehicle ? 1.0 : 0.45);
         for (let i = 0; i < 12; i++) {
           const ang = (i / 12) * Math.PI * 2;
-          fx.emit({ x: pos.x, y: cy, z: pos.z, vx: Math.cos(ang) * 2.8, vy: 0.6 + rnd() * 1.2, vz: Math.sin(ang) * 2.8, drag: 4, life: 0.75, s0: 0.6, s1: 1.25, cell: C.poof, a: 1, a1: 0, rot: rnd() * 6, fadeOut: 0.55, curve: 2 });
+          fx.emit({ x: pos.x, y: cy, z: pos.z, vx: Math.cos(ang) * 3.2, vy: 0.6 + rnd() * 1.2, vz: Math.sin(ang) * 3.2, drag: 4, life: 0.75, s0: 0.75, s1: 1.5, cell: C.poof, a: 1, a1: 0, rot: rnd() * 6, fadeOut: 0.55, curve: 2 });
         }
         for (let i = 0; i < 6; i++) fx.emit({ x: pos.x, y: cy + 0.3, z: pos.z, vx: (rnd() - 0.5) * 3, vy: 2 + rnd() * 2, vz: (rnd() - 0.5) * 3, grav: 6, life: 0.7, s0: 0.2, s1: 0.1, cell: C.star, a: 1, a1: 0, spin: 6 });
       }
@@ -427,7 +429,7 @@
     const E = (o) => fx.emit(o);
     switch (name) {
       case "hit": {
-        v1.copy(an.chest).addScaledVector(an.fwd, 0.25);
+        v1.copy(an.chest).addScaledVector(an.fwd, 0.4 * a.scale);
         E({ x: v1.x, y: v1.y, z: v1.z, life: 0.18, s0: 0.35, s1: 0.9, cell: C.zap, r: 1, g: 0.95, b: 0.7, a: 1, a1: 0, rot: rnd() * 6, add: 0.6 });
         for (let i = 0; i < 5; i++) E({ x: v1.x, y: v1.y, z: v1.z, vx: (rnd() - 0.5) * 5, vy: 1 + rnd() * 3, vz: (rnd() - 0.5) * 5, grav: 8, life: 0.35, s0: 0.12, s1: 0.04, cell: C.spark, mode: 2, stretch: 0.05, r: 1, g: 0.9, b: 0.5, a: 1, a1: 0, add: 1 });
         break;

@@ -669,6 +669,18 @@
     flash(p.x, p.y + 0.5, p.z, 2.2, COL.gold, 0.25);
   };
 
+  /** Sac lâché au sol (voleur K.-O. ou qui s'en débarrasse) : bouffée de poussière, pièces, reflets dorés. */
+  BURSTS.sackPop = function (p, o) {
+    const c = C(), n = _.count;
+    for (let i = 0, k = n(8); i < k; i++) {
+      const a = R(0, 6.28), sp = R(0.8, 2.2);
+      _.emit({ x: p.x, y: p.y + 0.1, z: p.z, vx: Math.cos(a) * sp, vy: R(0.4, 1.2), vz: Math.sin(a) * sp, drag: 3, life: R(0.6, 0.9), s0: 0.3, s1: 0.8, cell: c.puff, r: COL.dust[0], g: COL.dust[1], b: COL.dust[2], a: 0.75, a1: 0, rot: R(0, 6), curve: 1 });
+    }
+    if (_.debris) _.debris("coin", tv[0].set(p.x, p.y + 0.5, p.z), S.mobile ? 3 : 5, { speed: 1.8, up: 5, size: 0.22, spread: 0.2, floor: p.y });
+    for (let i = 0, k = n(8); i < k; i++) _.emit({ x: p.x + R(-0.5, 0.5), y: p.y + R(0.3, 1.0), z: p.z + R(-0.5, 0.5), vy: 0.3, life: R(0.4, 0.7), s0: 0.05, s1: 0.35, cell: c.twinkle, r: COL.gold[0], g: COL.gold[1], b: COL.gold[2], a: 1, a1: 0, add: 1, delay: R(0, 0.3), curve: 2, spin: 4 });
+    void o;
+  };
+
   BURSTS.sparkle = function (p, o) {
     const r = o.radius || 1, c = C(), n = _.count;
     const col = o.color ? (() => { const k = PTMT.color(o.color); return [k.r, k.g, k.b]; })() : COL.goldLight;
