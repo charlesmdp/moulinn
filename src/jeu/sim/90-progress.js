@@ -5,7 +5,9 @@
   const PTMT = (globalThis.PTMT = globalThis.PTMT || {});
   const C = PTMT.config;
   const KEY_PROGRESS = "ptmt.progress.v1";
-  const KEY_SAVE = "ptmt.save.v1";
+  // Point de reprise : format 2 (terrain à cases, forêts). Les anciennes parties ne se reprennent pas.
+  const KEY_SAVE = "ptmt.save.v2";
+  const OLD_SAVES = ["ptmt.save.v1"];
 
   function fresh() {
     const levels = {};
@@ -87,17 +89,23 @@
       st && st.setItem(KEY_PROGRESS, JSON.stringify(p));
     } catch {}
   }
-  function loadCheckpoint() {
-    const st = storage();
+  /** Point de reprise lisible, ou null (une sauvegarde incompatible est effacée sans bruit). */
+  function loadCheckpoint(st = storage()) {
     try {
+      for (const k of OLD_SAVES) if (st && st.getItem(k) !== null) st.removeItem(k);
       const raw = st && st.getItem(KEY_SAVE);
-      return raw ? JSON.parse(raw) : null;
+      if (!raw) return null;
+      const cp = JSON.parse(raw);
+      if (PTMT.Game && PTMT.Game.compatible && !PTMT.Game.compatible(cp)) {
+        st.removeItem(KEY_SAVE);
+        return null;
+      }
+      return cp;
     } catch {
       return null;
     }
   }
-  function saveCheckpoint(cp) {
-    const st = storage();
+  function saveCheckpoint(cp, st = storage()) {
     try {
       if (cp) st && st.setItem(KEY_SAVE, JSON.stringify(cp));
       else st && st.removeItem(KEY_SAVE);

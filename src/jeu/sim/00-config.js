@@ -9,8 +9,16 @@
   const PTMT = (globalThis.PTMT = globalThis.PTMT || {});
 
   const C = {
-    version: 1,
+    version: 2,
     tick: 1 / 30, // pas de simulation fixe
+
+    // Terrain à cases, comme dans les tower defense à zones : chaque famille de tours ne se bâtit
+    // que sur son sol (feu : rocaille, glace : givre, eau : berge et marais), sur une grille
+    // régulière de cases de 2 U où les tours se posent côte à côte.
+    grid: { tile: 2, roadClear: 0.95 },
+    // Forêts : une case boisée ne se construit qu'une fois coupée (or, quelques secondes de jeu,
+    // y compris entre les vagues). Le prix monte un peu à chaque coupe.
+    forest: { cost: 30, costStep: 5, costMax: 60, duration: 4 },
 
     economy: {
       startGold: { 1: 500, 2: 650, 3: 800, 4: 900, 5: 1050 },
@@ -50,7 +58,7 @@
         role: "Déplacer les ennemis, regrouper les vagues et offrir une seconde occasion de tuer un porteur.",
         wet: 3,
         forms: {
-          "1": { name: "Gargouille cracheuse", cost: 90, attack: "jet", damage: 10, period: 1.4, range: 5, pushEvery: 3, push: 0.5, direct: true },
+          "1": { name: "Cygne grincheux", cost: 90, attack: "jet", damage: 10, period: 1.4, range: 5, pushEvery: 3, push: 0.5, direct: true },
           "2A": { name: "Bélier hydraulique", cost: 140, attack: "line", damage: 22, period: 2, range: 5.5, maxTargets: 4, lineWidth: 0.9, push: 1.4, direct: true },
           "3A": { name: "Canon tsunami", cost: 280, attack: "wave", damage: 45, period: 2, range: 6, maxTargets: 6, coneDeg: 32, push: 2.2, direct: true },
           "2B": { name: "Fontaine siphon", cost: 150, attack: "vortex", period: 8, range: 5.5, vortexRadius: 1.6, vortexDuration: 4, vortexDps: 6, vortexSlow: 0.2, pull: 1.2 },

@@ -216,27 +216,39 @@
         if (hit) problems.push(`${L.id}: le chemin ${E.id} (${E.a}→${E.b}) traverse un bâtiment`);
       }
     }
-    // Supports : hors chemins, hors bâtiments, hors eau, espacés ; supports d'eau au bord de l'eau.
+    // Cases : une par case de grille, calées sur la grille, hors chemins, hors bâtiments, hors eau ;
+    // les cases de berge ont le centre sur la terre ferme, au bord de l'eau (îlots exceptés).
+    const T = L.tile || 2,
+      half = T / 2;
+    const cells = new Set();
+    const walkable = g.edges.filter((E) => E.kind !== "water");
+    const waterSigned = PTMT.layoutHelpers.waterSigned;
     for (const s of L.sockets) {
-      const dPath = Math.min(...g.edges.filter((E) => E.kind !== "water").map((E) => G.polylineDist(s.x, s.z, E.pts)));
-      if (dPath < 1.25) problems.push(`${L.id}: support ${s.id} (${s.kind}) trop près d'un chemin (${dPath.toFixed(2)} U)`);
-      if (L.blockers.some((poly) => G.pointInPolygon(s.x, s.z, poly) || Math.min(...poly.map((q, i) => G.segDist(s.x, s.z, q, poly[(i + 1) % poly.length]))) < 1.1))
-        problems.push(`${L.id}: support ${s.id} contre un bâtiment`);
-      const inWater = waterPolys.some((poly) => G.pointInPolygon(s.x, s.z, poly)) || L.streams.some((st) => G.polylineDist(s.x, s.z, st.pts) < st.width / 2 + 0.3);
-      if (inWater && !s.islet) problems.push(`${L.id}: support ${s.id} dans l'eau`);
+      const key = s.i + ":" + s.j;
+      if (cells.has(key)) problems.push(`${L.id}: deux cases sur ${key}`);
+      cells.add(key);
+      if (Math.abs(s.x - (s.i + 0.5) * T) > 1e-6 || Math.abs(s.z - (s.j + 0.5) * T) > 1e-6) problems.push(`${L.id}: case ${s.id} hors grille`);
+      const samples = [
+        [s.x, s.z],
+        [s.x - half, s.z - half],
+        [s.x + half, s.z - half],
+        [s.x - half, s.z + half],
+        [s.x + half, s.z + half],
+      ];
+      const dPath = Math.min(...walkable.map((E) => Math.min(...samples.map((p) => G.polylineDist(p[0], p[1], E.pts)))));
+      if (dPath < PTMT.config.grid.roadClear - 1e-6) problems.push(`${L.id}: case ${s.id} (${s.kind}) sur un chemin (${dPath.toFixed(2)} U)`);
+      if (L.blockers.some((poly) => samples.some((p) => G.pointInPolygon(p[0], p[1], poly)))) problems.push(`${L.id}: case ${s.id} dans un bâtiment`);
+      if (s.islet) continue;
+      const wd = waterSigned(L, s.x, s.z);
       if (s.kind === "water") {
-        const dWater = Math.min(
-          ...waterPolys.map((poly) => Math.min(...poly.map((q, i) => G.segDist(s.x, s.z, q, poly[(i + 1) % poly.length])))),
-          ...L.streams.map((st) => G.polylineDist(s.x, s.z, st.pts) - st.width / 2),
-        );
-        if (dWater > 2.6) problems.push(`${L.id}: support d'eau ${s.id} loin de l'eau (${dWater.toFixed(1)} U)`);
-      }
-      for (const o of L.sockets) if (o !== s && Math.hypot(o.x - s.x, o.z - s.z) < 2.2) problems.push(`${L.id}: supports ${s.id} et ${o.id} trop proches`);
+        if (wd > 0) problems.push(`${L.id}: case de berge ${s.id} dans l'eau`);
+        if (wd < -3.7) problems.push(`${L.id}: case de berge ${s.id} loin de l'eau (${(-wd).toFixed(1)} U)`);
+      } else if (samples.some((p) => waterSigned(L, p[0], p[1]) > 0)) problems.push(`${L.id}: case ${s.id} dans l'eau`);
     }
-    // Chaque réserve a des supports des trois familles à moins de 9 U.
+    // Chaque réserve a des cases libres (sans bois) des trois familles à moins de 11 U.
     for (const r of L.reserves)
       for (const k of ["fire", "ice", "water"])
-        if (!L.sockets.some((s) => s.kind === k && Math.hypot(s.x - r.pos[0], s.z - r.pos[1]) < 11)) problems.push(`${L.id}: pas de support ${k} près de la réserve ${r.id}`);
+        if (!L.sockets.some((s) => s.kind === k && !s.forest && Math.hypot(s.x - r.pos[0], s.z - r.pos[1]) < 11)) problems.push(`${L.id}: pas de case ${k} près de la réserve ${r.id}`);
     return problems;
   }
 

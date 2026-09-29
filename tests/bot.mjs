@@ -47,19 +47,29 @@ export function makeBot(P, game, opts = {}) {
     const s = game.state;
     const n = counts();
     const total = n.fire + n.ice + n.water + 1;
-    let best = null;
+    let best = null,
+      bestWood = null;
     for (const so of L.sockets) {
       if (game.towerAt(so.id)) continue;
       const fam = so.kind;
       const cost = C.towers[fam].forms["1"].cost;
-      if (s.gold < cost) continue;
       const deficit = mix[fam] - n[fam] / total;
       const score = coverage(so.x, so.z, C.towers[fam].forms["1"].range) * (1 + deficit * 2.5);
+      if (game.isForest(so.id)) {
+        // Case boisée : candidate à la coupe si elle vaut nettement mieux que les cases libres.
+        if (opts.cut !== false && game.cutProgress(so.id) === null && (!bestWood || score > bestWood.score)) bestWood = { so, fam, score, cost };
+        continue;
+      }
+      if (s.gold < cost) continue;
       if (!best || score > best.score) best = { so, fam, score };
+    }
+    if (bestWood && (!best || bestWood.score > best.score * 1.35) && s.gold >= game.cutCost() + bestWood.cost + 40) {
+      if (game.cut(bestWood.so.id).ok) cutsDone++;
     }
     if (best && best.score > 4) return game.build(best.so.id, best.fam).ok;
     return false;
   }
+  let cutsDone = 0;
   function prep() {
     const s = game.state;
     // Revenus : la meule s'amortit en quelques vagues.
@@ -142,5 +152,8 @@ export function makeBot(P, game, opts = {}) {
     },
     prep,
     duringWave,
+    get cuts() {
+      return cutsDone;
+    },
   };
 }
