@@ -24,7 +24,12 @@ Plus de gel d'une dizaine de secondes en allumant la lampe ou les phares, au
 lever et au coucher du soleil, ni en entrant dans la boule à neige. Plus rien
 ne dépasse de la boule. Sur téléphone, l'onglet Météo montre la boule seule
 (la pastille du bas déplie la météo) et le personnage court par défaut
-(bouton « Marcher »). La carte en haut à gauche a disparu.
+(bouton « Marcher »). La carte en haut à gauche a disparu. Dans l'atelier
+(/build/), Plantes & objets › Sous-bois : on dessine une grande zone au sol
+et elle se remplit de fougères, de ronces ou d'un sous-bois mêlé. Le jeu
+/jeu/ se joue désormais sur des cases de construction par terrain, avec des
+forêts à couper, l'annonce des vagues sur la carte, de nouveaux voleurs et
+un cygne grincheux comme première tour d'eau.
 
 RETOUCHES PRECEDENTES
 L'eau coule dans le bon sens (sud-ouest, grand étang, bief, moulin, est),

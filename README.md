@@ -44,9 +44,8 @@ l'atelier.
 - **Atelier › Plantes & objets › Sous-bois** (adresse `/build/`) : on dessine
   une grande zone au sol (coins posés au doigt ou à la souris, ou trait à main
   levée en gardant l'appui) et elle se remplit toute seule de fougères, de
-  ronces ou d'un
-  sous-bois mêlé (lierre, feuilles mortes, jeunes pousses, pierres moussues,
-  bois mort), en touffes plus denses au cœur. L'eau, les chemins, les murets,
+  ronces ou d'un sous-bois mêlé (lierre, feuilles mortes, jeunes pousses,
+  pierres moussues, bois mort), en touffes plus denses au cœur. L'eau, les chemins, les murets,
   les ponts, les bâtiments et l'abord du moulin restent dégagés. Densité
   réglable, liste des zones, « Annuler la dernière zone », « Tout effacer » ;
   sur téléphone, le panneau se replie pendant le tracé.
