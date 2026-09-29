@@ -151,6 +151,10 @@ Modules de la version 32 (`src/app/v32/`, chargés dans l'ordre des noms) :
 | `65-atelier.js` | Atelier en onglets et chemins taillés dans la pente |
 | `70-birds.js` | Oiseaux et colverts |
 | `72-materials.js` | Moellons, ardoises et feuillages arrondis |
+| `73-stones.js` | Outils des pierres sèches (pierres, roche moussue, lots instanciés) |
+| `74-walls.js` | Murets de pierres sèches, marches de granit, maçonnerie des bâtiments |
+| `75-rockery.js` | Rocaille du talus : niche voûtée, blocs de granit, hostas, camélia fleuri |
+| `76-details.js` | Petits objets du jardin (pots, lanternes, bûches, outils, vélo…) |
 
 Après une modification :
 
