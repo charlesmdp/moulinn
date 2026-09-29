@@ -98,18 +98,40 @@ sort Rappel le ramène, et un sac tombé à l'eau flotte.
 - **Cinq niveaux** : Bienvenue chez moi (10 vagues), Le domaine coupé en deux
   (12), Les trois mauvaises portes (15), Les pirates du pédalo (15), Le grand
   cambriolage (20). Chaque niveau gagné peut continuer sans fin.
+- **Cartes pensées pour le jeu** : elles s'éloignent de la vraie géographie du
+  domaine. Des chemins sinueux partent d'une à trois portes au bord de la carte
+  (chacune a sa couleur et son panneau) et mènent au moulin, à sa roue et à ses
+  dépendances, où brillent les réserves de trésors.
+- **Cases de construction** : de part et d'autre des chemins, 74 à 87 cases
+  libres par niveau, en trois terrains : la rocaille (dalles de pierre) pour
+  les tours de feu, le givre (cercles de runes) pour la glace, la berge et le
+  marais pour l'eau. Les tours se posent côte à côte. En construction, la
+  grille apparaît, les cases de la bonne famille s'allument et la case visée
+  montre la portée et le prix.
+- **Forêts à couper** : 18 à 32 cases boisées par niveau (pinède, sapins
+  givrés, bosquet de la berge). « Couper la forêt » coûte 30 or, 5 de plus à
+  chaque nouvelle coupe (60 au plus), et dure 4 secondes de jeu, aussi entre
+  les vagues : les arbres tremblent et tombent, il reste des souches, et la
+  case accueille ensuite une tour de sa famille.
+- **Vagues annoncées** : le panneau « Prochaine vague » dit d'où viennent les
+  voleurs et ce qu'ils visent (porte → réserve), combien et lesquels
+  (portraits, élites, chef, nageurs, fumigènes…), puis résume les trois vagues
+  suivantes. Sur la carte, un repère se dresse à chaque porte utilisée et le
+  trajet défile en chevrons de sa couleur ; une porte hors de l'écran est
+  signalée par une flèche au bord, qu'on touche pour y aller. Pendant la
+  vague, un bandeau rappelle la suivante. Le mode sans fin est annoncé de la
+  même façon.
 - **Trois familles de tours**, chacune avec deux branches d'évolution :
   - Feu : Brasier grognon → Souffle infernal → Dragon de la fournaise, ou
     Crache-lave → Volcan furieux ;
   - Glace : Obélisque givré → Crypte du gel → Trône du zéro absolu, ou
     Souffleur de blizzard → Tempête polaire ;
-  - Eau : Gargouille cracheuse → Bélier hydraulique → Canon tsunami, ou
+  - Eau : Cygne grincheux → Bélier hydraulique → Canon tsunami, ou
     Fontaine siphon → Maelström glouton.
 
-  Les socles de pierre accueillent le feu, les cercles de runes la glace, les
-  berges et conduites l'eau. Les tours gagnent de l'expérience ; faire évoluer
-  une tour demande l'Atelier.
-- **Pièges** : filet entre les arbres, ressort farceur, faux coffre.
+  Les tours gagnent de l'expérience ; faire évoluer une tour demande l'Atelier.
+- **Pièges** : filet entre les arbres, ressort farceur, faux coffre, posés sur
+  les emplacements marqués des chemins.
 - **Sorts** (mana) : Météore et Rappel dès le niveau 1, Gel instantané au
   niveau 2, Vague de crue au 3, Frénésie au 4.
 - **Onglet Moulin** : Meule, Roue magique et Atelier ; talents entre les
@@ -126,13 +148,15 @@ Commandes :
 | Déplacer la vue | glisser, ou ZQSD / WASD / flèches | glisser un doigt |
 | Zoomer | molette, `+` et `-` | pincer |
 | Tourner | clic droit ou Maj + glisser | tourner deux doigts |
-| Construire | choisir une tour ou un piège en bas, puis cliquer un support | pareil, en touchant |
+| Construire | choisir une tour ou un piège en bas, puis cliquer une case allumée | toucher une case pour voir la portée, toucher encore pour construire |
+| Couper une forêt | cliquer une case boisée, puis « Couper la forêt » | pareil, en touchant |
 | Pause, vitesse ×2 | Espace ou P, F | boutons en haut à droite |
 | Lancer la vague | Entrée | « Lancer la vague » |
 | Sorts | touches 1 à 5 | onglet Sorts |
 
 La progression (étoiles, talents, records) reste dans le navigateur ; une
-partie se reprend entre deux vagues.
+partie se reprend entre deux vagues, coupes de forêt comprises. Une partie
+enregistrée avec les anciennes cartes est oubliée (la progression reste).
 
 ## Nouveautés de la version 32
 

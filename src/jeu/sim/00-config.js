@@ -9,11 +9,20 @@
   const PTMT = (globalThis.PTMT = globalThis.PTMT || {});
 
   const C = {
-    version: 1,
+    version: 2,
     tick: 1 / 30, // pas de simulation fixe
 
+    // Terrain à cases, comme dans les tower defense à zones : chaque famille de tours ne se bâtit
+    // que sur son sol (feu : rocaille, glace : givre, eau : berge et marais), sur une grille
+    // régulière de cases de 2 U où les tours se posent côte à côte.
+    grid: { tile: 2, roadClear: 0.95 },
+    // Forêts : une case boisée ne se construit qu'une fois coupée (or, quelques secondes de jeu,
+    // y compris entre les vagues). Le prix monte un peu à chaque coupe.
+    forest: { cost: 30, costStep: 5, costMax: 60, duration: 4 },
+
     economy: {
-      startGold: { 1: 500, 2: 650, 3: 800, 4: 900, 5: 1050 },
+      // Les niveaux 4 et 5 ouvrent sur plusieurs fronts rapides (nageurs, sprinteurs de l'est).
+      startGold: { 1: 500, 2: 650, 3: 800, 4: 1100, 5: 1350 },
       sellRatio: 0.7,
       treasuresTotal: 6,
     },
@@ -50,7 +59,7 @@
         role: "Déplacer les ennemis, regrouper les vagues et offrir une seconde occasion de tuer un porteur.",
         wet: 3,
         forms: {
-          "1": { name: "Gargouille cracheuse", cost: 90, attack: "jet", damage: 10, period: 1.4, range: 5, pushEvery: 3, push: 0.5, direct: true },
+          "1": { name: "Cygne grincheux", cost: 90, attack: "jet", damage: 10, period: 1.4, range: 5, pushEvery: 3, push: 0.5, direct: true },
           "2A": { name: "Bélier hydraulique", cost: 140, attack: "line", damage: 22, period: 2, range: 5.5, maxTargets: 4, lineWidth: 0.9, push: 1.4, direct: true },
           "3A": { name: "Canon tsunami", cost: 280, attack: "wave", damage: 45, period: 2, range: 6, maxTargets: 6, coneDeg: 32, push: 2.2, direct: true },
           "2B": { name: "Fontaine siphon", cost: 150, attack: "vortex", period: 8, range: 5.5, vortexRadius: 1.6, vortexDuration: 4, vortexDps: 6, vortexSlow: 0.2, pull: 1.2 },
@@ -208,9 +217,11 @@
       nageur: { name: "Nageur en flamant rose", eliteName: "Pirate en pédalo", hp: 75, speed: 0.9, waterSpeed: 1.15, bounty: 12, klass: "normal", swimmer: true, eliteWater: 1.25, eliteLand: 0.8 },
       boss: { name: "Chef en tondeuse blindée", eliteName: "Limousine-tondeuse", hp: 900, speed: 0.55, bounty: 150, klass: "boss", overheatAfter: 6, overheatFor: 3, overheatVuln: 0.5, rage: { at: 0.5, pct: 0.5, duration: 3 } },
       elite: { hp: 1.5, bounty: 1.4 },
-      // Multiplicateur de PV : 1 + 0,20 × (niveau − 1) + 0,035 × (vague − 1)
+      // Multiplicateur de PV : (1 + 0,20 × (niveau − 1) + 0,035 × (vague − 1)) × facteur du niveau.
+      // Le facteur compense la longueur des chemins de chaque disposition (plus de temps sous le feu).
       hpPerLevel: 0.2,
       hpPerWave: 0.035,
+      levelHp: { 1: 1.2, 2: 1.1, 3: 1.25, 4: 1, 5: 1 },
       endlessHpPerBlock: 0.1, // +10 % par bloc de cinq vagues supplémentaires
       maxActive: { desktop: 70, mobile: 45 },
       waitForSack: 4, // attente maximale quand les derniers trésors sont transportés

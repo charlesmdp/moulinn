@@ -35,5 +35,6 @@
     swords: s('<path d="M3 3l10 10M21 3L11 13M5 19l4-4M19 19l-4-4M3 21l2-2M21 21l-2-2"/>'),
     rotate: s('<path d="M20 12a8 8 0 1 1-2.4-5.7M20 4v5h-5"/>'),
     flip: s('<path d="M4 8h13l-3-3M20 16H7l3 3"/>'),
+    axe: s('<path d="M14 4l6 6-3 1-4-4z" fill="currentColor"/><path d="M13.5 7.5L4 20" stroke-width="2.6"/><path d="M16 3c2.5 0 5 2.5 5 5" />'),
   };
 })();

@@ -11,6 +11,7 @@
     R = PTMT.routes;
   const TICK = C.tick;
   const FAMILY_SOCKET = { fire: "fire", ice: "ice", water: "water" };
+  const ZONE_NAME = { fire: "Rocaille", ice: "Givre", water: "Berge" };
   const FORM_KEYS = ["1", "2A", "2B", "3A", "3B"];
 
   function formKey(tier, branch) {
@@ -70,6 +71,10 @@
         spawns: [],
         stats: { everTaken: false, lostTotal: 0, lostByReserve: {}, kos: 0, escaped: 0, goldEarned: 0 },
         result: null,
+        // Forêts : cases déjà coupées, coupes en cours (temps restant), nombre de coupes payées.
+        cleared: {},
+        cutting: [],
+        cuts: 0,
       });
       for (const id of C.spells.order) s.spells[id] = { rank: 1, cd: 0 };
       let n = 0;
@@ -135,6 +140,8 @@
     tick(dt) {
       const s = this.state;
       s.time += dt;
+      // Les bûcherons travaillent aussi entre les vagues (pas en pause).
+      if (s.cutting.length) this.updateCutting(dt);
       if (s.phase !== "wave") return;
       s.waveTime += dt;
       // Mana et recharges : uniquement pendant l'attaque.
@@ -185,9 +192,12 @@
     hpMultiplier() {
       const s = this.state;
       const waveNo = s.endless ? s.waveCount + s.endlessCount : s.wave;
-      let m = 1 + C.enemies.hpPerLevel * (this.level - 1) + C.enemies.hpPerWave * (waveNo - 1);
+      let m = (1 + C.enemies.hpPerLevel * (this.level - 1) + C.enemies.hpPerWave * (waveNo - 1)) * this.levelHp();
       if (s.endless) m *= 1 + C.enemies.endlessHpPerBlock * Math.floor((s.endlessCount - 1) / 5);
       return m;
+    }
+    levelHp() {
+      return (C.enemies.levelHp && C.enemies.levelHp[this.level]) || 1;
     }
     spawnDue() {
       const s = this.state;
@@ -911,7 +921,17 @@
 
     // ── Tours ─────────────────────────────────────────────────────────────────
     socket(id) {
-      return this.L.sockets.find((s) => s.id === id);
+      if (!this._sockets || this._socketsL !== this.L) {
+        this._sockets = new Map(this.L.sockets.map((s) => [s.id, s]));
+        this._socketsL = this.L;
+      }
+      return this._sockets.get(id);
+    }
+    /** Case de grille contenant le point (x, z), ou null. */
+    socketAt(x, z) {
+      const T = this.L.tile || 2;
+      const id = this.L.tileAt && this.L.tileAt[Math.floor(x / T) + ":" + Math.floor(z / T)];
+      return id ? this.socket(id) : null;
     }
     towerAt(socketId) {
       return this.state.towers.find((t) => t.socket === socketId);
@@ -953,7 +973,8 @@
       const so = this.socket(socketId);
       if (!so) return { ok: false, reason: "Support inconnu" };
       if (this.towerAt(socketId)) return { ok: false, reason: "Support occupé" };
-      if (FAMILY_SOCKET[family] !== so.kind) return { ok: false, reason: `Ce support accueille les tours ${C.towers[so.kind].name.toLowerCase()}` };
+      if (this.isForest(socketId)) return { ok: false, reason: this.cutProgress(socketId) !== null ? "Les bûcherons n'ont pas fini" : "Forêt : coupe-la d'abord" };
+      if (FAMILY_SOCKET[family] !== so.kind) return { ok: false, reason: `Ce sol (${ZONE_NAME[so.kind].toLowerCase()}) accueille les tours de ${C.towers[so.kind].name.toLowerCase()}` };
       const cost = C.towers[family].forms["1"].cost;
       if (s.gold < cost) return { ok: false, reason: `Il manque ${cost - s.gold} or` };
       s.gold -= cost;
@@ -962,6 +983,61 @@
       this.emit({ type: "build", id: tw.id, tower: tw });
       return { ok: true, tower: tw };
     }
+    // ── Forêts à couper ─────────────────────────────────────────────────────────
+    /** La case est-elle encore boisée (non coupée) ? */
+    isForest(socketId) {
+      const so = this.socket(socketId);
+      return !!(so && so.forest && !this.state.cleared[socketId]);
+    }
+    /** Avancement d'une coupe en cours (0 → 1), ou null. */
+    cutProgress(socketId) {
+      const j = this.state.cutting.find((c) => c.id === socketId);
+      return j ? Math.max(0, Math.min(1, 1 - j.t / j.dur)) : null;
+    }
+    /** Prix de la prochaine coupe (il monte un peu à chaque coupe). */
+    cutCost() {
+      const F = C.forest;
+      return Math.min(F.costMax, F.cost + F.costStep * this.state.cuts);
+    }
+    /** Ce qu'il faut savoir avant de couper : prix, durée, raison d'impossibilité. */
+    cutInfo(socketId) {
+      const s = this.state;
+      const so = this.socket(socketId);
+      const cost = this.cutCost();
+      let reason = null;
+      if (!so) reason = "Case inconnue";
+      else if (!so.forest || s.cleared[socketId]) reason = "Pas de forêt ici";
+      else if (this.cutProgress(socketId) !== null) reason = "Coupe en cours";
+      else if (this.isOver) reason = "Partie terminée";
+      else if (s.gold < cost) reason = `Il manque ${cost - s.gold} or`;
+      return { cost, duration: C.forest.duration, reason, progress: this.cutProgress(socketId) };
+    }
+    /** Fait couper la forêt d'une case : l'or est payé tout de suite, la case se libère après la coupe. */
+    cut(socketId) {
+      const s = this.state;
+      const info = this.cutInfo(socketId);
+      if (info.reason) return { ok: false, reason: info.reason };
+      const so = this.socket(socketId);
+      s.gold -= info.cost;
+      s.cuts++;
+      const job = { id: socketId, t: info.duration, dur: info.duration };
+      s.cutting.push(job);
+      this.emit({ type: "cutStart", id: socketId, x: so.x, z: so.z, duration: info.duration, cost: info.cost });
+      return { ok: true, job };
+    }
+    updateCutting(dt) {
+      const s = this.state;
+      for (const j of s.cutting) j.t -= dt;
+      const done = s.cutting.filter((j) => j.t <= 0);
+      if (!done.length) return;
+      s.cutting = s.cutting.filter((j) => j.t > 0);
+      for (const j of done) {
+        s.cleared[j.id] = true;
+        const so = this.socket(j.id);
+        this.emit({ type: "cutDone", id: j.id, x: so.x, z: so.z });
+      }
+    }
+
     upgradeInfo(tw) {
       const s = this.state;
       if (tw.tier >= 3) return { max: true };
@@ -1610,39 +1686,90 @@
       s.effects = keep;
     }
 
-    // ── Préparation : parcours prévus et menace ─────────────────────────────────
+    // ── Préparation : parcours prévus, fronts et menace ──────────────────────────
+    /**
+     * Vague à venir : offset 0 = la prochaine vague à lancer, 1 = la suivante… (mode sans fin
+     * compris). Renvoie { def, number, endless } ou null s'il n'y en a plus.
+     */
+    waveDefAt(offset = 0) {
+      const s = this.state;
+      if (s.endless) {
+        const n = s.endlessCount + 1 + offset;
+        return { def: PTMT.waves.endlessWave(this.L, this.level, n), number: n, endless: true };
+      }
+      const i = s.wave + offset;
+      return s.waves[i] ? { def: { groups: s.waves[i] }, number: i + 1, endless: false } : null;
+    }
+    /** Entrée (de la disposition) d'un groupe, avec sa couleur et son nom. */
+    entryOf(gdef) {
+      const node = this.resolveEntry(gdef);
+      const e = this.L.entries.find((x) => x.node === node) || { id: node, node, label: node, kind: "land" };
+      return e;
+    }
+    /** Résumé d'une vague : fronts (par entrée), types et nombres, menace, boss. */
+    describeWave(def, offset = 0) {
+      const s = this.state;
+      const fronts = new Map(),
+        types = {};
+      let threat = 0,
+        total = 0;
+      const waveNo = s.endless ? s.waveCount + s.endlessCount + 1 + offset : s.wave + 1 + offset;
+      let hpm = (1 + C.enemies.hpPerLevel * (this.level - 1) + C.enemies.hpPerWave * (waveNo - 1)) * this.levelHp();
+      if (s.endless) hpm *= 1 + C.enemies.endlessHpPerBlock * Math.floor((s.endlessCount + offset) / 5);
+      for (const gdef of def.groups) {
+        const e = this.entryOf(gdef);
+        const E = C.enemies[gdef.type];
+        const key = gdef.type + (gdef.elite ? "*" : "");
+        types[key] = (types[key] || 0) + gdef.count;
+        total += gdef.count;
+        threat += gdef.count * E.hp * hpm * (gdef.elite ? 1.5 : 1) * (0.6 + E.speed * 0.5);
+        let f = fronts.get(e.node);
+        if (!f) fronts.set(e.node, (f = { entry: e.node, id: e.id, label: e.label, color: e.color || "#e8453c", kind: e.kind, targets: [], groups: [], count: 0, first: Infinity }));
+        if (!f.targets.includes(gdef.target)) f.targets.push(gdef.target);
+        let g = f.groups.find((x) => x.type === gdef.type && x.elite === !!gdef.elite);
+        if (!g) f.groups.push((g = { type: gdef.type, elite: !!gdef.elite, count: 0 }));
+        g.count += gdef.count;
+        f.count += gdef.count;
+        f.first = Math.min(f.first, gdef.delay || 0);
+      }
+      const list = [...fronts.values()].sort((a, b) => a.first - b.first);
+      const level = threat < 900 ? "Faible" : threat < 2200 ? "Moyenne" : threat < 4500 ? "Forte" : "Très forte";
+      return { fronts: list, types, total, threat: Math.round(threat), level, boss: def.groups.some((g) => g.type === "boss"), eliteBoss: !!def.eliteBoss };
+    }
     preview() {
       const s = this.state;
-      const def = this.nextWaveDef();
-      if (!def) return null;
+      const at = this.waveDefAt(0);
+      if (!at) return null;
+      const def = at.def;
+      const info = this.describeWave(def, 0);
       const routes = [],
-        seen = new Set(),
-        types = {};
-      let threat = 0;
-      const hpm = s.endless ? this.hpMultiplier() * 1.035 : 1 + C.enemies.hpPerLevel * (this.level - 1) + C.enemies.hpPerWave * s.wave;
+        seen = new Set();
       for (const gdef of def.groups) {
         const entry = this.resolveEntry(gdef);
         const key = entry + ">" + gdef.target + ":" + (gdef.type === "nageur");
-        const E = C.enemies[gdef.type];
-        types[gdef.type + (gdef.elite ? "*" : "")] = (types[gdef.type + (gdef.elite ? "*" : "")] || 0) + gdef.count;
-        threat += gdef.count * E.hp * hpm * (gdef.elite ? 1.5 : 1) * (0.6 + E.speed * 0.5);
         if (seen.has(key)) continue;
         seen.add(key);
         const r = this.reserve(gdef.target);
         const mover = gdef.type === "nageur" ? "swimmer" : "walker";
         const rt = r && R.route(this.graph, entry, [r.doorNode], mover, { land: 0.9, water: 1.15 });
-        if (rt) routes.push({ entry, target: gdef.target, pts: rt.pts, kinds: rt.kinds, swimmer: mover === "swimmer" });
+        const e = this.entryOf(gdef);
+        if (rt) routes.push({ entry, target: gdef.target, pts: rt.pts, kinds: rt.kinds, swimmer: mover === "swimmer", color: e.color || "#e8453c" });
+      }
+      const upcoming = [];
+      for (let k = 1; k <= 3; k++) {
+        const nx = this.waveDefAt(k);
+        if (!nx) break;
+        upcoming.push(Object.assign({ number: nx.number, endless: nx.endless }, this.describeWave(nx.def, k)));
       }
       const exits = this.L.exits.map((e) => e.node);
-      const level = threat < 900 ? "Faible" : threat < 2200 ? "Moyenne" : threat < 4500 ? "Forte" : "Très forte";
-      return { routes, types, threat: Math.round(threat), level, exits, boss: def.groups.some((g) => g.type === "boss"), eliteBoss: !!def.eliteBoss };
+      return Object.assign(info, { number: at.number, endless: at.endless, last: !s.endless && at.number === s.waveCount, routes, exits, upcoming });
     }
 
     // ── Sauvegarde (point de reprise entre les vagues) ───────────────────────────
     serialize() {
       const s = this.state;
       return {
-        v: 1,
+        v: C.version,
         level: this.level,
         layoutId: s.layoutId,
         seed: s.seed,
@@ -1658,13 +1785,26 @@
         treasures: s.treasures.map((t) => ({ id: t.id, reserve: t.reserve, state: t.state === "carried" || t.state === "dropped" ? "stored" : t.state, everTaken: t.everTaken })),
         towers: s.towers.map((t) => ({ id: t.id, socket: t.socket, family: t.family, tier: t.tier, branch: t.branch, xp: t.xp, spent: t.spent, targeting: t.targeting })),
         traps: s.traps.map((t) => ({ id: t.id, slot: t.slot, kind: t.kind, tier: t.tier, spent: t.spent, dir: t.dir })),
+        cleared: Object.keys(s.cleared),
+        cutting: s.cutting.map((j) => ({ id: j.id, t: j.t, dur: j.dur })),
+        cuts: s.cuts,
         stats: JSON.parse(JSON.stringify(s.stats)),
         talents: this.allocation,
         unlocked: [...this.unlocked],
         uid: this.uid,
       };
     }
+    /** Une sauvegarde est-elle lisible par cette version (même format, même disposition) ? */
+    static compatible(cp) {
+      if (!cp || cp.v !== C.version || !PTMT.layouts[cp.level]) return false;
+      const L = PTMT.layouts[cp.level];
+      if (cp.layoutId !== L.id) return false;
+      const ids = new Set(L.sockets.map((s) => s.id));
+      const slots = new Set(L.trapSlots.map((t) => t.id));
+      return (cp.towers || []).every((t) => ids.has(t.socket)) && (cp.traps || []).every((t) => slots.has(t.slot)) && (cp.cleared || []).every((id) => ids.has(id));
+    }
     restore(cp) {
+      if (!Game.compatible(cp)) throw new Error("Sauvegarde d'une ancienne version du domaine");
       this.level = cp.level;
       this.L = PTMT.layouts[cp.level];
       this.graph = R.buildGraph(this.L);
@@ -1697,6 +1837,10 @@
         const sl = this.trapSlot(t.slot);
         return Object.assign({ x: sl.x, z: sl.z, cd: 0, fired: 0 }, t);
       });
+      s.cleared = {};
+      for (const id of cp.cleared || []) s.cleared[id] = true;
+      s.cutting = (cp.cutting || []).filter((j) => this.socket(j.id) && !s.cleared[j.id]).map((j) => ({ id: j.id, t: j.t, dur: j.dur }));
+      s.cuts = cp.cuts || 0;
       this.uid = cp.uid || 1000;
       this.emit({ type: "restored" });
     }

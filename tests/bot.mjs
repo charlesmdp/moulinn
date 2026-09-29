@@ -33,9 +33,32 @@ export function makeBot(P, game, opts = {}) {
     return pts;
   }
   const samples = routeSamples();
+  // Comme un joueur qui lit l'annonce : les trajets de la prochaine vague (et leur retour vers la
+  // sortie la plus proche) comptent en plus.
+  let nextSamples = [];
+  function readNextWave() {
+    nextSamples = [];
+    const pv = opts.preview === false ? null : game.preview();
+    if (!pv) return;
+    const exits = L.exits.filter((e) => e.kind === "land").map((e) => e.node);
+    for (const r of pv.routes) {
+      const line = G.polyline(r.pts);
+      for (let s = 0; s < line.length; s += 0.8) {
+        const p = G.at(line, s);
+        nextSamples.push({ x: p.x, z: p.z, w: 0.8 + (s / line.length) * 1.2 });
+      }
+      const back = R.route(game.graph, game.reserve(r.target).doorNode, exits, "walker");
+      if (back)
+        for (let s = 0; s < back.line.length; s += 0.8) {
+          const p = G.at(back.line, s);
+          nextSamples.push({ x: p.x, z: p.z, w: 1.4 });
+        }
+    }
+  }
   function coverage(x, z, range) {
     let c = 0;
     for (const p of samples) if ((p.x - x) ** 2 + (p.z - z) ** 2 <= range * range && game.los(x, z, p.x, p.z)) c += p.w;
+    for (const p of nextSamples) if ((p.x - x) ** 2 + (p.z - z) ** 2 <= range * range && game.los(x, z, p.x, p.z)) c += p.w;
     return c;
   }
   function counts() {
@@ -47,21 +70,32 @@ export function makeBot(P, game, opts = {}) {
     const s = game.state;
     const n = counts();
     const total = n.fire + n.ice + n.water + 1;
-    let best = null;
+    let best = null,
+      bestWood = null;
     for (const so of L.sockets) {
       if (game.towerAt(so.id)) continue;
       const fam = so.kind;
       const cost = C.towers[fam].forms["1"].cost;
-      if (s.gold < cost) continue;
       const deficit = mix[fam] - n[fam] / total;
       const score = coverage(so.x, so.z, C.towers[fam].forms["1"].range) * (1 + deficit * 2.5);
+      if (game.isForest(so.id)) {
+        // Case boisée : candidate à la coupe si elle vaut nettement mieux que les cases libres.
+        if (opts.cut !== false && game.cutProgress(so.id) === null && (!bestWood || score > bestWood.score)) bestWood = { so, fam, score, cost };
+        continue;
+      }
+      if (s.gold < cost) continue;
       if (!best || score > best.score) best = { so, fam, score };
+    }
+    if (bestWood && (!best || bestWood.score > best.score * 1.35) && s.gold >= game.cutCost() + bestWood.cost + 40) {
+      if (game.cut(bestWood.so.id).ok) cutsDone++;
     }
     if (best && best.score > 4) return game.build(best.so.id, best.fam).ok;
     return false;
   }
+  let cutsDone = 0;
   function prep() {
     const s = game.state;
+    readNextWave();
     // Revenus : la meule s'amortit en quelques vagues.
     if (s.wave >= 1 && s.mill.meule === 0 && s.gold >= 80 + 90) game.upgradeMill("meule");
     // Atelier dès qu'une tour peut évoluer.
@@ -142,5 +176,8 @@ export function makeBot(P, game, opts = {}) {
     },
     prep,
     duringWave,
+    get cuts() {
+      return cutsDone;
+    },
   };
 }

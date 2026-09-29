@@ -67,16 +67,34 @@
     this.aimBand.visible = false;
     this.aimBand.renderOrder = 7;
     this.root.add(this.aimBand);
-    // Trajets prévus.
+    // Trajets prévus : une bande pointillée de chevrons qui défilent, à la couleur de la porte.
     this.routeGroup = new THREE.Group();
     this.root.add(this.routeGroup);
     this.routeMat = new THREE.ShaderMaterial({
-      uniforms: { uTime: { value: 0 }, uColor: { value: new THREE.Color(1, 0.35, 0.25) } },
+      uniforms: { uTime: { value: 0 } },
       transparent: true,
       depthWrite: false,
-      vertexShader: "attribute float along; varying float vA; varying float vV; void main(){ vA = along; vV = uv.y; gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0); }",
-      fragmentShader:
-        "uniform float uTime; uniform vec3 uColor; varying float vA; varying float vV; void main(){ float c = fract(vA * 0.35 - uTime * 0.9); float chevron = step(abs(vV - 0.5) * 0.9, c) * step(c, abs(vV - 0.5) * 0.9 + 0.35); float edge = smoothstep(0.5, 0.42, abs(vV - 0.5)); gl_FragColor = vec4(uColor, (0.22 + chevron * 0.6) * edge); }",
+      side: THREE.DoubleSide,
+      vertexShader:
+        "attribute float along; attribute vec3 tint; varying float vA; varying float vV; varying vec3 vTint; void main(){ vA = along; vV = uv.y; vTint = tint; gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0); }",
+      fragmentShader: `uniform float uTime; varying float vA; varying float vV; varying vec3 vTint;
+        void main(){
+          float v = abs(vV - 0.5) * 2.0;
+          float c = fract(vA * 0.3 - uTime * 0.85);
+          float chevron = step(v * 0.45, c) * step(c, v * 0.45 + 0.3) * step(v, 0.8);
+          float outline = step(v * 0.45 - 0.06, c) * step(c, v * 0.45 + 0.36) * step(v, 0.9) - chevron;
+          float dash = step(0.5, fract(vA * 0.3 - uTime * 0.85 + 0.25));
+          float edge = 1.0 - smoothstep(0.84, 1.0, v);
+          float rim = smoothstep(0.66, 0.84, v) * edge;
+          vec3 col = mix(vTint, vec3(1.0), chevron * 0.2);
+          col = mix(col, vTint * 0.3, rim);
+          col = mix(col, vec3(0.08, 0.06, 0.05), outline);
+          float a = (0.14 + dash * 0.08 + rim * 0.45) * edge;
+          a = max(a, chevron * 0.92);
+          a = max(a, outline * 0.75);
+          gl_FragColor = vec4(col, a);
+          #include <encodings_fragment>
+        }`,
     });
   };
   E.showRange = function (x, z, r, color) {
@@ -93,11 +111,15 @@
   E.showSelection = function (x, z, r = 1) {
     if (x === null) {
       this.selection.visible = false;
+      this.selFocus = null;
       return;
     }
     this.selection.visible = true;
     this.pos(x, z, 0.15, this.selection.position);
     this.selection.scale.setScalar(r);
+    // Les arbres devant la case choisie deviennent transparents.
+    const p = this.pos(x, z, 1.2);
+    this.selFocus = { x: p.x, y: p.y, z: p.z, r: 3.6 };
   };
   E.showAim = function (kind, x, z, stats, yaw) {
     this.aimCircle.visible = false;
@@ -124,11 +146,20 @@
       c.geometry.dispose();
     }
     if (!routes) return;
+    // Deux trajets d'une même porte se superposent sur le tronc commun : léger décalage latéral.
+    const perEntry = new Map();
+    for (const r of routes) {
+      const k = perEntry.get(r.entry) || 0;
+      perEntry.set(r.entry, k + 1);
+      r._shift = k * 0.28;
+    }
     for (const r of routes) {
       const pts = r.pts;
+      const tint = PTMT.color(r.color || "#e8453c");
       const pos = [],
         uv = [],
         along = [],
+        tints = [],
         idx = [];
       let acc = 0;
       const S = [];
@@ -148,22 +179,25 @@
         dx /= l;
         dz /= l;
         if (i) acc += Math.hypot(S[i][0] - S[i - 1][0], S[i][1] - S[i - 1][1]);
-        const hw = 0.42;
+        const hw = 0.5;
         for (const s of [1, -1]) {
-          const x = S[i][0] - dz * hw * s,
-            z = S[i][1] + dx * hw * s;
-          const y = Math.max(this.world.heightU(x, z), r.swimmer ? 0.1 : 0) + 0.14;
+          const x = S[i][0] - dz * (hw * s + r._shift),
+            z = S[i][1] + dx * (hw * s + r._shift);
+          const y = Math.max(this.world.heightU(x, z), r.swimmer ? 0.1 : 0) + 0.16;
           const w = this.world.toWorld(x, z, y);
           pos.push(w.x, w.y, w.z);
           uv.push(0, s > 0 ? 1 : 0);
           along.push(acc);
+          tints.push(tint.r, tint.g, tint.b);
         }
-        if (i < S.length - 1) idx.push(i * 2, i * 2 + 1, i * 2 + 2, i * 2 + 1, i * 2 + 3, i * 2 + 2);
+        // Triangles tournés vers le ciel (sinon la bande est éliminée comme face arrière).
+        if (i < S.length - 1) idx.push(i * 2, i * 2 + 2, i * 2 + 1, i * 2 + 1, i * 2 + 2, i * 2 + 3);
       }
       const g = new THREE.BufferGeometry();
       g.setAttribute("position", new THREE.Float32BufferAttribute(pos, 3));
       g.setAttribute("uv", new THREE.Float32BufferAttribute(uv, 2));
       g.setAttribute("along", new THREE.Float32BufferAttribute(along, 1));
+      g.setAttribute("tint", new THREE.Float32BufferAttribute(tints, 3));
       g.setIndex(idx);
       const m = new THREE.Mesh(g, this.routeMat);
       m.renderOrder = 4;
@@ -499,6 +533,7 @@
       for (const e of s.enemies) if (e.state === "steal" && e.stealRes === r.id) open = Math.max(open, 1 - e.stealT / (e.stealTotal || 1));
       v.setOpenProgress && v.setOpenProgress(open);
       v.alarm && v.alarm(open > 0 && r.tier >= 3);
+      if (this.world.setReserveGlow) this.world.setReserveGlow(r.id, r.stock.length / Math.max(1, total), open > 0);
       v.update && v.update(dt, time);
     }
     // Ennemis.
@@ -575,7 +610,8 @@
       if (focus.length < 8) focus.push({ x: this.world.toWorld(t.x, t.z).x, y: y + 0.5, z: this.world.toWorld(t.x, t.z).z, r: 3 });
     }
     for (const [id, v] of this.sacks) if (!seen.has(id)) (v.release(), this.sacks.delete(id));
-    this.world.setFocus(focus);
+    if (this.selFocus) focus.unshift(this.selFocus);
+    this.world.setFocus(focus.slice(0, 8));
     // Projectiles.
     seen.clear();
     for (const p of s.projectiles) {

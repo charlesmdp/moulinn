@@ -192,7 +192,7 @@
     app.world = new PTMT.World(app.ctx);
     app.entities = new PTMT.Entities(app.ctx, app.world);
     app.rig = new PTMT.CameraRig(camera, canvas, {});
-    app.rig.onTap = (x, y) => app.tap(x, y);
+    app.rig.onTap = (x, y, e) => app.tap(x, y, e);
     app.rig.onHover = (x, y) => app.hover(x, y);
     app.progress = PTMT.progress.load();
     app.ui = new PTMT.UI(app);
@@ -265,13 +265,21 @@
     const app = App;
     const prevLayout = app.game && app.game.L.id;
     app.game = game;
+    app.lastPhase = game.state.phase;
     app.ui.closeScreen();
     app.ui.closePanel();
     app.ui.cancelModes();
     app.ui.clearLabels();
+    app.ui.clearMarkers();
     app.ui.hidePrep();
     const layoutChanged = prevLayout !== game.L.id || !app.world.L;
     if (layoutChanged) app.world.build(game.L);
+    app.world.game = game;
+    // Forêts : état de la partie (cases déjà coupées) sans animation.
+    if (app.world.syncForests) {
+      for (const f of app.world.forest ? app.world.forest.values() : []) f.state = "reset";
+      app.world.syncForests(game, false);
+    }
     app.entities.reset(game);
     app.rig.frame({ x0: -58, x1: 58, z0: -40, z1: 40 }, 0);
     app.rig.bounds = { x0: -64, x1: 64, z0: -46, z1: 46 };
@@ -364,7 +372,7 @@
   App.levelTips = function (level) {
     const ui = App.ui;
     const tips = {
-      1: "Bienvenue au moulin ! Six trésors dorment dans le moulin et la dépendance. Choisis une tour en bas, puis touche un support pour la construire. Les flèches rouges montrent le chemin des voleurs.",
+      1: "Bienvenue au moulin ! Six trésors dorment dans le moulin et la dépendance. Les voleurs entrent par les portes à fanion ; leur chemin s'affiche en pointillés de la couleur de la porte. Choisis une tour en bas, puis touche une case de son sol : rocaille pour le feu, givre pour la glace, berge pour l'eau.",
       2: "Nouveau : le Ressort farceur (pièges) renvoie les voleurs en arrière, et le sort Gel immobilise tout un groupe. La rivière coupe le domaine en deux : partage ton or.",
       3: "Nouveau : le Faux coffre attire les voleurs sans sac, la Vague de crue les repousse. Les voleurs au fumigène deviennent invisibles au premier coup : frappe-les tôt !",
       4: "Les nageurs en flamant rose arrivent par l'eau et accostent aux débarcadères. Nouveau sort : Frénésie, qui accélère les tours proches.",
@@ -375,7 +383,8 @@
   App.progressTutorial = function (what) {
     const ui = App.ui,
       g = App.game;
-    if (what === "built" && g.level === 1) ui.tip("afterBuild", "Bien ! Ajoute quelques défenses, puis appuie sur « Lancer la vague ». La pause tactique (bouton ⏸ ou Espace) permet de construire et de préparer les sorts à tout moment.");
+    if (what === "built" && g.level === 1) ui.tip("afterBuild", "Bien ! Ajoute quelques défenses côte à côte aux virages, puis appuie sur « Lancer la vague ». Les cases boisées, souvent les mieux placées, se libèrent en coupant leur forêt. La pause tactique (bouton ⏸ ou Espace) permet de construire à tout moment.");
+    if (what === "cut") ui.tip("cut", "Les bûcherons s'y mettent : la case sera libre dans quelques secondes, même entre les vagues. Chaque coupe coûte un peu plus cher que la précédente.");
     if (what === "wave" && g.state.wave === 2) ui.tip("meule", "Astuce : la Meule (onglet Moulin) rapporte de l'or à chaque vague terminée. Elle s'amortit en quelques vagues.");
     if (what === "steal") ui.tip("steal", "Un voleur emporte un trésor ! Il n'est perdu que s'il passe la sortie : mets-le KO et il lâchera le sac.");
     if (what === "drop") ui.tip("drop", "Sac tombé ! Le sort Rappel le renvoie dans sa réserve. Sinon, il y revient à la fin de la vague… si aucun voleur ne le ramasse.");
@@ -400,7 +409,17 @@
   App.hover = function (cx, cy) {
     const ui = App.ui,
       game = App.game;
-    if (!game || !ui.aim) return;
+    if (!game) return;
+    // Mode construction (souris) : la case survolée s'allume, avec sa portée et son prix.
+    if (ui.buildMode && ui.buildMode.kind === "tower" && !ui.aim) {
+      const g = App.pickGround(cx, cy);
+      const so = g && game.socketAt(g.x, g.z);
+      const id = so ? so.id : null;
+      ui.touch = false;
+      if (id !== ui.preview) ui.setBuildPreview(id);
+      return;
+    }
+    if (!ui.aim) return;
     const g = App.pickGround(cx, cy);
     if (!g) return;
     const st = game.spellStats(ui.aim.spell);
@@ -414,7 +433,7 @@
     }
     App.entities.showAim(ui.aim.spell, g.x, g.z, st, yaw);
   };
-  App.tap = function (cx, cy) {
+  App.tap = function (cx, cy, ev) {
     const ui = App.ui,
       game = App.game;
     if (!game || ui.screen) return;
@@ -422,6 +441,9 @@
     if (!g) return;
     const { x, z } = g;
     const s = game.state;
+    const touch = !!(ev && ev.pointerType && ev.pointerType !== "mouse");
+    ui.touch = touch;
+    const tile = game.socketAt(x, z);
     // Visée d'un sort.
     if (ui.aim) {
       const id = ui.aim.spell;
@@ -441,19 +463,35 @@
       }
       return best;
     };
-    // Mode construction.
+    // Mode construction : la case touchée (grille). Au doigt, un premier toucher montre la case,
+    // sa portée et son prix ; un second toucher sur la même case construit.
     if (ui.buildMode) {
       if (ui.buildMode.kind === "tower") {
-        const so = near(game.L.sockets.filter((q) => q.kind === ui.buildMode.family && !game.towerAt(q.id)), 2.4);
-        if (so) {
-          const res = game.build(so.id, ui.buildMode.family);
+        const fam = ui.buildMode.family;
+        if (tile && game.isForest(tile.id)) {
+          ui.setBuildPreview(tile.id);
+          ui.showForestPanel(tile.id);
+          return;
+        }
+        if (tile && !game.towerAt(tile.id) && tile.kind === fam) {
+          if (touch && ui.preview !== tile.id) {
+            ui.setBuildPreview(tile.id);
+            return;
+          }
+          const res = game.build(tile.id, fam);
           if (!res.ok) ui.flash(res.reason);
           else {
-            App.entities.burst("smoke", so.x, so.z, {});
+            App.entities.burst("smoke", tile.x, tile.z, {});
             App.progressTutorial("built");
-            if (s.gold < C.towers[ui.buildMode.family].forms["1"].cost) ui.cancelModes();
+            if (s.gold < C.towers[fam].forms["1"].cost) ui.cancelModes();
+            else ui.setBuildPreview(touch ? null : tile.id);
           }
           ui.renderTray();
+          return;
+        }
+        if (tile && !game.towerAt(tile.id) && tile.kind !== fam) {
+          ui.setBuildPreview(tile.id);
+          ui.flash(`Sol ${{ fire: "de rocaille", ice: "de givre", water: "de berge" }[tile.kind]} : il accueille les tours ${{ fire: "de feu", ice: "de glace", water: "d'eau" }[tile.kind]}`);
           return;
         }
       } else {
@@ -467,15 +505,16 @@
         }
       }
     }
-    // Sélection.
-    const tw = near(s.towers, 1.8);
-    if (tw) return ui.showTowerPanel(tw.id);
+    // Sélection : la tour de la case touchée, un piège, une réserve, puis la case elle-même.
+    const onTile = tile && game.towerAt(tile.id);
+    if (onTile) return ui.showTowerPanel(onTile.id);
     const tr = near(s.traps, 1.3);
     if (tr) return ui.showTrapPanel(tr.id);
     const res = near(s.reserves, 2.2);
     if (res) return ui.showReservePanel(res.id);
-    const so = near(game.L.sockets.filter((q) => !game.towerAt(q.id)), 1.8);
-    if (so) return ui.showSocketPanel(so.id);
+    const tw = near(s.towers, 1.4);
+    if (tw) return ui.showTowerPanel(tw.id);
+    if (tile) return ui.showSocketPanel(tile.id);
     const sl = near(game.L.trapSlots.filter((q) => !s.traps.some((t) => t.slot === q.id)), 1.1);
     if (sl && ui.tab === "traps") return ui.showSlotPanel(sl.id);
     const sack = s.treasures.find((t) => t.state === "dropped" && Math.hypot(t.x - x, t.z - z) < 1.6);
@@ -498,21 +537,28 @@
     ent.showRange(sel.x, sel.z, sel.range || 0, col);
     ent.showSelection(sel.x, sel.z, sel.kind === "reserve" ? 1.6 : 1);
   };
+  /** Mise en valeur des emplacements selon le mode (la grille des cases est tenue à jour à chaque image). */
   App.setSocketHighlight = function (mode) {
     const game = App.game;
-    if (!game || !App.world.socketViews || App.world.L !== game.L) return;
-    for (const [id, v] of App.world.socketViews) {
-      const so = game.socket(id);
-      let st = "idle";
-      if (game.towerAt(id)) st = "hidden";
-      else if (mode && mode.kind === "tower") st = so.kind === mode.family ? "valid" : "invalid";
-      v.setState && v.setState(st);
-    }
+    if (!game || !App.world.slotViews || App.world.L !== game.L) return;
     for (const [id, m] of App.world.slotViews) {
       const used = game.state.traps.some((t) => t.slot === id);
       m.visible = !used;
       m.material.opacity = mode && mode.kind === "trap" ? 0.95 : 0.4;
     }
+  };
+  /** État d'une case pour la grille de construction. */
+  App.tileInfo = function (id) {
+    const game = App.game;
+    if (game.towerAt(id)) return "occupied";
+    if (game.isForest(id)) return game.cutProgress(id) !== null ? "cutting" : "forest";
+    return "free";
+  };
+  /** Recentre la vue sur une porte d'entrée. */
+  App.focusGate = function (node) {
+    const p = App.world.gateAnchor && App.world.gateAnchor(node);
+    if (!p) return;
+    App.rig.focusOn(p, Math.min(App.rig.distance, 62));
   };
   App.focusEnemy = function (id) {
     const e = App.game.state.enemies.find((q) => q.id === id);
@@ -534,12 +580,18 @@
     const time = app.clock.time;
     const game = app.game;
     if (game) {
-      const before = game.state.phase;
       game.update(dt);
       const events = game.drainEvents();
       for (const ev of events) app.handleEvent(ev, time);
-      if (game.state.phase === "prep" && before === "wave") app.onWaveEnd();
+      // Fin de vague : détectée d'une image à l'autre (même si la partie a avancé hors de la boucle).
+      if (game.state.phase === "prep" && app.lastPhase === "wave") app.onWaveEnd();
+      app.lastPhase = game.state.phase;
       app.entities.sync(game.state.paused ? 0 : dt * game.state.speed, time, app.camera);
+      if (app.world.syncForests) app.world.syncForests(game, true);
+      if (app.world.setGrid) {
+        const bm = app.ui.buildMode;
+        app.world.setGrid(bm && bm.kind === "tower" ? bm : null, app.ui.preview, app.tileInfo);
+      }
     }
     app.updateReveal(dt);
     app.rig.update(dt);
@@ -584,6 +636,15 @@
         break;
       case "spellResumed":
         if (!ev.ok && ev.reason) ui.flash(`${C.spells[ev.id].name} : ${ev.reason}`);
+        break;
+      case "cutStart":
+        ui.floatAt(ev.x, ev.z, "−" + ev.cost + " or", "bad");
+        ui.renderTray();
+        break;
+      case "cutDone":
+        ui.floatAt(ev.x, ev.z, "Forêt coupée !", "blue");
+        if (ui.preview === ev.id) ui.setBuildPreview(ev.id);
+        app.progressTutorial("cutDone");
         break;
     }
     if (ev.type === "ko") {

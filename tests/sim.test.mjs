@@ -116,6 +116,186 @@ test("chaque réserve est accessible et reliée à une sortie ; les nageurs ont 
   ok(P.layouts[4].edges.some((e) => e.kind === "shore"), "niveau 4 : débarcadères");
 });
 
+test("terrain à cases : 50 à 90 cases libres et 15 à 40 cases boisées par niveau, trois sols, des tours côte à côte", () => {
+  for (let lv = 1; lv <= 5; lv++) {
+    const L = P.layouts[lv];
+    const free = L.sockets.filter((s) => !s.forest),
+      wood = L.sockets.filter((s) => s.forest);
+    ok(free.length >= 50 && free.length <= 90, `niveau ${lv} : ${free.length} cases libres`);
+    ok(wood.length >= 15 && wood.length <= 40, `niveau ${lv} : ${wood.length} cases boisées`);
+    for (const k of ["fire", "ice", "water"]) ok(free.filter((s) => s.kind === k).length >= 12, `niveau ${lv} : au moins 12 cases ${k}`);
+    // Cases voisines (côte à côte) du même sol : on peut aligner des tours.
+    let pairs = 0;
+    for (const s of free) {
+      const right = L.tileAt[s.i + 1 + ":" + s.j];
+      if (right && L.sockets.find((o) => o.id === right).kind === s.kind) pairs++;
+    }
+    ok(pairs >= 20, `niveau ${lv} : ${pairs} paires de cases voisines`);
+    // Portes : trois au plus, chacune au bord de la carte.
+    ok(L.entries.length >= 2 && L.entries.length <= 3, `niveau ${lv} : ${L.entries.length} portes`);
+    for (const e of L.entries) {
+      const n = L.nodes[e.node];
+      ok(n.x <= 0 || n.z <= 0 || n.x >= 64 || n.z >= 44, `porte ${e.id} au bord`);
+      ok(/^#[0-9a-f]{6}$/i.test(e.color), `couleur de la porte ${e.id}`);
+    }
+  }
+});
+test("les vagues n'utilisent que les portes de leur niveau (nageurs par l'eau)", () => {
+  for (let lv = 1; lv <= 5; lv++) {
+    const L = P.layouts[lv];
+    const ids = new Map(L.entries.map((e) => [e.id, e]));
+    for (const [i, w] of P.waves.scripts[lv].entries()) {
+      for (const gdef of w) {
+        const e = ids.get(gdef.entry);
+        ok(e, `niveau ${lv}, vague ${i + 1} : porte ${gdef.entry} inconnue`);
+        ok(e.kind === "land" || gdef.type === "nageur", `niveau ${lv}, vague ${i + 1} : ${gdef.type} par l'eau`);
+        ok(L.reserves.some((r) => r.id === gdef.target), `niveau ${lv}, vague ${i + 1} : réserve ${gdef.target}`);
+      }
+    }
+  }
+});
+
+console.log("Forêts");
+function forestTile(g, kind) {
+  return g.L.sockets.find((s) => s.forest && (!kind || s.kind === kind));
+}
+test("couper une forêt : l'or est payé, la case reste inconstructible pendant la coupe, puis se libère", () => {
+  const g = new P.Game({ level: 1 });
+  const so = forestTile(g);
+  ok(so, "une case boisée");
+  eq(g.isForest(so.id), true);
+  g.state.gold = 500;
+  const r0 = g.build(so.id, so.kind);
+  ok(!r0.ok && /forêt/i.test(r0.reason), "pas de tour sur une forêt : " + r0.reason);
+  const cost = g.cutCost();
+  eq(cost, C.forest.cost, "premier prix");
+  const r = g.cut(so.id);
+  ok(r.ok, r.reason);
+  eq(g.state.gold, 500 - cost, "or payé");
+  ok(g.drainEvents().some((e) => e.type === "cutStart" && e.id === so.id), "événement de début de coupe");
+  ok(!g.build(so.id, so.kind).ok, "pas de tour pendant la coupe");
+  ok(!g.cut(so.id).ok, "pas deux coupes en même temps");
+  // La coupe avance entre les vagues (phase de préparation).
+  eq(g.state.phase, "prep");
+  g.advance(C.forest.duration * 0.5);
+  ok(near(g.cutProgress(so.id), 0.5, 0.02), "à mi-chemin");
+  ok(g.isForest(so.id), "encore boisée");
+  g.advance(C.forest.duration * 0.5 + 0.1);
+  eq(g.isForest(so.id), false, "coupée");
+  eq(g.cutProgress(so.id), null);
+  ok(g.drainEvents().some((e) => e.type === "cutDone" && e.id === so.id), "événement de fin de coupe");
+  ok(!g.cut(so.id).ok, "on ne coupe pas deux fois");
+  ok(g.build(so.id, so.kind).ok, "la case devient un support de son sol");
+  eq(g.cutCost(), C.forest.cost + C.forest.costStep, "le prix monte");
+  const free = g.L.sockets.find((s) => !s.forest);
+  ok(!g.cut(free.id).ok, "pas de coupe sans forêt");
+  g.state.gold = 0;
+  const other = g.L.sockets.find((s) => s.forest && s.id !== so.id);
+  const rr = g.cut(other.id);
+  ok(!rr.ok && /manque/.test(rr.reason), "or insuffisant");
+});
+test("la coupe s'arrête en pause et continue pendant une attaque", () => {
+  const g = new P.Game({ level: 2 });
+  const so = forestTile(g);
+  g.state.gold = 200;
+  ok(g.cut(so.id).ok);
+  g.setPaused(true);
+  g.update(1);
+  eq(g.cutProgress(so.id), 0, "rien en pause");
+  g.setPaused(false);
+  g.launchWave();
+  g.advance(C.forest.duration + 0.2);
+  eq(g.isForest(so.id), false, "coupée pendant la vague");
+});
+test("sauvegarde : cases coupées, coupe en cours et prix des coupes sont repris", () => {
+  const g = new P.Game({ level: 3, unlocked: unlockedFor(3) });
+  g.state.gold = 1000;
+  const [a, b2] = g.L.sockets.filter((s) => s.forest);
+  ok(g.cut(a.id).ok);
+  g.advance(C.forest.duration + 0.1);
+  ok(g.build(a.id, a.kind).ok);
+  ok(g.cut(b2.id).ok);
+  g.advance(1);
+  const cp = JSON.parse(JSON.stringify(g.serialize()));
+  eq(cp.v, C.version);
+  ok(P.Game.compatible(cp), "compatible");
+  const h = new P.Game({ level: 3, checkpoint: cp });
+  eq(h.isForest(a.id), false, "coupée");
+  ok(h.towerAt(a.id), "tour reprise sur la case coupée");
+  ok(near(h.cutProgress(b2.id), 1 / C.forest.duration, 0.02), "coupe en cours reprise");
+  eq(h.cutCost(), g.cutCost(), "prix repris");
+  h.advance(C.forest.duration);
+  eq(h.isForest(b2.id), false, "la coupe reprise se termine");
+});
+test("anciennes sauvegardes : refusées sans erreur, effacées au chargement", () => {
+  const g = new P.Game({ level: 1 });
+  const cp = g.serialize();
+  ok(P.Game.compatible(cp));
+  ok(!P.Game.compatible(Object.assign({}, cp, { v: 1 })), "ancien format");
+  ok(!P.Game.compatible(Object.assign({}, cp, { layoutId: "L1-bienvenue" })), "ancienne disposition");
+  ok(!P.Game.compatible(Object.assign({}, cp, { towers: [{ socket: "s999" }] })), "case inconnue");
+  let threw = false;
+  try {
+    new P.Game({ level: 1, checkpoint: Object.assign({}, cp, { v: 1 }) });
+  } catch {
+    threw = true;
+  }
+  ok(threw, "reprise refusée");
+  // Stockage du navigateur simulé : l'ancienne partie est effacée, la nouvelle est lue.
+  const store = new Map([
+    ["ptmt.save.v1", JSON.stringify({ v: 1, level: 1 })],
+    ["ptmt.save.v2", JSON.stringify(Object.assign({}, cp, { v: 1 }))],
+  ]);
+  const ls = { getItem: (k) => (store.has(k) ? store.get(k) : null), setItem: (k, v) => store.set(k, String(v)), removeItem: (k) => store.delete(k) };
+  eq(P.progress.loadCheckpoint(ls), null, "rien à reprendre");
+  ok(!store.has("ptmt.save.v1") && !store.has("ptmt.save.v2"), "anciennes sauvegardes effacées");
+  P.progress.saveCheckpoint(cp, ls);
+  ok(P.progress.loadCheckpoint(ls), "sauvegarde actuelle lue");
+});
+
+console.log("Annonce des vagues");
+test("prochaine vague : fronts par porte (couleur, nom, cibles, ennemis), trajets et vagues suivantes", () => {
+  for (let lv = 1; lv <= 5; lv++) {
+    const g = new P.Game({ level: lv, unlocked: unlockedFor(lv) });
+    const pv = g.preview();
+    eq(pv.number, 1);
+    ok(pv.fronts.length >= 1, "au moins un front");
+    const total = pv.fronts.reduce((a, f) => a + f.count, 0);
+    eq(total, g.state.waves[0].reduce((a, x) => a + x.count, 0), "tous les ennemis annoncés");
+    for (const f of pv.fronts) {
+      const e = g.L.entries.find((x) => x.node === f.entry);
+      ok(e, "porte connue");
+      eq(f.color, e.color, "couleur de la porte");
+      eq(f.label, e.label, "nom de la porte");
+      ok(f.targets.every((t) => g.reserve(t)), "réserves visées");
+      ok(f.groups.every((x) => C.enemies[x.type] && x.count > 0), "groupes");
+      ok(pv.routes.some((r) => r.entry === f.entry && r.color === f.color), "trajet coloré depuis cette porte");
+    }
+    eq(pv.upcoming.length, 3, "trois vagues suivantes annoncées");
+    eq(pv.upcoming[0].number, 2);
+    ok(pv.upcoming[0].fronts.length >= 1);
+  }
+  // Dernière vague : plus rien après ; puis le mode sans fin annonce aussi ses vagues.
+  const g = new P.Game({ level: 1 });
+  g.state.wave = g.state.waveCount - 1;
+  const last = g.preview();
+  ok(last.last, "dernière vague signalée");
+  eq(last.upcoming.length, 0);
+  g.launchWave();
+  g.state.spawns.length = 0;
+  g.tick(C.tick);
+  eq(g.state.phase, "victory");
+  g.continueEndless();
+  const pe = g.preview();
+  ok(pe.endless && pe.number === 1 && pe.upcoming.length === 3, "sans fin : vague 1 et les trois suivantes");
+  eq(pe.upcoming[3 - 1].number, 4);
+  const w5 = g.waveDefAt(4);
+  ok(g.describeWave(w5.def, 4).boss, "le boss de la cinquième vague sans fin est annoncé");
+});
+test("la tour d'eau de palier I est le Cygne grincheux", () => {
+  eq(C.towers.water.forms["1"].name, "Cygne grincheux");
+});
+
 console.log("Trésors, vols et victoire");
 test("une réserve vide ne provoque pas de défaite ; le niveau continue", () => {
   const g = new P.Game({ level: 1 });
