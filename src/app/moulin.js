@@ -1536,8 +1536,14 @@ if(length(gl_PointCoord-vec2(.5))>.5)discard;`,
             (st.y -= 0.09),
             (Xe.y = q(Xe.y * 0.4 + 0.035, -0.24, 0.2)),
             Xe.normalize())
-          : st.addScaledVector(_t, 0.12),
-        I(H, st, Xe),
+          : st.addScaledVector(_t, 0.12));
+      const torch32 = fe && fe.avatar && fe.avatar.torch32;
+      if (torch32) {
+        torch32.on = C && Ee === "play" && !!(fe && fe.enabled) && !mt;
+        torch32.dir.copy(Xe);
+        if (torch32.on && torch32.ready) (st.copy(torch32.tip), Xe.copy(torch32.worldDir));
+      }
+      (I(H, st, Xe),
         I(W, st, Xe),
         (H.intensity = C ? 8.6 : 0),
         (W.intensity = C ? 0.62 : 0));
@@ -5857,6 +5863,48 @@ float clothHem23=1.-smoothstep(1.06,1.38,position.y);float clothWave23=sin(uAvat
             group: te,
             update: Pt,
             poseDig24: jt,
+            // V32 : lampe torche tenue dans la main droite (bras tendu, faisceau depuis la lentille).
+            torch32: { on: !1, ready: !1, dir: new n.Vector3(0, 0, 1), tip: new n.Vector3(), worldDir: new n.Vector3(0, 0, 1) },
+            holdTorch32() {
+              const s = this.torch32;
+              if (!s.mesh) {
+                const metal = new n.MeshStandardMaterial({ color: 1778982, roughness: 0.42, metalness: 0.65 }),
+                  rubber = new n.MeshStandardMaterial({ color: 3816250, roughness: 0.92, metalness: 0 }),
+                  lens = new n.MeshStandardMaterial({ color: 16774358, emissive: 16769704, emissiveIntensity: 2.2, roughness: 0.2 });
+                for (const mat of [metal, rubber, lens]) mat.userData.noWeatherPaint22 = !0;
+                const g = new n.Group();
+                ((g.name = "Lampe_torche_en_main_v32"), (g.userData.exportSkip = !0));
+                const part = (geo, mat, z) => {
+                  const m = new n.Mesh(geo, mat);
+                  return ((m.rotation.x = Math.PI / 2), (m.position.z = z), (m.castShadow = !1), g.add(m), m);
+                };
+                (part(new n.CylinderGeometry(0.0165, 0.0165, 0.13, 12), metal, -0.004),
+                  part(new n.CylinderGeometry(0.0185, 0.0185, 0.05, 12), rubber, -0.022),
+                  part(new n.CylinderGeometry(0.0172, 0.0172, 0.006, 12), rubber, -0.071),
+                  part(new n.CylinderGeometry(0.029, 0.019, 0.05, 14), metal, 0.083),
+                  part(new n.CylinderGeometry(0.0006, 0.0006, 0.002, 4), metal, 0.11));
+                const glass = new n.Mesh(new n.CircleGeometry(0.0255, 16), lens);
+                ((glass.position.z = 0.1085), g.add(glass));
+                ((g.visible = !1), te.add(g), (s.mesh = g));
+              }
+              const g = s.mesh;
+              if (((g.visible = !!s.on), !s.on)) return ((s.ready = !1), void 0);
+              te.updateMatrixWorld(!0);
+              const inv = te.getWorldQuaternion(new n.Quaternion()).invert(),
+                d = s.dir.clone().applyQuaternion(inv);
+              ((d.z = Math.max(0.42, d.z)), (d.y = n.MathUtils.clamp(d.y, -0.45, 0.3)), d.normalize());
+              // Main droite (x < 0) devant la poitrine, un peu vers là où l'on éclaire.
+              (Ct([q.upperarm_r, q.lowerarm_r], Mt[1], new n.Vector3(-0.19 + d.x * 0.1, 1.17 + d.y * 0.16, 0.31 + d.z * 0.06), 10),
+                te.updateMatrixWorld(!0));
+              const at = te.worldToLocal(Mt[1].getWorldPosition(new n.Vector3()));
+              (g.position.copy(at),
+                g.quaternion.setFromUnitVectors(new n.Vector3(0, 0, 1), d),
+                g.updateMatrixWorld(!0),
+                s.tip.set(0, 0, 0.115),
+                g.localToWorld(s.tip),
+                s.worldDir.copy(d).applyQuaternion(te.getWorldQuaternion(new n.Quaternion())).normalize(),
+                (s.ready = !0));
+            },
             hipHeight: Dt,
             height: 1.75,
             source: A.source,
@@ -11564,7 +11612,8 @@ lawnWorld20=(modelMatrix*lawnP20).xyz;`,
             steering: 0,
             distance: J,
             ...Bt(),
-          }));
+          }),
+          H.holdTorch32 && H.holdTorch32());
         return;
       }
       const Ze = 1 - Math.exp(-11 * f),
@@ -11878,7 +11927,8 @@ lawnWorld20=(modelMatrix*lawnP20).xyz;`,
             quadScale: m.scale,
             carDriving: U(),
             ...Bt(),
-          }));
+          }),
+          H.holdTorch32 && ((H.torch32.on = !1), H.holdTorch32()));
         return;
       }
       const J = m.scale;
@@ -16772,6 +16822,7 @@ lawnWorld20=(modelMatrix*lawnP20).xyz;`,
         cover: { value: 0 },
         rain: { value: 0 },
         snow: { value: 0 },
+        drizzle: { value: 0 },
         wind: { value: 0.2 },
         drift: { value: new t.Vector2() },
         centre: { value: O },
@@ -16939,14 +16990,23 @@ vec3 globeRoot27=(modelMatrix*vec4(instanceMatrix[3].xyz,1.)).xyz;globeRootInsid
             sun32: xe.sun32,
             lightning32: xe.lightning32,
             golden32: xe.golden32,
+            time: xe.time,
+            drift: xe.drift,
           },
           vertexShader: $e,
-          fragmentShader: `uniform float night,cover,starry,lightning32,golden32;uniform vec3 centre,sun32;varying vec3 globePoint,globeNormal;void main(){float h=clamp((globePoint.y-centre.y+9.)/44.,0.,1.);vec3 daylight=mix(vec3(.72,.89,.94),vec3(.30,.62,.86),pow(h,.7));daylight=mix(daylight,mix(vec3(.52,.63,.67),vec3(.24,.36,.45),h),cover*.76);vec3 direction=normalize(globePoint-centre);
+          fragmentShader: `uniform float night,cover,starry,lightning32,golden32,time;uniform vec2 drift;uniform vec3 centre,sun32;varying vec3 globePoint,globeNormal;
+float g32h(vec3 p){p=fract(p*.3183099+.1);p*=17.;return fract(p.x*p.y*p.z*(p.x+p.y+p.z));}
+float g32n(vec3 x){vec3 i=floor(x),f=fract(x);f=f*f*(3.-2.*f);return mix(mix(mix(g32h(i),g32h(i+vec3(1,0,0)),f.x),mix(g32h(i+vec3(0,1,0)),g32h(i+vec3(1,1,0)),f.x),f.y),mix(mix(g32h(i+vec3(0,0,1)),g32h(i+vec3(1,0,1)),f.x),mix(g32h(i+vec3(0,1,1)),g32h(i+vec3(1,1,1)),f.x),f.y),f.z);}
+float g32f(vec3 p){float a=.5,s=0.;for(int i=0;i<5;i++){s+=a*g32n(p);p=p*2.03+vec3(1.7,9.2,3.1);a*=.5;}return s;}
+void main(){float h=clamp((globePoint.y-centre.y+9.)/44.,0.,1.);vec3 daylight=mix(vec3(.72,.89,.94),vec3(.30,.62,.86),pow(h,.7));daylight=mix(daylight,mix(vec3(.52,.63,.67),vec3(.24,.36,.45),h),cover*.76);vec3 direction=normalize(globePoint-centre);
 float toward=pow(max(dot(normalize(direction.xz+vec2(1e-4)),normalize(sun32.xz+vec2(1e-4))),0.)*.5+.5,2.);
 daylight=mix(daylight,mix(vec3(1.,.55,.28),vec3(.78,.42,.5),1.-toward)*(.75+.25*(1.-h)),golden32*(1.-h*.55)*(1.-cover*.6));
 float dusk=1.-smoothstep(-.16,.04,sun32.y);daylight=mix(daylight,mix(vec3(.3,.26,.44)*(.5+.5*toward),vec3(.05,.08,.2),h),dusk*.85);
 vec3 nightSky=mix(vec3(.032,.072,.14),vec3(.008,.019,.051),h);float haze=exp(-pow((direction.x*.64+direction.z*.45+direction.y*.16-.24)*4.,2.));nightSky+=vec3(.018,.025,.046)*haze*starry;
-vec3 c=mix(daylight,nightSky,night);c+=vec3(.5,.55,.75)*lightning32*(.3+.7*cover);gl_FragColor=vec4(c,1.);${B}}`,
+vec3 c=mix(daylight,nightSky,night);
+// V32 : par temps couvert, la boule entière se remplit d'une masse nuageuse (plus de ciel bleu).
+float overcast=smoothstep(.5,.92,cover);if(overcast>.001){vec3 dq=direction*2.4+vec3(drift.x,0.,drift.y)*.018+vec3(time*.006,0.,-time*.004);float n=g32f(dq*1.6);float lumps=g32f(dq*4.1+3.7);float base=-.34+(n-.5)*.42;float mass=smoothstep(base-.06,base+.14,direction.y)*overcast;vec3 lightTop=mix(vec3(.80,.83,.84),vec3(.93,.94,.93),smoothstep(.45,.8,lumps));vec3 cloud=mix(vec3(.43,.48,.52),lightTop,smoothstep(.32,.78,n*.7+lumps*.5));cloud*=mix(1.,.72,smoothstep(.75,1.,cover));cloud=mix(cloud,vec3(.035,.05,.085)*(.7+n*.8),night);c=mix(c,cloud,mass);}
+c+=vec3(.5,.55,.75)*lightning32*(.3+.7*cover);gl_FragColor=vec4(c,1.);${B}}`,
         });
       ((je = rt(Ve, vt, "Ciel_interieur_de_la_boule")),
         je.position.copy(O),
@@ -17084,7 +17144,7 @@ void main(){
         lt.position.copy(O),
         lt.scale.setScalar(1.0055),
         (lt.renderOrder = 35));
-      const Ie = n.mobile ? 16 : 24,
+      const Ie = n.mobile ? 24 : 38,
         E = 7,
         Y = Ie * E,
         w = new t.InstancedBufferGeometry(),
@@ -17143,10 +17203,39 @@ void main(){
           golden32: xe.golden32,
         },
         vertexShader:
-          "attribute vec4 cloudSeed27,cloudShape27;attribute vec3 cloudOffset27;uniform float time,cover,wind,night;uniform vec2 drift;uniform vec3 centre;varying vec3 cloudWorld27,cloudNormal27;varying float cloudVisible27,cloudLocal27,cloudSeedValue27;void main(){vec2 p=mod((cloudSeed27.xy-.5)*112.+drift+56.,112.)-56.;float h=36.0+cloudSeed27.z*7.0;float size=.78+cover*.26;vec3 puffCentre=vec3(centre.x+p.x,h,centre.z+p.y)+cloudOffset27*size;float puffRadius=max(cloudShape27.x,max(cloudShape27.y,cloudShape27.z))*size;float fit=clamp((45.15-length(puffCentre-centre))/puffRadius,0.,1.);vec3 world=puffCentre+position*cloudShape27.xyz*size*fit;cloudWorld27=world;cloudNormal27=normalize(normal/cloudShape27.xyz);cloudVisible27=step(cloudSeed27.w,mix(mix(.59,.18,night),1.,cover))*step(.015,fit);cloudLocal27=position.y;cloudSeedValue27=cloudShape27.w;gl_Position=projectionMatrix*viewMatrix*vec4(world,1.);}",
+          "attribute vec4 cloudSeed27,cloudShape27;attribute vec3 cloudOffset27;uniform float time,cover,wind,night;uniform vec2 drift;uniform vec3 centre;varying vec3 cloudWorld27,cloudNormal27;varying float cloudVisible27,cloudLocal27,cloudSeedValue27;void main(){vec2 p=mod((cloudSeed27.xy-.5)*112.+drift+56.,112.)-56.;float low=step(.52,fract(cloudSeed27.z*7.31+cloudSeed27.w*3.7));float h=mix(36.0+cloudSeed27.z*7.0,21.5+cloudSeed27.z*9.0,low);float size=.78+cover*.26+low*smoothstep(.55,1.,cover)*.42;vec3 puffCentre=vec3(centre.x+p.x,h,centre.z+p.y)+cloudOffset27*size;float puffRadius=max(cloudShape27.x,max(cloudShape27.y,cloudShape27.z))*size;float fit=clamp((45.15-length(puffCentre-centre))/puffRadius,0.,1.);vec3 world=puffCentre+position*cloudShape27.xyz*size*fit;cloudWorld27=world;cloudNormal27=normalize(normal/cloudShape27.xyz);cloudVisible27=step(cloudSeed27.w,mix(mix(.59,.18,night),1.,cover))*step(.015,fit)*(1.-low*(1.-step(.6,cover)));cloudLocal27=position.y;cloudSeedValue27=cloudShape27.w;gl_Position=projectionMatrix*viewMatrix*vec4(world,1.);}",
         fragmentShader: `uniform float cover,night,time,lightning32,golden32;uniform vec3 centre,light32,lightColour32;varying vec3 cloudWorld27,cloudNormal27;varying float cloudVisible27,cloudLocal27,cloudSeedValue27;void main(){if(cloudVisible27<.5||length(cloudWorld27-centre)>45.3)discard;vec3 n=normalize(cloudNormal27);float top=dot(n,normalize(light32))*.5+.5;float puffShade=.68+.32*smoothstep(-.9,.75,cloudLocal27);float detail=sin(cloudWorld27.x*.77+cloudWorld27.z*.34)*sin(cloudWorld27.y*.91-cloudWorld27.z*.28)*.035;vec3 c=mix(vec3(.41,.52,.60),vec3(.98,.99,.96),top)*puffShade;float under=1.-smoothstep(-.50,.15,n.y);c*=1.-under*cover*.22;c=mix(c,c*vec3(.37,.46,.55),cover*.66);c+=detail;c*=mix(vec3(1.),lightColour32*vec3(1.08,.95,.9),golden32*.8);c=mix(c,vec3(.050,.091,.16)*(.63+top*.73)*puffShade,night);c+=vec3(.55,.6,.8)*lightning32*(.4+.6*(1.-top));gl_FragColor=vec4(c,1.);${B}}`,
       });
       ((V = rt(w, bt, "Nuages_volumineux_dans_la_boule")), (V.frustumCulled = !1));
+      {
+        // V32 : pluie, bruine et neige tombent aussi dans la boule, sous les nuages.
+        const count32 = n.mobile ? 900 : 2200,
+          drops32 = new t.InstancedBufferGeometry(),
+          quad32 = De(new t.PlaneGeometry(1, 1));
+        ((drops32.index = quad32.index),
+          (drops32.attributes.position = quad32.attributes.position),
+          (drops32.attributes.uv = quad32.attributes.uv));
+        const seeds32 = new Float32Array(count32 * 4);
+        let r32 = 90211;
+        const rnd32 = () => ((r32 = (Math.imul(r32, 1664525) + 1013904223) >>> 0), r32 / 4294967296);
+        for (let i = 0; i < count32; i++) {
+          const a = rnd32() * Math.PI * 2,
+            r = Math.sqrt(rnd32()) * 39;
+          seeds32.set([Math.cos(a) * r, Math.sin(a) * r, rnd32(), rnd32()], i * 4);
+        }
+        (drops32.setAttribute("dropSeed32", new t.InstancedBufferAttribute(seeds32, 4)), (drops32.instanceCount = count32));
+        const mat32 = ke({
+            transparent: !0,
+            depthWrite: !1,
+            side: t.DoubleSide,
+            uniforms: { time: xe.time, rain: xe.rain, snow: xe.snow, drizzle: xe.drizzle, night: xe.night, wind: xe.wind, centre: xe.centre },
+            vertexShader:
+              "attribute vec4 dropSeed32;uniform float time,rain,snow,drizzle,wind;uniform vec3 centre;varying vec2 q;varying float fade;void main(){float top=centre.y+18.5;float bottom=centre.y-15.;float span=top-bottom;float r=clamp(rain*1.7,0.,1.);float speed=mix(mix(1.1,2.3,dropSeed32.w),mix(15.,22.,dropSeed32.w),r)*mix(1.,.5,drizzle);float y=top-mod(dropSeed32.z*span+time*speed,span);vec3 p=vec3(centre.x+dropSeed32.x,y,centre.z+dropSeed32.y);p.x+=sin(time*.8+dropSeed32.w*40.)*snow*.7+wind*(top-y)*.07;p.z+=cos(time*.7+dropSeed32.w*33.)*snow*.7;fade=smoothstep(.5,3.,45.5-length(p-centre))*smoothstep(0.,2.5,top-y);vec4 v=viewMatrix*vec4(p,1.);float w=mix(.5,.17,r)*(1.+dropSeed32.w*.5)*(1.+drizzle*.2);float l=mix(w,mix(2.5,1.35,drizzle)+dropSeed32.w*.9,r);vec2 ax=(viewMatrix*vec4(wind*.3,-1.,0.,0.)).xy;ax=length(ax)>1e-4?normalize(ax):vec2(0.,-1.);vec2 sd=vec2(-ax.y,ax.x);v.xy+=sd*position.x*w+ax*position.y*l;q=uv;gl_Position=projectionMatrix*v;}",
+            fragmentShader: `uniform float rain,snow,drizzle,night;varying vec2 q;varying float fade;void main(){vec2 d=q-.5;float flake=1.-smoothstep(.08,.5,length(d));float streak=(1.-smoothstep(.04,.5,abs(d.x)))*(1.-smoothstep(.15,.5,abs(d.y)));float r=clamp(rain*1.7,0.,1.);float a=mix(flake,streak,r)*fade*max(snow*1.1,max(rain,drizzle*.55))*(1.+drizzle*1.3)*.95;if(a<.01)discard;gl_FragColor=vec4(mix(vec3(.9,.95,1.),vec3(.52,.64,.8),night*.7),min(a,.92));${B}}`,
+          }),
+          mesh32 = rt(drops32, mat32, "Pluie_bruine_et_neige_dans_la_boule");
+        ((mesh32.frustumCulled = !1), (mesh32.renderOrder = 30), (mesh32.visible = !1), (xe.precip32 = mesh32));
+      }
       const mt = De(new t.SphereGeometry(1, 24, 16)),
         Ct = (Kt) =>
           ke({
@@ -17187,7 +17276,7 @@ void main(){
         },
         vertexShader:
           "attribute vec2 starSeed27;uniform float time,pixelRatio;uniform vec3 centre;varying float starGain27,starTint27,starBack27;void main(){starBack27=1.-step(0.,dot(normalize(position-centre),normalize(cameraPosition-centre)));starGain27=starSeed27.x*(.76+.24*sin(time*.73+starSeed27.y*23.));starTint27=starSeed27.y;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.);gl_PointSize=(2.0+starSeed27.x*1.35)*pixelRatio;}",
-        fragmentShader: `uniform float cover;varying float starGain27,starTint27,starBack27;void main(){if(starBack27<.5)discard;float d=length(gl_PointCoord-.5);float core=1.-smoothstep(.10,.46,d);float halo=exp(-d*d*14.)*.12;float a=(core+halo)*starGain27*(1.-cover*.72);if(a<.025)discard;gl_FragColor=vec4(mix(vec3(.72,.84,1.),vec3(1.,.91,.77),starTint27),a);${B}}`,
+        fragmentShader: `uniform float cover;varying float starGain27,starTint27,starBack27;void main(){if(starBack27<.5)discard;float d=length(gl_PointCoord-.5);float core=1.-smoothstep(.10,.46,d);float halo=exp(-d*d*14.)*.12;float a=(core+halo)*starGain27*(1.-cover*.72)*(1.-smoothstep(.55,.85,cover));if(a<.025)discard;gl_FragColor=vec4(mix(vec3(.72,.84,1.),vec3(1.,.91,.77),starTint27),a);${B}}`,
       });
       ((qe = new t.Points(we, We)),
         (qe.name = "Etoiles_interieures_de_la_boule"),
@@ -17393,7 +17482,9 @@ void main(){
           ((Se = (Be = Ve == null ? void 0 : Ve.uniforms) == null ? void 0 : Be.rain) == null ? void 0 : Se.value) ||
           0),
         (xe.snow.value =
-          ((Ie = (N = Ve == null ? void 0 : Ve.uniforms) == null ? void 0 : N.snow) == null ? void 0 : Ie.value) || 0));
+          ((Ie = (N = Ve == null ? void 0 : Ve.uniforms) == null ? void 0 : N.snow) == null ? void 0 : Ie.value) || 0),
+        (xe.drizzle.value = (Ve && Ve.uniforms && Ve.uniforms.drizzle && Ve.uniforms.drizzle.value) || 0),
+        xe.precip32 && (xe.precip32.visible = xe.rain.value > 0.002 || xe.snow.value > 0.002));
       const et = x(),
         kt = ((E = et == null ? void 0 : et.windDirection) == null ? void 0 : E.value) || { x: 0.83, y: 0.56 };
       (($ = t.MathUtils.clamp(
@@ -18325,7 +18416,7 @@ void main(){
           snow: 0,
           rain: 0.36,
           wet: 0.62,
-          fog: 0.0045,
+          fog: 0.0068,
           sky: "#98a4aa",
           light: 0.28,
           ambient: 0.8,
@@ -18366,6 +18457,7 @@ void main(){
         fogDensity: { value: 0 },
         fogColor: { value: new t.Color() },
         hail: { value: 0 },
+        drizzle: { value: 0 },
         lightning: globalThis.MoulinV32.uniforms.lightning,
       },
       b = X.querySelector("[data-weather]");
@@ -18623,11 +18715,15 @@ void main(){
     const Qe = new t.ShaderMaterial({
         transparent: !0,
         depthWrite: !1,
+        // V32 : les gouttes sont des quads en repère vue dont l'axe « long » descend :
+        // l'orientation est miroir, il faut les deux faces sinon elles sont éliminées.
+        side: t.DoubleSide,
         uniforms: {
           weatherTime: h.time,
           rain: h.rain,
           snow: h.snow,
           hail: h.hail,
+          drizzle32: h.drizzle,
           night: h.night,
           groundMap: { value: Ce },
           groundBounds: { value: new t.Vector4(pe.x0, pe.x1, pe.z0, pe.z1) },
@@ -18639,10 +18735,10 @@ void main(){
           shelterHeights: { value: H },
         },
         vertexShader: `
-  attribute vec4 dropSeed;uniform float weatherTime,rain,snow,hail,extent,windStrength24;uniform vec2 wind24;uniform vec3 centre;uniform sampler2D groundMap;uniform vec4 groundBounds,shelterRects[24];uniform float shelterHeights[24];
+  attribute vec4 dropSeed;uniform float weatherTime,rain,snow,hail,extent,windStrength24,drizzle32;uniform vec2 wind24;uniform vec3 centre;uniform sampler2D groundMap;uniform vec4 groundBounds,shelterRects[24];uniform float shelterHeights[24];
   varying vec2 dropUv;varying float aboveGround,fade,dropShade;
   void main(){
-   float fallSpeed=mix(mix(.75+dropSeed.w*1.1,17.+dropSeed.w*10.,rain),13.+dropSeed.w*6.,hail*step(.72,dropSeed.x)),column=58.;float age=mod(dropSeed.y*column-weatherTime*fallSpeed,column);
+   float fallSpeed=mix(mix(.75+dropSeed.w*1.1,17.+dropSeed.w*10.,rain)*mix(1.,.5,drizzle32),13.+dropSeed.w*6.,hail*step(.72,dropSeed.x)),column=58.;float age=mod(dropSeed.y*column-weatherTime*fallSpeed,column);
    float gust=.75+.25*sin(weatherTime*.63+dropSeed.w*6.28);vec2 drift=wind24*windStrength24*gust;
    vec3 p=vec3((dropSeed.x-.5)*extent,age,(dropSeed.z-.5)*extent);
    p.xz+=drift*(column-age)*mix(.30,.43,rain);p.xz=mod(p.xz+extent*.5,extent)-extent*.5;
@@ -18653,12 +18749,12 @@ void main(){
    aboveGround=p.y-ground;vec4 viewPosition=viewMatrix*vec4(p,1.);float distanceToEye=max(0.,-viewPosition.z);
    float size=mix(.054,.016,rain)*(1.+dropSeed.w*.95);vec3 velocity=vec3(drift.x*fallSpeed*.43,-fallSpeed,drift.y*fallSpeed*.43);vec2 v=(viewMatrix*vec4(velocity,0.)).xy;vec2 axis=length(v)>.001?normalize(v):vec2(0.,-1.);vec2 side=vec2(-axis.y,axis.x);
    float hailStone32=hail*step(.72,dropSeed.x);size=mix(size,.034+dropSeed.w*.03,hailStone32);
-   float lengthDrop=mix(mix(size,.40+dropSeed.w*.72,rain),size*1.35,hailStone32);viewPosition.xy+=side*position.x*size+axis*position.y*lengthDrop;dropShade=mix(.72+dropSeed.w*.28,2.2,hailStone32);
+   size*=1.+drizzle32*.35;float lengthDrop=mix(mix(size,(.40+dropSeed.w*.72)*mix(1.,.62,drizzle32),max(rain,drizzle32*.55)),size*1.35,hailStone32);viewPosition.xy+=side*position.x*size+axis*position.y*lengthDrop;dropShade=mix(.72+dropSeed.w*.28,2.2,hailStone32);
    gl_Position=projectionMatrix*viewPosition;dropUv=uv;fade=smoothstep(.75,3.,distanceToEye)*(1.-smoothstep(extent*.45,extent*.82,distanceToEye));
   }`,
         fragmentShader: `
-   uniform float rain,snow,night;varying vec2 dropUv;varying float aboveGround,fade,dropShade;
-   void main(){if(aboveGround<.05)discard;vec2 q=dropUv-.5;float flake=1.-smoothstep(.09,.5,length(q));float streak=(1.-smoothstep(.035,.48,abs(q.x)))*pow(max(0.,1.-abs(q.y)*2.),.7);float stone32=step(1.5,dropShade);float a=mix(mix(flake,streak,rain),1.-smoothstep(.22,.5,length(q)),stone32)*max(snow,rain)*fade*mix(.84,.62,rain)*mix(dropShade,1.1,stone32);if(a<.012)discard;gl_FragColor=vec4(mix(mix(vec3(.86,.92,.96),vec3(.95,.97,1.),stone32),vec3(.43,.57,.72),night*.65),min(a,1.));
+   uniform float rain,snow,night,drizzle32;varying vec2 dropUv;varying float aboveGround,fade,dropShade;
+   void main(){if(aboveGround<.05)discard;vec2 q=dropUv-.5;float flake=1.-smoothstep(.09,.5,length(q));float streak=(1.-smoothstep(.035,.48,abs(q.x)))*pow(max(0.,1.-abs(q.y)*2.),.7);float stone32=step(1.5,dropShade);float wetness32=max(rain,drizzle32*.55);float a=mix(mix(flake,streak,max(rain,drizzle32)),1.-smoothstep(.22,.5,length(q)),stone32)*max(snow,wetness32)*fade*mix(.84,.62,rain)*mix(dropShade,1.1,stone32)*(1.+drizzle32*1.25);if(a<.012)discard;gl_FragColor=vec4(mix(mix(vec3(.86,.92,.96),vec3(.95,.97,1.),stone32),vec3(.43,.57,.72),night*.65),min(a,1.));
    #include <tonemapping_fragment>
    #include <encodings_fragment>
   }`,
@@ -18851,8 +18947,9 @@ void main(){
             rain: h.rain.value,
             cover: h.cover.value,
             hail: h.hail.value,
+            drizzle: h.drizzle.value,
           },
-          to: { storm: Ee.storm || 0, snow: Ee.snow, wet: Ee.wet, rain: Ee.rain, cover: Ee.cover, hail: Ee.hail || 0 },
+          to: { storm: Ee.storm || 0, snow: Ee.snow, wet: Ee.wet, rain: Ee.rain, cover: Ee.cover, hail: Ee.hail || 0, drizzle: K === "drizzle" ? 1 : 0 },
         }),
         fe || window.matchMedia("(prefers-reduced-motion: reduce)").matches)
       ) {
@@ -18891,7 +18988,7 @@ void main(){
         A.fog && (A.fog.density = Pt),
         (h.fogDensity.value = Pt),
         Qe.uniforms.centre.value.copy(R.position),
-        (Qe.uniforms.extent.value = t.MathUtils.clamp(R.position.y * 0.85 + 58, 64, 240)),
+        (Qe.uniforms.extent.value = t.MathUtils.clamp(R.position.y * 0.85 + 58, 64, 240) * (1 - h.drizzle.value * 0.42)),
         (Fe.visible = h.rain.value > 0.001 || h.snow.value > 0.001),
         (se.visible = h.rain.value > 0.001 && R.position.y - q(R.position.x, R.position.z) < 52),
         se.visible && (ke < 0 || R.position.distanceToSquared(at) > 9) && K - ke > 0.25 && ft(),
