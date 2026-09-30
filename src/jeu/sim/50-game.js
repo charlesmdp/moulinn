@@ -315,6 +315,9 @@
         targetId: null,
         shots: 0,
       };
+      t.st = this.statsFor(t, 1, null);
+      t.stKey = "1";
+      t.range = t.st.range;
       this.state.gold -= chk.cost;
       this.state.towers.push(t);
       this.emit("build", { towerId: t.id, family, i, j, cost: chk.cost });
@@ -327,6 +330,9 @@
       if (!chk.ok) return chk;
       if (t.level === 3) t.spec = spec;
       t.level++;
+      t.st = this.statsFor(t, t.level, t.spec);
+      t.stKey = t.level + (t.spec || "");
+      t.range = t.st.range;
       t.invested += chk.cost;
       this.state.gold -= chk.cost;
       this.emit("upgrade", { towerId: t.id, level: t.level, spec: t.spec, cost: chk.cost });

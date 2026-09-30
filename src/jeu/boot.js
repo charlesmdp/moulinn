@@ -3,13 +3,8 @@
   "use strict";
   const A = {
     engine: "../assets/engine-0.40e246fcf208.js",
-    inflate: "../assets/gzip-compat.f3b9ca21f366.js",
     vendor: "{{asset:jeu-vendor}}",
     game: "{{asset:jeu-js}}",
-    plan: "../assets/garden-assets.1b2d1ff75f13.json",
-    geometry: "../assets/geometry.dee3e21d6384.bin.gz",
-    mill: "../assets/td-moulin.35fdce48df0e.glb.gz",
-    dependance: "../assets/td-dependance.9b97687f855f.glb.gz",
   };
   const root = document.getElementById("ptmt");
   const loading = root.querySelector("[data-loading]");
@@ -18,12 +13,13 @@
   const tip = loading.querySelector("[data-load-tip]");
   const retry = loading.querySelector("[data-load-retry]");
   const tips = [
-    "Un voleur ne perd le trésor qu'en passant la sortie : mets-le KO avant !",
-    "Le feu fait des dégâts, la glace retient, l'eau repousse et regroupe.",
-    "Un sac tombé peut être rappelé à sa réserve avec le sort Rappel.",
-    "La Meule rapporte de l'or à chaque vague terminée : elle s'amortit vite.",
-    "Les tours gagnent de l'expérience et évoluent avec l'Atelier.",
-    "En pause, tu peux construire et préparer tes sorts.",
+    "Un voleur tué lâche sa gemme : les autres foncent la ramasser. Garde des tours près du moulin !",
+    "Sanglier sur l'herbe, cygne sur l'eau, berger sur la roche : la butte accepte les trois.",
+    "Le sort Couper dégage une case boisée pour y construire.",
+    "Une tour gagne de l'expérience en combattant ; au niveau 4, choisis sa spécialisation.",
+    "Le chasseur camouflé devient invisible au premier coup : étale tes tours le long du chemin.",
+    "Chaque mission gagnée rapporte 3 points de compétence.",
+    "Le berger australien devient dragon au niveau 4.",
   ];
   tip.textContent = tips[Math.floor(Math.random() * tips.length)];
   let failed = false;
@@ -57,7 +53,7 @@
     return;
   }
   let done = 0;
-  const total = 7;
+  const total = 3;
   function step(label) {
     done++;
     bar.style.width = Math.min(100, 6 + (done / total) * 94) + "%";
@@ -76,40 +72,15 @@
       }))
     );
   }
-  async function gunzip(buffer) {
-    const u8 = new Uint8Array(buffer);
-    if (u8[0] !== 31 || u8[1] !== 139) return buffer;
-    if (typeof DecompressionStream === "function") {
-      try {
-        return await new Response(new Blob([buffer]).stream().pipeThrough(new DecompressionStream("gzip"))).arrayBuffer();
-      } catch {}
-    }
-    await script(A.inflate);
-    const out = window.MoulinGunzip30(u8);
-    return out.buffer.slice(out.byteOffset, out.byteOffset + out.byteLength);
-  }
-  async function get(url, type) {
-    const r = await fetch(url);
-    if (!r.ok) throw new Error("Ressource indisponible (" + r.status + ") : " + url.split("/").pop());
-    const v = type === "json" ? await r.json() : await gunzip(await r.arrayBuffer());
-    step();
-    return v;
-  }
   (async function () {
     detail.textContent = "Chargement du moteur 3D…";
-    const libs = (async () => {
-      await script(A.engine);
-      step("Moteur 3D prêt");
-      await script(A.vendor);
-      step();
-      await script(A.game);
-      step("Règles du jeu chargées");
-    })();
-    // Les voleurs sont entièrement procéduraux : plus de personnage à télécharger (avatar: null).
-    const [plan, geometry, mill, dependance] = await Promise.all([get(A.plan, "json"), get(A.geometry), get(A.mill), get(A.dependance), libs]);
-    const avatar = null;
-    detail.textContent = "Préparation du domaine…";
-    const base = new URL("../", location.href).href;
-    await window.PTMT.main.start({ root, canvas, gl, mobile, plan, geometry, mill, dependance, avatar, base, loading });
+    await script(A.engine);
+    step("Moteur 3D prêt");
+    await script(A.vendor);
+    step();
+    await script(A.game);
+    step("Règles du jeu chargées");
+    detail.textContent = "Préparation des missions…";
+    await window.PTMT.main.start({ root, canvas, gl, mobile, loading });
   })().catch(fail);
 })();
