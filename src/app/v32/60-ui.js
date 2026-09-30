@@ -64,23 +64,6 @@
         }
       }
 
-      // Onglet « Jeu » : ouvre le tower defense (page /jeu/, qui a son propre écran de chargement).
-      const gameLink = root.querySelector("[data-game-link32]");
-      if (gameLink && !gameLink.dataset.bound32) {
-        gameLink.dataset.bound32 = "1";
-        gameLink.addEventListener("click", () => {
-          const veil = document.createElement("div");
-          veil.className = "v32-game-veil";
-          veil.setAttribute("role", "status");
-          veil.innerHTML = '<div class="v32-game-veil-card"><span class="v32-game-veil-spin" aria-hidden="true"></span><strong>Pas touche à mes trésors</strong><span>Chargement du jeu…</span></div>';
-          document.body.appendChild(veil);
-          requestAnimationFrame(() => {
-            veil.classList.add("is-on");
-            setTimeout(() => location.assign(new URL("jeu/", document.baseURI).href), 180);
-          });
-        });
-      }
-
       // Pastille « Promenade » : toujours visible sur ordinateur, discrète sur téléphone.
       root.dataset.ui32 = "ready";
       return null;

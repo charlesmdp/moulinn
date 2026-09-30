@@ -43,7 +43,7 @@
 
   /**
    * Adresse ouverte (attribut data-route de la page générée par le build) :
-   *  - "" : l'accueil — Personnage, Vue libre, Météo et Jeu ;
+   *  - "" : l’accueil — Personnage, Vue libre et Météo (le jeu n’est que sur /jeu/) ;
    *  - "3d" : /3D — la vue 3D en plus ;
    *  - "build" : /build — la vue 3D et l'atelier « Aménager ».
    */

@@ -5449,7 +5449,6 @@ void main(){vec2 p=vSmokeUv21*2.-1.;float n=smokeNoise24(p*3.8+vSmokeSeed24),det
           $ = k("#293b45"),
           U = k("#4e4038"),
           He = k("#242d31"),
-          Ce = k("#573346"),
           xe = k("#b9b099"),
           H = k("#f7f5e9"),
           W = k("#d8a783"),
@@ -5585,15 +5584,8 @@ float clothHem23=1.-smoothstep(1.06,1.38,position.y);float clothWave23=sin(uAvat
             ]);
           Ke(new n.BoxGeometry(0.012, 0.027, 0.013), rt, [We * 0.105, 0.072, 0.104], null, yt);
         }
+        // En hiver, l'écharpe reste ; le chapeau de paille (plus bas) remplace le bonnet.
         ((P = "winter"),
-          Ke(
-            new n.SphereGeometry(1, 14, 8, 0, Math.PI * 2, 0, Math.PI * 0.56),
-            Ce,
-            [0, 1.737, -0.022],
-            [0.124, 0.135, 0.132],
-            qe,
-          ),
-          Ke(new n.TorusGeometry(0.112, 0.015, 5, 16), Ce, [0, 1.718, -0.022], [1, 1.1, 1], qe, [Math.PI / 2, 0, 0]),
           Ke(new n.TorusGeometry(0.102, 0.026, 5, 14), xe, [0, 1.544, 0.002], [1, 1.12, 1], q.neck_01, [
             Math.PI / 2,
             0,
@@ -5632,6 +5624,80 @@ float clothHem23=1.-smoothstep(1.06,1.38,position.y);float clothWave23=sin(uAvat
           ]),
           Ke(new n.BoxGeometry(0.01, 0.36, 0.012), He, [0, 1.272, 0.158], null, q.spine_02),
           (P = "common"));
+
+        // Chapeau de paille à la One Piece, porté en toutes saisons : bord très large qui
+        // retombe un peu, calotte ronde et ruban rouge. La tresse de paille est dessinée une
+        // fois sur une petite toile, enroulée en anneaux par la géométrie de révolution.
+        const strawHat32 = (() => {
+          const canvas = document.createElement("canvas");
+          ((canvas.width = 64), (canvas.height = 256));
+          const g = canvas.getContext("2d");
+          const noise = (i) => {
+            const s = Math.sin(i * 127.1 + 311.7) * 43758.5453;
+            return s - Math.floor(s);
+          };
+          for (let band = 0; band < 32; band++) {
+            const y = band * 8,
+              light = 0.9 + noise(band) * 0.16;
+            g.fillStyle = `rgb(${Math.round(232 * light)},${Math.round(193 * light)},${Math.round(104 * light)})`;
+            g.fillRect(0, y, 64, 8);
+            g.lineWidth = 1.4;
+            for (let col = 0; col < 8; col++) {
+              const x = col * 8,
+                shade = 0.72 + noise(band * 8 + col) * 0.2;
+              g.strokeStyle = `rgba(${Math.round(150 * shade)},${Math.round(104 * shade)},${Math.round(38 * shade)},0.55)`;
+              g.beginPath();
+              g.moveTo(x, y + 4);
+              g.lineTo(x + 5, y + 0.5);
+              g.moveTo(x + 1, y + 7.5);
+              g.lineTo(x + 6, y + 4);
+              g.stroke();
+            }
+            g.fillStyle = "rgba(118,78,26,0.5)";
+            g.fillRect(0, y + 7, 64, 1);
+          }
+          const map = new n.CanvasTexture(canvas);
+          ((map.encoding = n.sRGBEncoding),
+            (map.wrapS = map.wrapT = n.RepeatWrapping),
+            map.repeat.set(22, 1.2),
+            (map.anisotropy = 4));
+          const straw = new n.MeshStandardMaterial({ map, roughness: 0.88, metalness: 0, side: n.DoubleSide });
+          straw.userData.noWeatherPaint22 = !0;
+          const profile = [
+            [0.292, -0.021],
+            [0.281, -0.011],
+            [0.252, -0.003],
+            [0.2, 0.004],
+            [0.15, 0.008],
+            [0.119, 0.011],
+            [0.112, 0.017],
+            [0.112, 0.041],
+            [0.11, 0.067],
+            [0.104, 0.089],
+            [0.092, 0.107],
+            [0.072, 0.12],
+            [0.046, 0.127],
+            [0.018, 0.13],
+            [0, 0.131],
+          ].map(([x, y]) => new n.Vector2(x, y));
+          const shell = new n.LatheGeometry(profile, 30),
+            uv = shell.attributes.uv,
+            along = [0];
+          for (let j = 1; j < profile.length; j++) along.push(along[j - 1] + profile[j].distanceTo(profile[j - 1]));
+          for (let i = 0; i <= 30; i++)
+            for (let j = 0; j < profile.length; j++) uv.setY(i * profile.length + j, along[j] / along[profile.length - 1]);
+          uv.needsUpdate = !0;
+          const hat = new n.Group();
+          hat.name = "Chapeau_de_paille";
+          const brim = new n.Mesh(shell, straw),
+            ribbon = new n.Mesh(new n.CylinderGeometry(0.1142, 0.1132, 0.03, 30, 1, !0), k("#b3212a", 0.72)),
+            edge = new n.Mesh(new n.TorusGeometry(0.2895, 0.0062, 5, 44), k("#d6a94e", 0.9));
+          (ribbon.position.set(0, 0.033, 0), edge.position.set(0, -0.02, 0), (edge.rotation.x = Math.PI / 2));
+          for (const part of [brim, ribbon, edge]) ((part.receiveShadow = !0), hat.add(part));
+          // Posé sur le haut du crâne, légèrement relevé devant.
+          (hat.position.set(0, 1.758, -0.018), hat.rotation.set(-0.15, 0, 0), hat.scale.set(1, 1, 1.07));
+          return (v.add(hat), v.updateMatrixWorld(!0), qe.attach(hat), hat);
+        })();
         const m = new Set(),
           at = new Map();
         (te.traverse((we) => {
@@ -5654,7 +5720,7 @@ float clothHem23=1.-smoothstep(1.06,1.38,position.y);float clothWave23=sin(uAvat
             for (const [We, yt] of Object.entries(lt))
               for (const Ft of yt) Ft.visible = We === (we === "mild" ? "normal" : we);
             for (const We of Le) We.visible = we === "summer" || we === "mild";
-            for (const We of pt) We.visible = we !== "winter";
+            for (const We of pt) We.visible = !0;
             for (const We of x) We.mesh.geometry = we === "winter" || we === "rain" ? We.winter : We.normal;
           }
         }
