@@ -3,55 +3,99 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Galerie des voleurs</title>
+<title>Galerie des ennemis</title>
 <style>
-  :root { --bg: #1d2418; --panel: rgba(20, 24, 18, 0.82); --ink: #f4efe1; --accent: #ffd23a; --muted: #a9b49a; }
+  :root { --bg: #1d2418; --panel: rgba(20, 24, 18, 0.84); --ink: #f4efe1; --accent: #ffd23a; --muted: #a9b49a; }
   html, body { margin: 0; height: 100%; background: var(--bg); color: var(--ink); font: 13px/1.3 system-ui, -apple-system, "Segoe UI", sans-serif; overflow: hidden; }
   canvas { display: block; }
-  #ui { position: fixed; left: 8px; top: 8px; max-width: min(560px, calc(100vw - 16px)); background: var(--panel); border-radius: 10px; padding: 8px 10px; backdrop-filter: blur(4px); }
-  #ui h1 { font-size: 14px; margin: 0 0 6px; color: var(--accent); }
+  #ui { position: fixed; left: 8px; top: 8px; max-width: min(640px, calc(100vw - 16px)); background: var(--panel); border-radius: 10px; padding: 8px 10px; backdrop-filter: blur(4px); }
+  #ui h1 { font-size: 14px; margin: 0 0 6px; color: var(--accent); display: flex; justify-content: space-between; gap: 8px; }
+  #ui h1 button { padding: 0 8px; }
+  #ui.folded .row, #ui.folded #stats { display: none; }
   #ui .row { display: flex; flex-wrap: wrap; gap: 4px; margin: 4px 0; }
+  #ui .row b { font-size: 11px; color: var(--muted); align-self: center; min-width: 52px; }
   #ui button { font: inherit; font-size: 12px; border: 0; border-radius: 6px; padding: 4px 7px; background: #3a4431; color: var(--ink); cursor: pointer; }
   #ui button.on { background: var(--accent); color: #2a2206; font-weight: 600; }
   #ui button.ev { background: #4b3a52; }
-  #stats { color: var(--muted); font: 11px/1.35 ui-monospace, Menlo, monospace; white-space: pre; margin-top: 4px; }
+  #ui button.ty { background: #2f3e4c; }
+  #stats { color: var(--muted); font: 11px/1.35 ui-monospace, Menlo, monospace; white-space: pre-wrap; margin-top: 4px; max-height: 30vh; overflow: auto; }
   #portraits { position: fixed; left: 8px; bottom: 8px; display: flex; flex-wrap: wrap; gap: 6px; max-width: calc(100vw - 16px); }
   #portraits .chip { display: flex; align-items: center; gap: 4px; padding: 3px 7px 3px 3px; border-radius: 999px; font-size: 11px; background: rgba(20, 24, 18, 0.82); color: #f4efe1; }
   #portraits .chip.light { background: #f6efdc; color: #2b2317; }
-  #portraits .chip svg { width: 34px; height: 34px; display: block; }
+  #portraits .chip svg { width: 36px; height: 36px; display: block; }
   #portraits .chip.small svg { width: 28px; height: 28px; }
-  @media (max-width: 700px) { #portraits { gap: 3px; } #portraits .chip span { display: none; } #portraits .chip svg { width: 28px; height: 28px; } #stats { white-space: pre-wrap; } }
+  @media (max-width: 700px) { #portraits { gap: 3px; } #portraits .chip span { display: none; } #portraits .chip svg { width: 28px; height: 28px; } }
   .label { position: fixed; transform: translate(-50%, -100%); font-size: 11px; font-weight: 600; color: #fff; text-shadow: 0 1px 2px #000, 0 0 4px #000; pointer-events: none; white-space: nowrap; }
-  .label.elite { color: var(--accent); }
+  .label.r1 { color: var(--accent); }
+  .label.r2 { color: #ff9a6a; }
   body.clean #ui, body.clean .label, body.clean #portraits { display: none; }
+  body.nolabels .label { display: none; }
+  /* planche des portraits (?portraits) */
+  #sheet { display: none; position: fixed; inset: 0; overflow: auto; padding: 16px; background: #2a3322; }
+  body.sheet #sheet { display: block; }
+  body.sheet canvas, body.sheet #ui, body.sheet #portraits { display: none; }
+  #sheet table { border-collapse: collapse; }
+  #sheet td { padding: 6px 10px; vertical-align: middle; }
+  #sheet td.dark { background: #1b2016; }
+  #sheet td.light { background: #f3ead2; }
+  #sheet td.name { font-size: 12px; min-width: 190px; }
+  #sheet svg { display: block; }
 </style>
 </head>
 <body>
 <div id="ui">
-  <h1>Pas touche à mes trésors — les voleurs</h1>
+  <h1><span>Pas touche à mes trésors — les ennemis</span><button id="fold" title="Replier le panneau">−</button></h1>
+  <div class="row" id="types"></div>
+  <div class="row" id="ranks"></div>
   <div class="row" id="states"></div>
   <div class="row" id="events"></div>
   <div class="row" id="views"></div>
   <div id="stats"></div>
 </div>
 <div id="portraits"></div>
+<div id="sheet"></div>
 <script src="../../static/assets/engine-0.40e246fcf208.js"></script>
 <script src="../../static/assets/engine-1.f10ee4887053.js"></script>
 <script src="../core/00-ptmt.js"></script>
+<script src="../sim/00-data.js"></script>
 <script src="../fx/05-kit.js"></script>
 <script src="../actors/10-actors.js"></script>
 <script src="../actors/11-types.js"></script>
 <script src="../actors/12-overlay.js"></script>
+<script src="../actors/13-mounts.js"></script>
 <script src="../ui/06-portraits.js"></script>
 <script>
 (async function () {
   "use strict";
   const params = new URLSearchParams(location.search);
-  const view = params.get("view") || "aerial";
+  let view = params.get("view") || "jeu";
   const count = Number(params.get("count") || 0);
   const solo = params.get("solo");
+  const only = params.get("rank");
+  const typesParam = params.get("types");
   const mobile = params.has("mobile") || matchMedia("(pointer: coarse)").matches;
   if (params.has("clean")) document.body.classList.add("clean");
+  const uiEl = document.getElementById("ui"), foldEl = document.getElementById("fold");
+  foldEl.onclick = () => { uiEl.classList.toggle("folded"); foldEl.textContent = uiEl.classList.contains("folded") ? "+" : "−"; };
+  if (params.has("fold")) foldEl.onclick();
+  if (params.has("nolabels")) document.body.classList.add("nolabels");
+  const TILE = PTMT.sim.DATA.TILE;
+
+  // --- planche des portraits (?portraits) ---
+  if (params.has("portraits")) {
+    document.body.classList.add("sheet");
+    const P = PTMT.portraits, rows = [];
+    for (const t of PTMT.actors.TYPES) for (const c of [false, true]) {
+      const svg = P.get(t, c), key = t + (c ? "_champion" : "");
+      rows.push(`<tr><td class="name">${P.names[key]}<br><small>${c ? "champion" : t}</small></td>` +
+        (params.has("big") ? [160, 64, 28] : [64, 48, 36, 28]).map((s) => `<td class="dark"><div style="width:${s}px;height:${s}px">${svg}</div></td>`).join("") +
+        [48, 28].map((s) => `<td class="light"><div style="width:${s}px;height:${s}px">${svg}</div></td>`).join("") + "</tr>");
+    }
+    document.getElementById("sheet").innerHTML = "<table>" + rows.join("") + "</table>";
+    for (const s of document.querySelectorAll("#sheet svg")) { s.setAttribute("width", "100%"); s.setAttribute("height", "100%"); }
+    document.title = "Galerie des ennemis · prête";
+    return;
+  }
 
   const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: "high-performance" });
   renderer.setPixelRatio(Math.min(devicePixelRatio, mobile ? 2 : 1.5));
@@ -65,117 +109,146 @@
 
   const scene = new THREE.Scene();
   scene.background = PTMT.color(0x9fc4e8);
-  scene.fog = new THREE.Fog(PTMT.color(0x9fc4e8), 60, 140);
   const hemi = new THREE.HemisphereLight(PTMT.color(0xbcd6ff), PTMT.color(0x5b6b3a), 0.95);
   scene.add(hemi);
   const sun = new THREE.DirectionalLight(PTMT.color(0xffe7c4), 2.3);
   sun.position.set(-14, 26, 16);
   sun.castShadow = true;
   sun.shadow.mapSize.set(2048, 2048);
-  sun.shadow.camera.left = -24; sun.shadow.camera.right = 24; sun.shadow.camera.top = 24; sun.shadow.camera.bottom = -24;
-  sun.shadow.camera.near = 1; sun.shadow.camera.far = 80;
+  sun.shadow.camera.left = -40; sun.shadow.camera.right = 40; sun.shadow.camera.top = 40; sun.shadow.camera.bottom = -40;
+  sun.shadow.camera.near = 1; sun.shadow.camera.far = 90;
   sun.shadow.bias = -0.0006; sun.shadow.normalBias = 0.02;
   scene.add(sun);
 
-  // sol d'herbe (texture peinte sur canvas)
-  function grassTexture() {
+  // sol d'herbe à cases (3,6 m) et un chemin de terre, comme en partie
+  function groundTexture() {
     const c = document.createElement("canvas"); c.width = c.height = 512;
     const x = c.getContext("2d");
     x.fillStyle = "#6f9a3c"; x.fillRect(0, 0, 512, 512);
     const rnd = PTMT.rng(5);
-    // taches et brins dessinés avec répétition sur les bords : texture sans couture
     const wrap = (fn) => { for (const ox of [-512, 0, 512]) for (const oy of [-512, 0, 512]) { x.save(); x.translate(ox, oy); fn(); x.restore(); } };
-    for (let i = 0; i < 90; i++) { const cx = rnd() * 512, cy = rnd() * 512, light = rnd() > 0.5; wrap(() => { const g = x.createRadialGradient(cx, cy, 0, cx, cy, 60); g.addColorStop(0, light ? "rgba(140,180,70,0.35)" : "rgba(80,120,40,0.35)"); g.addColorStop(1, "rgba(0,0,0,0)"); x.fillStyle = g; x.fillRect(cx - 60, cy - 60, 120, 120); }); }
-    for (let i = 0; i < 9000; i++) { const px = rnd() * 512, py = rnd() * 512, l = 3 + rnd() * 6, dx = (rnd() - 0.5) * 2; x.strokeStyle = `hsl(${80 + rnd() * 30},${40 + rnd() * 25}%,${28 + rnd() * 22}%)`; x.lineWidth = 1; wrap(() => { x.beginPath(); x.moveTo(px, py); x.lineTo(px + dx, py - l); x.stroke(); }); }
-    const t = new THREE.CanvasTexture(c); t.wrapS = t.wrapT = THREE.RepeatWrapping; t.repeat.set(24, 24); t.encoding = THREE.sRGBEncoding; t.anisotropy = 4;
+    for (let i = 0; i < 60; i++) { const cx = rnd() * 512, cy = rnd() * 512, light = rnd() > 0.5; wrap(() => { const g = x.createRadialGradient(cx, cy, 0, cx, cy, 60); g.addColorStop(0, light ? "rgba(150,190,80,0.35)" : "rgba(80,120,40,0.35)"); g.addColorStop(1, "rgba(0,0,0,0)"); x.fillStyle = g; x.fillRect(cx - 60, cy - 60, 120, 120); }); }
+    for (let i = 0; i < 6000; i++) { const px = rnd() * 512, py = rnd() * 512, l = 3 + rnd() * 6, dx = (rnd() - 0.5) * 2; x.strokeStyle = `hsl(${80 + rnd() * 30},${40 + rnd() * 25}%,${30 + rnd() * 22}%)`; x.lineWidth = 1; wrap(() => { x.beginPath(); x.moveTo(px, py); x.lineTo(px + dx, py - l); x.stroke(); }); }
+    // liseré de case (très discret)
+    x.strokeStyle = "rgba(40,60,20,0.28)"; x.lineWidth = 2; x.strokeRect(1, 1, 510, 510);
+    const t = new THREE.CanvasTexture(c); t.wrapS = t.wrapT = THREE.RepeatWrapping; t.encoding = THREE.sRGBEncoding; t.anisotropy = 4;
     return t;
   }
-  const ground = new THREE.Mesh(new THREE.PlaneGeometry(160, 160), new THREE.MeshStandardMaterial({ map: grassTexture(), roughness: 0.95 }));
+  const GW = 40;
+  const gtex = groundTexture(); gtex.repeat.set(GW, GW);
+  const ground = new THREE.Mesh(new THREE.PlaneGeometry(GW * TILE, GW * TILE), new THREE.MeshStandardMaterial({ map: gtex, roughness: 0.95 }));
   ground.rotation.x = -Math.PI / 2;
+  ground.position.set(TILE / 2, 0, TILE / 2);
   ground.receiveShadow = true;
   scene.add(ground);
-  // eau (visible avec l'état « dans l'eau »)
-  const water = new THREE.Mesh(new THREE.PlaneGeometry(60, 30), new THREE.MeshStandardMaterial({ color: PTMT.color(0x2f8fa6), transparent: true, opacity: 0.72, roughness: 0.12, metalness: 0.1 }));
+  const road = new THREE.Mesh(new THREE.PlaneGeometry(GW * TILE, TILE), new THREE.MeshStandardMaterial({ color: PTMT.color(0xc9a46a), roughness: 1 }));
+  road.rotation.x = -Math.PI / 2; road.position.set(0, 0.012, 0); road.receiveShadow = true;
+  scene.add(road);
+  // eau (état « dans l'eau » du canard) : plan translucide, le personnage est posé à la surface
+  const water = new THREE.Mesh(new THREE.PlaneGeometry(GW * TILE, GW * TILE), new THREE.MeshStandardMaterial({ color: PTMT.color(0x2f8fa6), transparent: true, opacity: 0.74, roughness: 0.12, metalness: 0.1 }));
   water.rotation.x = -Math.PI / 2; water.position.y = 0.0; water.visible = false; water.renderOrder = 5;
   scene.add(water);
-  const bed = new THREE.Mesh(new THREE.PlaneGeometry(60, 30), new THREE.MeshStandardMaterial({ color: PTMT.color(0x3b5a4a), roughness: 1 }));
-  bed.rotation.x = -Math.PI / 2; bed.position.y = -1.8; bed.visible = false;
+  const bed = new THREE.Mesh(new THREE.PlaneGeometry(GW * TILE, GW * TILE), new THREE.MeshStandardMaterial({ color: PTMT.color(0x3b5a4a), roughness: 1 }));
+  bed.rotation.x = -Math.PI / 2; bed.position.y = -0.65; bed.visible = false;
   scene.add(bed);
 
-  const camera = new THREE.PerspectiveCamera(40, innerWidth / innerHeight, 0.1, 400);
-  const controls = new THREE.OrbitControls(camera, renderer.domElement);
+  // caméras : orthographique inclinée ≈ 60° (celle du jeu) et perspective libre pour les gros plans
+  const persp = new THREE.PerspectiveCamera(40, innerWidth / innerHeight, 0.1, 400);
+  const ortho = new THREE.OrthographicCamera(-1, 1, 1, -1, 0.1, 400);
+  let camera = ortho;
+  const controls = new THREE.OrbitControls(persp, renderer.domElement);
   controls.enableDamping = true;
+  let orthoWidth = 79; // m visibles en largeur : ≈ 20 cases + marges, soit ≈ 58 px par case sur 1 280 px
+  function setOrtho(width, pitchDeg, target) {
+    camera = ortho;
+    orthoWidth = width;
+    const aspect = innerWidth / innerHeight;
+    ortho.left = -width / 2; ortho.right = width / 2; ortho.top = width / 2 / aspect; ortho.bottom = -width / 2 / aspect;
+    ortho.updateProjectionMatrix();
+    const p = (pitchDeg * Math.PI) / 180, d = 120;
+    ortho.position.set(target.x, target.y + Math.sin(p) * d, target.z + Math.cos(p) * d);
+    ortho.lookAt(target);
+    controls.enabled = false;
+  }
   function setView(v) {
+    view = v;
     const target = new THREE.Vector3(0, 0.8, 0);
+    if (v === "jeu") return setOrtho(79, 60, new THREE.Vector3(0, 0, 0));
+    if (v === "jeu2") return setOrtho(40, 60, new THREE.Vector3(0, 0, 0));
+    if (v === "jeu4") return setOrtho(20, 60, new THREE.Vector3(0, 0, 0));
+    if (v === "top") return setOrtho(40, 88, new THREE.Vector3(0, 0, 0));
+    camera = persp;
+    controls.enabled = true;
     let dist = 30, pitch = 50, yaw = 0;
-    if (v === "close") { dist = solo ? 6.5 : 15; pitch = solo ? 12 : 14; target.y = solo ? 1.1 : 1.1; }
-    if (v === "three") { dist = solo ? 6.5 : 15; pitch = 22; yaw = 35; target.y = 1.1; }
-    if (v === "back") { dist = solo ? 6.5 : 15; pitch = 25; yaw = 160; target.y = 1.1; }
-    if (v === "top") { dist = solo ? 9 : 26; pitch = 55; yaw = 0; }
-    if (v === "face") { dist = 2.3; pitch = 6; yaw = 18; target.set(solo ? -1.6 : 0, 1.72, 0); }
-    if (v === "side") { dist = 16; pitch = 18; yaw = 38; }
-    if (v === "far") { dist = 55; pitch = 50; }
-    // distances du jeu : vue d'ensemble d'un niveau (≈ 123 m, 54°) et zoom intermédiaire
-    if (v === "jeu") { dist = 123; pitch = 54.4; }
-    if (v === "mi") { dist = 45; pitch = 54.4; }
-    if (count && v !== "jeu" && v !== "mi") { dist = v === "close" ? 22 : 34; }
-    scene.fog.near = dist + 30; scene.fog.far = dist + 110;
+    const wide = !solo && !count;
+    if (v === "close") { dist = wide ? 26 : 9; pitch = 14; target.y = 1.3; }
+    if (v === "three") { dist = wide ? 26 : 9; pitch = 24; yaw = 35; target.y = 1.3; }
+    if (v === "back") { dist = wide ? 26 : 9; pitch = 25; yaw = 160; target.y = 1.3; }
+    if (v === "side") { dist = wide ? 26 : 9; pitch = 16; yaw = 90; target.y = 1.2; }
+    if (v === "face") { dist = 3.2; pitch = 6; yaw = 12; target.set(solo ? -3.2 : 0, 1.8, 0); }
+    if (v === "far") { dist = 60; pitch = 50; }
     const p = pitch * Math.PI / 180, y = yaw * Math.PI / 180;
-    camera.position.set(target.x + Math.sin(y) * Math.cos(p) * dist, target.y + Math.sin(p) * dist, target.z + Math.cos(y) * Math.cos(p) * dist);
+    persp.position.set(target.x + Math.sin(y) * Math.cos(p) * dist, target.y + Math.sin(p) * dist, target.z + Math.cos(y) * Math.cos(p) * dist);
     controls.target.copy(target);
-    camera.lookAt(target);
+    persp.lookAt(target);
     controls.update();
   }
 
   PTMT.actors.mobile = mobile;
   await PTMT.actors.load();
 
+  // gemme factice (le vrai modèle vient de PTMT.models.gem) : octaèdre brillant de 0,5 m
+  const GEM_COLORS = [0xe8243a, 0x2fd06a, 0x2b8cff, 0xa050ff, 0xffc21a, 0xe8f6ff];
+  const gemGeo = new THREE.OctahedronGeometry(0.26, 0); gemGeo.scale(1, 1.25, 1);
+  const gemMats = GEM_COLORS.map((c) => new THREE.MeshStandardMaterial({ color: PTMT.color(c), emissive: PTMT.color(c), emissiveIntensity: 0.55, roughness: 0.15, metalness: 0.1, flatShading: true }));
+  function makeGem(i) { const m = new THREE.Mesh(gemGeo, gemMats[i % gemMats.length]); m.position.y = 0.32; m.castShadow = true; return m; }
+
   // --- ennemis ---
-  const TYPES = PTMT.actors.TYPES;
+  const TYPES = typesParam ? typesParam.split(",") : PTMT.actors.TYPES;
   const items = [];
-  function spawn(type, elite, x, z, yaw) {
-    const a = PTMT.actors.create(type, elite);
+  let gemCount = 0;
+  function spawn(type, rank, x, z, yaw) {
+    const a = PTMT.actors.create(type, rank >= 1, rank >= 2);
     a.object.position.set(x, 0, z);
     a.object.rotation.y = yaw || 0;
     scene.add(a.object);
     const label = document.createElement("div");
-    label.className = "label" + (elite ? " elite" : "");
+    label.className = "label r" + rank;
     label.textContent = a.label;
     document.body.appendChild(label);
-    const it = { a, type, elite, label, x, z, phase: Math.random() * 10, state: {} };
+    const it = { a, type, rank, label, x, z, yaw: yaw || 0, phase: Math.random() * 10, state: {}, gem: makeGem(gemCount++) };
     items.push(it);
     return it;
   }
+  const ranks = only !== null ? [Number(only)] : [0, 1, 2];
   if (count) {
     for (let i = 0; i < count; i++) {
-      const type = TYPES[i % TYPES.length], elite = i % 5 === 4;
-      const it = spawn(type, elite, 0, 0, 0);
-      it.roam = { r: 4 + (i % 7) * 2.2, a: (i / count) * Math.PI * 2, s: 0.18 + (i % 3) * 0.05 };
+      const type = TYPES[i % TYPES.length], rank = i % 11 === 10 ? 1 : 0;
+      const it = spawn(type, rank, 0, 0, 0);
+      it.roam = { r: 4 + (i % 9) * 3.2, a: (i / count) * Math.PI * 2, s: 0.08 + (i % 3) * 0.02 };
       it.label.style.display = "none";
     }
   } else if (solo) {
-    spawn(solo, false, -1.6, 0, 0.35);
-    spawn(solo, true, 1.8, 0, -0.35);
+    ranks.forEach((r, i) => spawn(solo, r, (i - (ranks.length - 1) / 2) * 6.4, 0, 0.3));
   } else {
-    TYPES.forEach((t, i) => {
-      const x = (i - (TYPES.length - 1) / 2) * 3.3;
-      spawn(t, false, x, -3.2, 0);
-      spawn(t, true, x, 3.4, 0);
-    });
+    // une colonne par type, une rangée par rang (espacement d'une case)
+    TYPES.forEach((t, i) => ranks.forEach((r, j) => spawn(t, r, (i - (TYPES.length - 1) / 2) * TILE, (j - (ranks.length - 1) / 2) * TILE * 1.25, 0)));
   }
   setView(view);
 
   // --- états et événements ---
   const STATE_KEYS = [
-    ["moving", "Marche", "m"], ["carrying", "Sac", "c"], ["frozen", "Gelé", "f"], ["burning", "En feu", "b"],
-    ["wet", "Mouillé", "w"], ["netted", "Filet", "n"], ["untargetable", "Fumée", "u"], ["inWater", "Dans l’eau", "i"],
-    ["overheated", "Surchauffe", "o"], ["lured", "Attiré", "l"], ["boosted", "Accéléré", "s"], ["tenacity", "Ténacité", "t"], ["lowHp", "PV bas", "p"], ["stealing", "Vol en cours", "g"],
+    ["moving", "Marche", "m"], ["carrying", "Gemme", "c"], ["water", "Eau", "w"], ["slow", "Ralenti", "l"], ["freeze", "Gel", "f"],
+    ["burn", "Feu", "b"], ["fear", "Peur", "p"], ["invisible", "Invisible", "i"], ["barrier", "Barrière", "r"], ["haste", "Hâte", "a"],
+    ["stun", "Étourdi", "s"], ["disarmed", "Désarmé", "d"], ["radiance", "Rayonnement", "y"], ["lowHp", "PV bas", "v"], ["spin", "Tourner", "t"],
   ];
-  const EVENTS = [["hit", "h"], ["knockback", "k"], ["pull", "v"], ["ko", "x"], ["steal", "1"], ["drop", "2"], ["helmetOff", "3"], ["flipflops", "4"], ["smokePuff", "5"], ["overheat", "6"], ["rage", "7"], ["splash", "8"], ["fooled", "9"]];
+  const EVENTS = [["hit", "h"], ["die", "x"], ["pickup", "1"], ["drop", "2"], ["heal", "3"], ["healed", "4"], ["smoke", "5"], ["tune", "6"], ["lasso", "7"], ["dodge", "8"], ["barrierBreak", "9"], ["spawn", "0"], ["escape", "e"], ["immune", "u"]];
   const global = { moving: !params.has("idle") };
   for (const k of (params.get("state") || "").split(",").filter(Boolean)) global[k] = true;
-  const statesEl = document.getElementById("states"), eventsEl = document.getElementById("events"), viewsEl = document.getElementById("views");
   const buttons = {};
+  const statesEl = document.getElementById("states"), eventsEl = document.getElementById("events"), viewsEl = document.getElementById("views");
+  const rowLabel = (el, txt) => { const b = document.createElement("b"); b.textContent = txt; el.appendChild(b); };
+  rowLabel(statesEl, "États");
   for (const [k, label, key] of STATE_KEYS) {
     const b = document.createElement("button");
     b.textContent = label + " (" + key.toUpperCase() + ")";
@@ -183,24 +256,43 @@
     statesEl.appendChild(b);
     buttons[k] = b;
   }
-  function refreshButtons() { for (const k in buttons) buttons[k].classList.toggle("on", !!global[k]); water.visible = bed.visible = !!global.inWater; ground.visible = !global.inWater; }
+  function refreshButtons() { for (const k in buttons) buttons[k].classList.toggle("on", !!global[k]); water.visible = bed.visible = !!global.water; ground.visible = road.visible = !global.water; }
   function toggle(k) { global[k] = !global[k]; refreshButtons(); }
   refreshButtons();
+  const target = new THREE.Vector3();
   function fire(name) {
     for (const it of items) {
-      if (name === "ko") it.koAt = performance.now();
-      it.a.event(name);
-      if (name === "hit") it.flash = 1;
+      // cible des gestes : 3 m devant et un peu à droite (crêpe, lasso)
+      const a = it.a;
+      target.set(a.object.position.x + 2.5, 0, a.object.position.z + 2.2);
+      if (name === "die" || name === "escape") it.koAt = performance.now();
+      a.event(name, name === "heal" || name === "lasso" ? target : undefined);
     }
   }
+  rowLabel(eventsEl, "Événements");
   for (const [name, key] of EVENTS) {
     const b = document.createElement("button");
     b.className = "ev"; b.textContent = name + " (" + key + ")";
     b.onclick = () => fire(name);
     eventsEl.appendChild(b);
   }
-  for (const v of ["aerial", "close", "three", "back", "side", "far", "mi", "jeu"]) {
-    const b = document.createElement("button"); b.textContent = "vue " + v; b.onclick = () => setView(v); viewsEl.appendChild(b);
+  rowLabel(viewsEl, "Vues");
+  for (const v of ["jeu", "jeu2", "jeu4", "top", "close", "three", "back", "side", "face", "far"]) {
+    const b = document.createElement("button"); b.textContent = v; b.onclick = () => setView(v); viewsEl.appendChild(b);
+  }
+  const typesEl = document.getElementById("types");
+  rowLabel(typesEl, "Seul");
+  for (const t of PTMT.actors.TYPES) {
+    const b = document.createElement("button"); b.className = "ty"; b.textContent = t;
+    b.onclick = () => { const q = new URLSearchParams(location.search); q.set("solo", t); q.set("view", "three"); location.search = q.toString(); };
+    typesEl.appendChild(b);
+  }
+  const ranksEl = document.getElementById("ranks");
+  rowLabel(ranksEl, "Rangs");
+  for (const [r, txt] of [["", "tous"], ["0", "ordinaires"], ["1", "champions"], ["2", "boss"], ["all", "tout voir"]]) {
+    const b = document.createElement("button"); b.textContent = txt;
+    b.onclick = () => { const q = new URLSearchParams(location.search); if (r === "all") { q.delete("solo"); q.delete("rank"); q.set("view", "jeu"); } else if (r) q.set("rank", r); else q.delete("rank"); location.search = q.toString(); };
+    ranksEl.appendChild(b);
   }
   addEventListener("keydown", (e) => {
     const s = STATE_KEYS.find((x) => x[2] === e.key.toLowerCase());
@@ -208,22 +300,19 @@
     const ev = EVENTS.find((x) => x[1] === e.key.toLowerCase());
     if (ev) return fire(ev[0]);
   });
-  addEventListener("resize", () => { renderer.setSize(innerWidth, innerHeight); camera.aspect = innerWidth / innerHeight; camera.updateProjectionMatrix(); });
+  addEventListener("resize", () => { renderer.setSize(innerWidth, innerHeight); persp.aspect = innerWidth / innerHeight; persp.updateProjectionMatrix(); if (camera === ortho) setView(view); });
 
   // --- triangles par variante et portraits ---
   const vs = PTMT.actors.stats();
-  const triLine = "\n" + Object.keys(vs).map((k) => k.replace(":elite", "+") + " " + (vs[k].triangles / 1000).toFixed(1) + "k").join(" · ");
+  const triLine = "\n" + Object.keys(vs).map((k) => k.replace(":0", "").replace(":1", "+").replace(":2", "♛") + " " + (vs[k].triangles / 1000).toFixed(1) + "k").join(" · ");
   const pEl = document.getElementById("portraits");
-  if (PTMT.portraits && !count) {
-    for (const t of TYPES) for (const e of [false, true]) {
-      const key = t + (e ? "_elite" : "");
-      for (const light of [false, true]) {
-        const chip = document.createElement("div");
-        chip.className = "chip" + (light ? " light" : "") + (e ? " small" : "");
-        chip.innerHTML = PTMT.portraits[key] + "<span>" + PTMT.portraits.names[key] + "</span>";
-        if (light || e) chip.lastChild.remove();
-        pEl.appendChild(chip);
-      }
+  if (PTMT.portraits && !count && !params.has("noportraits")) {
+    for (const t of PTMT.actors.TYPES) for (const c of [false, true]) {
+      const key = t + (c ? "_champion" : "");
+      const chip = document.createElement("div");
+      chip.className = "chip" + (c ? " light small" : "");
+      chip.innerHTML = PTMT.portraits.get(t, c) + (c ? "" : "<span>" + PTMT.portraits.names[key] + "</span>");
+      pEl.appendChild(chip);
     }
   }
 
@@ -237,17 +326,17 @@
     time += dt;
     const t0 = performance.now();
     for (const it of items) {
-      const a = it.a;
+      let a = it.a;
       if (it.koAt && a.finished) {
-        // relance après K.-O. (la galerie recrée l'ennemi comme le ferait le jeu)
-        const { type, elite, label } = it;
+        // relance après K.-O. ou fuite (la galerie recrée l'ennemi comme le ferait le jeu)
         const pos = a.object.position.clone(), rot = a.object.rotation.y;
+        if (it.gem.parent) it.gem.parent.remove(it.gem);
         a.release();
-        it.a = PTMT.actors.create(type, elite);
-        it.a.object.position.copy(pos); it.a.object.rotation.y = rot;
-        scene.add(it.a.object);
+        a = it.a = PTMT.actors.create(it.type, it.rank >= 1, it.rank >= 2);
+        a.object.position.copy(pos); a.object.rotation.y = rot;
+        scene.add(a.object);
         it.koAt = 0;
-        label.textContent = it.a.label;
+        a.event("spawn");
         continue;
       }
       if (it.roam) {
@@ -255,15 +344,25 @@
         r.a += dt * r.s * (global.moving ? 1 : 0);
         a.object.position.set(Math.cos(r.a) * r.r, 0, Math.sin(r.a) * r.r);
         a.object.rotation.y = -r.a;
-      }
-      it.flash = Math.max(0, (it.flash || 0) - dt * 5);
+      } else if (global.spin) {
+        a.object.rotation.y = it.yaw + time * 0.8;
+      } else a.object.rotation.y = it.yaw;
       const st = it.state;
       st.moving = !!global.moving;
-      st.speed = global.moving ? (a.naturalSpeed * (global.boosted ? 1.5 : 1)) : 0;
-      st.carrying = !!global.carrying; st.frozen = !!global.frozen; st.burning = !!global.burning; st.wet = !!global.wet;
-      st.netted = !!global.netted; st.untargetable = !!global.untargetable; st.inWater = !!global.inWater; st.overheated = !!global.overheated;
-      st.lured = !!global.lured; st.boosted = !!global.boosted; st.hitFlash = it.flash;
-      st.tenacity = global.tenacity ? 0.7 : 0; st.hpFrac = global.lowHp ? 0.2 : 1; st.stealing = !!global.stealing;
+      st.speed = global.moving ? a.naturalSpeed * (global.haste ? 2 : 1) * (global.slow ? 0.6 : 1) * (global.fear ? 0.8 : 1) : 0;
+      if (global.stun || global.freeze) { st.moving = false; st.speed = 0; }
+      st.carrying = !!global.carrying && !a.dead;
+      st.water = !!global.water;
+      st.slow = global.slow ? 0.45 : 0;
+      st.freeze = !!global.freeze; st.burn = !!global.burn; st.fear = !!global.fear;
+      st.invisible = global.invisible ? 1 : 0;
+      st.barrier = global.barrier ? 0.5 + 0.5 * Math.abs(Math.sin(time * 0.4)) : 0;
+      st.haste = !!global.haste; st.stun = !!global.stun; st.disarmed = !!global.disarmed; st.radiance = !!global.radiance;
+      st.hp = global.lowHp ? 0.2 : 1;
+      // la gemme factice suit l'ancre de port
+      if (st.carrying && it.gem.parent !== a.carryAnchor) a.carryAnchor.add(it.gem);
+      if (!st.carrying && it.gem.parent) it.gem.parent.remove(it.gem);
+      if (it.gem.parent) it.gem.rotation.y += dt * 2;
       a.update(dt, time, st);
     }
     updMs = updMs * 0.9 + (performance.now() - t0) * 0.1;
@@ -272,15 +371,18 @@
     requestAnimationFrame(frame);
     const dt = Math.min(0.05, clock.getDelta());
     step(paused ? 0 : dt);
-    controls.update();
+    if (camera === persp) controls.update();
     const f0 = performance.now();
     renderer.render(scene, camera);
     frameMs = frameMs * 0.9 + (performance.now() - f0) * 0.1;
     frames++; acc += dt;
     if (acc > 0.5) { fps = frames / acc; frames = 0; acc = 0; }
-    // étiquettes
+    // étiquettes (au-dessus de a.height : la barre de vie irait là) ; masquées en vue lointaine
+    const far = camera === ortho && orthoWidth > 50;
     for (const it of items) {
-      if (it.label.style.display === "none") continue;
+      if (it.roam) continue;
+      it.label.style.display = far ? "none" : "";
+      if (far) continue;
       tmp.copy(it.a.object.position); tmp.y += it.a.height + 0.25;
       tmp.project(camera);
       it.label.style.left = ((tmp.x + 1) / 2 * innerWidth) + "px";
@@ -288,19 +390,27 @@
       it.label.style.visibility = tmp.z < 1 ? "visible" : "hidden";
     }
     const info = renderer.info.render;
-    statsEl.textContent = `${items.length} ennemis · ${fps.toFixed(0)} i/s · maj ${updMs.toFixed(2)} ms · rendu ${frameMs.toFixed(1)} ms\nappels ${info.calls} · triangles ${(info.triangles / 1000).toFixed(0)} k` + triLine;
+    statsEl.textContent = `${items.length} ennemis · ${fps.toFixed(0)} i/s · maj ${updMs.toFixed(2)} ms · rendu ${frameMs.toFixed(1)} ms · appels ${info.calls} · triangles ${(info.triangles / 1000).toFixed(0)} k · préparation ${PTMT.actors.loadMs.toFixed(0)} ms` + triLine;
   }
   frame();
 
   // --- pilotage pour les captures ---
   window.gallery = {
     set(k, v) { global[k] = v; refreshButtons(); },
-    fire, setView, items, renderer, scene, camera, controls,
+    fire, setView, items, renderer, scene, get camera() { return camera; }, controls, persp, ortho,
     pause(p) { paused = p; },
     advance(sec, stepDt) { const d = stepDt || 1 / 30; for (let t = 0; t < sec; t += d) step(d); renderer.render(scene, camera); step(0); },
+    look(x, y, z, dist, pitch, yaw) {
+      camera = persp; controls.enabled = true;
+      const p = pitch * Math.PI / 180, q = yaw * Math.PI / 180;
+      controls.target.set(x, y, z);
+      persp.position.set(x + Math.sin(q) * Math.cos(p) * dist, y + Math.sin(p) * dist, z + Math.cos(q) * Math.cos(p) * dist);
+      persp.lookAt(controls.target); controls.update();
+    },
+    ortho(width, pitch, x, z) { setOrtho(width, pitch, new THREE.Vector3(x || 0, 0, z || 0)); },
     stats() {
       const info = renderer.info.render;
-      return { actors: items.length, calls: info.calls, triangles: info.triangles, updateMs: +updMs.toFixed(3), renderMs: +frameMs.toFixed(2), fps: +fps.toFixed(1), variants: PTMT.actors.stats() };
+      return { actors: items.length, calls: info.calls, triangles: info.triangles, updateMs: +updMs.toFixed(3), renderMs: +frameMs.toFixed(2), fps: +fps.toFixed(1), loadMs: PTMT.actors.loadMs, variants: PTMT.actors.stats() };
     },
     bench(frames) {
       // coût CPU des mises à jour (hors rendu) sur N images
@@ -315,7 +425,7 @@
       return { actors: items.length, updateMsPerFrame: +upd.toFixed(3), renderMsSwiftShader: +rend.toFixed(1), calls: info.calls, triangles: info.triangles };
     },
   };
-  document.title = "Galerie des voleurs · prête";
+  document.title = "Galerie des ennemis · prête";
 })().catch((e) => { console.error(e && e.stack || e); document.title = "erreur"; });
 </script>
 </body>
