@@ -2,9 +2,15 @@
 //
 //   PTMT.fx.init(scene, camera, renderer, { mobile });
 //   PTMT.fx.update(dt, time);
-//   const p = PTMT.fx.projectile(kind); p.set(position, direction); p.release();
+//   const p = PTMT.fx.projectile(kind); p.set(position, direction[, solY]); p.release();
+//   const p = PTMT.fx.shot(kind, départ, arrivée) : même projectile, déjà placé au départ, orienté vers l'arrivée.
 //   PTMT.fx.burst(kind, position, opts);
-//   (zones, cônes, aperçus de visée : 11-areas.js ; débris, sac, ressort, filet, vague, rappel : 12-props.js)
+//   (zones, cônes, aperçus de visée : 11-areas.js ; débris, sac, ressort, filet, vague, rappel : 12-props.js ;
+//    projectiles et impacts des tours v3 — bogues, jets d'eau, éclats de glace, eau noire, feux : 13-shots.js)
+//
+// Une sorte de projectile (FX._.KINDS[kind]) : { spacing (m entre deux émissions de traînée), mesh() (maillage
+// propre, facultatif), start(p), head(p, dt) (sprites posés à chaque image), trail(p, point), place(p)
+// (après chaque set : maillage partagé instancié…), free(p) }. Sans head/trail, les cas ci-dessous s'appliquent.
 //
 // Principes : effets courts (0,3 à 1,5 s), lisibles de haut, couleurs de famille (feu orange, glace
 // cyan/blanc, eau turquoise). Les particules sont simulées sur le GPU dans un seul lot (un appel de
@@ -271,7 +277,7 @@
   _.rockGeo = rockGeo;
   _.geo = geo;
 
-  const KINDS = {
+  const KINDS = (_.KINDS = {
     fireball: { spacing: 0.16, mesh: null },
     lavaShell: { spacing: 0.22, mesh: () => new THREE.Mesh(geo("lavaRock", () => rockGeo(0.36, 1, 7)), _.lavaMat()) },
     iceShard: { spacing: 0.2, mesh: () => new THREE.Mesh(geo("iceShardP", () => crystalGeo(1.35, 0.21, 6)), _.iceMat()) },
@@ -279,7 +285,7 @@
     waterJet: { spacing: 0.12, mesh: () => waterJetMesh() },
     waterBlast: { spacing: 0.16, mesh: () => waterBlastMesh() },
     meteor: { spacing: 0.18, mesh: () => new THREE.Mesh(geo("meteorRock", () => rockGeo(0.85, 1, 13)), _.lavaMat()) },
-  };
+  });
   function iceSpikeMesh() {
     const g = new THREE.Group();
     const m = _.iceMat();
@@ -343,12 +349,15 @@
       this.t = 0;
       this.acc = 0;
       this.seed = rnd() * 100;
+      this.ground = null;
       S.live.add(this);
+      if (this.def.start) this.def.start(this);
     }
-    /** Position et direction de vol (monde). Appeler à chaque image. */
-    set(position, direction) {
+    /** Position et direction de vol (monde), hauteur du sol sous le projectile (facultative). Appeler à chaque image. */
+    set(position, direction, ground) {
       if (!this.active) return this;
       if (direction && direction.lengthSq() > 1e-10) this.dir.copy(direction).normalize();
+      this.ground = ground === undefined ? null : ground;
       if (!this.started) {
         this.pos.copy(position); this.prev.copy(position); this.last.copy(position);
         this.started = true;
@@ -364,7 +373,8 @@
         const n = Math.min(24, Math.floor(d / sp));
         for (let i = 1; i <= n; i++) {
           tv[0].lerpVectors(this.last, this.pos, i / n);
-          trail(this, tv[0]);
+          if (this.def.trail) this.def.trail(this, tv[0]);
+          else trail(this, tv[0]);
         }
         this.last.copy(this.pos);
       }
@@ -373,25 +383,35 @@
         this.q.setFromUnitVectors(tv[1].set(0, 0, 1), this.dir);
         this.mesh.quaternion.copy(this.q);
       }
+      if (this.def.place) this.def.place(this);
       return this;
     }
     frame(dt) {
       this.t += dt;
       if (!this.started) return;
-      head(this, dt);
+      if (this.def.head) this.def.head(this, dt);
+      else head(this, dt);
     }
     release() {
       if (!this.active) return;
       this.active = false;
       S.live.delete(this);
       if (this.mesh) this.mesh.visible = false;
+      if (this.def.free) this.def.free(this);
       _.unpool("proj:" + this.kind, this);
     }
   }
+  _.Projectile = Projectile;
   FX.projectile = function (kind) {
     if (!S) throw new Error("PTMT.fx.projectile : appeler d’abord PTMT.fx.init()");
     const p = _.pool("proj:" + kind, () => new Projectile(kind));
     p._start();
+    return p;
+  };
+  /** Projectile déjà placé au départ et orienté vers l'arrivée (le rendu le déplace ensuite avec set). */
+  FX.shot = function (kind, from, to) {
+    const p = FX.projectile(kind);
+    if (from) p.set(from, to ? tv[3].copy(to).sub(from) : null);
     return p;
   };
 
