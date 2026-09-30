@@ -30,6 +30,8 @@
     app.pixelRatio = Math.min(window.devicePixelRatio || 1, app.mobile ? 1.5 : 2);
     renderer.setPixelRatio(app.pixelRatio);
 
+    // Qualité des tours : sur téléphone, un seul appel de dessin par tour et pas d'ombre.
+    if (PTMT.models && PTMT.models.ctConfig) PTMT.models.ctConfig({ mobile: app.quality() === "low" });
     if (PTMT.actors && PTMT.actors.load) {
       try {
         PTMT.actors.mobile = app.mobile;
@@ -83,6 +85,7 @@
     p.settings.quality = q;
     PTMT.progress.save(p);
     // Le rendu se reconstruit avec la nouvelle qualité (la partie en cours continue).
+    if (PTMT.models && PTMT.models.ctConfig) PTMT.models.ctConfig({ mobile: App.quality() === "low" });
     if (App.view) App.mountView(App.map, App.game);
   };
 
