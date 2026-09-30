@@ -1,1362 +1,1963 @@
-// « Pas touche à mes trésors » — interface : barre du haut, onglets du bas, panneaux,
-// préparation des vagues, alertes, étiquettes des réserves, écrans (menu, talents, résultats),
-// tutoriel progressif.
+// « Pas touche à mes trésors » — interface complète : écran titre, carte des missions, compétences,
+// encyclopédie, HUD de partie (or, mana, gemmes, vagues et aperçu de la suivante, vitesse, sorts),
+// menu de construction et panneau de tour ancrés sur la carte, fiches « Nouvel ennemi ! », victoire,
+// défaite, pause, tutoriel de la première mission.
+//
+//   const ui = PTMT.ui.create({ root, mobile, progress: PTMT.progress, data: PTMT.sim.DATA, maps: PTMT.sim.MAPS,
+//                              hooks: { playLevel(n), quitLevel(), restartLevel(), setQuality(q) facultatif } });
+//   ui.showTitle() ; ui.showMap(n?) ; ui.showSkills() ; ui.showBestiary(tab?)
+//   ui.enterLevel(game, view)   // HUD d'une partie ; view = { worldToScreen(x, y), showRange(id|null),
+//                               //   preview(i, j, family|null), target(spell|null, x, y) }
+//   ui.mapTap(hit) ; ui.mapHover(hit)      // hit = { i, j, x, y, screenX, screenY } | null
+//   ui.events(list) ; ui.frame(dt) ; ui.insets() → { top, bottom, left, right } ; ui.onResize()
+//
+// Trois mises en page (attribut data-layout) : « desk » (ordinateur : bandeau haut + bandeau bas),
+// « portrait » (téléphone debout : bandeaux haut et bas plus hauts, menus en feuille au bas de
+// l'écran), « landscape » (téléphone couché : deux colonnes à gauche et à droite). Le HUD ne couvre que
+// ces bandes (insets) ; menus et panneaux s'ouvrent par-dessus la carte. Le DOM n'est réécrit que
+// quand une valeur affichée change.
 (function () {
   "use strict";
   const PTMT = (globalThis.PTMT = globalThis.PTMT || {});
-  const C = PTMT.config;
-  const I = PTMT.icons;
-  const U = PTMT.U;
+  const NB = " "; // espace fine insécable (typographie française)
 
-  const h = (tag, attrs = {}, ...kids) => {
+  /* ------------------------------------------------------------------ outils */
+  const h = (tag, attrs, ...kids) => {
     const el = document.createElement(tag);
-    for (const [k, v] of Object.entries(attrs || {})) {
-      if (v === null || v === undefined || v === false) continue;
-      if (k === "class") el.className = v;
-      else if (k === "html") el.innerHTML = v;
-      else if (k.startsWith("on")) el.addEventListener(k.slice(2), v);
-      else if (k === "style") el.style.cssText = v;
-      else el.setAttribute(k, v === true ? "" : v);
-    }
-    for (const kid of kids.flat()) if (kid !== null && kid !== undefined && kid !== false) el.append(kid.nodeType ? kid : document.createTextNode(String(kid)));
+    if (attrs)
+      for (const k in attrs) {
+        const v = attrs[k];
+        if (v === null || v === undefined || v === false) continue;
+        if (k === "class") el.className = v;
+        else if (k === "html") el.innerHTML = v;
+        else if (k === "style") el.style.cssText = v;
+        else if (k.startsWith("on")) el.addEventListener(k.slice(2), v);
+        else el.setAttribute(k, v === true ? "" : v);
+      }
+    for (const kid of kids.flat(Infinity)) if (kid !== null && kid !== undefined && kid !== false) el.append(kid.nodeType ? kid : document.createTextNode(String(kid)));
     return el;
   };
-  const fmt = (n) => (Math.round(n * 10) / 10).toString().replace(".", ",");
-  const pct = (v) => Math.round(v * 100) + " %";
-  const ROMAN = ["", "I", "II", "III"];
-  const FAM = { fire: "Feu", ice: "Glace", water: "Eau" };
-  const SPELL_ICON = { meteor: "meteor", freeze: "freeze", flood: "flood", frenzy: "frenzy", recall: "recall" };
-  const ENEMY_SHORT = { voleur: "Voleurs", sprinteur: "Sprinteurs", demenageur: "Déménageurs", fumigene: "Fumigènes", nageur: "Nageurs", boss: "Chef tondeuse" };
-  // Portraits de secours (disque coloré et initiale) quand PTMT.portraits n'est pas chargé.
-  const ENEMY_INITIAL = { voleur: "V", sprinteur: "S", demenageur: "D", fumigene: "F", nageur: "N", boss: "B" };
-  const ENEMY_TINT = { voleur: "#59607e", sprinteur: "#e39a2d", demenageur: "#8d6440", fumigene: "#68707d", nageur: "#ef75a6", boss: "#a8322b" };
-  // Traits affichés dans l'annonce de vague.
-  const TRAIT = {
-    voleur: "Voleurs",
-    sprinteur: "Rapides",
-    demenageur: "Lourds, lents",
-    fumigene: "Invisibles au 1er coup",
-    nageur: "Nagent",
-    boss: "Boss : surchauffe",
+  const icons = () => PTMT.icons || { get: () => "" };
+  /** Pastille d'icône (nom du jeu d'icônes, ou chaîne SVG déjà prête). */
+  const ico = (name, cls) => h("span", { class: "pt-i" + (cls ? " " + cls : ""), html: name && name.startsWith("<") ? name : icons().get(name) });
+  const nf = (n) => String(Math.round(n)).replace(/\B(?=(\d{3})+(?!\d))/g, NB);
+  const f1 = (v) => (Math.round(v * 10) / 10).toString().replace(".", ",");
+  const pc = (v) => Math.round(v * 100) + NB + "%";
+  const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+  const cap = (s) => (s ? s.charAt(0).toUpperCase() + s.slice(1) : "");
+  const call = (obj, fn, ...args) => (obj && typeof obj[fn] === "function" ? obj[fn](...args) : undefined);
+  const SPELLS = ["cut", "frenzy", "meteor"];
+  const FAMS = ["boar", "swan", "dog"];
+  const KEYS = { cut: "Q", frenzy: "W", meteor: "E" };
+  const ROMAN = ["", "I", "II", "III", "IV", "V"];
+  // Teinte des portraits de secours (quand PTMT.portraits ne connaît pas le type).
+  const TINT = { fermier: "#6f8f3a", quad: "#3f4f78", cowboy: "#a0602d", vache: "#3a3a3a", druide: "#cfd6c4", bigoudene: "#2a4c9a", chasseur: "#56733a", rugbyman: "#2a5cb8", sonneur: "#35508f", pompier: "#c8342a", canard: "#e8b820" };
+  const ABILITY = {
+    lasso: (a) => ["lasso", "Lasso", `attrape une gemme tombée jusqu'à ${f1(a.range || 1.5)} case`],
+    shield: (a) => ["shield", "Bouclier", `retire ${a.value || 5} dégâts à chaque coup`],
+    barrier: (a) => ["barrier", "Barrière", `bulle de ${a.value || 100} PV qui se reforme`],
+    heal: (a) => ["heal", "Soigneuse", `+${a.value || 30} PV à un allié toutes les ${a.every || 3} s`],
+    smoke: (a) => ["smoke", "Fumigène", `invisible ${a.t || 5} s au premier coup`],
+    evade: (a) => ["evade", "Esquive", `évite ${pc(a.chance || 0.5)} des projectiles`],
+    haste: (a) => ["haste", "Biniou", `vitesse × ${a.mult || 2} pour les alliés proches`],
+    immune: () => ["immune", "Immunisé", "aucun effet ne le touche"],
+    swim: () => ["swim", "Nageur", "coupe par l'eau"],
   };
-  const ELITE_TRAIT = {
-    voleur: "Casque (1er coup ÷ 2)",
-    sprinteur: "Filent avec un sac",
-    demenageur: "Canapé protecteur",
-    fumigene: "Long rideau de fumée",
-    nageur: "Pédalo rapide",
-    boss: "Rage à mi-vie",
-  };
-  const ZONE = {
-    fire: { name: "Rocaille", sol: "de rocaille", tower: "de feu", forest: "Pinède sur la rocaille" },
-    ice: { name: "Givre", sol: "de givre", tower: "de glace", forest: "Sapins givrés" },
-    water: { name: "Berge", sol: "de berge", tower: "d'eau", forest: "Bosquet de la berge" },
-  };
-  const TARGETING = [
-    ["auto", "Porteurs puis réserves"],
-    ["carriers", "Porteurs d'abord"],
-    ["advanced", "Plus avancés"],
-    ["tough", "Plus résistants"],
-  ];
+  const speedWord = (v) => (v < 0.8 ? "lent" : v > 1.25 ? "rapide" : "normal");
+  const TERRAIN = { grass: "Herbe", rock: "Roche", water: "Eau", high: "Butte", road: "Chemin", bridge: "Pont", decor: "Talus" };
 
-  function UI(app) {
-    this.app = app;
-    this.root = app.root.querySelector("[data-ui]");
-    this.overlay = app.root.querySelector("[data-overlay]");
-    this.tab = "towers";
-    this.panel = null;
-    this.selection = null;
-    this.buildMode = null; // { kind: 'tower'|'trap', family|trap }
-    this.aim = null; // { spell }
-    this.labels = new Map();
-    this.alerts = new Map();
-    this.last = 0;
-    this.buildHud();
+  /* ------------------------------------------------------------------ l'interface */
+  function UI(o) {
+    this.o = o || {};
+    const root = this.o.root || document.body;
+    this.host = (root.querySelector && root.querySelector("[data-ui]")) || root;
+    this.hooks = this.o.hooks || {};
+    this.mobile = !!this.o.mobile;
+    this.mode = null;
+    this.game = null;
+    this.view = null;
+    this.t = 0;
+    this.last = Object.create(null);
+    this.sel = null;
+    this.aim = null;
+    this.modal = null;
+    this.modalQueue = [];
+    this.flyCount = 0;
+    this.buildSkeleton();
     this.bindKeys();
+    this.onResize();
   }
   const P = UI.prototype;
 
-  // ── Barre du haut et du bas ─────────────────────────────────────────────────
+  // Données (lues à la demande : l'intégrateur peut les fournir après coup).
+  P.D = function () {
+    return this.o.data || (PTMT.sim && PTMT.sim.DATA) || {};
+  };
+  P.maps = function () {
+    return this.o.maps || (PTMT.sim && PTMT.sim.MAPS) || {};
+  };
+  P.prog = function () {
+    return this.o.progress || PTMT.progress || null;
+  };
+  P.loadP = function () {
+    const pr = this.prog();
+    try {
+      return (pr && pr.load()) || { levels: {}, unlocked: 1, skills: {}, seen: {}, settings: {} };
+    } catch (e) {
+      return { levels: {}, unlocked: 1, skills: {}, seen: {}, settings: {} };
+    }
+  };
+  P.saveP = function (p) {
+    const pr = this.prog();
+    if (pr) call(pr, "save", p);
+  };
+  P.missionCount = function () {
+    const m = this.maps();
+    let n = 0;
+    for (let k = 1; k <= 30; k++) if (m[k]) n = k;
+    return n || 15;
+  };
+
+  /* ------------------------------------------------------------------ squelette */
+  P.buildSkeleton = function () {
+    this.el = h("div", { class: "pt", "data-mode": "none" });
+    this.screens = h("div", { class: "pt-screens" });
+    this.hud = h("div", { class: "pt-hud", hidden: true });
+    this.popLayer = h("div", { class: "pt-pops" });
+    this.bannerLayer = h("div", { class: "pt-banners" });
+    this.toastLayer = h("div", { class: "pt-toasts", role: "status", "aria-live": "polite" });
+    this.modalLayer = h("div", { class: "pt-modals" });
+    this.el.append(this.screens, this.hud, this.popLayer, this.bannerLayer, this.toastLayer, this.modalLayer);
+    this.host.append(this.el);
+    this.buildHud();
+  };
+
   P.buildHud = function () {
-    const app = this.app;
-    this.top = h("div", { class: "ptmt-top" });
-    this.levelChip = h("div", { class: "ptmt-chip ptmt-level-chip" }, h("b", {}, ""), h("span", {}, ""));
-    this.goldChip = h("div", { class: "ptmt-chip ptmt-gold", title: "Or" }, h("span", { class: "ptmt-coin" }), h("b", {}, "0"));
-    this.manaBar = h("i");
-    this.manaText = h("em", {}, "");
-    this.manaChip = h("div", { class: "ptmt-chip ptmt-mana", title: "Mana (se recharge pendant les attaques)" }, h("span", { class: "label" }, "Mana"), h("div", { class: "ptmt-mana-bar" }, this.manaBar, this.manaText));
-    this.treasureChip = h("div", { class: "ptmt-chip ptmt-treasures", title: "Trésors : dans la réserve, emporté, tombé, perdu" });
-    this.pauseBtn = h("button", { class: "ptmt-btn", "aria-pressed": "false", title: "Pause tactique (Espace)", onclick: () => app.togglePause() });
-    this.speedBtn = h("button", { class: "ptmt-btn", "aria-pressed": "false", title: "Vitesse ×2", onclick: () => app.toggleSpeed() }, "×2");
-    this.menuBtn = h("button", { class: "ptmt-btn", title: "Menu", html: I.menu, onclick: () => app.openMenu() });
-    this.timeChip = h("div", { class: "ptmt-chip ptmt-time" }, this.pauseBtn, this.speedBtn, this.menuBtn);
-    this.top.append(this.levelChip, this.goldChip, this.manaChip, this.treasureChip, h("div", { class: "ptmt-spacer" }), this.timeChip);
-    this.root.append(this.top);
-
-    this.bottom = h("div", { class: "ptmt-bottom" });
-    this.tray = h("div", { class: "ptmt-tray" });
-    const tabs = [
-      ["towers", "Tours", I.fire],
-      ["traps", "Pièges", I.net],
-      ["spells", "Sorts", I.frenzy],
-      ["mill", "Moulin", I.meule],
-    ];
-    this.tabBtns = {};
-    this.tabs = h(
-      "div",
-      { class: "ptmt-tabs", role: "tablist" },
-      tabs.map(([id, label, icon]) => (this.tabBtns[id] = h("button", { class: "ptmt-btn", role: "tab", "aria-selected": "false", onclick: () => this.setTab(id) }, h("span", { html: icon, style: "width:18px;height:18px;display:inline-flex" }), label))),
-    );
-    this.bottom.append(this.tray, this.tabs);
-    this.root.append(this.bottom);
-    this.alertBox = h("div", { class: "ptmt-alerts" });
-    this.root.append(this.alertBox);
-    this.setTab("towers");
-  };
-  P.setTab = function (id) {
-    this.tab = id;
-    for (const [k, b] of Object.entries(this.tabBtns)) b.setAttribute("aria-selected", k === id ? "true" : "false");
-    this.cancelModes();
-    this.renderTray();
-    if (id === "mill") this.showMillPanel();
-    else if (this.panel && this.panel.kind === "mill") this.closePanel();
-  };
-  P.cancelModes = function () {
-    this.buildMode = null;
-    if (this.aim) this.stopAim();
-    this.app.setSocketHighlight(null);
-    this.setBuildPreview(null);
-  };
-  P.renderTray = function () {
-    const app = this.app;
-    const game = app.game;
-    this.tray.innerHTML = "";
-    if (!game) return;
-    const s = game.state;
-    const card = (opts) => {
-      const c = h(
+    const I = icons();
+    // Bandeau du haut : menu, or, mana, gemmes | vague et aperçu de la suivante.
+    this.topEl = h("header", { class: "pt-top" });
+    this.btnMenu = h("button", { class: "pt-btn pt-sq pt-menu", title: "Menu et pause (Échap)", "aria-label": "Menu", onclick: () => this.openPause() }, ico("menu"));
+    this.goldNum = h("b", { class: "pt-num" }, "0");
+    this.goldEl = h("div", { class: "pt-res pt-gold", title: "Or : primes des ennemis vaincus" }, ico("gold"), this.goldNum);
+    this.manaFill = h("i", { class: "pt-gauge-fill" });
+    this.manaNum = h("b", { class: "pt-num" }, "0");
+    this.manaEl = h("div", { class: "pt-res pt-mana", title: "Mana : se recharge avec le temps" }, ico("mana"), h("div", { class: "pt-gauge" }, this.manaFill, h("i", { class: "pt-gauge-shine" }), this.manaNum));
+    this.gemsEl = h("div", { class: "pt-res pt-gems", title: "Gemmes : au moulin, au sol, emportées, perdues" });
+    this.waveNum = h("b", { class: "pt-num" }, "1");
+    this.waveTot = h("span", { class: "pt-num" }, "5");
+    this.waveEl = h("div", { class: "pt-res pt-wave", title: "Vague en cours" }, ico("wave"), h("span", { class: "pt-wave-t" }, h("small", {}, "Vague"), h("span", { class: "pt-wave-n" }, this.waveNum, h("i", {}, "/"), this.waveTot)));
+    this.nextTitle = h("span", { class: "pt-next-lbl" }, "Prochaine vague");
+    this.nextTime = h("b", { class: "pt-num pt-next-time" }, "");
+    this.nextFoes = h("div", { class: "pt-foes" });
+    this.nextGates = h("span", { class: "pt-next-gates" });
+    this.callBonus = h("b", { class: "pt-num" }, "");
+    this.callBtn = h("button", { class: "pt-btn pt-go pt-call", title: "Appeler la vague maintenant (Entrée) : bonus d'or", onclick: () => this.callWave() }, ico("horn"), h("span", { class: "pt-call-l" }, "Appeler"), h("span", { class: "pt-call-b" }, "+", this.callBonus));
+    this.nextEl = h("div", { class: "pt-next" }, h("div", { class: "pt-next-h" }, this.nextTitle, this.nextGates, this.nextTime), this.nextFoes, this.callBtn);
+    this.topEl.append(this.btnMenu, this.goldEl, this.manaEl, this.gemsEl, h("div", { class: "pt-sp" }), this.waveEl, this.nextEl);
+    // Bandeau du bas : mission, sorts, vitesse et pause.
+    this.bottomEl = h("footer", { class: "pt-bottom" });
+    this.missionEl = h("div", { class: "pt-mission" });
+    this.spellsEl = h("div", { class: "pt-spells" });
+    this.spellBtn = {};
+    for (const k of SPELLS) {
+      const cost = h("b", { class: "pt-num" }, "");
+      const b = h(
         "button",
-        { class: "ptmt-card " + (opts.fam || ""), "data-active": opts.active ? "true" : "false", "aria-disabled": opts.disabled ? "true" : "false", title: opts.title || "", onclick: opts.onclick },
-        h("span", { class: "icon", html: opts.icon }),
-        h("span", { class: "name" }, opts.name),
-        opts.cost !== undefined ? h("span", { class: "cost" }, opts.cost) : null,
-        opts.cd ? h("span", { class: "cd" }, opts.cd) : null,
+        { class: "pt-spell", "data-spell": k, onclick: () => this.spellClick(k), onpointerenter: () => this.spellHint(k, true), onpointerleave: () => this.spellHint(k, false) },
+        h("span", { class: "pt-spell-ring" }),
+        h("span", { class: "pt-spell-face", html: I.get(k) }),
+        h("span", { class: "pt-spell-lock", html: I.get("lock") }),
+        h("span", { class: "pt-spell-cost" }, ico("mana"), cost),
+        h("kbd", {}, KEYS[k]),
       );
-      this.tray.append(c);
-      return c;
-    };
-    if (this.tab === "towers") {
-      for (const fam of ["fire", "ice", "water"]) {
-        const f = C.towers[fam].forms["1"];
-        card({
-          fam: "fam-" + fam,
-          icon: I[fam],
-          name: f.name,
-          cost: f.cost + " or",
-          active: this.buildMode && this.buildMode.family === fam,
-          disabled: s.gold < f.cost,
-          title: C.towers[fam].role,
-          onclick: () => this.startBuild({ kind: "tower", family: fam }),
-        });
-      }
-    } else if (this.tab === "traps") {
-      for (const k of ["net", "spring", "lure"]) {
-        const t = C.traps[k].tiers[1];
-        card({
-          fam: "fam-trap",
-          icon: I[k],
-          name: C.traps[k].name,
-          cost: t.cost + " or",
-          active: this.buildMode && this.buildMode.trap === k,
-          disabled: s.gold < t.cost || s.traps.length >= game.trapLimit(),
-          title: s.traps.length >= game.trapLimit() ? `Limite de ${game.trapLimit()} pièges : améliore l'Atelier` : "",
-          onclick: () => this.startBuild({ kind: "trap", trap: k }),
-        });
-      }
-      this.tray.append(h("div", { class: "ptmt-chip", style: "align-self:center" }, `${s.traps.length}/${game.trapLimit()} pièges`));
-    } else if (this.tab === "spells") {
-      for (const id of C.spells.order) {
-        const sp = C.spells[id];
-        const locked = !game.unlocked.has(id);
-        const blocked = game.spellBlocked(id);
-        const cd = s.spells[id].cd;
-        card({
-          fam: "fam-spell",
-          icon: locked ? I.lock : I[SPELL_ICON[id]],
-          name: sp.name + (s.spells[id].rank > 1 ? " " + ROMAN[s.spells[id].rank] : ""),
-          cost: locked ? `niv. ${C.spells.unlockLevel[id]}` : game.spellMana(id) + " mana",
-          active: this.aim && this.aim.spell === id,
-          disabled: !!blocked && !(s.paused && !locked && s.phase === "wave"),
-          cd: cd > 0 ? Math.ceil(cd) + " s" : null,
-          title: blocked || sp.name,
-          onclick: () => this.startAim(id),
-        });
-      }
-    } else if (this.tab === "mill") {
-      for (const k of ["meule", "roue", "atelier"]) {
-        const lv = s.mill[k];
-        const def = C.mill[k];
-        const next = def.levels[lv + 1];
-        card({ fam: "fam-mill", icon: I[k], name: def.name + " " + (lv ? ROMAN[lv] : ""), cost: next ? "+" + next.cost + " or" : "max", disabled: !next || s.gold < next.cost, onclick: () => this.showMillPanel() });
-      }
+      b._cost = cost;
+      this.spellBtn[k] = b;
+      this.spellsEl.append(b);
+    }
+    this.speedBtns = [1, 2, 3].map((v) => h("button", { class: "pt-btn pt-speed-b", "data-v": v, title: `Vitesse × ${v} (touche ${v})`, "aria-label": `Vitesse ${v}`, onclick: () => this.setSpeed(v) }, ico("speed" + v), h("b", { class: "pt-num" }, "×" + v)));
+    this.pauseBtn = h("button", { class: "pt-btn pt-sq pt-pause", title: "Pause (Espace)", "aria-label": "Pause", onclick: () => this.togglePause() }, ico("pause"));
+    // Sur téléphone : un seul bouton qui fait défiler × 1 → × 2 → × 3 (cible tactile assez grande).
+    this.speedCycle = h("button", { class: "pt-btn pt-sq pt-speed-c", title: "Vitesse", "aria-label": "Changer de vitesse", onclick: () => this.setSpeed(((this.game && this.game.state.speed) || 1) % 3 + 1) }, h("span", { class: "pt-speed-ci" }), h("b", { class: "pt-num" }, "×1"));
+    this.speedEl = h("div", { class: "pt-speed" }, h("div", { class: "pt-seg" }, this.speedBtns), this.speedCycle, this.pauseBtn);
+    this.bottomEl.append(this.missionEl, this.spellsEl, this.speedEl);
+    this.marksEl = h("div", { class: "pt-marks" });
+    this.flyEl = h("div", { class: "pt-fly" });
+    this.hud.append(this.marksEl, this.flyEl, this.topEl, this.bottomEl);
+  };
+
+  /* ------------------------------------------------------------------ mise en page */
+  P.onResize = function () {
+    const W = window.innerWidth,
+      H = window.innerHeight;
+    let layout = "desk";
+    if (W < H * 0.92) layout = "portrait";
+    else if (H < 540) layout = "landscape";
+    const changed = layout !== this.layout;
+    this.layout = layout;
+    this.el.dataset.layout = layout;
+    this.el.classList.toggle("pt-narrow", W < 1100);
+    this.el.classList.toggle("pt-tiny", Math.min(W, H) < 380);
+    this.el.classList.toggle("pt-touch", this.mobile);
+    this._insets = null;
+    if (changed && this.mode === "map") this.showMap(this.mapSel);
+    if (this.sel) this.placeSel(true);
+    if (this.tuto) this.placeTuto();
+  };
+  P.insets = function () {
+    if (this.mode !== "game" || this.hud.hidden) return { top: 0, bottom: 0, left: 0, right: 0 };
+    if (this._insets) return this._insets;
+    const W = window.innerWidth,
+      H = window.innerHeight;
+    const a = this.topEl.getBoundingClientRect(),
+      b = this.bottomEl.getBoundingClientRect();
+    if (this.layout === "landscape") this._insets = { top: 0, bottom: 0, left: Math.ceil(a.right), right: Math.ceil(W - b.left) };
+    else this._insets = { top: Math.ceil(a.bottom), bottom: Math.ceil(H - b.top), left: 0, right: 0 };
+    const st = this.el.style;
+    st.setProperty("--pt-top", this._insets.top + "px");
+    st.setProperty("--pt-bottom", this._insets.bottom + "px");
+    st.setProperty("--pt-left", this._insets.left + "px");
+    st.setProperty("--pt-right", this._insets.right + "px");
+    return this._insets;
+  };
+
+  /* ------------------------------------------------------------------ modes et écrans */
+  P.setMode = function (mode) {
+    if (this.mode === "game" && mode !== "game") this.leaveLevel(true);
+    this.mode = mode;
+    this.el.dataset.mode = mode;
+    this.hud.hidden = mode !== "game";
+    this._insets = null;
+  };
+  P.setScreen = function (el) {
+    this.screens.textContent = "";
+    this.closeModal(true);
+    if (el) {
+      this.screens.append(el);
+      el.classList.add("pt-in");
     }
   };
-  P.startBuild = function (mode) {
-    const app = this.app;
-    if (this.aim) this.stopAim();
-    if (this.buildMode && JSON.stringify(this.buildMode) === JSON.stringify(mode)) {
-      this.cancelModes();
-      this.renderTray();
-      return;
-    }
-    this.buildMode = mode;
-    this.closePanel();
-    app.setSocketHighlight(mode);
-    this.setBuildPreview(null);
-    this.renderTray();
-    this.tip(
-      "build",
-      mode.kind === "tower"
-        ? "Les cases qui s'allument accueillent cette tour : la rocaille (dalles de pierre) pour le feu, le givre (cercles de runes) pour la glace, la berge et le marais pour l'eau. Les tours se posent côte à côte. Une case boisée se libère en coupant sa forêt."
-        : "Touche un emplacement sur un chemin pour y poser le piège.",
+  /** Bouton de retour + titre d'un écran. */
+  P.screenHead = function (title, back, extra) {
+    return h(
+      "header",
+      { class: "pt-shead" },
+      back ? h("button", { class: "pt-btn pt-sq pt-wood", title: "Retour", "aria-label": "Retour", onclick: back }, ico("back")) : h("span", { class: "pt-shead-sp" }),
+      h("h1", { class: "pt-shead-t" }, title),
+      h("div", { class: "pt-shead-x" }, extra || null),
     );
   };
 
-  // ── Visée des sorts ─────────────────────────────────────────────────────────
-  P.startAim = function (id) {
-    const game = this.app.game;
-    const blocked = game.spellBlocked(id);
-    const s = game.state;
-    if (blocked && !(s.paused && game.unlocked.has(id) && s.phase === "wave")) {
-      this.flash(blocked);
-      return;
-    }
-    if (this.aim && this.aim.spell === id) {
-      this.stopAim();
-      return;
-    }
-    this.buildMode = null;
-    this.app.setSocketHighlight(null);
-    this.aim = { spell: id };
-    this.aimBar && this.aimBar.remove();
-    this.aimBar = h("div", { class: "ptmt-targeting" }, h("span", { html: I.target, style: "width:20px;height:20px;display:inline-flex" }), `${C.spells[id].name} : touche le terrain`, h("button", { class: "ptmt-btn ptmt-btn-ghost", onclick: () => this.stopAim() }, "Annuler"));
-    this.root.append(this.aimBar);
-    this.renderTray();
-  };
-  P.stopAim = function () {
-    this.aim = null;
-    this.aimBar && this.aimBar.remove();
-    this.aimBar = null;
-    this.app.entities.showAim(null);
-    this.renderTray();
-  };
-
-  // ── Panneaux de sélection ────────────────────────────────────────────────────
-  P.closePanel = function () {
-    if (this.panelEl) this.panelEl.remove();
-    this.panelEl = null;
-    this.panel = null;
-    this.app.select(null);
-  };
-  P.openPanel = function (kind, id, build) {
-    if (this.panelEl) this.panelEl.remove();
-    this.panel = { kind, id };
-    const el = h("div", { class: "ptmt-panel" });
-    el.append(h("button", { class: "ptmt-btn close", title: "Fermer", html: I.close, onclick: () => this.closePanel() }));
-    build(el);
-    this.root.append(el);
-    this.panelEl = el;
-  };
-  P.refreshPanel = function () {
-    if (!this.panel) return;
-    const { kind, id } = this.panel;
-    if (kind === "tower") this.showTowerPanel(id);
-    else if (kind === "socket" || kind === "forest") this.showSocketPanel(id);
-    else if (kind === "trap") this.showTrapPanel(id);
-    else if (kind === "slot") this.showSlotPanel(id);
-    else if (kind === "reserve") this.showReservePanel(id);
-    else if (kind === "mill") this.showMillPanel();
-  };
-  P.statsList = function (rows) {
-    const dl = h("dl", { class: "ptmt-stats" });
-    for (const [k, v] of rows) if (v !== null && v !== undefined) dl.append(h("dt", {}, k), h("dd", {}, v));
-    return dl;
-  };
-  P.towerRows = function (f, fam) {
-    const rows = [["Portée", fmt(f.range) + " U"]];
-    if (f.damage) rows.push(["Dégâts", fmt(f.damage) + (f.attack === "cone" ? " / pulsation" : "")]);
-    if (f.period) rows.push(["Cadence", "toutes les " + fmt(f.period / (f.rate || 1)) + " s"]);
-    if (f.splash) rows.push(["Explosion", "rayon " + fmt(f.splash) + " U"]);
-    if (f.coneDeg) rows.push(["Cône", f.coneDeg + "°"]);
-    if (f.burn) rows.push(["Brûlure", fmt(f.burn.dps) + "/s pendant " + fmt(f.burn.duration) + " s"]);
-    if (f.ground) rows.push(["Sol en feu", fmt(f.ground.dps) + "/s · " + fmt(f.ground.duration) + " s"]);
-    if (f.slow) rows.push(["Ralentit", pct(Math.min(f.slow.pct, 0.6)) + " · " + fmt(f.slow.duration) + " s"]);
-    if (f.freeze) rows.push(["Gel", fmt(f.freeze) + " s (1 tir sur " + f.freezeEvery + ")"]);
-    if (f.stormRadius) rows.push(["Tempête", "rayon " + fmt(f.stormRadius) + " U · " + fmt(f.stormDps) + "/s · " + pct(Math.min(f.stormSlow, 0.6))]);
-    if (f.stormFreeze) rows.push(["Gel à la création", fmt(f.stormFreeze) + " s"]);
-    if (f.push) rows.push(["Recul", fmt(f.push) + " U" + (f.pushEvery ? " (1 jet sur " + f.pushEvery + ")" : "")]);
-    if (f.maxTargets) rows.push(["Cibles", "jusqu'à " + f.maxTargets]);
-    if (f.vortexRadius) rows.push(["Vortex", "rayon " + fmt(f.vortexRadius) + " U · " + fmt(f.vortexDuration) + " s · " + fmt(f.vortexDps) + "/s"]);
-    if (f.pull) rows.push(["Attraction", fmt(f.pull) + " U"]);
-    if (f.finalSplash) rows.push(["Éclaboussure finale", f.finalSplash + " dégâts"]);
-    if (f.wet) rows.push(["Mouillé", fmt(f.wet) + " s"]);
-    if (f.rate > 1) rows.push(["Frénésie", "+" + pct(f.rate - 1)]);
-    return rows;
-  };
-  P.showTowerPanel = function (id) {
-    const app = this.app,
-      game = app.game;
-    const tw = game.state.towers.find((t) => t.id === id);
-    if (!tw) return this.closePanel();
-    const f = game.towerStats(tw);
-    app.select({ kind: "tower", id, x: tw.x, z: tw.z, range: f.range, family: tw.family });
-    this.openPanel("tower", id, (el) => {
-      el.append(h("h2", {}, f.name), h("div", { class: "sub" }, `${FAM[tw.family]} · palier ${ROMAN[tw.tier]}${tw.branch ? " · branche " + tw.branch : ""}`));
-      el.append(this.statsList(this.towerRows(f, tw.family)));
-      const info = game.upgradeInfo(tw);
-      const need = info.max ? C.xp.tier3 : info.needXp;
-      el.append(h("h3", {}, `Expérience : ${Math.floor(tw.xp)} / ${need} XP`), h("div", { class: "ptmt-xp" }, h("i", { style: `width:${Math.min(100, (tw.xp / need) * 100)}%` })));
-      if (!info.max) {
-        el.append(h("h3", {}, tw.tier === 1 ? "Spécialisation (choix définitif)" : "Évolution finale"));
-        const row = h("div", { class: "ptmt-row" });
-        for (const o of info.options) {
-          const form = C.towers[tw.family].forms[PTMT.formKey(info.nextTier, o.branch)];
-          row.append(
-            h(
-              "button",
-              { class: "ptmt-btn " + (o.reason ? "" : "ptmt-btn-go"), "aria-disabled": o.reason ? "true" : "false", onclick: () => this.act(game.upgradeTower(tw.id, o.branch)) },
-              h("span", {}, (info.nextTier === 2 ? ROMAN[2] + "-" + o.branch : ROMAN[3] + "-" + o.branch) + " · " + o.name),
-              h("span", { class: "cost" }, o.cost + " or"),
-              o.reason ? h("span", { class: "ptmt-reason" }, o.reason) : h("small", {}, this.formHint(form)),
-            ),
-          );
-        }
-        el.append(row);
-      } else el.append(h("p", { class: "ptmt-note" }, "Évolution finale atteinte."));
-      el.append(h("h3", {}, "Ciblage"));
-      const seg = h("div", { class: "ptmt-seg" });
-      for (const [k, label] of TARGETING) seg.append(h("button", { "aria-pressed": tw.targeting === k ? "true" : "false", onclick: () => (game.setTargeting(tw.id, k), this.refreshPanel()) }, label));
-      el.append(seg);
-      el.append(h("div", { class: "ptmt-row" }, h("button", { class: "ptmt-btn ptmt-btn-danger", onclick: () => this.confirmSell(() => this.act(game.sellTower(tw.id), true)) }, `Revendre · ${game.sellValue(tw)} or`)));
-      el.append(h("p", { class: "ptmt-note" }, "La revente rend 70 % de l'or dépensé ; l'expérience de la tour est perdue."));
-    });
-  };
-  P.formHint = function (f) {
-    if (!f) return "";
-    if (f.attack === "cone") return `Cône ${f.coneDeg}° · ${f.damage} toutes les ${f.period} s`;
-    if (f.attack === "lava") return `Obus ${f.damage} · rayon ${f.splash} U · sol en feu`;
-    if (f.attack === "spike") return `${f.damage} dégâts · gel 1 tir sur 3`;
-    if (f.attack === "storm") return `Tempête rayon ${f.stormRadius} U · −${Math.round(f.stormSlow * 100)} %`;
-    if (f.attack === "line") return `Rafale en ligne · recul ${f.push} U`;
-    if (f.attack === "wave") return `Vague · 6 cibles · recul ${f.push} U`;
-    if (f.attack === "vortex") return `Vortex rayon ${f.vortexRadius} U · attire ${f.pull} U`;
-    return "";
-  };
-  P.confirmSell = function (fn) {
-    fn();
-  };
-  P.act = function (res, close) {
-    if (!res || !res.ok) {
-      if (res && res.reason) this.flash(res.reason);
-      return false;
-    }
-    if (close) this.closePanel();
-    else this.refreshPanel();
-    this.renderTray();
-    return true;
-  };
-  P.showSocketPanel = function (id) {
-    const app = this.app,
-      game = app.game;
-    const so = game.socket(id);
-    if (game.isForest(id)) return this.showForestPanel(id);
-    const built = game.towerAt(id);
-    if (built) return this.showTowerPanel(built.id);
-    const fam = so.kind;
-    const f = C.towers[fam].forms["1"];
-    app.select({ kind: "socket", id, x: so.x, z: so.z, range: f.range * (fam === "ice" ? game.T.iceRange : 1), family: fam });
-    this.openPanel("socket", id, (el) => {
-      el.append(
-        h("h2", {}, "Case " + ZONE[fam].sol),
-        h("div", { class: "sub" }, { fire: "Dalle de pierre : tours de feu", ice: "Cercle de runes : tours de glace", water: "Berge et marais : tours d'eau" }[fam]),
-      );
-      el.append(h("p", { class: "ptmt-note" }, C.towers[fam].role));
-      const stats = game.towerStats({ family: fam, tier: 1, branch: null, frenzyT: 0 });
-      el.append(this.statsList(this.towerRows(stats, fam)));
-      el.append(
+  // ── Écran titre ──────────────────────────────────────────────────────────
+  P.showTitle = function () {
+    this.setMode("title");
+    const p = this.loadP();
+    const started = Object.values(p.levels || {}).some((l) => l && l.won);
+    const logo = PTMT.logo ? PTMT.logo.full() : "<h1>Pas touche à mes trésors</h1>";
+    const sc = h(
+      "section",
+      { class: "pt-screen pt-title" },
+      this.scenery(),
+      h("div", { class: "pt-title-logo", html: logo }),
+      h(
+        "div",
+        { class: "pt-title-btns" },
+        h("button", { class: "pt-btn pt-go pt-big pt-pulse", onclick: () => this.showMap() }, ico("play"), started ? "Continuer" : "Jouer"),
         h(
           "div",
-          { class: "ptmt-row" },
-          h("button", { class: "ptmt-btn " + (game.state.gold >= f.cost ? "ptmt-btn-go" : ""), "aria-disabled": game.state.gold >= f.cost ? "false" : "true", onclick: () => this.buildAt(id, fam) }, h("span", {}, "Construire · " + f.name), h("span", { class: "cost" }, f.cost + " or")),
+          { class: "pt-row" },
+          h("button", { class: "pt-btn pt-wood", onclick: () => this.showSkills() }, ico("skills"), "Compétences", this.pointsBadge(p)),
+          h("button", { class: "pt-btn pt-wood", onclick: () => this.showBestiary() }, ico("book"), "Encyclopédie"),
+        ),
+      ),
+      h("footer", { class: "pt-credits" }, "Moulin de Saint-Christophe", h("span", {}, " · "), "lettres Lilita One (SIL OFL)"),
+    );
+    this.setScreen(sc);
+  };
+  /** Décor de fond (ciel, collines bocagères) partagé par les écrans. */
+  P.scenery = function () {
+    const tree = (x, y, r) => `<circle cx="${x}" cy="${y}" r="${r}" fill="#3f8f3a" stroke="#1f4a24" stroke-width="3"/><circle cx="${x - r * 0.3}" cy="${y - r * 0.35}" r="${r * 0.35}" fill="#6cc24a"/>`;
+    let trees = "";
+    const T = [
+      [70, 318, 22], [120, 330, 16], [300, 300, 18], [540, 318, 20], [590, 326, 14], [860, 296, 22], [910, 312, 16], [1180, 318, 20], [1240, 328, 14], [1400, 300, 18],
+    ];
+    for (const t of T) trees += tree(t[0], t[1], t[2]);
+    return h("div", {
+      class: "pt-scenery",
+      "aria-hidden": "true",
+      html:
+        `<svg viewBox="0 0 1440 420" preserveAspectRatio="xMidYMax slice">` +
+        `<path d="M0 250Q180 170 380 230T760 215T1130 200T1440 230V420H0Z" fill="#8fcf6a"/>` +
+        `<path d="M0 300Q220 250 460 292T940 280T1440 290V420H0Z" fill="#5fae45"/>` +
+        `<path d="M0 290Q220 240 460 282T940 270T1440 280" fill="none" stroke="#2f6b2a" stroke-width="5" stroke-dasharray="2 14" stroke-linecap="round"/>` +
+        trees +
+        `<path d="M0 352Q260 320 520 350T1040 346T1440 350V420H0Z" fill="#4a9a3a"/>` +
+        `<path d="M0 382Q300 356 700 384T1440 380V420H0Z" fill="#3c8531"/>` +
+        `</svg>`,
+    });
+  };
+  P.pointsBadge = function (p) {
+    const pr = this.prog();
+    const free = pr ? call(pr, "pointsFree", p) : 0;
+    return free > 0 ? h("span", { class: "pt-badge", title: "Points de compétence à placer" }, String(free)) : null;
+  };
+
+  // ── Carte des missions ───────────────────────────────────────────────────
+  // Positions des 15 médaillons (repère paysage 1000 × 600), du bocage (1) au moulin (15).
+  // Serpentin sur trois rangs : il se lit aussi bien couché (ordinateur) que debout (téléphone, carte tournée).
+  const SPOTS = [
+    [95, 515], [220, 478], [345, 515], [470, 478], [595, 512], [712, 448], [640, 345], [515, 316], [390, 350], [262, 318], [150, 245], [250, 160], [388, 192], [530, 156], [786, 196],
+  ];
+  P.showMap = function (focus) {
+    this.setMode("map");
+    const p = this.loadP();
+    const maps = this.maps();
+    const n = this.missionCount();
+    const unlocked = clamp(p.unlocked || 1, 1, n);
+    if (!focus) {
+      focus = unlocked;
+      for (let k = 1; k <= unlocked; k++)
+        if (!(p.levels[k] && p.levels[k].won)) {
+          focus = k;
+          break;
+        }
+    }
+    this.mapSel = focus;
+    const portrait = this.layout === "portrait";
+    const pos = (k) => {
+      const [x, y] = SPOTS[(k - 1) % SPOTS.length];
+      return portrait ? [y / 600, (1000 - x) / 1000] : [x / 1000, y / 600];
+    };
+    const world = h("div", { class: "pt-wm" + (portrait ? " pt-wm-v" : ""), html: this.worldSvg(portrait, n) });
+    const medals = [];
+    for (let k = 1; k <= n; k++) {
+      const L = (p.levels && p.levels[k]) || null;
+      const locked = k > unlocked;
+      const [u, v] = pos(k);
+      const m = maps[k] || { name: "Mission " + k, gems: 5 };
+      const gems = L && L.won ? L.bestGems || 0 : 0;
+      const total = (L && L.gemsTotal) || m.gems || 5;
+      const med = h(
+        "button",
+        {
+          class: "pt-medal" + (locked ? " locked" : "") + (L && L.won ? " won" : "") + (L && L.brilliant ? " brilliant" : "") + (k === focus ? " sel" : "") + (!locked && !(L && L.won) ? " next" : ""),
+          style: `left:${(u * 100).toFixed(2)}%;top:${(v * 100).toFixed(2)}%`,
+          title: locked ? "Mission verrouillée" : m.name,
+          "aria-label": `Mission ${k} : ${m.name}`,
+          onclick: () => (locked ? this.refuse(med, "Gagne la mission " + (k - 1) + " pour ouvrir celle-ci") : this.selectMission(k)),
+        },
+        h("span", { class: "pt-medal-c" }, locked ? ico("lock") : h("b", { class: "pt-num" }, String(k))),
+        L && L.brilliant ? h("span", { class: "pt-medal-crown", html: icons().get("crown") }) : null,
+        L && L.won ? h("span", { class: "pt-medal-gems" }, ico(icons().gem(0, "lair")), h("b", { class: "pt-num" }, gems + "/" + total)) : null,
+      );
+      medals.push(med);
+      world.append(med);
+    }
+    this.medals = medals;
+    const pr = this.prog();
+    const free = pr ? call(pr, "pointsFree", p) || 0 : 0;
+    const head = this.screenHead("Les missions", () => this.showTitle(), [
+      h("button", { class: "pt-btn pt-wood", onclick: () => this.showBestiary() }, ico("book"), h("span", { class: "pt-hide-s" }, "Encyclopédie")),
+      h("button", { class: "pt-btn pt-gold-b", onclick: () => this.showSkills() }, ico("skills"), h("span", { class: "pt-hide-s" }, "Compétences"), free > 0 ? h("span", { class: "pt-badge" }, String(free)) : null),
+    ]);
+    this.mapCard = h("aside", { class: "pt-mcard" });
+    const sc = h("section", { class: "pt-screen pt-map" }, head, h("div", { class: "pt-wm-wrap" }, world), this.mapCard);
+    this.setScreen(sc);
+    this.selectMission(focus, true);
+  };
+  P.selectMission = function (k, quiet) {
+    this.mapSel = k;
+    if (this.medals) this.medals.forEach((m, i) => m.classList.toggle("sel", i + 1 === k));
+    const p = this.loadP();
+    const m = this.maps()[k] || { id: k, name: "Mission " + k, waves: 5, gems: 5, gold: 100, spells: ["cut"] };
+    const L = (p.levels && p.levels[k]) || null;
+    const D = this.D();
+    const spells = (m.spells || []).map((s) => h("span", { class: "pt-chip", title: (D.SPELLS && D.SPELLS[s] && D.SPELLS[s].name) || s }, ico(s), (D.SPELLS && D.SPELLS[s] && D.SPELLS[s].name) || s));
+    const diff = m.difficulty || "";
+    const best = L && L.won
+      ? h("div", { class: "pt-mcard-best" }, h("span", {}, "Meilleur résultat"), h("div", { class: "pt-gemrow" }, Array.from({ length: L.gemsTotal || m.gems || 5 }, (_, i) => ico(icons().gem(i % 6, i < (L.bestGems || 0) ? "lair" : "lost")))), L.brilliant ? h("span", { class: "pt-brilliant" }, ico("crown"), "Brillant") : null)
+      : h("div", { class: "pt-mcard-best pt-muted" }, "Pas encore gagnée : défends toutes les gemmes pour décrocher la couronne « Brillant ».");
+    const card = h(
+      "div",
+      { class: "pt-card pt-mcard-in" + (quiet ? "" : " pt-pop-in") },
+      h("div", { class: "pt-mcard-num" }, h("small", {}, "Mission"), h("b", { class: "pt-num" }, String(k))),
+      h("h2", { class: "pt-mcard-t" }, m.name),
+      m.ct ? h("div", { class: "pt-mcard-ct" }, "D'après « ", m.ct, " »") : null,
+      h(
+        "div",
+        { class: "pt-facts" },
+        diff ? h("span", { class: "pt-fact pt-diff", "data-d": diff }, cap(diff)) : null,
+        h("span", { class: "pt-fact" }, ico("wave"), (m.waves || "?") + " vagues"),
+        h("span", { class: "pt-fact" }, ico("gems"), (m.gems || 5) + " gemmes"),
+        h("span", { class: "pt-fact" }, ico("gold"), (m.gold || 0) + " or"),
+      ),
+      spells.length ? h("div", { class: "pt-mcard-sp" }, h("small", {}, "Sorts"), spells) : null,
+      best,
+      h("button", { class: "pt-btn pt-go pt-big pt-pulse", onclick: () => this.play(k) }, ico("play"), "Jouer"),
+    );
+    this.mapCard.textContent = "";
+    this.mapCard.append(card);
+  };
+  P.play = function (k) {
+    if (typeof this.hooks.playLevel === "function") this.hooks.playLevel(k);
+    else this.toast("Lancement de la mission " + k + " indisponible ici", "info");
+  };
+  /** Paysage breton vu du dessus : bocage, rivière, mer, bois, hameaux, moulin, chemin des missions. */
+  P.worldSvg = function (portrait, n) {
+    const rnd = PTMT.rng ? PTMT.rng(7) : Math.random;
+    let s = "";
+    // Champs du bocage : grille déformée, couleurs de parcelles, haies sur les bords.
+    const cols = 11,
+      rows = 7;
+    const pts = [];
+    for (let j = 0; j <= rows; j++) {
+      pts[j] = [];
+      for (let i = 0; i <= cols; i++) {
+        const edge = i === 0 || j === 0 || i === cols || j === rows;
+        pts[j][i] = [(i / cols) * 1000 + (edge ? 0 : (rnd() - 0.5) * 60), (j / rows) * 600 + (edge ? 0 : (rnd() - 0.5) * 50)];
+      }
+    }
+    const FIELDS = ["#8fcf5a", "#7cc24e", "#a4d76a", "#c9d86a", "#e3cf78", "#6fb54a", "#b6d860", "#9dcf62"];
+    let fields = "",
+      hedges = "";
+    for (let j = 0; j < rows; j++)
+      for (let i = 0; i < cols; i++) {
+        const q = [pts[j][i], pts[j][i + 1], pts[j + 1][i + 1], pts[j + 1][i]];
+        const d = "M" + q.map((p) => p[0].toFixed(0) + " " + p[1].toFixed(0)).join("L") + "Z";
+        const c = FIELDS[Math.floor(rnd() * FIELDS.length)];
+        fields += `<path d="${d}" fill="${c}"/>`;
+        if (c === "#e3cf78" || c === "#c9d86a") {
+          // Sillons des champs cultivés
+          const [a, b] = [q[0], q[1]];
+          const [c2, d2] = [q[3], q[2]];
+          for (let k = 1; k < 5; k++) {
+            const t = k / 5;
+            hedges += `<path d="M${(a[0] + (c2[0] - a[0]) * t).toFixed(0)} ${(a[1] + (c2[1] - a[1]) * t).toFixed(0)}L${(b[0] + (d2[0] - b[0]) * t).toFixed(0)} ${(b[1] + (d2[1] - b[1]) * t).toFixed(0)}" stroke="#000" stroke-opacity=".08" stroke-width="3"/>`;
+          }
+        }
+        hedges += `<path d="${d}" fill="none" stroke="#3a7a30" stroke-width="5" stroke-linejoin="round" stroke-opacity=".75"/>`;
+      }
+    s += fields + hedges;
+    // Buissons ronds le long des haies
+    let bush = "";
+    for (let j = 1; j < rows; j++)
+      for (let i = 0; i <= cols; i++) {
+        const p = pts[j][i];
+        if (rnd() < 0.35) bush += `<circle cx="${p[0].toFixed(0)}" cy="${p[1].toFixed(0)}" r="${(6 + rnd() * 5).toFixed(1)}" fill="#3f8f3a" stroke="#1f4a24" stroke-width="2.5"/>`;
+      }
+    s += bush;
+    // Mer et plage (coin nord-ouest), phare
+    s += `<path d="M0 0H330Q300 40 250 60Q190 90 120 84Q60 96 30 140Q10 170 0 176Z" fill="#f2dfa2"/>`;
+    s += `<path d="M0 0H300Q270 34 228 50Q170 72 110 68Q52 80 22 122Q8 144 0 150Z" fill="#3f9be8" stroke="#1d5a9a" stroke-width="4"/>`;
+    s += `<path d="M40 30Q60 22 80 30M120 40Q140 32 160 40M60 70Q80 62 100 70M180 20Q200 12 220 20" fill="none" stroke="#cfe9ff" stroke-width="4" stroke-linecap="round"/>`;
+    s += `<g transform="translate(64 108)"><rect x="-8" y="-30" width="16" height="30" rx="3" fill="#fffaf0" stroke="#2b1a10" stroke-width="3"/><rect x="-8" y="-20" width="16" height="7" fill="#e8412f"/><path d="M-10 -30H10L6 -38H-6Z" fill="#e8412f" stroke="#2b1a10" stroke-width="3" stroke-linejoin="round"/><circle cx="0" cy="-42" r="5" fill="#ffd84a" stroke="#2b1a10" stroke-width="2.5"/></g>`;
+    // Rivière qui descend vers le moulin
+    const river = "M1000 470Q930 470 900 420Q870 360 900 300Q930 240 880 190Q840 150 860 90Q880 40 850 0";
+    s += `<path d="${river}" fill="none" stroke="#1d5a9a" stroke-width="30" stroke-linecap="round"/><path d="${river}" fill="none" stroke="#3f9be8" stroke-width="22" stroke-linecap="round"/><path d="${river}" fill="none" stroke="#9fd3ff" stroke-width="4" stroke-dasharray="18 26" stroke-linecap="round"/>`;
+    // Bois (grappes d'arbres)
+    const wood = (cx, cy, k, r) => {
+      let g = "";
+      for (let i = 0; i < k; i++) {
+        const a = rnd() * Math.PI * 2,
+          d = rnd() * r;
+        const x = cx + Math.cos(a) * d,
+          y = cy + Math.sin(a) * d * 0.7;
+        const rr = 11 + rnd() * 7;
+        g += `<circle cx="${x.toFixed(0)}" cy="${y.toFixed(0)}" r="${rr.toFixed(1)}" fill="${rnd() < 0.5 ? "#2f7d44" : "#3f9a4a"}" stroke="#16391f" stroke-width="3"/><circle cx="${(x - rr * 0.3).toFixed(0)}" cy="${(y - rr * 0.35).toFixed(0)}" r="${(rr * 0.35).toFixed(1)}" fill="#6cc24a" opacity=".7"/>`;
+      }
+      return g;
+    };
+    s += wood(560, 110, 14, 70) + wood(80, 330, 9, 45) + wood(700, 560, 10, 60) + wood(470, 470, 6, 30) + wood(990, 560, 6, 40);
+    // Hameaux : maisons de granit aux toits d'ardoise (vues du dessus)
+    const house = (x, y, r) => `<g transform="translate(${x} ${y}) rotate(${r})"><rect x="-16" y="-10" width="32" height="20" rx="2" fill="#8a93a3" stroke="#2b1a10" stroke-width="3"/><path d="M-16 0H16" stroke="#5a6272" stroke-width="3"/><rect x="10" y="-14" width="6" height="6" fill="#b9a58a" stroke="#2b1a10" stroke-width="2"/></g>`;
+    s += house(470, 60, -8) + house(505, 78, 12) + house(250, 410, 20) + house(640, 250, -15) + house(672, 236, 8) + house(120, 560, -5);
+    // Menhirs
+    s += `<ellipse cx="420" cy="580" rx="7" ry="4" fill="#000" opacity=".2"/><path d="M414 580L412 560Q416 548 422 550Q428 556 426 580Z" fill="#a7abb4" stroke="#2b1a10" stroke-width="3"/>`;
+    // Chemin des missions (courbe qui relie les médaillons)
+    const P2 = SPOTS.slice(0, n);
+    let d = `M${P2[0][0]} ${P2[0][1]}`;
+    for (let i = 0; i < P2.length - 1; i++) {
+      const p0 = P2[Math.max(0, i - 1)],
+        p1 = P2[i],
+        p2 = P2[i + 1],
+        p3 = P2[Math.min(P2.length - 1, i + 2)];
+      const c1 = [p1[0] + (p2[0] - p0[0]) / 6, p1[1] + (p2[1] - p0[1]) / 6];
+      const c2 = [p2[0] - (p3[0] - p1[0]) / 6, p2[1] - (p3[1] - p1[1]) / 6];
+      d += `C${c1[0].toFixed(0)} ${c1[1].toFixed(0)} ${c2[0].toFixed(0)} ${c2[1].toFixed(0)} ${p2[0]} ${p2[1]}`;
+    }
+    s += `<path d="${d}" fill="none" stroke="#6b4428" stroke-width="20" stroke-linecap="round" stroke-linejoin="round" opacity=".55"/>`;
+    s += `<path d="${d}" fill="none" stroke="#e8cf94" stroke-width="12" stroke-linecap="round" stroke-linejoin="round"/>`;
+    s += `<path d="${d}" fill="none" stroke="#b8935a" stroke-width="3" stroke-dasharray="2 12" stroke-linecap="round"/>`;
+    // Le moulin au bout du chemin (vu de trois quarts, reste lisible une fois tourné)
+    const last = P2[P2.length - 1];
+    s += `<g transform="translate(${last[0] + 46} ${last[1] - 10})"><circle cx="-4" cy="-4" r="22" fill="none" stroke="#6b4428" stroke-width="7" stroke-dasharray="7 5"/><rect x="-18" y="-18" width="36" height="30" rx="3" fill="#b9a58a" stroke="#2b1a10" stroke-width="3"/><path d="M-22 -16L0 -34L22 -16Z" fill="#5a6272" stroke="#2b1a10" stroke-width="3" stroke-linejoin="round"/><rect x="-5" y="0" width="10" height="12" fill="#6b4428"/></g>`;
+    const vb = portrait ? "0 0 600 1000" : "0 0 1000 600";
+    const inner = portrait ? `<g transform="translate(0 1000) rotate(-90)">${s}</g>` : s;
+    return `<svg class="pt-wm-svg" viewBox="${vb}" preserveAspectRatio="xMidYMid meet" aria-hidden="true">${inner}</svg>`;
+  };
+
+  // ── Compétences ──────────────────────────────────────────────────────────
+  P.showSkills = function (branchTab) {
+    const back = this.mode === "map" || this.mode === "skills" ? () => this.showMap(this.mapSel) : () => this.showTitle();
+    this.skillsBack = this.mode === "skills" ? this.skillsBack : back;
+    this.setMode("skills");
+    const D = this.D();
+    const pr = this.prog();
+    const p = this.loadP();
+    const free = pr ? call(pr, "pointsFree", p) || 0 : 0;
+    const total = pr ? call(pr, "pointsTotal", p) || 0 : 0;
+    this.skillTab = branchTab || this.skillTab || "boar";
+    const reset = h("button", { class: "pt-btn pt-wood", title: "Reprendre tous les points", onclick: () => this.resetSkills() }, ico("restart"), h("span", { class: "pt-hide-s" }, "Réinitialiser"));
+    const head = this.screenHead("Compétences", this.skillsBack, [h("div", { class: "pt-points" + (free > 0 ? " has" : "") }, ico("skillPoint"), h("b", { class: "pt-num" }, String(free)), h("span", {}, free > 1 ? "points libres" : "point libre"), h("small", {}, "sur " + total)), reset]);
+    const tabs = h(
+      "div",
+      { class: "pt-tabs pt-branch-tabs" },
+      FAMS.map((b) => h("button", { class: "pt-tab" + (b === this.skillTab ? " on" : ""), "data-b": b, onclick: () => this.showSkills(b) }, ico(b), (D.BRANCHES && D.BRANCHES[b] && D.BRANCHES[b].name) || b)),
+    );
+    const cols = h("div", { class: "pt-branches" });
+    for (const b of FAMS) {
+      const B = (D.BRANCHES && D.BRANCHES[b]) || { name: b, theme: "", perPointText: "" };
+      const spent = pr ? call(pr, "branchPoints", p, b) || 0 : 0;
+      const list = (D.SKILLS || []).filter((s) => s.branch === b).sort((x, y) => x.req - y.req);
+      const col = h(
+        "div",
+        { class: "pt-branch" + (b === this.skillTab ? " on" : ""), "data-b": b },
+        h("div", { class: "pt-branch-h" }, h("span", { class: "pt-branch-ic", html: icons().get(b) }), h("div", {}, h("h2", {}, B.name), h("small", {}, B.theme)), h("div", { class: "pt-branch-pts" }, h("b", { class: "pt-num" }, String(spent)), h("small", {}, "points"))),
+        h("div", { class: "pt-branch-bonus" }, "Chaque point : ", B.perPointText, spent ? h("b", {}, " (+" + spent + NB + "%)") : null),
+        list.map((sk) => this.skillRow(sk, p, spent, free)),
+      );
+      cols.append(col);
+    }
+    const sc = h("section", { class: "pt-screen pt-skills" }, head, tabs, cols);
+    this.setScreen(sc);
+  };
+  P.skillRow = function (sk, p, spent, free) {
+    const pr = this.prog();
+    const rank = (p.skills && p.skills[sk.id]) || 0;
+    const locked = spent < sk.req && rank === 0;
+    const can = pr ? call(pr, "canRaise", p, sk.id) || { ok: false } : { ok: false };
+    const pips = h("div", { class: "pt-pips", "aria-label": `Rang ${rank} sur ${sk.max}` }, Array.from({ length: sk.max }, (_, i) => h("i", { class: i < rank ? "on" : "" })));
+    const plus = h("button", { class: "pt-btn pt-sq pt-go pt-plus" + (can.ok ? " pt-pulse-s" : ""), "aria-disabled": can.ok ? "false" : "true", title: can.ok ? "Ajouter un rang" : can.reason || "", "aria-label": "Ajouter un rang", onclick: (e) => this.raiseSkill(sk.id, e.currentTarget) }, ico("plus"));
+    const minus = h("button", { class: "pt-btn pt-sq pt-wood pt-minus", "aria-disabled": rank > 0 ? "false" : "true", title: "Retirer un rang", "aria-label": "Retirer un rang", onclick: (e) => this.lowerSkill(sk.id, e.currentTarget) }, ico("minus"));
+    return h(
+      "div",
+      { class: "pt-skill" + (locked ? " locked" : "") + (rank >= sk.max ? " max" : "") + (rank > 0 ? " has" : "") },
+      h("span", { class: "pt-skill-ic", html: icons().skill(sk.id) }),
+      h(
+        "div",
+        { class: "pt-skill-b" },
+        h("div", { class: "pt-skill-t" }, h("b", {}, sk.name), h("span", { class: "pt-skill-r pt-num" }, rank + "/" + sk.max)),
+        h("p", {}, sk.text),
+        locked ? h("small", { class: "pt-req" }, ico("lock"), `Demande ${sk.req} point${sk.req > 1 ? "s" : ""} dans la branche`) : pips,
+      ),
+      h("div", { class: "pt-skill-btns" }, minus, plus),
+    );
+  };
+  P.raiseSkill = function (id, btn) {
+    const pr = this.prog();
+    if (!pr) return;
+    const p = this.loadP();
+    const can = call(pr, "canRaise", p, id) || { ok: false };
+    if (!can.ok) return this.refuse(btn, can.reason || "Impossible pour l'instant");
+    const r = call(pr, "raise", p, id);
+    if (r && r.ok === false) return this.refuse(btn, r.reason || "Impossible");
+    this.saveP(p);
+    this.showSkills(this.skillTab);
+  };
+  P.lowerSkill = function (id, btn) {
+    const pr = this.prog();
+    if (!pr) return;
+    const p = this.loadP();
+    if (!((p.skills && p.skills[id]) > 0)) return this.refuse(btn, "Aucun rang à retirer");
+    const r = call(pr, "lower", p, id);
+    if (r && r.ok === false) return this.refuse(btn, r.reason || "Une autre compétence en dépend");
+    this.saveP(p);
+    this.showSkills(this.skillTab);
+  };
+  P.resetSkills = function () {
+    const pr = this.prog();
+    if (!pr) return;
+    const p = this.loadP();
+    call(pr, "resetSkills", p);
+    this.saveP(p);
+    this.showSkills(this.skillTab);
+    this.toast("Tous les points sont de nouveau libres", "good");
+  };
+
+  // ── Encyclopédie ─────────────────────────────────────────────────────────
+  P.showBestiary = function (tab) {
+    const back = this.mode === "map" ? () => this.showMap(this.mapSel) : this.mode === "bestiary" ? this.bestBack : () => this.showTitle();
+    this.bestBack = back;
+    this.setMode("bestiary");
+    this.bestTab = tab || this.bestTab || "enemies";
+    const head = this.screenHead("Encyclopédie", back);
+    const tabs = h(
+      "div",
+      { class: "pt-tabs" },
+      h("button", { class: "pt-tab" + (this.bestTab === "enemies" ? " on" : ""), onclick: () => this.showBestiary("enemies") }, ico("enemy"), "Ennemis"),
+      h("button", { class: "pt-tab" + (this.bestTab === "towers" ? " on" : ""), onclick: () => this.showBestiary("towers") }, ico("boar"), "Tours"),
+    );
+    const body = h("div", { class: "pt-best-body" }, this.bestTab === "towers" ? this.towerPages() : this.enemyPages());
+    this.setScreen(h("section", { class: "pt-screen pt-bestiary" }, head, tabs, body));
+  };
+  P.enemyPages = function () {
+    const D = this.D();
+    const p = this.loadP();
+    const seen = p.seen || {};
+    const grid = h("div", { class: "pt-egrid" });
+    for (const type of Object.keys(D.ENEMIES || {})) {
+      const e = D.ENEMIES[type];
+      if (!seen[type]) {
+        grid.append(h("div", { class: "pt-card pt-ecard unseen" }, h("span", { class: "pt-ep big", html: icons().get("unknown") }), h("div", { class: "pt-ecard-b" }, h("h3", {}, "???"), h("p", { class: "pt-muted" }, "Pas encore rencontré. Il apparaîtra ici après sa première attaque."))));
+        continue;
+      }
+      grid.append(this.enemyCard(type, e));
+    }
+    return grid;
+  };
+  P.enemyCard = function (type, e, big) {
+    const D = this.D();
+    const ab = e.ability && ABILITY[e.ability.kind] ? ABILITY[e.ability.kind](e.ability) : null;
+    return h(
+      "div",
+      { class: "pt-card pt-ecard" + (big ? " big" : "") },
+      this.enemyPortrait(type, false, false, "big"),
+      h(
+        "div",
+        { class: "pt-ecard-b" },
+        h("h3", {}, e.name),
+        e.ct ? h("small", { class: "pt-muted" }, "Rôle : ", e.ct) : null,
+        h("div", { class: "pt-facts" }, h("span", { class: "pt-fact", title: "Points de vie" }, ico("heal"), nf(e.hp) + " PV"), h("span", { class: "pt-fact", title: f1(e.speed) + " case/s" }, ico("haste"), cap(speedWord(e.speed))), h("span", { class: "pt-fact", title: "Prime" }, ico("gold"), "+" + e.gold)),
+        ab ? h("div", { class: "pt-ability" }, ico(ab[0]), h("b", {}, ab[1]), h("span", {}, " : " + ab[2])) : null,
+        h("p", {}, e.blurb || ""),
+        D.BOSS_NAMES && D.BOSS_NAMES[type] ? h("small", { class: "pt-boss-name" }, ico("boss"), "Boss : ", D.BOSS_NAMES[type]) : null,
+      ),
+    );
+  };
+  P.towerPages = function () {
+    const D = this.D();
+    const TP = PTMT.towerPortraits;
+    const wrap = h("div", { class: "pt-tpages" });
+    for (const fam of FAMS) {
+      const F = D.FAMILIES && D.FAMILIES[fam];
+      if (!F) continue;
+      const lv = (level, spec) => {
+        const L = D.towerLevel(fam, level, spec);
+        return h("div", { class: "pt-tlv", title: L ? L.name : "" }, h("span", { class: "pt-tp", "data-f": fam, html: TP ? TP.get(fam, level, spec) : "" }), h("b", {}, L ? L.name : ""), h("small", {}, level <= 3 ? "Niveau " + level : level === 7 ? "Niveau 7" : "Niveaux 4 à 6"));
+      };
+      const spec = (k) => {
+        const S = F.specs[k];
+        return h("div", { class: "pt-tspec" }, h("div", { class: "pt-tspec-h" }, h("span", { class: "pt-spec-l" }, k), h("b", {}, S.name)), h("p", {}, S.blurb), h("div", { class: "pt-tlvs" }, lv(4, k), lv(7, k)));
+      };
+      const base = F.base[0];
+      wrap.append(
+        h(
+          "div",
+          { class: "pt-card pt-tfam", "data-f": fam },
+          h("div", { class: "pt-tfam-h" }, h("span", { class: "pt-branch-ic", html: icons().get(fam) }), h("div", {}, h("h2", {}, F.name), h("small", {}, "Se pose sur : ", TERRAIN[F.terrain] || F.terrain, " (et les buttes)")), h("span", { class: "pt-fact" }, ico("gold"), base.cost + " or")),
+          h("p", {}, F.role),
+          h("div", { class: "pt-tlvs" }, lv(1), lv(2), lv(3)),
+          h("div", { class: "pt-tspecs" }, spec("A"), spec("B")),
         ),
       );
-    });
+    }
+    return wrap;
   };
-  /** Case boisée : couper la forêt (or, quelques secondes), puis y bâtir. */
-  P.showForestPanel = function (id) {
-    const app = this.app,
-      game = app.game;
-    const so = game.socket(id);
-    const fam = so.kind;
-    app.select({ kind: "forest", id, x: so.x, z: so.z, range: 0, family: fam });
-    this.openPanel("forest", id, (el) => {
-      const inf = game.cutInfo(id);
-      el.append(h("h2", {}, ZONE[fam].forest), h("div", { class: "sub" }, `Case ${ZONE[fam].sol} boisée`));
-      el.append(h("p", { class: "ptmt-note" }, `Une fois la forêt coupée, la case accueille une tour ${ZONE[fam].tower}. Les bûcherons travaillent aussi entre les vagues.`));
-      if (inf.progress !== null) {
-        el.append(h("h3", {}, `Bûcherons au travail · ${Math.round(inf.progress * 100)} %`), h("div", { class: "ptmt-xp ptmt-cutbar" }, h("i", { style: `width:${Math.round(inf.progress * 100)}%` })));
-      } else {
-        const ok = !inf.reason;
-        el.append(
-          h(
-            "div",
-            { class: "ptmt-row" },
-            h(
-              "button",
-              { class: "ptmt-btn " + (ok ? "ptmt-btn-gold" : ""), "aria-disabled": ok ? "false" : "true", onclick: () => this.cutAt(id) },
-              h("span", { html: I.axe, style: "width:20px;height:20px;display:inline-flex" }),
-              h("span", {}, "Couper la forêt"),
-              h("span", { class: "cost" }, inf.cost + " or"),
-              inf.reason ? h("span", { class: "ptmt-reason" }, inf.reason) : h("small", {}, `${fmt(inf.duration)} s de travail · le prix monte à chaque coupe`),
-            ),
-          ),
-        );
+
+  /** Portrait d'ennemi : PTMT.portraits s'il le connaît, sinon disque coloré à l'initiale. */
+  P.enemyPortrait = function (type, champion, boss, cls) {
+    const src = PTMT.portraits && typeof PTMT.portraits.get === "function" ? PTMT.portraits.get(type, champion || boss) : "";
+    const el = h("span", { class: "pt-ep" + (cls ? " " + cls : "") + (champion ? " champ" : "") + (boss ? " boss" : "") });
+    if (typeof src === "string" && src.trim().startsWith("<")) el.innerHTML = src;
+    else {
+      el.classList.add("fb");
+      el.style.setProperty("--tint", TINT[type] || "#7a6a5a");
+      el.append(h("span", { class: "pt-ep-fb", html: icons().get("enemy") }));
+    }
+    if (boss) el.append(h("span", { class: "pt-ep-badge boss", html: icons().get("boss") }));
+    else if (champion) el.append(h("span", { class: "pt-ep-badge", html: icons().get("champion") }));
+    return el;
+  };
+
+  /* ------------------------------------------------------------------ partie */
+  P.enterLevel = function (game, view) {
+    this.closeModal(true);
+    this.modalQueue = [];
+    this.setScreen(null);
+    this.setMode("game");
+    this.game = game;
+    this.view = view || {};
+    this.last = Object.create(null);
+    this.sel = null;
+    this.aim = null;
+    this.popLayer.textContent = "";
+    this.bannerLayer.textContent = "";
+    this.flyEl.textContent = "";
+    this.marksEl.textContent = "";
+    this.overShown = false;
+    this.nextT = 0;
+    const s = game.state;
+    this.level = s.level || 1;
+    const p = this.loadP();
+    this.wasWon = !!(p.levels && p.levels[this.level] && p.levels[this.level].won);
+    const m = this.maps()[this.level] || {};
+    this.mapInfo = m;
+    this.missionEl.textContent = "";
+    this.missionEl.append(h("span", { class: "pt-mission-n pt-num" }, String(this.level)), h("span", { class: "pt-mission-t" }, s.map && s.map.name ? s.map.name : m.name || "Mission " + this.level));
+    // Pastilles de gemmes
+    this.gemsEl.textContent = "";
+    this.gemEls = (s.gems || []).map((g) => {
+      const el = h("span", { class: "pt-gem", "data-w": g.where, html: icons().gem(g.color, g.where === "lair" ? "lair" : g.where) });
+      this.gemsEl.append(el);
+      return el;
+    });
+    // Vitesse mémorisée
+    const sp = (p.settings && p.settings.speed) || 1;
+    if (sp !== 1 && sp !== s.speed) call(game, "setSpeed", sp);
+    this._insets = null;
+    this.onResize();
+    this.frame(0);
+    if (this.level === 1 && !this.wasWon) this.tutoStart();
+    else this.tuto = null;
+  };
+  /** Quitte le HUD (appelé en changeant d'écran). */
+  P.leaveLevel = function (keepMode) {
+    this.closeSel();
+    this.cancelAim();
+    this.tutoEnd();
+    this.game = null;
+    this.view = null;
+    this.hud.hidden = true;
+    this.popLayer.textContent = "";
+    this.bannerLayer.textContent = "";
+    if (!keepMode) this.mode = null;
+  };
+  P.v = function (fn, ...args) {
+    return call(this.view, fn, ...args);
+  };
+
+  // ── Mise à jour du HUD (chaque image, écritures limitées aux changements) ─────────────
+  P.put = function (key, v, apply) {
+    if (this.last[key] !== v) {
+      const old = this.last[key];
+      this.last[key] = v;
+      apply(v, old);
+    }
+  };
+  P.frame = function (dt) {
+    dt = dt || 0;
+    this.t += dt;
+    if (this.mode !== "game" || !this.game) return;
+    const s = this.game.state;
+    if (!s) return;
+    // Or
+    this.put("gold", Math.floor(s.gold), (v, old) => {
+      this.goldNum.textContent = nf(v);
+      if (old !== undefined && v > old) this.bump(this.goldEl, "up");
+    });
+    // Mana
+    const mm = s.manaMax || 100;
+    this.put("mana", Math.floor(s.mana) + "/" + mm, () => {
+      this.manaNum.textContent = Math.floor(s.mana) + (this.layout === "landscape" ? "" : NB + "/" + NB + mm);
+      this.manaFill.style.transform = `scaleX(${clamp(s.mana / mm, 0, 1).toFixed(3)})`;
+    });
+    // Gemmes
+    if (s.gems && this.gemEls) {
+      if (s.gems.length !== this.gemEls.length) {
+        this.gemsEl.textContent = "";
+        this.gemEls = s.gems.map((g) => this.gemsEl.appendChild(h("span", { class: "pt-gem", "data-w": "", html: "" })));
       }
+      s.gems.forEach((g, i) => {
+        this.put("gem" + i, g.where + g.color, (v, old) => {
+          const el = this.gemEls[i];
+          el.dataset.w = g.where;
+          el.innerHTML = icons().gem(g.color, g.where);
+          el.title = { lair: "Au moulin", ground: "Tombée au sol : reprends-la !", carried: "Emportée par un ennemi", lost: "Perdue" }[g.where] || "";
+          if (old !== undefined) this.bump(el, g.where === "lair" ? "good" : "bad");
+        });
+      });
+    }
+    // Vague
+    const w = s.wave || {};
+    this.put("wave", (w.index || 0) + "/" + (w.total || 0), () => {
+      this.waveNum.textContent = String(Math.max(0, Math.min(w.total || 0, w.index || 0)));
+      this.waveTot.textContent = String(w.total || "?");
+      this.nextT = 0;
+    });
+    this.nextT -= dt;
+    if (this.nextT <= 0) {
+      this.nextT = 0.2;
+      this.updateNext(s);
+    }
+    // Sorts
+    for (const k of SPELLS) this.updateSpell(k, s);
+    // Vitesse, pause
+    this.put("speed", s.speed || 1, (v) => {
+      this.speedBtns.forEach((b) => b.classList.toggle("on", +b.dataset.v === v));
+      this.speedCycle.firstChild.innerHTML = icons().get("speed" + v);
+      this.speedCycle.lastChild.textContent = "×" + v;
+      this.speedCycle.dataset.v = v;
+    });
+    this.put("paused", !!s.paused, (v) => {
+      this.pauseBtn.classList.toggle("on", v);
+      this.pauseBtn.innerHTML = icons().get(v ? "play" : "pause");
+      this.pauseBtn.title = v ? "Reprendre (Espace)" : "Pause (Espace)";
+      this.el.classList.toggle("pt-paused", v);
+      if (v && !this.modal) this.pausedBanner(true);
+      else this.pausedBanner(false);
+    });
+    // Panneaux ancrés, repères d'entrée, tutoriel
+    if (this.sel) {
+      this.placeSel(false);
+      this.selT = (this.selT || 0) - dt;
+      if (this.selT <= 0) {
+        this.selT = 0.25;
+        this.refreshSel();
+      }
+    }
+    this.placeMarks();
+    if (this.tuto) this.tutoFrame(dt);
+    // Fin de partie
+    if (s.over && !this.overShown) {
+      this.overShown = true;
+      this.cancelAim();
+      this.closeSel();
+      setTimeout(() => this.showResult(s.over), 900);
+    }
+  };
+  P.bump = function (el, kind) {
+    el.classList.remove("pt-bump", "pt-bump-good", "pt-bump-bad", "pt-bump-up");
+    void el.offsetWidth;
+    el.classList.add("pt-bump", "pt-bump-" + (kind || "up"));
+  };
+
+  /** Aperçu de la prochaine vague (portraits × nombres, entrées, compte à rebours, bonus d'appel). */
+  P.updateNext = function (s) {
+    const nw = call(this.game, "nextWave");
+    const D = this.D();
+    const w = s.wave || {};
+    if (!nw || !nw.groups || (w.total && nw.index > w.total)) {
+      this.put("nextkey", "none", () => {
+        this.nextEl.classList.add("done");
+        this.nextTitle.textContent = w.total && w.index >= w.total ? "Dernière vague !" : "";
+        this.nextFoes.textContent = "";
+        this.nextGates.textContent = "";
+        this.nextTime.textContent = "";
+      });
+      this.marks = null;
+      return;
+    }
+    const key = nw.index + ":" + nw.groups.map((g) => g.type + (g.champion ? "*" : "") + (g.boss ? "!" : "") + g.count).join(",") + ":" + (nw.entrances || []).join(",");
+    this.put("nextkey", key, () => {
+      this.nextEl.classList.remove("done");
+      this.nextTitle.textContent = "Vague " + nw.index;
+      this.nextFoes.textContent = "";
+      const groups = nw.groups.slice().sort((a, b) => (b.boss ? 1 : 0) - (a.boss ? 1 : 0) || (b.champion ? 1 : 0) - (a.champion ? 1 : 0) || b.count - a.count);
+      const max = this.layout === "landscape" ? 3 : this.layout === "portrait" ? 4 : 5;
+      for (const g of groups.slice(0, max)) {
+        const E = (D.ENEMIES && D.ENEMIES[g.type]) || {};
+        const nm = g.boss ? (D.BOSS_NAMES && D.BOSS_NAMES[g.type]) || "Boss" : (g.champion ? "Champion : " : "") + (E.name || g.type);
+        this.nextFoes.append(h("span", { class: "pt-foe" + (g.boss ? " boss" : g.champion ? " champ" : ""), title: nm + " × " + g.count }, this.enemyPortrait(g.type, g.champion, g.boss), h("b", { class: "pt-num" }, "×" + g.count)));
+      }
+      if (groups.length > max) this.nextFoes.append(h("span", { class: "pt-foe more" }, "+" + (groups.length - max)));
+      const ents = nw.entrances || [];
+      const all = (s.map && s.map.entrances) || [];
+      this.nextGates.textContent = "";
+      if (all.length > 1) for (const id of ents) this.nextGates.append(h("i", { class: "pt-gate", "data-g": this.gateIndex(id), title: "Entrée " + this.gateLetter(id) }, this.gateLetter(id)));
+      if (nw.groups.some((g) => g.boss)) this.bump(this.nextEl, "bad");
+      this.buildMarks(nw);
+    });
+    const cd = Math.max(0, Math.ceil(nw.countdown || 0));
+    const bonus = Math.max(0, Math.round((nw.countdown || 0) * (((D.economy || {}).earlyCallGoldPerSecond) || 1)));
+    this.put("nextcd", cd + ":" + bonus, () => {
+      this.nextTime.textContent = cd > 0 ? cd + NB + "s" : "";
+      this.callBonus.textContent = String(bonus);
+      this.callBtn.classList.toggle("pt-hot", cd > 0 && cd <= 5);
     });
   };
-  P.cutAt = function (id) {
-    const game = this.app.game;
-    const res = game.cut(id);
-    if (!res.ok) return this.flash(res.reason);
-    this.app.progressTutorial("cut");
-    this.refreshPanel();
-    this.renderTray();
+  P.gateIndex = function (id) {
+    const all = (this.game && this.game.state.map && this.game.state.map.entrances) || [];
+    const k = all.findIndex((e) => e.id === id);
+    return k < 0 ? 0 : k;
   };
-  P.buildAt = function (socketId, fam) {
-    const game = this.app.game;
-    const res = game.build(socketId, fam);
-    if (!res.ok) return this.flash(res.reason);
-    this.app.progressTutorial("built");
-    this.showTowerPanel(res.tower.id);
-    this.renderTray();
+  P.gateLetter = function (id) {
+    return "ABCDEFGH".charAt(this.gateIndex(id));
   };
-  P.showSlotPanel = function (id) {
-    const app = this.app,
-      game = app.game;
-    const sl = game.trapSlot(id);
-    app.select({ kind: "slot", id, x: sl.x, z: sl.z });
-    this.openPanel("slot", id, (el) => {
-      el.append(h("h2", {}, "Emplacement de piège"), h("p", { class: "ptmt-note" }, `${game.state.traps.length}/${game.trapLimit()} pièges posés. Les pièges se réarment seuls.`));
-      const row = h("div", { class: "ptmt-row" });
-      for (const k of ["net", "spring", "lure"]) {
-        const t = C.traps[k].tiers[1];
-        const ok = game.state.gold >= t.cost && game.state.traps.length < game.trapLimit();
+  /** Repères au bord de la carte : entrées par où arrive la prochaine vague. */
+  P.buildMarks = function (nw) {
+    this.marksEl.textContent = "";
+    const all = (this.game.state.map && this.game.state.map.entrances) || [];
+    this.marks = [];
+    for (const id of nw.entrances || []) {
+      const e = all.find((x) => x.id === id);
+      if (!e) continue;
+      const el = h("div", { class: "pt-mark", "data-g": this.gateIndex(id) }, h("span", { class: "pt-mark-a", html: icons().get("entrance") }), all.length > 1 ? h("b", { class: "pt-num" }, this.gateLetter(id)) : null);
+      this.marksEl.append(el);
+      this.marks.push({ el, x: e.i + 0.5, y: e.j + 0.5 });
+    }
+  };
+  P.placeMarks = function () {
+    if (!this.marks || !this.marks.length) return;
+    const s = this.game.state;
+    const nw = s.wave || {};
+    const show = !s.over && (nw.countdown === undefined || nw.countdown > 0);
+    this.marksEl.classList.toggle("off", !show);
+    if (!show) return;
+    const top = this.insets().top + 70;
+    for (const m of this.marks) {
+      const p = this.v("worldToScreen", m.x, m.y);
+      if (!p) continue;
+      const tr = `translate(${p.x.toFixed(0)}px, ${p.y.toFixed(0)}px)`;
+      if (tr !== m.tr) {
+        m.tr = tr;
+        m.el.style.transform = tr;
+        m.el.classList.toggle("below", p.y < top);
+      }
+    }
+  };
+
+  /** État d'un bouton de sort : verrouillé, trop cher (anneau de progression), prêt, actif. */
+  P.updateSpell = function (k, s) {
+    const b = this.spellBtn[k];
+    const sp = (s.spells && s.spells[k]) || null;
+    const D = this.D();
+    const def = (D.SPELLS && D.SPELLS[k]) || { cost: 0, name: k };
+    const allowed = this.mapInfo && Array.isArray(this.mapInfo.spells) ? this.mapInfo.spells.includes(k) : !!sp;
+    const locked = !sp || !allowed || sp.locked;
+    const cost = sp && sp.cost !== undefined ? sp.cost : def.cost;
+    const afford = s.mana >= cost;
+    const active = sp && sp.active ? (typeof sp.active === "number" ? sp.active : 1) : 0;
+    const ready = !locked && afford && sp.ready !== false;
+    const state = locked ? "locked" : active ? "active" : this.aim === k ? "aim" : ready ? "ready" : "low";
+    this.put("sp" + k, state + ":" + cost, () => {
+      b.dataset.state = state;
+      b._cost.textContent = String(cost);
+      b.title = locked ? `${def.name} : pas encore disponible dans cette mission` : `${def.name} (${KEYS[k]}) : ${def.blurb || ""}`;
+      b.setAttribute("aria-label", def.name + (locked ? " (verrouillé)" : ""));
+      if (state === "ready" && this.last["sp" + k + "was"] === "low") this.bump(b, "good");
+      this.last["sp" + k + "was"] = state;
+    });
+    const prog = locked ? 0 : clamp(s.mana / Math.max(1, cost), 0, 1);
+    const dur = k === "frenzy" ? this.frenzyDuration() : 1;
+    const ring = active ? clamp(active / dur, 0, 1) : prog;
+    this.put("spr" + k, (active ? "a" : "p") + ring.toFixed(2), () => b.style.setProperty("--p", ring.toFixed(3)));
+  };
+  P.frenzyDuration = function () {
+    const D = this.D();
+    const base = (D.SPELLS && D.SPELLS.frenzy && D.SPELLS.frenzy.t) || 5;
+    const p = this.loadP();
+    return base + 0.5 * ((p.skills && p.skills.frenzyLong) || 0);
+  };
+
+  /* ------------------------------------------------------------------ commandes */
+  P.act = function (res, anchor) {
+    if (res && res.ok === false) {
+      this.refuse(anchor, res.reason || "Impossible");
+      return false;
+    }
+    return true;
+  };
+  /** Refus : secousse de l'élément et message court. */
+  P.refuse = function (el, text) {
+    if (el && el.classList) {
+      el.classList.remove("pt-shake");
+      void el.offsetWidth;
+      el.classList.add("pt-shake");
+    }
+    if (text) this.toast(text, "bad");
+  };
+  P.setSpeed = function (v) {
+    if (!this.game) return;
+    call(this.game, "setSpeed", v);
+    const pr = this.prog();
+    if (pr) {
+      const p = this.loadP();
+      p.settings = p.settings || {};
+      if (p.settings.speed !== v) {
+        p.settings.speed = v;
+        this.saveP(p);
+      }
+    }
+  };
+  P.togglePause = function () {
+    if (!this.game) return;
+    const s = this.game.state;
+    call(this.game, "setPaused", !s.paused);
+  };
+  P.callWave = function () {
+    if (!this.game) return;
+    const s = this.game.state;
+    const nw = call(this.game, "nextWave");
+    if (!nw || (s.wave && s.wave.total && nw.index > s.wave.total)) return this.refuse(this.callBtn, "Plus aucune vague à appeler");
+    const res = call(this.game, "callWave");
+    if (this.act(res, this.callBtn)) {
+      this.bump(this.callBtn, "good");
+      this.tutoDone("call");
+    }
+  };
+  P.spellHint = function (k, on) {
+    if (!this.game || this.layout !== "desk") return;
+    if (!on) return this.hideTip();
+    const D = this.D();
+    const def = (D.SPELLS && D.SPELLS[k]) || {};
+    this.showTip(this.spellBtn[k], h("div", {}, h("b", {}, def.name, " "), h("kbd", {}, KEYS[k]), h("p", {}, def.blurb || "")));
+  };
+  P.spellClick = function (k) {
+    if (!this.game) return;
+    const b = this.spellBtn[k];
+    const s = this.game.state;
+    const st = b.dataset.state;
+    const D = this.D();
+    const def = (D.SPELLS && D.SPELLS[k]) || { name: k };
+    if (st === "locked") return this.refuse(b, def.name + " se débloque dans une prochaine mission");
+    if (this.aim === k) return this.cancelAim();
+    if (st === "low") return this.refuse(b, `Pas assez de mana pour ${def.name} (${b._cost.textContent})`);
+    if (st === "active") return this.refuse(b, "Frénésie déjà en cours");
+    if (k === "frenzy") {
+      const res = call(this.game, "cast", "frenzy");
+      if (this.act(res, b)) this.bump(b, "good");
+      return;
+    }
+    this.startAim(k);
+  };
+  P.startAim = function (k) {
+    this.closeSel();
+    this.aim = k;
+    this.last["sp" + k] = null;
+    this.el.classList.add("pt-aiming");
+    document.documentElement.classList.add("pt-aiming");
+    const D = this.D();
+    const def = (D.SPELLS && D.SPELLS[k]) || { name: k };
+    this.aimBanner && this.aimBanner.remove();
+    this.aimBanner = h(
+      "div",
+      { class: "pt-aimbar" },
+      ico(k),
+      h("span", {}, k === "cut" ? "Couper : touche une case boisée" : "Météore : touche la cible"),
+      h("button", { class: "pt-btn pt-wood pt-small", onclick: () => this.cancelAim() }, ico("close"), "Annuler"),
+    );
+    this.bannerLayer.append(this.aimBanner);
+    this.v("target", k, -99, -99);
+  };
+  P.cancelAim = function () {
+    if (!this.aim) return;
+    const k = this.aim;
+    this.aim = null;
+    this.last["sp" + k] = null;
+    this.el.classList.remove("pt-aiming");
+    document.documentElement.classList.remove("pt-aiming");
+    if (this.aimBanner) this.aimBanner.remove();
+    this.aimBanner = null;
+    this.v("target", null, 0, 0);
+  };
+  P.castAt = function (k, hit) {
+    let x = hit.x,
+      y = hit.y;
+    if (k === "cut") {
+      x = hit.i + 0.5;
+      y = hit.j + 0.5;
+    }
+    const res = call(this.game, "cast", k, { x, y });
+    if (this.act(res, this.spellBtn[k])) {
+      this.bump(this.spellBtn[k], "good");
+      this.cancelAim();
+      if (k === "cut") this.tutoDone("cut");
+    }
+  };
+
+  /* ------------------------------------------------------------------ carte : toucher et survol */
+  P.mapTap = function (hit) {
+    if (this.mode !== "game" || !this.game || this.modal) return;
+    this.hideTip();
+    if (this.aim) {
+      if (!hit) return this.cancelAim();
+      return this.castAt(this.aim, hit);
+    }
+    if (!hit) return this.closeSel();
+    const same = this.sel && this.sel.i === hit.i && this.sel.j === hit.j;
+    const info = call(this.game, "tileInfo", hit.i, hit.j) || {};
+    if (info.towerId !== null && info.towerId !== undefined) {
+      if (same && this.sel.kind === "tower") return this.closeSel();
+      return this.openTower(info.towerId, hit.i, hit.j);
+    }
+    if (same) return this.closeSel();
+    if (info.forest) return this.openForest(hit.i, hit.j, info);
+    if (info.buildable && info.buildable.length) return this.openBuild(hit.i, hit.j, info);
+    this.closeSel();
+  };
+  P.mapHover = function (hit) {
+    if (this.mode !== "game" || !this.game) return;
+    if (this.aim) {
+      if (!hit) return this.v("target", this.aim, -99, -99);
+      return this.aim === "cut" ? this.v("target", "cut", hit.i + 0.5, hit.j + 0.5) : this.v("target", this.aim, hit.x, hit.y);
+    }
+    if (this.sel) return;
+    const info = hit ? call(this.game, "tileInfo", hit.i, hit.j) || {} : {};
+    const id = info.towerId !== undefined && info.towerId !== null ? info.towerId : null;
+    this.put("hoverTower", id, (v) => this.v("showRange", v));
+  };
+
+  /* ------------------------------------------------------------------ menus ancrés sur la carte */
+  P.closeSel = function () {
+    if (!this.sel) return;
+    const s = this.sel;
+    this.sel = null;
+    s.el.classList.add("pt-out");
+    setTimeout(() => s.el.remove(), 160);
+    this.v("showRange", null);
+    this.v("preview", s.i, s.j, null);
+    this.last.hoverTower = undefined;
+    this.hideTip();
+  };
+  /** Ouvre un menu ancré : feuille en bas d'écran sur téléphone debout, bulle près de la case ailleurs. */
+  P.openSel = function (sel, body, cls) {
+    if (this.sel) {
+      this.sel.el.remove();
+      this.v("preview", this.sel.i, this.sel.j, null);
+    }
+    const close = h("button", { class: "pt-btn pt-sq pt-wood pt-x", title: "Fermer (Échap)", "aria-label": "Fermer", onclick: () => this.closeSel() }, ico("close"));
+    const el = h("div", { class: "pt-sel pt-card " + (cls || ""), role: "dialog" }, h("i", { class: "pt-arrow" }), close, body);
+    sel.el = el;
+    this.sel = sel;
+    this.selT = 0.25;
+    this.popLayer.append(el);
+    this.placeSel(true);
+    return el;
+  };
+  P.placeSel = function (measure) {
+    const sel = this.sel;
+    if (!sel || !sel.el) return;
+    const el = sel.el;
+    const sheet = this.layout === "portrait";
+    if (measure) sel.placed = null;
+    if (sheet) {
+      if (sel.placed !== "sheet") {
+        sel.placed = "sheet";
+        el.classList.add("pt-sheet");
+        el.style.transform = "";
+      }
+      return;
+    }
+    if (sel.placed === "sheet" || sel.placed === null) el.classList.remove("pt-sheet");
+    const p = this.v("worldToScreen", sel.i + 0.5, sel.j + 0.5);
+    if (!p) return;
+    if (measure || !sel.w) {
+      sel.w = el.offsetWidth;
+      sel.h = el.offsetHeight;
+    }
+    const W = window.innerWidth,
+      H = window.innerHeight;
+    const ins = this.insets();
+    const pad = 8;
+    const cell = this.cellPx();
+    let x, y, side;
+    if (sel.kind === "tower") {
+      // Panneau de tour : sur le côté de la case, du côté où il y a le plus de place.
+      side = p.x < (ins.left + W - ins.right) / 2 ? "r" : "l";
+      x = side === "r" ? p.x + cell * 0.8 + 10 : p.x - cell * 0.8 - 10 - sel.w;
+      y = p.y - sel.h / 2;
+    } else {
+      // Menu de construction : au-dessus de la case (ou dessous si la place manque).
+      side = p.y - cell * 0.7 - sel.h - 12 > ins.top + pad ? "t" : "b";
+      x = p.x - sel.w / 2;
+      y = side === "t" ? p.y - cell * 0.7 - 12 - sel.h : p.y + cell * 0.7 + 12;
+    }
+    x = clamp(x, ins.left + pad, W - ins.right - pad - sel.w);
+    y = clamp(y, ins.top + pad, H - ins.bottom - pad - sel.h);
+    const ax = side === "t" || side === "b" ? clamp(p.x - x, 18, sel.w - 18) : clamp(p.y - y, 18, sel.h - 18);
+    const tr = `translate(${Math.round(x)}px, ${Math.round(y)}px)`;
+    const key = tr + side + ax.toFixed(0);
+    if (key === sel.placed) return;
+    sel.placed = key;
+    el.dataset.side = side;
+    el.style.setProperty("--ax", ax.toFixed(0) + "px");
+    el.style.transform = tr;
+  };
+  /** Taille d'une case à l'écran (px), d'après la projection de la vue. */
+  P.cellPx = function () {
+    const a = this.v("worldToScreen", 10, 6.5),
+      b = this.v("worldToScreen", 11, 6.5),
+      c = this.v("worldToScreen", 10, 7.5);
+    if (!a || !b || !c) return 40;
+    return Math.max(Math.hypot(b.x - a.x, b.y - a.y), Math.hypot(c.x - a.x, c.y - a.y));
+  };
+  P.refreshSel = function () {
+    const sel = this.sel;
+    if (!sel || !this.game) return;
+    if (sel.kind === "tower") {
+      const t = (this.game.state.towers || []).find((x) => x.id === sel.id);
+      if (!t) return this.closeSel();
+      const key = this.towerKey(t);
+      if (key !== sel.key) this.openTower(sel.id, sel.i, sel.j, true);
+      else this.updateTowerLive(t);
+    } else if (sel.kind === "build") {
+      const g = Math.floor(this.game.state.gold);
+      sel.el.querySelectorAll("[data-cost]").forEach((b) => b.classList.toggle("poor", +b.dataset.cost > g));
+    } else if (sel.kind === "forest") {
+      const info = call(this.game, "tileInfo", sel.i, sel.j) || {};
+      if (!info.forest) {
+        this.closeSel();
+        if (info.buildable && info.buildable.length) this.openBuild(sel.i, sel.j, info);
+        return;
+      }
+      this.updateCutBtn();
+    }
+  };
+
+  // ── Menu de construction ─────────────────────────────────────────────────
+  P.buildCost = function (fam, info) {
+    const D = this.D();
+    const c = info && ((info.costs && info.costs[fam]) || (info.buildCost && info.buildCost[fam]));
+    if (c) return c;
+    const base = D.FAMILIES && D.FAMILIES[fam] ? D.FAMILIES[fam].base[0].cost : 0;
+    const p = this.loadP();
+    const lord = { boar: "boarLord", swan: "swanLord", dog: "dogLord" }[fam];
+    const r = (p.skills && p.skills[lord]) || 0;
+    return Math.round(base * (1 - 0.05 * r));
+  };
+  P.openBuild = function (i, j, info) {
+    const D = this.D();
+    const s = this.game.state;
+    const fams = info.buildable.filter((f) => D.FAMILIES && D.FAMILIES[f]);
+    const TP = PTMT.towerPortraits;
+    const perks = [];
+    if (info.high) perks.push(h("span", { class: "pt-perk" }, ico("high"), "Butte : +30" + NB + "% portée, +10" + NB + "% dégâts"));
+    if (info.mana) perks.push(h("span", { class: "pt-perk" }, ico("menhir"), "Menhir : +0,4 mana/s"));
+    const opts = fams.map((f) => {
+      const F = D.FAMILIES[f];
+      const cost = this.buildCost(f, info);
+      const b = h(
+        "button",
+        {
+          class: "pt-opt" + (cost > s.gold ? " poor" : ""),
+          "data-f": f,
+          "data-cost": cost,
+          onclick: (e) => this.doBuild(i, j, f, e.currentTarget),
+          onpointerenter: () => this.v("preview", i, j, f),
+          onfocus: () => this.v("preview", i, j, f),
+        },
+        h("span", { class: "pt-tp", "data-f": f, html: TP ? TP.get(f, 1) : "" }),
+        h("span", { class: "pt-opt-t" }, h("b", {}, F.base[0].name), h("small", {}, F.name)),
+        h("span", { class: "pt-price" }, ico("gold"), h("b", { class: "pt-num" }, String(cost))),
+      );
+      return b;
+    });
+    const terrain = info.high ? "Butte" : TERRAIN[info.terrain] || "Case";
+    const el = this.openSel(
+      { kind: "build", i, j },
+      h("div", { class: "pt-sel-in" }, h("div", { class: "pt-sel-h" }, h("span", { class: "pt-terrain", html: icons().get(info.high ? "high" : info.terrain || "grass") }), h("div", {}, h("h3", {}, "Construire"), h("small", {}, terrain + (fams.length > 1 ? " : les trois gardiens" : "")))), perks.length ? h("div", { class: "pt-perks" }, perks) : null, h("div", { class: "pt-opts" + (fams.length > 1 ? " multi" : "") }, opts)),
+      "pt-build",
+    );
+    if (fams.length === 1 || this.layout !== "desk") this.v("preview", i, j, fams[0]);
+    return el;
+  };
+  P.doBuild = function (i, j, f, btn) {
+    const res = call(this.game, "build", i, j, f);
+    if (!this.act(res, btn)) return;
+    this.closeSel();
+    this.tutoDone("build");
+  };
+
+  // ── Case boisée : Couper ─────────────────────────────────────────────────
+  P.openForest = function (i, j, info) {
+    const D = this.D();
+    const s = this.game.state;
+    const cost = (s.spells && s.spells.cut && s.spells.cut.cost) || (D.SPELLS && D.SPELLS.cut && D.SPELLS.cut.cost) || 30;
+    const under = { grass: "l'herbe (sanglier)", rock: "la roche (berger)", water: "l'eau (cygne)", high: "une butte (les trois)" }[info.terrain] || "une case constructible";
+    this.cutBtn = h("button", { class: "pt-btn pt-go pt-cut", onclick: (e) => this.doCut(i, j, e.currentTarget) }, ico("cut"), h("span", {}, "Couper"), h("span", { class: "pt-price mana" }, ico("mana"), h("b", { class: "pt-num" }, String(cost))));
+    this.cutReason = h("small", { class: "pt-reason" });
+    this.openSel(
+      { kind: "forest", i, j, cost },
+      h(
+        "div",
+        { class: "pt-sel-in" },
+        h("div", { class: "pt-sel-h" }, h("span", { class: "pt-terrain", html: icons().get("forest") }), h("div", {}, h("h3", {}, "Case boisée"), h("small", {}, "Dessous : " + under))),
+        h("p", { class: "pt-note" }, "Coupe le bois pour pouvoir y construire."),
+        this.cutBtn,
+        this.cutReason,
+      ),
+      "pt-forest",
+    );
+    this.updateCutBtn();
+  };
+  P.updateCutBtn = function () {
+    if (!this.cutBtn || !this.sel || this.sel.kind !== "forest") return;
+    const s = this.game.state;
+    const sp = s.spells && s.spells.cut;
+    const allowed = this.mapInfo && Array.isArray(this.mapInfo.spells) ? this.mapInfo.spells.includes("cut") : !!sp;
+    const cost = (sp && sp.cost) || this.sel.cost;
+    const reason = !sp || !allowed ? "Le sort Couper n'est pas disponible ici" : s.mana < cost ? `Il manque ${Math.ceil(cost - s.mana)} mana` : "";
+    this.cutBtn.setAttribute("aria-disabled", reason ? "true" : "false");
+    this.cutReason.textContent = reason;
+  };
+  P.doCut = function (i, j, btn) {
+    if (btn.getAttribute("aria-disabled") === "true") return this.refuse(btn, this.cutReason.textContent);
+    const res = call(this.game, "cast", "cut", { x: i + 0.5, y: j + 0.5 });
+    if (!this.act(res, btn)) return;
+    this.closeSel();
+    this.tutoDone("cut");
+  };
+
+  // ── Panneau de tour ──────────────────────────────────────────────────────
+  P.towerKey = function (t) {
+    const g = this.game.state;
+    const v = this.towerView(t);
+    return [t.level, t.spec || "", v.canUp ? 1 : 0, v.upReason, g.gold >= (v.cost || 0) ? 1 : 0, v.specs ? v.specs.map((x) => x.reason).join("|") : ""].join(":");
+  };
+  /** Vue normalisée d'une tour (towerInfo de la simulation, complétée par les données). */
+  P.towerView = function (t) {
+    const D = this.D();
+    const info = call(this.game, "towerInfo", t.id) || {};
+    const s = this.game.state;
+    const lv = t.level || 1;
+    const stats = info.stats || D.towerLevel(t.family, lv, t.spec) || {};
+    const xpNext = info.xpNext !== undefined ? info.xpNext : t.xpNext !== undefined ? t.xpNext : D.XP ? D.XP[lv] : null;
+    const xp = info.xp !== undefined ? info.xp : t.xp || 0;
+    const v = { t, info, stats, xp, xpNext, level: lv, spec: t.spec || null, family: t.family, name: info.name || stats.name || "", max: lv >= 7 };
+    v.sell = info.sellValue !== undefined ? info.sellValue : info.sell !== undefined ? info.sell : null;
+    const reasonFor = (cost, needXp) => {
+      if (needXp !== null && needXp !== undefined && xp < needXp) return `Il faut ${needXp} d'expérience`;
+      if (cost !== null && cost !== undefined && s.gold < cost) return `Il manque ${Math.ceil(cost - s.gold)} or`;
+      return "";
+    };
+    if (lv === 3) {
+      const src = info.specs || info.choices || ["A", "B"].map((k) => ({ spec: k }));
+      v.specs = src.map((o) => {
+        const k = o.spec || o.key || o.id;
+        const F = D.FAMILIES[t.family].specs[k];
+        const L = D.towerLevel(t.family, 4, k) || {};
+        const cost = o.cost !== undefined ? o.cost : L.cost;
+        const reason = o.reason !== undefined ? o.reason || "" : o.ok === false ? o.reason || "Impossible" : reasonFor(cost, xpNext);
+        return { spec: k, name: o.name || F.name, blurb: o.blurb || F.blurb, cost, stats: o.stats || L, reason };
+      });
+    } else if (!v.max) {
+      v.next = info.next || D.towerLevel(t.family, lv + 1, t.spec) || null;
+      v.cost = info.upgradeCost !== undefined ? info.upgradeCost : info.cost !== undefined ? info.cost : v.next ? v.next.cost : null;
+      const can = info.canUpgrade;
+      v.upReason = can && typeof can === "object" ? (can.ok ? "" : can.reason || "Impossible") : info.reason !== undefined ? info.reason || "" : reasonFor(v.cost, xpNext);
+      v.canUp = !v.upReason;
+    }
+    return v;
+  };
+  /** Lignes de caractéristiques (niveau actuel, écart avec le suivant). */
+  P.statRows = function (st, nx) {
+    const rows = [];
+    const row = (icon, label, cur, next, title) => rows.push(h("div", { class: "pt-stat", title: title || label }, ico(icon), h("span", { class: "pt-stat-l" }, label), h("b", { class: "pt-num" }, cur), next && next !== cur ? h("em", { class: "pt-num" }, "→ " + next) : null));
+    const N = nx || {};
+    if (st.dmg) row("damage", "Dégâts", nf(st.dmg), N.dmg ? nf(N.dmg) : null, st.pierce ? "Dégâts par coup, perce les boucliers" : "Dégâts par coup");
+    if (st.range) row("range", "Portée", f1(st.range), N.range ? f1(N.range) : null, "Portée en cases");
+    if (st.rate) row("rate", "Cadence", f1(st.rate) + "/s", N.rate ? f1(N.rate) + "/s" : null, "Tirs par seconde");
+    if (st.splash) row("splash", "Zone", f1(st.splash), N.splash ? f1(N.splash) : null, "Rayon des dégâts de zone (cases)");
+    if (st.slow) row("slow", "Ralentit", "−" + pc(st.slow.pct), N.slow ? "−" + pc(N.slow.pct) : null, `Ralentit de ${pc(st.slow.pct)} pendant ${f1(st.slow.t)} s`);
+    if (st.crit) row("crit", "Critique", pc(st.crit.chance), N.crit ? pc(N.crit.chance) : null, `Coup critique : dégâts × ${f1(st.crit.mult)}`);
+    if (st.stun) row("stun", "Étourdit", pc(st.stun.chance), N.stun ? pc(N.stun.chance) : null, `Étourdit ${f1(st.stun.t)} s`);
+    if (st.fear) row("fear", "Peur", pc(st.fear.chance), N.fear ? pc(N.fear.chance) : null, `L'ennemi recule ${f1(st.fear.t)} s`);
+    if (st.freeze) row("freeze", "Gel", pc(st.freeze.chance), N.freeze ? pc(N.freeze.chance) : null, `Gèle ${f1(st.freeze.t)} s`);
+    if (st.burn) row("burn", "Brûlure", f1(st.burn.dps) + "/s", N.burn ? f1(N.burn.dps) + "/s" : null, `Brûle ${f1(st.burn.t)} s`);
+    if (st.radiance) row("radiance", "Rayonnement", "+" + pc(st.radiance.pct), N.radiance ? "+" + pc(N.radiance.pct) : null, "Dégâts subis en plus par l'ennemi touché");
+    if (st.corpse) row("splash", "Explosion", pc(st.corpse), N.corpse ? pc(N.corpse) : null, "Un ennemi tué explose : part de ses PV max infligée autour");
+    if (st.mana) row("manaSteal", "Vol de mana", "+" + f1(st.mana), N.mana ? "+" + f1(N.mana) : null, "Mana rendu à chaque coup");
+    if (st.disarm) row("disarm", "Désarme", pc(st.disarm), N.disarm ? pc(N.disarm) : null, "Chance de retirer la capacité de l'ennemi");
+    if (st.pierce && !rows.some((r) => r.title && r.title.includes("perce"))) row("pierce", "Perce", "boucliers", null);
+    return rows;
+  };
+  P.stars = function (level) {
+    return h("span", { class: "pt-stars", "aria-label": "Niveau " + level + " sur 7" }, Array.from({ length: 7 }, (_, i) => h("i", { class: i < level ? "on" + (i >= 3 ? " sp" : "") : "", html: icons().get(i < level ? "star" : "starEmpty") })));
+  };
+  P.openTower = function (id, i, j, keep) {
+    const s = this.game.state;
+    const t = (s.towers || []).find((x) => x.id === id);
+    if (!t) return this.closeSel();
+    const D = this.D();
+    const TP = PTMT.towerPortraits;
+    const v = this.towerView(t);
+    const F = D.FAMILIES[t.family] || { name: t.family };
+    const accent = TP ? TP.accent(t.family, v.level, v.spec) : "#8a5a32";
+    const xpTxt = h("b", { class: "pt-num" }, "");
+    const xpFill = h("i", {});
+    const kills = h("small", { class: "pt-kills" }, "");
+    const head = h(
+      "div",
+      { class: "pt-tw-h" },
+      h("span", { class: "pt-tp big", "data-f": t.family, style: `--acc:${accent}`, html: TP ? TP.get(t.family, v.level, v.spec) : "" }),
+      h("div", { class: "pt-tw-n" }, h("h3", {}, v.name || F.name), h("small", {}, F.name + (v.spec ? " · voie " + v.spec : "")), this.stars(v.level)),
+    );
+    const xp = h("div", { class: "pt-xp" + (v.max ? " max" : "") }, h("div", { class: "pt-xp-h" }, ico("xp"), h("span", {}, "Expérience"), xpTxt), h("div", { class: "pt-bar" }, xpFill), kills);
+    const stats = h("div", { class: "pt-stats" + (v.next ? " deltas" : "") }, this.statRows(v.stats, v.next));
+    const actions = h("div", { class: "pt-tw-a" });
+    if (v.specs) {
+      actions.append(h("div", { class: "pt-spec-t" }, "Spécialisation : choisis une voie"));
+      const row = h("div", { class: "pt-specs" });
+      for (const o of v.specs) {
         row.append(
           h(
             "button",
-            { class: "ptmt-btn " + (ok ? "ptmt-btn-go" : ""), "aria-disabled": ok ? "false" : "true", onclick: () => this.trapAt(id, k) },
-            h("span", {}, C.traps[k].name),
-            h("span", { class: "cost" }, t.cost + " or"),
-            h("small", {}, k === "net" ? `Retient ${t.targets} ennemis ${fmt(t.duration)} s` : k === "spring" ? `Renvoie ${t.targets} ennemi de ${fmt(t.push)} U` : `Attire ${t.targets} voleur sans sac (${fmt(t.radius)} U)`),
+            { class: "pt-speccard" + (o.reason ? " off" : ""), "aria-disabled": o.reason ? "true" : "false", onclick: (e) => this.doUpgrade(t.id, o.spec, e.currentTarget, o.reason) },
+            h("span", { class: "pt-spec-l" }, o.spec),
+            h("span", { class: "pt-tp", "data-f": t.family, html: TP ? TP.get(t.family, 4, o.spec) : "" }),
+            h("b", { class: "pt-speccard-n" }, o.name),
+            h("small", {}, o.blurb),
+            h("span", { class: "pt-price" + (o.reason ? " off" : "") }, ico("gold"), h("b", { class: "pt-num" }, String(o.cost))),
+            o.reason ? h("em", { class: "pt-reason" }, o.reason) : null,
           ),
         );
       }
-      el.append(row);
-    });
-  };
-  P.trapAt = function (slotId, kind) {
-    const res = this.app.game.buildTrap(slotId, kind);
-    if (!res.ok) return this.flash(res.reason);
-    this.showTrapPanel(res.trap.id);
-    this.renderTray();
-  };
-  P.showTrapPanel = function (id) {
-    const app = this.app,
-      game = app.game;
-    const tr = game.state.traps.find((t) => t.id === id);
-    if (!tr) return this.closePanel();
-    const T = C.traps[tr.kind].tiers[tr.tier];
-    app.select({ kind: "trap", id, x: tr.x, z: tr.z, range: tr.kind === "lure" ? T.radius : T.radius });
-    this.openPanel("trap", id, (el) => {
-      el.append(h("h2", {}, C.traps[tr.kind].name + " " + ROMAN[tr.tier]));
-      const rows = [
-        ["Cibles", "jusqu'à " + T.targets],
-        tr.kind === "spring" ? ["Recul", fmt(T.push) + " U"] : [tr.kind === "net" ? "Immobilise" : "Attire", fmt(T.duration) + " s"],
-        ["Recharge", fmt(T.cooldown * (game.state.mill.atelier >= 3 ? 0.9 : 1)) + " s (seulement s'il a servi)"],
-        ["État", tr.cd > 0 ? "recharge " + Math.ceil(tr.cd) + " s" : "armé"],
-      ];
-      el.append(this.statsList(rows));
-      if (tr.kind === "spring")
-        el.append(h("div", { class: "ptmt-row" }, h("button", { class: "ptmt-btn", onclick: () => (game.flipSpring(tr.id), this.refreshPanel()) }, h("span", { html: I.flip, style: "width:18px;height:18px;display:inline-flex" }), "Inverser le sens"), h("p", { class: "ptmt-note" }, tr.dir > 0 ? "Renvoie ceux qui arrivent d'un côté ; inverse pour viser les fuyards." : "Sens inversé.")));
-      if (tr.tier < 3) {
-        const n = C.traps[tr.kind].tiers[tr.tier + 1];
-        const need = tr.tier;
-        const reason = game.state.mill.atelier < need ? `Atelier ${ROMAN[need]} requis` : game.state.gold < n.cost ? `Il manque ${n.cost - game.state.gold} or` : null;
-        el.append(h("div", { class: "ptmt-row" }, h("button", { class: "ptmt-btn " + (reason ? "" : "ptmt-btn-go"), "aria-disabled": reason ? "true" : "false", onclick: () => this.act(game.upgradeTrap(tr.id)) }, h("span", {}, "Palier " + ROMAN[tr.tier + 1]), h("span", { class: "cost" }, "+" + n.cost + " or"), reason ? h("span", { class: "ptmt-reason" }, reason) : h("small", {}, `${n.targets} cibles · ${fmt(n.duration || n.push)} ${n.push ? "U" : "s"}`))));
-      }
-      el.append(h("div", { class: "ptmt-row" }, h("button", { class: "ptmt-btn ptmt-btn-danger", onclick: () => this.act(game.sellTrap(tr.id), true) }, `Revendre · ${game.sellValue(tr)} or`)));
-    });
-  };
-  P.showReservePanel = function (id) {
-    const app = this.app,
-      game = app.game;
-    const r = game.reserve(id);
-    app.select({ kind: "reserve", id, x: r.x, z: r.z });
-    const total = game.L.reserves.find((x) => x.id === id).treasures;
-    this.openPanel("reserve", id, (el) => {
-      el.append(h("h2", {}, r.name), h("div", { class: "sub" }, `${C.reserves.tiers[r.tier].name} · ${r.stock.length}/${total} trésors`));
-      el.append(this.statsList([["Temps pour voler un trésor", fmt(C.reserves.tiers[r.tier].stealTime) + " s"], ["Perdus ici", String(game.state.stats.lostByReserve[id] || 0)]]));
-      if (r.tier < 3) {
-        const T = C.reserves.tiers[r.tier + 1];
-        const reason = game.state.mill.atelier < T.atelier ? `Atelier ${ROMAN[T.atelier]} requis` : game.state.gold < T.cost ? `Il manque ${T.cost - game.state.gold} or` : null;
-        el.append(
-          h("div", { class: "ptmt-row" }, h("button", { class: "ptmt-btn " + (reason ? "" : "ptmt-btn-go"), "aria-disabled": reason ? "true" : "false", onclick: () => this.act(game.upgradeReserve(id)) }, h("span", {}, T.name), h("span", { class: "cost" }, "+" + T.cost + " or"), reason ? h("span", { class: "ptmt-reason" }, reason) : h("small", {}, `Vol en ${fmt(T.stealTime)} s${T.reveal ? " · révèle les fumigènes" : ""}`))),
-        );
-      }
-      el.append(h("p", { class: "ptmt-note" }, "Renforcer un coffre ralentit les voleurs ; cela n'ajoute pas de trésor et ne rend pas la réserve invulnérable."));
-    });
-  };
-  P.showMillPanel = function () {
-    const app = this.app,
-      game = app.game;
-    if (!game) return;
-    const s = game.state;
-    app.select(null);
-    this.openPanel("mill", null, (el) => {
-      el.append(h("h2", {}, "Le moulin"), h("p", { class: "ptmt-note" }, "Ses améliorations soutiennent tout le domaine ; elles repartent de zéro au niveau suivant."));
-      const texts = {
-        meule: (L) => `Revenu : ${L.income} or par vague terminée`,
-        roue: (L) => `Mana max ${L.manaMax} · recharge ${fmt(L.regen)}/s`,
-        atelier: (L) => `Palier ${ROMAN[L.tierAllowed]} autorisé · ${L.trapLimit} pièges` + (L.xpBonus ? " · XP +25 % · recharge des pièges −10 %" : ""),
-      };
-      for (const k of ["meule", "roue", "atelier"]) {
-        const def = C.mill[k];
-        const lv = s.mill[k];
-        el.append(h("h3", {}, `${def.name} ${lv ? ROMAN[lv] : "(de base)"}`), h("p", { class: "ptmt-note" }, texts[k](def.levels[lv])));
-        const next = def.levels[lv + 1];
-        if (next)
-          el.append(
-            h("div", { class: "ptmt-row" }, h("button", { class: "ptmt-btn " + (s.gold >= next.cost ? "ptmt-btn-gold" : ""), "aria-disabled": s.gold >= next.cost ? "false" : "true", onclick: () => this.act(game.upgradeMill(k)) }, h("span", {}, `${def.name} ${ROMAN[lv + 1]}`), h("span", { class: "cost" }, "+" + next.cost + " or"), h("small", {}, texts[k](next)))),
-          );
-      }
-      el.append(h("h3", {}, "Rangs des sorts"));
-      for (const id of C.spells.order) {
-        if (!game.unlocked.has(id)) continue;
-        const r = s.spells[id].rank;
-        if (r >= 3) {
-          el.append(h("p", { class: "ptmt-note" }, `${C.spells[id].name} : rang III`));
-          continue;
-        }
-        const cost = C.spells.rankCost[r + 1],
-          need = C.spells.rankAtelier[r + 1];
-        const reason = s.mill.atelier < need ? `Atelier ${ROMAN[need]} requis` : s.gold < cost ? `Il manque ${cost - s.gold} or` : null;
-        el.append(h("div", { class: "ptmt-row" }, h("button", { class: "ptmt-btn " + (reason ? "" : "ptmt-btn-go"), "aria-disabled": reason ? "true" : "false", onclick: () => this.act(game.upgradeSpell(id)) }, h("span", {}, `${C.spells[id].name} ${ROMAN[r + 1]}`), h("span", { class: "cost" }, "+" + cost + " or"), reason ? h("span", { class: "ptmt-reason" }, reason) : null)));
-      }
-      el.append(h("h3", {}, "Réserves"));
-      for (const r of s.reserves) el.append(h("div", { class: "ptmt-row" }, h("button", { class: "ptmt-btn", onclick: () => (this.showReservePanel(r.id), app.focusReserve(r.id)) }, `${r.name} · ${C.reserves.tiers[r.tier].name}`)));
-    });
-  };
-
-  // ── Portraits des voleurs ─────────────────────────────────────────────────────
-  /** Portrait d'un type d'ennemi (PTMT.portraits si présent, sinon disque coloré et initiale). */
-  P.portrait = function (type, elite, small) {
-    const key = elite ? type + "_elite" : type;
-    const def = C.enemies[type] || {};
-    const src = PTMT.portraits && (PTMT.portraits[key] || PTMT.portraits[type]);
-    const el = h("span", { class: "ptmt-portrait" + (small ? " small" : "") + (elite ? " elite" : "") + (type === "boss" ? " boss" : "") + (type === "nageur" ? " swim" : ""), title: elite ? def.eliteName : def.name });
-    if (typeof src === "string" && src.trim().startsWith("<")) el.innerHTML = src;
-    else {
-      el.classList.add("fallback");
-      el.style.setProperty("--tint", ENEMY_TINT[type] || "#666");
-      el.append(h("b", {}, ENEMY_INITIAL[type] || "?"));
-    }
-    if (elite) el.append(h("i", { class: "flag-elite", title: "Élite" }, "★"));
-    if (type === "boss") el.append(h("i", { class: "flag-boss", title: "Boss" }, "♛"));
-    if (type === "nageur") el.append(h("i", { class: "flag-swim", title: "Nageur" }, "≈"));
-    return el;
-  };
-  /** Portraits × nombres d'une liste de groupes { type, elite, count }. */
-  P.foes = function (groups, small, max = 6) {
-    const order = { boss: 0, demenageur: 1, fumigene: 2, nageur: 3, sprinteur: 4, voleur: 5 };
-    const list = groups.slice().sort((a, b) => (order[a.type] ?? 9) - (order[b.type] ?? 9) || (b.elite ? 1 : 0) - (a.elite ? 1 : 0));
-    const out = list.slice(0, max).map((g) => h("span", { class: "ptmt-foe" }, this.portrait(g.type, g.elite, small), h("em", {}, "×" + g.count)));
-    if (list.length > max) out.push(h("span", { class: "ptmt-foe more" }, "…"));
-    return out;
-  };
-  /** Groupes (type, élite, nombre) de toute une vague, fronts confondus. */
-  const mergeGroups = (fronts) => {
-    const m = new Map();
-    for (const f of fronts)
-      for (const g of f.groups) {
-        const k = g.type + (g.elite ? "*" : "");
-        if (!m.has(k)) m.set(k, { type: g.type, elite: g.elite, count: 0 });
-        m.get(k).count += g.count;
-      }
-    return [...m.values()];
-  };
-  P.traits = function (fronts) {
-    const set = [];
-    for (const g of mergeGroups(fronts)) {
-      const t = g.elite ? ELITE_TRAIT[g.type] : TRAIT[g.type];
-      if (t && !set.includes(t) && g.type !== "voleur") set.push(t);
-      if (g.elite && !set.includes("Élites")) set.unshift("Élites");
-    }
-    return set;
-  };
-
-  // ── Préparation d'une vague : « Prochaine vague » ─────────────────────────────────
-  P.showPrep = function () {
-    const app = this.app,
-      game = app.game;
-    if (this.prepEl) this.prepEl.remove();
-    this.prepEl = null;
-    if (!game || game.state.phase !== "prep") return;
-    const pv = game.preview();
-    this.pv = pv;
-    if (!pv) return;
-    const s = game.state;
-    const title = s.endless ? `Sans fin · vague ${pv.number}` : `Vague ${pv.number} / ${s.waveCount}`;
-    const fronts = pv.fronts.map((f) =>
-      h(
-        "button",
-        { class: "ptmt-front", style: `--c:${f.color}`, title: "Voir la porte", onclick: () => app.focusGate(f.entry) },
-        h("span", { class: "where" }, h("i", { class: "dot" }), h("b", {}, f.label), h("span", { class: "arrow" }, "→"), f.targets.map((id) => game.reserve(id).name).join(", ")),
-        h("span", { class: "foes" }, this.foes(f.groups)),
-      ),
-    );
-    const traits = this.traits(pv.fronts);
-    const timeline = pv.upcoming.length
-      ? h(
-          "div",
-          { class: "ptmt-timeline" },
-          h("span", { class: "lbl" }, "Ensuite"),
-          pv.upcoming.map((u) =>
-            h(
-              "span",
-              { class: "ptmt-next" + (u.boss ? " boss" : ""), title: `Vague ${u.number} · menace ${u.level.toLowerCase()}` },
-              h("b", {}, (u.endless ? "S" : "V") + u.number),
-              h("span", { class: "dots" }, u.fronts.map((f) => h("i", { style: `background:${f.color}`, title: f.label }))),
-              this.foes(mergeGroups(u.fronts), true, 3),
-            ),
-          ),
-        )
-      : h("div", { class: "ptmt-timeline" }, h("span", { class: "lbl" }, pv.last ? "Dernière vague !" : ""));
-    // Résumé compact (téléphone en construction, ou sur demande) : portes et nombres seulement.
-    const mini = h(
-      "div",
-      { class: "mini" },
-      pv.fronts.map((f) => h("button", { class: "ptmt-front-mini", style: `--c:${f.color}`, title: f.label, onclick: () => app.focusGate(f.entry) }, h("i", { class: "dot" }), this.foes(f.groups, true, 2))),
-    );
-    const toggle = h("button", { class: "ptmt-prep-toggle", title: "Réduire ou déplier l'annonce", onclick: () => this.togglePrep() });
-    this.prepEl = h(
-      "div",
-      { class: "ptmt-prep" },
-      // Le titre et la menace partagent une ligne, la menace passe dessous si la place manque.
-      h(
-        "div",
-        { class: "head" },
-        h("h2", {}, h("small", {}, "Prochaine vague"), h("span", { class: "ttl" }, h("span", { class: "num" }, title), h("span", { class: "threat", "data-level": pv.level }, "Menace " + pv.level.toLowerCase()))),
-        toggle,
-      ),
-      mini,
-      pv.boss ? h("div", { class: "ptmt-boss-warning" }, pv.eliteBoss ? "Attention : Limousine-tondeuse !" : "Attention : le chef en tondeuse blindée arrive !") : null,
-      h("div", { class: "ptmt-fronts" }, fronts),
-      traits.length ? h("div", { class: "ptmt-traits" }, traits.map((t) => h("span", {}, t))) : null,
-      timeline,
-      h("button", { class: "ptmt-btn ptmt-btn-go launch", onclick: () => app.launchWave() }, h("span", { html: I.swords, style: "width:20px;height:20px;display:inline-flex" }), "Lancer la vague"),
-    );
-    this.root.append(this.prepEl);
-    this.updatePrepMode();
-    app.entities.showRoutes(pv.routes);
-    this.markerSig = null;
-  };
-  /** Annonce réduite : au choix du joueur (retenu dans ce navigateur), ou d'office sur téléphone
-   * pendant la construction et la visée ; masquée sur téléphone quand un panneau est ouvert. */
-  P.togglePrep = function () {
-    this.prepUserCompact = !this.isPrepCompact();
-    try {
-      localStorage.setItem("ptmt.prepCompact", this.prepUserCompact ? "1" : "0");
-    } catch (e) {}
-    this.prepForced = null;
-    this.updatePrepMode();
-  };
-  P.isPrepCompact = function () {
-    const mobile = window.innerWidth < 720;
-    if (this.prepUserCompact === undefined) {
-      try {
-        this.prepUserCompact = localStorage.getItem("ptmt.prepCompact") === "1";
-      } catch (e) {
-        this.prepUserCompact = false;
-      }
-    }
-    return this.prepUserCompact || (mobile && (!!this.buildMode || !!this.aim));
-  };
-  P.updatePrepMode = function () {
-    if (!this.prepEl) return;
-    const mobile = window.innerWidth < 720;
-    const compact = this.isPrepCompact();
-    this.prepEl.classList.toggle("compact", compact);
-    this.prepEl.style.display = mobile && this.panel ? "none" : "";
-  };
-  P.hidePrep = function () {
-    if (this.prepEl) this.prepEl.remove();
-    this.prepEl = null;
-    this.app.entities.showRoutes(null);
-    this.markerSig = null;
-  };
-
-  // ── Pendant l'attaque : ce qui arrive encore, et la vague d'après ─────────────────
-  /** Fronts des apparitions restantes de la vague en cours (par porte). */
-  P.pendingFronts = function () {
-    const game = this.app.game,
-      s = game.state;
-    const m = new Map();
-    for (const sp of s.spawns) {
-      const e = game.L.entries.find((x) => x.node === sp.entry) || { node: sp.entry, label: sp.entry, color: "#e8453c" };
-      if (!m.has(sp.entry)) m.set(sp.entry, { entry: sp.entry, label: e.label, color: e.color, targets: [], groups: [], count: 0, first: sp.at });
-      const f = m.get(sp.entry);
-      if (!f.targets.includes(sp.target)) f.targets.push(sp.target);
-      let g = f.groups.find((x) => x.type === sp.type && x.elite === !!sp.elite);
-      if (!g) f.groups.push((g = { type: sp.type, elite: !!sp.elite, count: 0 }));
-      g.count++;
-      f.count++;
-    }
-    return [...m.values()];
-  };
-  /** Aperçu de la vague suivante, calculé une fois par vague. */
-  P.nextPreview = function () {
-    const game = this.app.game,
-      s = game.state;
-    const key = s.wave + ":" + s.endless + ":" + s.endlessCount + ":" + s.phase;
-    if (this.nextKey !== key) {
-      this.nextKey = key;
-      this.nextPv = game.preview();
-    }
-    return this.nextPv;
-  };
-  P.updateWaveBar = function () {
-    const app = this.app,
-      game = app.game,
-      s = game.state;
-    if (s.phase !== "wave") {
-      if (this.waveBar) this.waveBar.remove();
-      this.waveBar = null;
-      return;
-    }
-    const pending = this.pendingFronts();
-    const onField = s.enemies.length;
-    const nx = this.nextPreview();
-    if (this.waveBar) this.waveBar.style.display = window.innerWidth < 720 && this.panel ? "none" : "";
-    const sig = JSON.stringify([s.wave, onField, pending.map((f) => [f.entry, f.count]), nx && nx.number]);
-    if (sig === this.waveBarSig && this.waveBar) return;
-    this.waveBarSig = sig;
-    if (!this.waveBar) {
-      this.waveBar = h("div", { class: "ptmt-wavebar" });
-      this.root.append(this.waveBar);
-    }
-    const bar = this.waveBar;
-    bar.innerHTML = "";
-    const now = h("div", { class: "now" }, h("b", {}, s.endless ? `Sans fin ${s.endlessCount}` : `Vague ${s.wave}`), h("span", { class: "field" }, `${onField} sur le terrain`));
-    if (pending.length) now.append(h("span", { class: "sep" }, "· encore"), ...pending.map((f) => h("span", { class: "ptmt-front-mini", style: `--c:${f.color}` }, h("i", { class: "dot" }), this.foes(f.groups, true, 3))));
-    bar.append(now);
-    if (nx) bar.append(h("div", { class: "after" }, h("span", { class: "lbl" }, "Ensuite"), h("b", {}, (nx.endless ? "S" : "V") + nx.number), h("span", { class: "dots" }, nx.fronts.map((f) => h("i", { style: `background:${f.color}`, title: f.label }))), this.foes(mergeGroups(nx.fronts), true, 4)));
-    else if (!s.endless) bar.append(h("div", { class: "after" }, h("span", { class: "lbl" }, "Dernière vague")));
-  };
-
-  // ── Repères de portes sur la carte (et flèches au bord de l'écran) ─────────────────
-  P.markerFronts = function () {
-    const game = this.app.game,
-      s = game.state;
-    if (s.phase === "prep") return { fronts: this.pv ? this.pv.fronts : [], mode: "next" };
-    if (s.phase === "wave") {
-      const pending = this.pendingFronts();
-      if (pending.length) return { fronts: pending, mode: "now" };
-      const nx = this.nextPreview();
-      return { fronts: nx ? nx.fronts : [], mode: "after" };
-    }
-    return { fronts: [], mode: "none" };
-  };
-  P.updateMarkers = function () {
-    const app = this.app,
-      game = app.game;
-    const { fronts, mode } = this.markerFronts();
-    const cam = app.camera;
-    const w = app.canvas.clientWidth,
-      hgt = app.canvas.clientHeight;
-    this.markers = this.markers || new Map();
-    const seen = new Set();
-    const sigAll = mode + fronts.map((f) => f.entry).join(",");
-    if (sigAll !== this.markerSig) {
-      this.markerSig = sigAll;
-      app.world.setActiveGates && app.world.setActiveGates(mode === "none" ? [] : fronts.map((f) => f.entry));
-    }
-    const v = new THREE.Vector3();
-    // Zone libre de la carte : sous la barre du haut, au-dessus des onglets, hors des panneaux.
-    const rectOf = (el) => (el && el.isConnected && el.style.display !== "none" ? el.getBoundingClientRect() : null);
-    const topBar = rectOf(this.top),
-      bottomBar = rectOf(this.bottom);
-    const top = (topBar ? topBar.bottom : 60) + 6,
-      side = 30;
-    let bottom = hgt - (bottomBar ? bottomBar.top : hgt - 190) + 6;
-    const blocks = [rectOf(this.prepEl), rectOf(this.waveBar), rectOf(this.panelEl)].filter((r) => r && r.width > 0);
-    // Un panneau posé en bas sur toute la largeur (téléphone) remonte la limite basse.
-    for (const r of blocks) if (r.width > w * 0.8 && r.top > hgt * 0.35) bottom = Math.max(bottom, hgt - r.top + 6);
-    const lateral = blocks.filter((r) => !(r.width > w * 0.8 && r.top > hgt * 0.35));
-    const blocked = (x, y) => lateral.some((r) => x > r.left - 12 && x < r.right + 12 && y > r.top - 12 && y < r.bottom + 40);
-    for (const f of fronts) {
-      seen.add(f.entry);
-      let mk = this.markers.get(f.entry);
-      if (!mk) {
-        const el = h("button", { class: "ptmt-gate", onclick: () => app.focusGate(f.entry) });
-        const edge = h("button", { class: "ptmt-edge", onclick: () => app.focusGate(f.entry) });
-        this.overlay.append(el, edge);
-        mk = { el, edge, sig: null };
-        this.markers.set(f.entry, mk);
-      }
-      const sig = mode + JSON.stringify(f.groups) + f.color;
-      if (sig !== mk.sig) {
-        mk.sig = sig;
-        mk.el.style.setProperty("--c", f.color);
-        mk.edge.style.setProperty("--c", f.color);
-        mk.el.dataset.mode = mode;
-        mk.edge.dataset.mode = mode;
-        mk.el.innerHTML = "";
-        mk.el.append(
-          h("span", { class: "tag" }, mode === "now" ? "Ils arrivent" : mode === "after" ? "Vague suivante" : "Prochaine vague", h("b", {}, f.label)),
-          h("span", { class: "foes" }, this.foes(f.groups, true, 4)),
-          h("span", { class: "pin" }),
-        );
-        mk.edge.innerHTML = "";
-        mk.edge.append(h("span", { class: "chev" }), h("span", { class: "n" }, String(f.count)));
-      }
-      const anchor = app.world.gateAnchor ? app.world.gateAnchor(f.entry, v) : null;
-      if (!anchor) {
-        mk.el.style.display = mk.edge.style.display = "none";
-        continue;
-      }
-      anchor.project(cam);
-      let sx = ((anchor.x + 1) / 2) * w,
-        sy = ((1 - anchor.y) / 2) * hgt;
-      const behind = anchor.z > 1;
-      // Le repère (environ 90 px de haut) se pose au-dessus de la porte, ou en dessous si la
-      // porte est trop près du haut de l'écran ; il doit tenir dans la zone libre.
-      const onScreen = !behind && sx > side + 40 && sx < w - side - 40 && sy > top + 10 && sy < hgt - bottom;
-      const above = sy > top + 96 && !blocked(sx, sy - 50);
-      const below = sy + 110 < hgt - bottom && !blocked(sx, sy + 60);
-      if (onScreen && (above || below)) {
-        mk.el.style.display = "";
-        mk.edge.style.display = "none";
-        mk.el.classList.toggle("below", !above);
-        mk.el.style.left = sx + "px";
-        mk.el.style.top = (above ? sy : sy + 30) + "px";
-      } else {
-        mk.el.style.display = "none";
-        mk.edge.style.display = "";
-        // Direction depuis le centre de la zone libre vers la porte, rabattue sur son bord.
-        const x0 = side,
-          x1 = w - side,
-          y0 = top + 28,
-          y1 = hgt - bottom - 28;
-        const cx = (x0 + x1) / 2,
-          cy = (y0 + y1) / 2;
-        let dx = sx - cx,
-          dy = sy - cy;
-        if (behind) (dx = -dx), (dy = -dy);
-        const k = Math.min((x1 - x0) / 2 / Math.max(1e-3, Math.abs(dx)), (y1 - y0) / 2 / Math.max(1e-3, Math.abs(dy)));
-        let ex = cx + dx * k,
-          ey = cy + dy * k;
-        // Pas sous un panneau : on glisse la flèche juste à côté.
-        for (const r of lateral)
-          if (ex > r.left - 28 && ex < r.right + 28 && ey > r.top - 28 && ey < r.bottom + 28) {
-            if (r.left < w / 2) ex = r.right + 30;
-            else ex = r.left - 30;
-          }
-        mk.edge.style.left = ex + "px";
-        mk.edge.style.top = ey + "px";
-        const tx = behind ? cx - (sx - cx) * 50 : sx,
-          ty = behind ? cy - (sy - cy) * 50 : sy;
-        mk.edge.style.setProperty("--rot", Math.atan2(ty - ey, tx - ex) + "rad");
-      }
-    }
-    for (const [id, mk] of this.markers)
-      if (!seen.has(id)) {
-        mk.el.remove();
-        mk.edge.remove();
-        this.markers.delete(id);
-      }
-  };
-  P.clearMarkers = function () {
-    if (this.markers) for (const mk of this.markers.values()) (mk.el.remove(), mk.edge.remove());
-    this.markers = new Map();
-    this.markerSig = null;
-    this.nextKey = null;
-    if (this.waveBar) this.waveBar.remove();
-    this.waveBar = null;
-    this.waveBarSig = null;
-  };
-
-  // ── Coupes en cours : anneau de progression au-dessus de la case ────────────────────
-  P.updateCutRings = function () {
-    const app = this.app,
-      game = app.game,
-      s = game.state;
-    this.cutRings = this.cutRings || new Map();
-    const w = app.canvas.clientWidth,
-      hgt = app.canvas.clientHeight;
-    const v = new THREE.Vector3();
-    const seen = new Set();
-    for (const j of s.cutting) {
-      seen.add(j.id);
-      let el = this.cutRings.get(j.id);
-      if (!el) {
-        el = h("div", {
-          class: "ptmt-cut",
-          html: `<svg viewBox="0 0 40 40"><circle cx="20" cy="20" r="16" class="bg"/><circle cx="20" cy="20" r="16" class="fg"/></svg><span class="axe">${I.axe || ""}</span>`,
-        });
-        this.overlay.append(el);
-        this.cutRings.set(j.id, el);
-      }
-      const so = game.socket(j.id);
-      app.world.toWorld(so.x, so.z, app.world.tileY(so) + 4.2, v);
-      v.project(app.camera);
-      el.style.display = v.z < 1 ? "" : "none";
-      el.style.left = ((v.x + 1) / 2) * w + "px";
-      el.style.top = ((1 - v.y) / 2) * hgt + "px";
-      const p = game.cutProgress(j.id) || 0;
-      el.querySelector(".fg").style.strokeDashoffset = String(100.5 * (1 - p));
-    }
-    for (const [id, el] of this.cutRings) if (!seen.has(id)) (el.remove(), this.cutRings.delete(id));
-  };
-
-  // ── Mode construction : case visée, portée, prix ───────────────────────────────
-  /** Case prévisualisée en mode construction (survol à la souris, premier toucher au doigt). */
-  P.setBuildPreview = function (id) {
-    this.preview = id || null;
-    const app = this.app,
-      game = app.game;
-    if (!this.buildMode || this.buildMode.kind !== "tower" || !id) {
-      if (this.buildTag) this.buildTag.style.display = "none";
-      if (!this.panel) app.entities.showRange(0, 0, 0);
-      return;
-    }
-    const so = game.socket(id);
-    const fam = this.buildMode.family;
-    const f = C.towers[fam].forms["1"];
-    const col = { fire: 0xff9a52, ice: 0x9fe8ff, water: 0x62b4ff }[fam];
-    if (so.kind === fam && !game.towerAt(id) && !game.isForest(id)) app.entities.showRange(so.x, so.z, game.towerStats({ family: fam, tier: 1, branch: null, frenzyT: 0 }).range, col);
-    else app.entities.showRange(0, 0, 0);
-    if (!this.buildTag) {
-      this.buildTag = h("div", { class: "ptmt-buildtag" });
-      this.overlay.append(this.buildTag);
-    }
-    const tag = this.buildTag;
-    tag.innerHTML = "";
-    tag.dataset.ok = "false";
-    if (game.towerAt(id)) tag.append(h("b", {}, "Case occupée"));
-    else if (so.kind !== fam) tag.append(h("b", {}, `Sol ${ZONE[so.kind].sol}`), h("span", {}, `Tours ${ZONE[so.kind].tower} seulement`));
-    else if (game.isForest(id)) {
-      const inf = game.cutInfo(id);
-      tag.append(h("b", {}, ZONE[so.kind].forest), h("span", {}, inf.progress !== null ? "Coupe en cours…" : `Touche pour couper · ${inf.cost} or`));
-    } else {
-      tag.dataset.ok = game.state.gold >= f.cost ? "true" : "false";
-      tag.append(h("b", {}, f.name), h("span", { class: "cost" }, `${f.cost} or`));
-      if (this.touch) tag.append(h("span", { class: "hint" }, "Touche encore pour construire"));
-    }
-    tag.style.display = "";
-    this.previewPos = so;
-  };
-  P.updateBuildTag = function () {
-    if (!this.buildTag || this.buildTag.style.display === "none" || !this.previewPos) return;
-    const app = this.app;
-    const so = this.previewPos;
-    const v = app.world.toWorld(so.x, so.z, app.world.tileY(so) + 0.4);
-    v.project(app.camera);
-    const w = app.canvas.clientWidth,
-      hgt = app.canvas.clientHeight;
-    const tw = this.buildTag.offsetWidth || 120,
-      th = this.buildTag.offsetHeight || 40;
-    // Au-dessus de la case (sans la cacher), et entière à l'écran.
-    const x =Math.max(tw / 2 + 6, Math.min(w - tw / 2 - 6, ((v.x + 1) / 2) * w));
-    const y = Math.max(th + 70, Math.min(hgt - 200, ((1 - v.y) / 2) * hgt - 34));
-    this.buildTag.style.left = x + "px";
-    this.buildTag.style.top = y + "px";
-  };
-
-  // ── Mise à jour régulière ─────────────────────────────────────────────────────
-  P.update = function (dt, time) {
-    const app = this.app,
-      game = app.game;
-    if (!game) return;
-    const s = game.state;
-    this.updateLabels();
-    this.updateFloaters(dt);
-    this.updatePrepMode();
-    this.updateMarkers();
-    this.updateCutRings();
-    this.updateBuildTag();
-    if (time - this.last < 0.12 && this.lastGame === game) return;
-    this.last = time;
-    this.lastGame = game;
-    this.updateWaveBar();
-    const L = game.L;
-    this.levelChip.children[0].textContent = `${game.level}. ${L.name}`;
-    this.levelChip.children[1].textContent = s.endless ? (s.phase === "prep" ? `Sans fin · préparation vague ${s.endlessCount + 1}` : `Sans fin · vague ${s.endlessCount}`) : s.phase === "prep" ? `Préparation · vague ${s.wave + 1}/${s.waveCount}` : `Vague ${s.wave}/${s.waveCount}`;
-    this.goldChip.children[1].textContent = Math.floor(s.gold);
-    this.manaBar.style.width = (100 * s.mana) / s.manaMax + "%";
-    this.manaText.textContent = `${Math.floor(s.mana)}/${s.manaMax}`;
-    // Trésors : forme + couleur par état.
-    const tIcons = { stored: I.chest, carried: I.run, dropped: I.sack, lost: I.lost };
-    const labels = { stored: "dans sa réserve", carried: "emporté !", dropped: "tombé", lost: "perdu" };
-    const key = s.treasures.map((t) => t.state).join();
-    if (key !== this.treasureKey) {
-      this.treasureKey = key;
-      this.treasureChip.innerHTML = "";
-      for (const t of s.treasures) this.treasureChip.append(h("span", { class: "ptmt-t", "data-state": t.state, title: `Trésor ${t.id.slice(1)} (${game.reserve(t.reserve).name}) : ${labels[t.state]}`, html: tIcons[t.state] }));
-    }
-    this.pauseBtn.innerHTML = s.paused ? I.play : I.pause;
-    this.pauseBtn.setAttribute("aria-pressed", s.paused ? "true" : "false");
-    this.speedBtn.setAttribute("aria-pressed", s.speed === 2 ? "true" : "false");
-    if (this.tab === "spells" || this.tab === "towers" || this.tab === "traps") {
-      const sig = this.tab + s.gold + s.traps.length + Math.floor(s.mana) + C.spells.order.map((id) => Math.ceil(s.spells[id].cd)).join() + s.paused + s.phase;
-      if (sig !== this.traySig) {
-        this.traySig = sig;
-        this.renderTray();
-      }
-    }
-    if (this.panel && this.panel.kind !== "mill") {
-      const sig = JSON.stringify(this.panelSignature());
-      if (sig !== this.panelSig) {
-        this.panelSig = sig;
-        this.refreshPanel();
-      }
-    }
-    this.updateAlerts();
-  };
-  P.panelSignature = function () {
-    const game = this.app.game,
-      s = game.state;
-    const p = this.panel;
-    if (p.kind === "tower") {
-      const t = s.towers.find((x) => x.id === p.id);
-      return t ? [t.xp | 0, t.tier, t.branch, t.targeting, s.gold, s.mill.atelier, t.frenzyT > 0] : null;
-    }
-    if (p.kind === "trap") {
-      const t = s.traps.find((x) => x.id === p.id);
-      return t ? [t.tier, t.dir, Math.ceil(t.cd), s.gold, s.mill.atelier] : null;
-    }
-    if (p.kind === "reserve") {
-      const r = game.reserve(p.id);
-      return [r.tier, r.stock.length, s.gold, s.mill.atelier];
-    }
-    if (p.kind === "forest" || p.kind === "socket") {
-      const pr = game.cutProgress(p.id);
-      return [s.gold, game.isForest(p.id), pr === null ? -1 : Math.floor(pr * 20), !!game.towerAt(p.id)];
-    }
-    return [s.gold, s.traps.length, s.mill.atelier];
-  };
-
-  // Étiquettes des réserves (nom, stock, palier, alerte).
-  P.updateLabels = function () {
-    const app = this.app,
-      game = app.game;
-    const s = game.state;
-    const cam = app.camera;
-    const w = app.canvas.clientWidth,
-      hgt = app.canvas.clientHeight;
-    const v = new THREE.Vector3();
-    for (const r of s.reserves) {
-      let el = this.labels.get(r.id);
-      if (!el) {
-        el = h("div", { class: "ptmt-label", onclick: () => this.showReservePanel(r.id) });
-        this.overlay.append(el);
-        this.labels.set(r.id, el);
-      }
-      const total = game.L.reserves.find((x) => x.id === r.id).treasures;
-      const stealing = s.enemies.some((e) => e.state === "steal" && e.stealRes === r.id);
-      const sig = r.stock.length + ":" + r.tier + ":" + stealing;
-      if (el.dataset.sig !== sig) {
-        el.dataset.sig = sig;
-        el.innerHTML = "";
-        const stock = h("span", { class: "stock" });
-        for (let i = 0; i < total; i++) stock.append(h("i", { class: i < r.stock.length ? "" : "empty" }));
-        el.append(h("span", {}, r.name), stock, h("span", { class: "tier" }, ROMAN[r.tier]));
-        el.dataset.alert = stealing ? "true" : "false";
-      }
-      app.world.toWorld(r.x, r.z, app.world.heightU(r.x, r.z) + 3.2, v);
-      v.project(cam);
-      const vis = v.z < 1 && v.x > -1.1 && v.x < 1.1 && v.y > -1.1 && v.y < 1.1;
-      el.style.display = vis ? "" : "none";
-      el.style.left = ((v.x + 1) / 2) * w + "px";
-      el.style.top = ((1 - v.y) / 2) * hgt + "px";
-    }
-    for (const [id, el] of this.labels) if (!s.reserves.find((r) => r.id === id)) (el.remove(), this.labels.delete(id));
-  };
-  P.clearLabels = function () {
-    for (const [, el] of this.labels) el.remove();
-    this.labels.clear();
-    this.treasureKey = null;
-  };
-  // Textes flottants.
-  P.floatAt = function (x, z, text, kind) {
-    const app = this.app;
-    const v = app.world.toWorld(x, z, app.world.heightU(x, z) + 2.4);
-    this.floaters = this.floaters || [];
-    if (this.floaters.length > 24) return;
-    const el = h("div", { class: "ptmt-float" + (kind === "bad" ? " bad" : kind === "blue" ? " blue" : "") }, text);
-    this.overlay.append(el);
-    this.floaters.push({ el, v, t: 0 });
-  };
-  P.updateFloaters = function (dt) {
-    if (!this.floaters) return;
-    const app = this.app;
-    const w = app.canvas.clientWidth,
-      hgt = app.canvas.clientHeight;
-    const p = new THREE.Vector3();
-    this.floaters = this.floaters.filter((f) => {
-      f.t += dt;
-      if (f.t > 1.1) {
-        f.el.remove();
-        return false;
-      }
-      p.copy(f.v).project(app.camera);
-      f.el.style.left = ((p.x + 1) / 2) * w + "px";
-      f.el.style.top = ((1 - p.y) / 2) * hgt + "px";
-      return true;
-    });
-  };
-  // Alertes : porteur proche d'une sortie (cliquable : recentre la caméra).
-  P.updateAlerts = function () {
-    const app = this.app,
-      game = app.game;
-    const s = game.state;
-    const want = new Map();
-    for (const e of s.enemies) {
-      if (!e.carrying) continue;
-      const rem = game.remaining(e);
-      if (rem < 12) want.set(e.id, { e, rem });
-    }
-    for (const [id, el] of this.alerts) if (!want.has(id)) (el.remove(), this.alerts.delete(id));
-    for (const [id, { e, rem }] of want) {
-      let el = this.alerts.get(id);
-      if (!el) {
-        el = h("button", { class: "ptmt-alert", onclick: () => app.focusEnemy(id) });
-        this.alertBox.append(el);
-        this.alerts.set(id, el);
-      }
-      el.textContent = `Porteur à ${Math.ceil(rem)} U d'une sortie !`;
-    }
-  };
-  P.flash = function (text, kind) {
-    const el = h("div", { class: "ptmt-alert " + (kind || "info") }, text);
-    this.alertBox.prepend(el);
-    setTimeout(() => el.remove(), 2600);
-  };
-  P.onSteal = function (ev) {
-    const game = this.app.game;
-    this.flash(`Un trésor est emporté de ${game.reserve(ev.reserve).name} !`, "");
-    this.app.progressTutorial("steal");
-  };
-  P.onLost = function (ev) {
-    const game = this.app.game;
-    this.flash(`Trésor perdu (${game.reserve(ev.reserve).name}) : il a passé la sortie.`, "");
-  };
-
-  // ── Écrans ────────────────────────────────────────────────────────────────
-  P.closeScreen = function () {
-    if (this.screen) this.screen.remove();
-    this.screen = null;
-  };
-  P.openScreen = function (content) {
-    this.closeScreen();
-    this.screen = h("div", { class: "ptmt-screen" }, content);
-    this.root.append(this.screen);
-    return this.screen;
-  };
-  P.stars = function (n, big) {
-    return h("span", { class: "ptmt-stars", style: big ? "font-size:26px" : "" }, [1, 2, 3].map((i) => h("span", { class: i <= n ? "on" : "off" }, "★")));
-  };
-  P.showMenu = function () {
-    const app = this.app;
-    const prog = app.progress;
-    const cp = PTMT.progress.loadCheckpoint();
-    const levels = h("div", { class: "ptmt-levels" });
-    for (let lv = 1; lv <= 5; lv++) {
-      const L = PTMT.layouts[lv];
-      const st = prog.levels[lv];
-      const locked = lv > prog.unlockedLevel;
-      const rec = prog.records[lv + ":" + L.id];
-      levels.append(
+      actions.append(row);
+    } else if (!v.max) {
+      const nextName = v.next && v.next.name && v.next.name !== v.name ? v.next.name : "Niveau " + (v.level + 1);
+      actions.append(
         h(
           "button",
-          { class: "ptmt-level", disabled: locked, onclick: () => app.startLevel(lv) },
-          h("span", { class: "n" }, `Niveau ${lv} · ${C.levels[lv].waves} vagues`),
-          h("b", {}, L.name),
-          h("p", {}, L.pitch),
-          locked ? h("span", { html: I.lock, style: "width:18px;height:18px;display:inline-flex;color:#8a7547" }) : this.stars(st.stars),
-          rec ? h("p", {}, `Record sans fin : ${rec} vagues`) : null,
+          { class: "pt-btn pt-go pt-up" + (v.canUp ? " pt-pulse-s" : ""), "aria-disabled": v.canUp ? "false" : "true", onclick: (e) => this.doUpgrade(t.id, null, e.currentTarget, v.upReason) },
+          ico("upgrade"),
+          h("span", { class: "pt-up-t" }, h("b", {}, "Améliorer"), h("small", {}, nextName)),
+          h("span", { class: "pt-price" }, ico("gold"), h("b", { class: "pt-num" }, v.cost !== null && v.cost !== undefined ? String(v.cost) : "—")),
         ),
+        v.upReason ? h("small", { class: "pt-reason" }, v.upReason) : null,
       );
-    }
-    const pts = PTMT.progress.pointsAvailable(prog);
-    const sheet = h(
-      "div",
-      { class: "ptmt-sheet" },
-      h("h1", {}, "Pas touche à mes trésors"),
-      h("p", { class: "lead" }, "Des cambrioleurs maladroits en veulent aux six trésors du moulin. Défends le domaine par le feu, la glace et l'eau !"),
-      levels,
-      h(
-        "div",
-        { class: "ptmt-menu-actions" },
-        cp && cp.level ? h("button", { class: "ptmt-btn ptmt-btn-go", onclick: () => app.resume(cp) }, `Reprendre (niveau ${cp.level}, vague ${cp.wave + 1})`) : null,
-        h("button", { class: "ptmt-btn ptmt-btn-gold", onclick: () => this.showTalents() }, h("span", { html: I.star, style: "width:18px;height:18px;display:inline-flex" }), `Talents${pts > 0 ? " · " + pts + " point" + (pts > 1 ? "s" : "") + " à placer" : ""}`),
-        app.game && !app.game.isOver ? h("button", { class: "ptmt-btn", onclick: () => this.closeScreen() }, "Retour à la partie") : null,
-        h("a", { class: "ptmt-btn", href: "../", onclick: (e) => app.leave(e) }, h("span", { html: I.home, style: "width:18px;height:18px;display:inline-flex" }), "Visiter le moulin"),
-      ),
-    );
-    this.openScreen(sheet);
+    } else actions.append(h("div", { class: "pt-maxed" }, ico("crown"), "Évolution finale"));
+    const sellTxt = h("b", { class: "pt-num" }, v.sell !== null ? "+" + v.sell : "");
+    const sell = h("button", { class: "pt-btn pt-red pt-sell", title: "Revendre la tour", onclick: (e) => this.doSell(t.id, e.currentTarget) }, ico("sell"), h("span", { class: "pt-sell-l" }, "Vendre"), h("span", { class: "pt-price" }, ico("gold"), sellTxt));
+    const body = h("div", { class: "pt-sel-in pt-tw", style: `--acc:${accent}` }, head, xp, stats, actions, h("div", { class: "pt-tw-f" }, sell));
+    const prevSell = keep && this.sel && this.sel.kind === "tower" && this.sel.id === id ? this.sel.sellArm : 0;
+    this.openSel({ kind: "tower", id, i: t.i !== undefined ? t.i : i, j: t.j !== undefined ? t.j : j }, body, "pt-tower" + (v.specs ? " wide" : ""));
+    const sel = this.sel;
+    sel.key = this.towerKey(t);
+    sel.xpTxt = xpTxt;
+    sel.xpFill = xpFill;
+    sel.kills = kills;
+    sel.sellTxt = sellTxt;
+    sel.sellArm = prevSell;
+    this.updateTowerLive(t);
+    this.v("showRange", id);
+    if (!keep) this.tutoDone("tower");
   };
-  P.showTalents = function () {
-    const app = this.app;
-    const prog = app.progress;
-    const T = PTMT.talents;
-    const earned = PTMT.progress.pointsEarned(prog);
-    const render = () => {
-      const alloc = prog.talents;
-      const avail = earned - T.spentTotal(alloc);
-      const grid = h("div", { class: "ptmt-talents" });
-      for (const fam of ["fire", "ice", "water"]) {
-        const tree = h("div", { class: "ptmt-tree " + fam }, h("h3", {}, h("span", {}, C.talents[fam].name), h("span", { class: "ranks" }, `${T.spentIn(alloc, fam)}/14`)));
-        let lastTier = null;
-        for (const t of C.talents[fam].items) {
-          if (t.tier !== lastTier) {
-            tree.append(h("div", { class: "ptmt-tier-sep" }, t.tier === "base" ? "Base" : t.tier === "advanced" ? `Avancés (${C.talents.advancedNeeds} points)` : `Ultime (${C.talents.ultimateNeeds} points + un avancé au rang 2)`));
-            lastTier = t.tier;
-          }
-          const r = alloc[fam][t.id] || 0;
-          const up = T.canRankUp(alloc, fam, t.id, earned);
-          const down = T.canRankDown(alloc, fam, t.id);
-          const val = t.values[Math.max(0, r - 1)];
-          const nextVal = t.values[Math.min(t.ranks - 1, r)];
-          const show = (v) =>
-            Array.isArray(v)
-              ? t.text.replace("{h}", Math.round(v[0] * 100)).replace("{b}", Math.round(v[1] * 100))
-              : t.text.replace("{v}", Math.round(v * 100)).replace("{p}", Math.round(v * 100)).replace("{n}", v);
-          tree.append(
-            h(
-              "div",
-              { class: "ptmt-talent" + (r === 0 && up ? " locked" : "") },
-              h("span", { class: "ti", html: I[fam] }),
-              h("span", { class: "tt" }, h("b", {}, t.name), r ? show(val) : "Rang suivant : " + show(nextVal), h("span", { class: "ranks" }, ` ${r}/${t.ranks}`)),
-              h(
-                "span",
-                { class: "pm" },
-                h("button", { disabled: !!up, title: up || "Ajouter un rang", onclick: () => ((alloc[fam][t.id] = r + 1), PTMT.progress.save(prog), render()) }, "+"),
-                h("button", { disabled: !!down, title: down || "Retirer un rang", onclick: () => ((alloc[fam][t.id] = r - 1), PTMT.progress.save(prog), render()) }, "−"),
-              ),
-            ),
-          );
+  P.updateTowerLive = function (t) {
+    const sel = this.sel;
+    if (!sel || !sel.xpTxt) return;
+    const D = this.D();
+    const lv = t.level || 1;
+    const need = t.xpNext !== undefined ? t.xpNext : D.XP ? D.XP[lv] : 0;
+    const xp = Math.floor(t.xp || 0);
+    const txt = lv >= 7 ? "maximum" : xp + NB + "/" + NB + need;
+    if (sel.xpTxt.textContent !== txt) {
+      sel.xpTxt.textContent = txt;
+      sel.xpFill.style.transform = `scaleX(${lv >= 7 ? 1 : clamp(need ? xp / need : 1, 0, 1).toFixed(3)})`;
+      sel.xpFill.parentNode.classList.toggle("full", lv < 7 && xp >= need);
+    }
+    const k = t.kills ? t.kills + " ennemi" + (t.kills > 1 ? "s" : "") + " vaincu" + (t.kills > 1 ? "s" : "") : "";
+    if (sel.kills.textContent !== k) sel.kills.textContent = k;
+  };
+  P.doUpgrade = function (id, spec, btn, reason) {
+    if (reason) return this.refuse(btn, reason);
+    const res = call(this.game, "upgrade", id, spec || undefined);
+    if (!this.act(res, btn)) return;
+    const t = (this.game.state.towers || []).find((x) => x.id === id);
+    if (t) this.openTower(id, t.i, t.j, true);
+  };
+  P.doSell = function (id, btn) {
+    const sel = this.sel;
+    // Deux temps : le premier toucher arme le bouton, le second (dans les 2,5 s) vend.
+    if (!sel || !sel.sellArm || this.t - sel.sellArm > 2.5) {
+      sel.sellArm = this.t;
+      btn.classList.add("armed");
+      btn.querySelector(".pt-sell-l").textContent = "Confirmer ?";
+      setTimeout(() => {
+        if (this.sel === sel && btn.isConnected) {
+          btn.classList.remove("armed");
+          btn.querySelector(".pt-sell-l").textContent = "Vendre";
+          sel.sellArm = 0;
         }
-        grid.append(tree);
-      }
-      const sheet = h(
-        "div",
-        { class: "ptmt-sheet" },
-        h("h1", {}, "Talents"),
-        h("p", { class: "lead" }, `${avail} point${avail > 1 ? "s" : ""} disponible${avail > 1 ? "s" : ""} sur ${earned} gagnés. Chaque niveau rapporte jusqu'à 4 points (victoire 2, deuxième étoile 1, troisième étoile 1). Redistribution gratuite entre les parties ; une partie en cours garde ses talents.`),
-        grid,
-        h(
-          "div",
-          { class: "ptmt-menu-actions" },
-          h("button", { class: "ptmt-btn", onclick: () => ((prog.talents = T.emptyAllocation()), PTMT.progress.save(prog), render()) }, "Tout redistribuer"),
-          h("button", { class: "ptmt-btn ptmt-btn-go", onclick: () => this.showMenu() }, "Retour"),
-        ),
-      );
-      this.openScreen(sheet);
-    };
-    render();
-  };
-  P.showResult = function (result, reward) {
-    const app = this.app,
-      game = app.game;
-    const L = game.L;
-    const win = result.win;
-    const losses = h(
-      "div",
-      { class: "ptmt-losses" },
-      game.state.reserves.map((r) => h("div", {}, `${r.name} : ${result.lostByReserve[r.id] || 0} perdu${(result.lostByReserve[r.id] || 0) > 1 ? "s" : ""}`)),
-    );
-    const endlessOver = result.endless;
-    let title = win ? "Victoire !" : endlessOver ? "Fin du mode sans fin" : "Défaite…";
-    let lead = win ? `${result.saved} trésor${result.saved > 1 ? "s" : ""} sauvé${result.saved > 1 ? "s" : ""} sur ${result.total}.` : endlessOver ? `Tu as tenu ${result.endlessCount} vague${result.endlessCount > 1 ? "s" : ""} de plus.` : "Tous les trésors ont été emportés hors du domaine.";
-    const actions = h("div", { class: "ptmt-menu-actions", style: "justify-content:center" });
-    if (win) {
-      if (game.level < 5) actions.append(h("button", { class: "ptmt-btn ptmt-btn-go", onclick: () => app.startLevel(game.level + 1, { transition: true }) }, "Niveau suivant"));
-      else actions.append(h("button", { class: "ptmt-btn ptmt-btn-go", onclick: () => this.showMenu() }, "Choix des niveaux"));
-      actions.append(h("button", { class: "ptmt-btn", onclick: () => app.startLevel(game.level) }, "Rejouer"));
-      actions.append(h("button", { class: "ptmt-btn ptmt-btn-gold", onclick: () => app.continueEndless() }, "Continuer sans fin"));
-    } else {
-      actions.append(h("button", { class: "ptmt-btn ptmt-btn-go", onclick: () => app.startLevel(game.level) }, "Réessayer (même disposition)"));
-      actions.append(h("button", { class: "ptmt-btn", onclick: () => this.showMenu() }, "Choix des niveaux"));
+      }, 2500);
+      return;
     }
-    const sheet = h(
-      "div",
-      { class: "ptmt-sheet", style: "text-align:center;max-width:560px" },
-      h("h1", {}, title),
-      win ? h("div", { class: "ptmt-result-stars" }, [1, 2, 3].map((i) => h("span", { style: `color:${i <= result.stars ? "#f2b93b" : "#d8ccae"}` }, "★"))) : null,
-      h("p", { class: "lead" }, lead),
-      win ? h("p", { class: "ptmt-note" }, result.stars === 3 ? "Aucun trésor n'a même été touché !" : result.stars === 2 ? "Aucun trésor perdu définitivement." : "Pour 2 étoiles : ne perds aucun trésor ; pour 3 : qu'aucun ne soit pris.") : null,
-      losses,
-      reward && reward.points ? h("p", { class: "lead", style: "color:#3b7c44" }, `+${reward.points} point${reward.points > 1 ? "s" : ""} de talent !`) : null,
-      reward && reward.record ? h("p", { class: "lead", style: "color:#8a5a10" }, "Nouveau record !") : null,
-      actions,
-      h("div", { class: "ptmt-menu-actions", style: "justify-content:center" }, h("button", { class: "ptmt-btn ptmt-btn-ghost", style: "color:#6b3f19;border-color:#d6c496", onclick: () => this.showTalents() }, "Talents")),
-    );
-    this.openScreen(sheet);
-  };
-  P.banner = function (title, sub) {
-    const el = h("div", { class: "ptmt-transition" }, h("div", { class: "banner" }, title, sub ? h("small", {}, sub) : null));
-    this.root.append(el);
-    setTimeout(() => el.remove(), 3300);
+    const res = call(this.game, "sell", id);
+    if (!this.act(res, btn)) return;
+    this.closeSel();
   };
 
-  // ── Tutoriel ─────────────────────────────────────────────────────────────────
-  P.tip = function (id, text, opts = {}) {
-    const prog = this.app.progress;
-    if (!opts.force && prog.tutorial[id]) return;
-    prog.tutorial[id] = true;
-    PTMT.progress.save(prog);
-    if (this.tipEl) this.tipEl.remove();
-    this.tipEl = h("div", { class: "ptmt-tip" }, h("span", { class: "who", html: I.chest, style: "color:#6b3f19" }), h("div", {}, h("p", {}, text), h("button", { class: "ptmt-btn ptmt-btn-go", onclick: () => this.hideTip() }, "Compris")));
-    this.root.append(this.tipEl);
-    clearTimeout(this.tipTimer);
-    this.tipTimer = setTimeout(() => this.hideTip(), opts.duration || 14000);
+  /* ------------------------------------------------------------------ événements de la simulation */
+  P.events = function (list) {
+    if (!list || !list.length || this.mode !== "game" || !this.game) return;
+    const D = this.D();
+    for (const e of list) {
+      switch (e.type) {
+        case "newEnemy":
+          // Le champ « type » de l'événement vaut déjà "newEnemy" : le type d'ennemi arrive dans enemy (ou enemyType, kind).
+          this.queueModal(() => this.newEnemyCard(e.enemy || e.enemyType || e.kind));
+          break;
+        case "waveStart":
+          this.waveBanner(e.index);
+          this.tutoDone("wave");
+          break;
+        case "kill":
+          if (e.gold) this.fly(e.x, e.y, "+" + e.gold, "gold");
+          break;
+        case "steal":
+          this.toast("Une gemme a été volée au moulin !", "bad");
+          this.bump(this.gemsEl, "bad");
+          this.tutoStep("steal");
+          break;
+        case "drop":
+          this.fly(e.x, e.y, "Gemme tombée !", "gem");
+          this.tutoStep("drop", e);
+          break;
+        case "escape":
+          this.toast("Une gemme est perdue…", "bad");
+          this.bump(this.gemsEl, "bad");
+          break;
+        case "gemReturn":
+          this.toast("Une gemme est revenue au moulin", "good");
+          break;
+        case "cut":
+          if (this.sel && this.sel.kind === "forest" && this.sel.i === e.i && this.sel.j === e.j) this.closeSel();
+          break;
+        case "meteorImpact":
+          this.bump(this.spellBtn.meteor, "good");
+          break;
+        case "barrierBreak":
+        case "smoke":
+          break;
+        case "win":
+        case "lose":
+          break;
+      }
+    }
+  };
+
+  /* ------------------------------------------------------------------ fiches (modales) */
+  P.queueModal = function (fn) {
+    if (this.modal) this.modalQueue.push(fn);
+    else fn();
+  };
+  /** Ouvre une fiche modale ; pause la partie si besoin, la reprend à la fermeture. */
+  P.openModal = function (card, o) {
+    o = o || {};
+    this.closeModal(true);
+    this.hideTip();
+    const g = this.game;
+    let resume = false;
+    if (g && o.pause !== false && !g.state.over) {
+      resume = !g.state.paused;
+      if (resume) call(g, "setPaused", true);
+    }
+    const back = h("div", { class: "pt-modal" + (o.cls ? " " + o.cls : ""), role: "dialog", "aria-modal": "true", onclick: (e) => e.target === back && o.dismiss !== false && this.closeModal() }, card);
+    this.modalLayer.append(back);
+    this.modal = { el: back, resume, onClose: o.onClose, enter: o.enter };
+    this.pausedBanner(false);
+    setTimeout(() => {
+      const f = card.querySelector("[data-focus]") || card.querySelector("button");
+      if (f && !this.mobile) f.focus({ preventScroll: true });
+    }, 60);
+    return back;
+  };
+  P.closeModal = function (silent) {
+    const m = this.modal;
+    if (!m) return;
+    this.modal = null;
+    m.el.classList.add("pt-out");
+    setTimeout(() => m.el.remove(), 180);
+    if (m.resume && this.game && !this.game.state.over) call(this.game, "setPaused", false);
+    if (!silent && m.onClose) m.onClose();
+    if (!silent && this.modalQueue.length) {
+      const next = this.modalQueue.shift();
+      setTimeout(() => next(), 220);
+    }
+    if (this.game && this.game.state.paused && !this.modal) this.pausedBanner(true);
+  };
+  P.newEnemyCard = function (type) {
+    if (!type || !this.game) return;
+    const D = this.D();
+    const E = (D.ENEMIES && D.ENEMIES[type]) || {};
+    const d = Object.assign({}, E, call(this.game, "describeEnemy", type) || {});
+    const pr = this.prog();
+    if (pr) {
+      const p = this.loadP();
+      call(pr, "markSeen", p, type);
+      this.saveP(p);
+    }
+    const abi = E.ability && ABILITY[E.ability.kind] ? ABILITY[E.ability.kind](E.ability) : null;
+    const abText = typeof d.ability === "string" ? d.ability : abi ? abi[1] + " : " + abi[2] : "Aucune capacité spéciale";
+    const card = h(
+      "div",
+      { class: "pt-card pt-newe pt-pop-in" },
+      h("div", { class: "pt-ribbon" }, h("span", {}, "Nouvel ennemi" + NB + "!")),
+      h("div", { class: "pt-newe-p" }, this.enemyPortrait(type, false, false, "huge")),
+      h("h2", {}, d.name || type),
+      d.role || E.ct ? h("div", { class: "pt-muted pt-newe-role" }, "Rôle : ", d.role || E.ct) : null,
+      h("div", { class: "pt-facts" }, h("span", { class: "pt-fact" }, ico("heal"), nf(d.hp || E.hp || 0) + " PV"), h("span", { class: "pt-fact" }, ico("haste"), cap(speedWord(d.speed || E.speed || 1)) + " (" + f1(d.speed || E.speed || 1) + " case/s)"), E.gold ? h("span", { class: "pt-fact" }, ico("gold"), "+" + E.gold) : null),
+      h("div", { class: "pt-ability" }, ico(abi ? abi[0] : "info"), h("span", {}, abText)),
+      E.blurb ? h("p", { class: "pt-newe-b" }, E.blurb) : null,
+      h("small", { class: "pt-muted" }, "Les champions ont une couronne dorée : trois fois et demie plus de PV."),
+      h("button", { class: "pt-btn pt-go pt-big", "data-focus": "", onclick: () => this.closeModal() }, ico("check"), "Compris" + NB + "!"),
+    );
+    this.openModal(card, { cls: "pt-m-newe", enter: () => this.closeModal() });
+  };
+  P.openPause = function () {
+    if (!this.game || this.game.state.over) return;
+    if (this.modal) return this.closeModal();
+    this.cancelAim();
+    const s = this.game.state;
+    const p = this.loadP();
+    const q = (p.settings && p.settings.quality) || "auto";
+    const QN = { auto: "Automatique", high: "Haute", low: "Économe" };
+    const qBtn = h("button", { class: "pt-btn pt-wood", onclick: () => this.cycleQuality(qBtn) }, ico("quality"), h("span", {}, "Qualité : ", h("b", {}, QN[q] || q)));
+    const w = s.wave || {};
+    const card = h(
+      "div",
+      { class: "pt-card pt-pausecard pt-pop-in" },
+      h("div", { class: "pt-ribbon" }, h("span", {}, "Pause")),
+      h("div", { class: "pt-pause-m" }, h("b", {}, (s.map && s.map.name) || (this.mapInfo && this.mapInfo.name) || ""), h("small", {}, `Mission ${this.level} · vague ${Math.max(1, w.index || 1)} sur ${w.total || "?"}`)),
+      h(
+        "div",
+        { class: "pt-col" },
+        h("button", { class: "pt-btn pt-go pt-big", "data-focus": "", onclick: () => this.closeModal() }, ico("play"), "Reprendre"),
+        h("button", { class: "pt-btn pt-wood", onclick: () => this.restart() }, ico("restart"), "Recommencer"),
+        h("button", { class: "pt-btn pt-wood", onclick: () => this.quit() }, ico("map"), "Missions"),
+        qBtn,
+      ),
+      this.layout === "desk"
+        ? h("div", { class: "pt-keys" }, [["Espace", "pause"], ["1 2 3", "vitesse"], ["Q W E", "sorts"], ["Entrée", "appeler la vague"], ["Échap", "annuler"]].map(([k, t]) => h("span", {}, h("kbd", {}, k), " " + t)))
+        : null,
+    );
+    this.openModal(card, { cls: "pt-m-pause" });
+  };
+  P.cycleQuality = function (btn) {
+    const order = ["auto", "high", "low"];
+    const QN = { auto: "Automatique", high: "Haute", low: "Économe" };
+    const p = this.loadP();
+    p.settings = p.settings || {};
+    const q = order[(order.indexOf(p.settings.quality || "auto") + 1) % order.length];
+    p.settings.quality = q;
+    this.saveP(p);
+    call(this.hooks, "setQuality", q);
+    btn.querySelector("b").textContent = QN[q];
+  };
+  P.restart = function () {
+    this.closeModal(true);
+    if (typeof this.hooks.restartLevel === "function") this.hooks.restartLevel();
+  };
+  P.quit = function () {
+    this.closeModal(true);
+    const lv = this.level;
+    if (typeof this.hooks.quitLevel === "function") this.hooks.quitLevel();
+    if (this.mode === "game") this.showMap(lv);
+  };
+  /** Victoire ou défaite (enregistre le résultat dans la progression, sans conflit si l'intégrateur le fait aussi). */
+  P.showResult = function (over) {
+    if (!this.game) return;
+    const D = this.D();
+    const lv = this.level;
+    const first = over.win && !this.wasWon;
+    const pr = this.prog();
+    if (pr && over.win) {
+      const p = this.loadP();
+      p.levels = p.levels || {};
+      const L = p.levels[lv] || (p.levels[lv] = { won: false, bestGems: 0, gemsTotal: over.gemsTotal, brilliant: false });
+      L.won = true;
+      L.bestGems = Math.max(L.bestGems || 0, over.gemsLeft || 0);
+      L.gemsTotal = over.gemsTotal || L.gemsTotal;
+      L.brilliant = !!(L.brilliant || over.brilliant);
+      p.unlocked = Math.max(p.unlocked || 1, Math.min(this.missionCount(), lv + 1));
+      this.saveP(p);
+      this.wasWon = true;
+    }
+    const total = over.gemsTotal || (this.game.state.gems || []).length || 5;
+    const gems = this.game.state.gems || [];
+    const row = h("div", { class: "pt-gemrow big" }, Array.from({ length: total }, (_, i) => h("span", { class: "pt-rgem", style: `--i:${i}` }, ico(icons().gem(gems[i] ? gems[i].color : i % 6, i < (over.gemsLeft || 0) ? "lair" : "lost")))));
+    let card;
+    if (over.win) {
+      const pts = over.points !== undefined ? over.points : D.pointsPerLevel || 3;
+      card = h(
+        "div",
+        { class: "pt-card pt-result win pt-pop-in" },
+        h("div", { class: "pt-ribbon gold" }, h("span", {}, "Victoire" + NB + "!")),
+        over.brilliant ? h("div", { class: "pt-brilliant big" }, h("span", { class: "pt-crown", html: icons().get("crown") }), h("b", {}, "Brillant" + NB + "!"), h("small", {}, "Aucune gemme perdue")) : null,
+        h("p", { class: "pt-result-t" }, `${over.gemsLeft} gemme${over.gemsLeft > 1 ? "s" : ""} sauvée${over.gemsLeft > 1 ? "s" : ""} sur ${total}`),
+        row,
+        first ? h("div", { class: "pt-reward" }, ico("skillPoint"), h("b", {}, "+" + pts + " points de compétence")) : h("small", { class: "pt-muted" }, "Mission déjà gagnée : pas de nouveaux points, mais ton record est gardé."),
+        h(
+          "div",
+          { class: "pt-row" },
+          h("button", { class: "pt-btn pt-wood", onclick: () => this.restart() }, ico("restart"), "Rejouer"),
+          h("button", { class: "pt-btn pt-go pt-big", "data-focus": "", onclick: () => this.quit() }, ico("map"), "Continuer"),
+        ),
+      );
+    } else {
+      card = h(
+        "div",
+        { class: "pt-card pt-result lose pt-pop-in" },
+        h("div", { class: "pt-ribbon grey" }, h("span", {}, "Défaite")),
+        h("p", { class: "pt-result-t" }, "Toutes les gemmes ont été emportées…"),
+        row,
+        h("small", { class: "pt-muted" }, "Astuce : les compétences et les buttes aident beaucoup. Une gemme tombée peut toujours être reprise."),
+        h(
+          "div",
+          { class: "pt-row" },
+          h("button", { class: "pt-btn pt-wood", onclick: () => this.quit() }, ico("map"), "Missions"),
+          h("button", { class: "pt-btn pt-go pt-big", "data-focus": "", onclick: () => this.restart() }, ico("restart"), "Réessayer"),
+        ),
+      );
+    }
+    this.openModal(card, { cls: "pt-m-result", pause: false, dismiss: false });
+  };
+
+  /* ------------------------------------------------------------------ bannières, messages, textes volants */
+  P.waveBanner = function (index) {
+    const g = this.game;
+    const s = g.state;
+    const D = this.D();
+    const w = s.wave || {};
+    const n = index || w.index || 1;
+    const last = w.total && n >= w.total;
+    let boss = null;
+    const cur = s.enemies || [];
+    const b = cur.find((e) => e.boss);
+    if (b) boss = (D.BOSS_NAMES && D.BOSS_NAMES[b.type]) || "Le chef";
+    const el = h("div", { class: "pt-wbanner" + (last ? " last" : "") }, h("small", {}, last ? "Dernière vague" : "Vague"), h("b", { class: "pt-num" }, `${n}` + (w.total ? ` / ${w.total}` : "")), boss ? h("span", { class: "pt-wbanner-boss" }, ico("boss"), "Boss : " + boss) : null);
+    this.bannerLayer.append(el);
+    setTimeout(() => el.remove(), 2600);
+  };
+  P.pausedBanner = function (on) {
+    if (on && !this.pauseEl && this.mode === "game") {
+      this.pauseEl = h("div", { class: "pt-pausebar" }, ico("pause"), h("span", {}, "Pause"), h("small", {}, this.layout === "desk" ? "Espace pour reprendre · tu peux construire" : "Tu peux construire"));
+      this.bannerLayer.append(this.pauseEl);
+    } else if (!on && this.pauseEl) {
+      this.pauseEl.remove();
+      this.pauseEl = null;
+    }
+  };
+  P.toast = function (text, kind) {
+    const el = h("div", { class: "pt-toast " + (kind || "info") }, ico(kind === "bad" ? "warning" : kind === "good" ? "check" : "info"), h("span", {}, text));
+    this.toastLayer.append(el);
+    while (this.toastLayer.children.length > 3) this.toastLayer.firstChild.remove();
+    setTimeout(() => {
+      el.classList.add("pt-out");
+      setTimeout(() => el.remove(), 300);
+    }, 2400);
+  };
+  /** Petit texte qui s'envole d'un point de la carte (+or, gemme tombée). */
+  P.fly = function (x, y, text, kind) {
+    if (x === undefined || this.flyCount > 14) return;
+    const p = this.v("worldToScreen", x, y);
+    if (!p) return;
+    this.flyCount++;
+    const el = h("div", { class: "pt-flytxt " + (kind || ""), style: `left:${p.x.toFixed(0)}px;top:${p.y.toFixed(0)}px` }, kind === "gold" ? ico("gold") : kind === "gem" ? ico("warning") : null, h("b", { class: "pt-num" }, text));
+    this.flyEl.append(el);
+    setTimeout(() => {
+      el.remove();
+      this.flyCount--;
+    }, kind === "gem" ? 1600 : 1000);
+  };
+  P.showTip = function (anchor, content) {
+    this.hideTip();
+    const r = anchor.getBoundingClientRect();
+    const el = h("div", { class: "pt-tip" }, content);
+    this.popLayer.append(el);
+    const w = el.offsetWidth,
+      hh = el.offsetHeight;
+    const x = clamp(r.left + r.width / 2 - w / 2, 6, window.innerWidth - w - 6);
+    const y = r.top - hh - 10 > 6 ? r.top - hh - 10 : r.bottom + 10;
+    el.style.transform = `translate(${Math.round(x)}px, ${Math.round(y)}px)`;
+    this.tipEl = el;
   };
   P.hideTip = function () {
     if (this.tipEl) this.tipEl.remove();
     this.tipEl = null;
   };
 
+  /* ------------------------------------------------------------------ clavier */
   P.bindKeys = function () {
     window.addEventListener("keydown", (e) => {
-      if (e.repeat) return;
-      const app = this.app;
-      if (!app.game) return;
-      if (e.key === " " || e.key === "p") {
-        e.preventDefault();
-        app.togglePause();
-      } else if (e.key === "Escape") {
-        if (this.aim || this.buildMode) this.cancelModes(), this.renderTray();
-        else if (this.panel) this.closePanel();
-        else app.openMenu();
-      } else if (e.key === "Enter" && app.game.state.phase === "prep") app.launchWave();
-      else if (e.key === "f") app.toggleSpeed();
-      else if (e.key >= "1" && e.key <= "5") {
-        const id = C.spells.order[Number(e.key) - 1];
-        this.setTab("spells");
-        this.startAim(id);
+      if (e.target && /INPUT|TEXTAREA|SELECT/.test(e.target.tagName)) return;
+      const code = e.code,
+        key = (e.key || "").toLowerCase();
+      if (this.modal) {
+        if (code === "Escape") {
+          if (this.modal.el.querySelector(".pt-m-result") || this.modal.el.classList.contains("pt-m-result")) return;
+          e.preventDefault();
+          this.closeModal();
+        } else if ((code === "Enter" || code === "Space") && this.modal.enter) {
+          e.preventDefault();
+          this.modal.enter();
+        }
+        return;
       }
+      if (this.mode !== "game" || !this.game) {
+        if (code === "Escape" && (this.mode === "skills" || this.mode === "bestiary")) this.screens.querySelector(".pt-shead .pt-btn")?.click();
+        return;
+      }
+      if (code === "Space") {
+        e.preventDefault();
+        this.togglePause();
+      } else if (code === "Digit1" || code === "Numpad1") this.setSpeed(1);
+      else if (code === "Digit2" || code === "Numpad2") this.setSpeed(2);
+      else if (code === "Digit3" || code === "Numpad3") this.setSpeed(3);
+      else if (code === "KeyQ" || key === "q" || key === "a") this.spellClick("cut");
+      else if (code === "KeyW" || key === "w" || key === "z") this.spellClick("frenzy");
+      else if (code === "KeyE" || key === "e") this.spellClick("meteor");
+      else if (code === "Enter" || code === "NumpadEnter") {
+        e.preventDefault();
+        this.callWave();
+      } else if (code === "Escape") {
+        e.preventDefault();
+        if (this.aim) this.cancelAim();
+        else if (this.sel) this.closeSel();
+        else this.openPause();
+      } else return;
     });
   };
 
-  PTMT.UI = UI;
+  /* ------------------------------------------------------------------ tutoriel (mission 1) */
+  // Étapes : construire un sanglier sur l'herbe → les ennemis emportent les gemmes → une gemme tombée
+  // peut être reprise → couper la forêt. Bulles ancrées sur la carte (ou sur le HUD), sans bloquer.
+  P.tutoStart = function () {
+    const s = this.game.state;
+    const grid = (s.map && s.map.grid) || (this.mapInfo && this.mapInfo.grid) || null;
+    this.tuto = { step: "build", done: {}, t: 0, grid };
+    this.tutoStep("build");
+  };
+  P.tutoEnd = function () {
+    if (this.tuto && this.tuto.el) this.tuto.el.remove();
+    this.tuto = null;
+  };
+  /** Case d'exemple : herbe (ou forêt) collée au chemin, pas trop près de l'entrée. */
+  P.tutoTile = function (want) {
+    const t = this.tuto;
+    const g = t && t.grid;
+    if (!g) return null;
+    const H = g.length,
+      W = g[0].length;
+    const ent = (this.game.state.map && this.game.state.map.entrances && this.game.state.map.entrances[0]) || { i: 0, j: 0 };
+    let best = null,
+      bd = 1e9;
+    for (let j = 0; j < H; j++)
+      for (let i = 0; i < W; i++) {
+        if (!want.includes(g[j][i])) continue;
+        const nearRoad = [
+          [1, 0],
+          [-1, 0],
+          [0, 1],
+          [0, -1],
+        ].some(([a, b]) => g[j + b] && "#=ELe".includes(g[j + b][i + a] || " "));
+        if (!nearRoad) continue;
+        const info = call(this.game, "tileInfo", i, j);
+        if (info && info.towerId !== null && info.towerId !== undefined) continue;
+        const d = Math.abs(Math.hypot(i - ent.i, j - ent.j) - 5);
+        if (d < bd) {
+          bd = d;
+          best = { i, j };
+        }
+      }
+    return best;
+  };
+  P.tutoStep = function (step, ev) {
+    const t = this.tuto;
+    if (!t || t.done[step]) return;
+    if (t.el) t.el.remove();
+    t.el = null;
+    t.step = step;
+    t.t = 0;
+    let text = "",
+      at = null,
+      life = 0;
+    if (step === "build") {
+      at = this.tutoTile(".");
+      text = "Touche une case d'herbe au bord du chemin et construis un sanglier : il lance des bogues de châtaigne.";
+    } else if (step === "steal") {
+      const L = this.game.state.map && this.game.state.map.lair;
+      at = L ? { i: L.i, j: L.j } : null;
+      text = "Les ennemis viennent voler tes gemmes au moulin et repartent avec. Arrête-les avant la sortie !";
+      life = 7;
+    } else if (step === "drop") {
+      at = ev ? { x: ev.x, y: ev.y } : null;
+      text = "Gemme tombée ! Les autres ennemis vont la chercher : défends-la, elle revient si personne ne la prend.";
+      life = 6;
+    } else if (step === "cut") {
+      at = this.tutoTile("frwh");
+      if (!at) return;
+      text = "Case boisée : touche-la puis « Couper » (30 mana) pour y construire.";
+      life = 9;
+    }
+    if (!text) return;
+    const el = h("div", { class: "pt-tuto pt-pop-in", role: "note" }, h("span", { class: "pt-tuto-hand", html: icons().get("hand") }), h("p", {}, text), h("button", { class: "pt-btn pt-sq pt-wood pt-x", "aria-label": "Fermer", onclick: () => this.tutoDone(step) }, ico("close")));
+    this.popLayer.append(el);
+    t.el = el;
+    t.at = at;
+    t.life = life;
+    this.placeTuto();
+  };
+  P.placeTuto = function () {
+    const t = this.tuto;
+    if (!t || !t.el) return;
+    const at = t.at;
+    const el = t.el;
+    const W = window.innerWidth;
+    const ins = this.insets();
+    let p = null;
+    if (at) p = at.x !== undefined ? this.v("worldToScreen", at.x, at.y) : this.v("worldToScreen", at.i + 0.5, at.j + 0.5);
+    const w = el.offsetWidth,
+      hh = el.offsetHeight;
+    if (!p) {
+      el.style.transform = `translate(${Math.round((W - w) / 2)}px, ${ins.top + 12}px)`;
+      return;
+    }
+    const cell = this.cellPx();
+    const x = clamp(p.x - w / 2, ins.left + 8, W - ins.right - w - 8);
+    const above = p.y - cell * 0.6 - hh - 14 > ins.top + 6;
+    const y = above ? p.y - cell * 0.6 - hh - 14 : p.y + cell * 0.6 + 14;
+    const tr = `translate(${Math.round(x)}px, ${Math.round(y)}px)`;
+    if (tr === t.placed) return;
+    t.placed = tr;
+    el.dataset.side = above ? "t" : "b";
+    el.style.setProperty("--ax", clamp(p.x - x, 16, w - 16).toFixed(0) + "px");
+    el.style.transform = tr;
+  };
+  P.tutoFrame = function (dt) {
+    const t = this.tuto;
+    if (!t || !t.el) return;
+    t.t += dt;
+    this.placeTuto();
+    if (t.life && t.t > t.life) this.tutoDone(t.step);
+  };
+  P.tutoDone = function (step) {
+    const t = this.tuto;
+    if (!t) return;
+    if (step === "tower" || step === "wave" || step === "call") return;
+    t.done[step] = true;
+    if (t.step === step && t.el) {
+      t.el.remove();
+      t.el = null;
+    }
+    if (step === "build") setTimeout(() => this.tuto && !this.tuto.done.cut && this.tutoStep("cut"), 1500);
+  };
+
+  /* ------------------------------------------------------------------ publication */
+  PTMT.ui = {
+    /** Crée l'interface (voir l'en-tête du fichier pour les options et l'API). */
+    create(o) {
+      const ui = new UI(o);
+      return {
+        showTitle: () => ui.showTitle(),
+        showMap: (n) => ui.showMap(n),
+        showSkills: () => ui.showSkills(),
+        showBestiary: (tab) => ui.showBestiary(tab),
+        enterLevel: (game, view) => ui.enterLevel(game, view),
+        mapTap: (hit) => ui.mapTap(hit),
+        mapHover: (hit) => ui.mapHover(hit),
+        events: (list) => ui.events(list),
+        frame: (dt) => ui.frame(dt),
+        insets: () => ui.insets(),
+        onResize: () => ui.onResize(),
+        toast: (text, kind) => ui.toast(text, kind),
+        get mode() {
+          return ui.mode;
+        },
+        get busy() {
+          return !!ui.modal;
+        },
+        el: ui.el,
+        _ui: ui,
+      };
+    },
+  };
 })();
