@@ -1,26 +1,34 @@
 // « Pas touche à mes trésors » — la vue du jeu (PTMT.view) : création, et liaison de l'état de la
 // simulation vers la scène 3D, image par image.
 //
-//   const view = PTMT.view.create({ renderer, scene, map, mobile, quality });
+//   const view = PTMT.view.create({ renderer, scene, map, mobile, quality, outline?, shake? });
 //   view.resize(w, h, insets) ; view.sync(state, events, dt, time) ; view.render()
-//   view.tileTop(i, j) ; view.toWorld(x, y) ; view.worldToScreen(x, y, lift) ; view.pick(cx, cy)
+//   view.tileTop(i, j) ; view.toWorld(x, y) ; view.pick(clientX, clientY) → { i, j, x, y, towerId? } | null
+//   view.worldToScreen(x, y, lift?) → { x, y } en pixels CSS du viewport (comme clientX/clientY)
 //   view.showRange(towerId | null, range?) ; view.preview(i, j, family | null)
-//   view.target(spell | null, x, y) ; view.setUpgradeHints(ids) ; view.dispose()
+//   view.target(spell | null, x, y) (x, y hors carte, par ex. −99 : visée commencée, rien à montrer)
+//   view.setUpgradeHints(ids) ; view.canBuild(i, j, family) ; view.floatText(x, y, lift, texte, classe)
+//   view.dispose()
 //
 // La vue possède la carte (render/10-map.js), la caméra fixe (render/30-camera.js), les effets
-// (PTMT.fx, initialisés avec sa caméra et mis à jour dans sync) et tous les objets vivants :
-//  - tours : PTMT.models.ctTower(famille, niveau, spéc.) posées au centre de leur case ; visée
-//    vers leur cible, élan sur l'événement « attack », remplacement du modèle à la montée de
-//    niveau (célébration + colonne dorée), apparition en rebond, Frénésie ;
-//  - ennemis : PTMT.actors.create(type, champion, boss), position lissée, cap tiré du déplacement,
-//    taille × 1,3 (champion) ou × 1,6 (boss), mort jouée une seconde avant libération ;
+// (PTMT.fx, initialisés avec sa caméra et mis à jour dans sync : ne pas les mettre à jour ailleurs)
+// et tous les objets vivants :
+//  - tours : PTMT.models.ctConfig({ mobile, outline }) une fois, puis
+//    PTMT.models.ctTower(famille, niveau, spéc., { terrain }) posées sur le dessus de leur case ;
+//    visée (angle monde de la simulation), élan sur « attack », remplacement du modèle et
+//    celebrate() à la montée de niveau, apparition en rebond, Frénésie, fantôme du mode construction ;
+//  - ennemis : PTMT.actors.create(type, champion, boss) (échelle et hauteur réglées par le modèle),
+//    position lissée, cap = dir de la simulation, réactions (touché, soin, lasso…), libérés quand
+//    leur chute ou leur fuite est finie ;
 //  - gemmes : PTMT.models.gem(couleur), au repaire (tas du moulin), portées (accrochées à
-//    carryAnchor), au sol (anneau pulsé), ou en vol (vol, ramassage, chute, retour doré au moulin) ;
-//  - projectiles : départ capturé à la gueule de la tour, arrivée sur la poitrine de la cible (ou
-//    au sol pour les tirs en cloche), progression p de la simulation ; impact « kind + Hit » ;
+//    carryAnchor), au sol (halo pulsé), ou en vol (vol, ramassage, chute, retour doré au moulin) ;
+//  - projectiles : PTMT.fx.projectile(kind), départ à la gueule de la tour, arrivée sur la poitrine
+//    de la cible (ou au sol pour les tirs en cloche), progression p de la simulation, set(position,
+//    direction, sol) ; impact PTMT.fx.burst(kind + "Hit", point au sol, { radius (cases), h, crit }) ;
 //  - zones de brûlure et avertissements de météore ;
-//  - surimpressions : barres de vie, barrière du druide, pictogrammes d'état, flèches d'amélioration
-//    (un seul lot de sprites, toujours au premier plan), textes flottants et noms des boss (DOM).
+//  - surimpressions : barres de vie, barrière du druide, pictogrammes d'état, flèches d'amélioration,
+//    coins de la case visée par la coupe (un seul lot de sprites, toujours au premier plan), textes
+//    flottants et noms des boss (DOM) ; qualité « low » : disque d'ombre doux sous les tours.
 // Tout modèle absent (tours, ennemis, gemmes, projectiles, décor) est remplacé par une forme de
 // secours simple : le jeu tourne avec ou sans les autres parties.
 (function () {
@@ -71,7 +79,7 @@
 
   /* ------------------------------------------------------------------ planche des surimpressions */
   // 8 × 8 cases de 64 px : barres, halos, pictogrammes d'état, flèche d'amélioration, couronne.
-  const HUD = { bar: 0, glow: 1, snow: 2, flame: 3, fear: 4, eye: 5, notes: 6, disarm: 7, stun: 8, drop: 9, ghost: 10, arrow: 11, crown: 12, shield: 13, haste: 14, ring: 15, frame: 16 };
+  const HUD = { bar: 0, glow: 1, snow: 2, flame: 3, fear: 4, eye: 5, notes: 6, disarm: 7, stun: 8, drop: 9, ghost: 10, arrow: 11, crown: 12, shield: 13, haste: 14, ring: 15, frame: 16, corners: 17 };
   let hudTex = null;
   function hudAtlas() {
     if (hudTex) return hudTex;
@@ -105,6 +113,26 @@
     cell(HUD.frame, () => {
       c.fillStyle = "#fff";
       c.fillRect(1, 1, S - 2, S - 2);
+    });
+    // coins de visée (case ciblée par la coupe, par-dessus les arbres)
+    cell(HUD.corners, () => {
+      const m = 6, L = 19;
+      const path = () => {
+        c.beginPath();
+        c.moveTo(m, m + L); c.lineTo(m, m); c.lineTo(m + L, m);
+        c.moveTo(S - m - L, m); c.lineTo(S - m, m); c.lineTo(S - m, m + L);
+        c.moveTo(S - m, S - m - L); c.lineTo(S - m, S - m); c.lineTo(S - m - L, S - m);
+        c.moveTo(m + L, S - m); c.lineTo(m, S - m); c.lineTo(m, S - m - L);
+      };
+      c.lineCap = c.lineJoin = "round";
+      path();
+      c.strokeStyle = "#1c1410";
+      c.lineWidth = 10;
+      c.stroke();
+      path();
+      c.strokeStyle = "#fff";
+      c.lineWidth = 5;
+      c.stroke();
     });
     cell(HUD.glow, () => {
       const g = c.createRadialGradient(32, 32, 0, 32, 32, 31);
@@ -388,6 +416,7 @@
     let yaw = 0, want = 0, kick = 0, hop = 0, frenzy = false;
     return {
       object: g,
+      fallback: true,
       height: height * k,
       muzzle,
       update(dt, time) {
@@ -468,12 +497,14 @@
     const g = new THREE.Group();
     g.add(m);
     g.scale.setScalar(1.25);
+    m.position.y = 0.34;
     let st = "lair";
     return {
       object: g,
+      fallback: true,
       update(dt, time) {
         m.rotation.y += dt * (st === "ground" ? 1.6 : 2.5);
-        m.position.y = st === "ground" ? 0.35 + Math.sin(time * 3 + color) * 0.08 : 0;
+        m.position.y = 0.34 + (st === "ground" ? 0.3 + Math.sin(time * 3 + color) * 0.08 : 0);
       },
       setState(s) {
         st = s;
@@ -550,6 +581,14 @@
     this.mobile = !!o.mobile;
     this.quality = o.quality || (this.mobile ? "low" : "high");
     this.high = this.quality === "high";
+    // tours : version allégée (sans ombre portée, un appel de dessin par tour) sur téléphone et en
+    // qualité « low » ; liseré sombre partout sauf demande contraire (o.outline = false)
+    const cfg = PTMT.models && PTMT.models.ctConfig;
+    if (typeof cfg === "function") {
+      try {
+        cfg({ mobile: this.mobile || !this.high, outline: o.outline !== false });
+      } catch (e) {}
+    }
     const r = this.renderer;
     r.shadowMap.enabled = this.high;
     r.shadowMap.type = THREE.PCFSoftShadowMap;
@@ -578,6 +617,7 @@
     this.areas = new Map();
     this.dying = [];
     this.fading = [];
+    this.glows = [];
     this.anims = [];
     this.hints = new Set();
     this.grid = this.map.grid.map((row) => row);
@@ -593,6 +633,7 @@
     this.frenzy = false;
     this.tileSig = "";
     this.lastLairCount = -1;
+    this.shakeOn = o.shake !== false;
     this.buildHud();
     this.buildDom();
     this.meteors = [];
@@ -613,9 +654,25 @@
   P.toWorld = function (x, y, out) {
     return (out || new THREE.Vector3()).set(toX(x), this.world.groundAt(x, y, false), toZ(y));
   };
+  /** Pixels CSS du viewport (comme clientX/clientY) du point (x, y) de la carte (cases continues), lift m au-dessus du sol. */
   P.worldToScreen = function (x, y, lift) {
+    const p = this.canvasPoint(x, y, lift);
+    if (this.rectT === undefined || this.real - this.rectT > 0.5) this.readRect();
+    p.x += this.rectL;
+    p.y += this.rectTop;
+    return p;
+  };
+  /** Même point en pixels du canevas (coin haut gauche du canevas = 0, 0). */
+  P.canvasPoint = function (x, y, lift) {
     _v1.set(toX(x), this.world.groundAt(x, y, false) + (lift || 0), toZ(y));
     return this.cam.project(_v1, { x: 0, y: 0 });
+  };
+  P.readRect = function () {
+    const el = this.renderer.domElement;
+    const r = el.getBoundingClientRect ? el.getBoundingClientRect() : { left: 0, top: 0 };
+    this.rectL = r.left || 0;
+    this.rectTop = r.top || 0;
+    this.rectT = this.real;
   };
   P.pick = function (clientX, clientY) {
     const rect = this.renderer.domElement.getBoundingClientRect();
@@ -634,6 +691,7 @@
     this.cam.frame(w, h, insets);
     this.world.setSunAzimuth(this.cam.az);
     this.world.ov.uPxM.value = this.cam.pxPerM * pr;
+    this.rectT = undefined;
     // surimpressions un peu plus grandes quand la carte est petite (téléphone)
     this.ovScale = clamp(15 / Math.max(1, this.cam.pxPerM), 1, 2.1);
     this.w = w;
@@ -674,7 +732,7 @@
   /** Texte flottant au-dessus d'un point de la carte (x, y cases ; lift m) : or, Raté !, Critique !… */
   P.floatText = function (x, y, lift, text, cls) {
     if (!this.layer) return;
-    const p = this.worldToScreen(x, y, lift);
+    const p = this.canvasPoint(x, y, lift);
     const d = document.createElement("div");
     d.className = "ptmt-fl " + (cls || "");
     d.textContent = text;
@@ -697,11 +755,19 @@
   };
 
   /* --------------------------------------------------- tours */
-  P.makeTowerModel = function (family, level, spec) {
+  /** Terrain de la case (i, j) au sens de DATA.TILES : grass, rock, water, high… */
+  P.terrainAt = function (i, j) {
+    const ch = this.grid[j] ? this.grid[j][i] : ".";
+    const t = tileInfo(ch).terrain;
+    if (t) return t;
+    return ch === "~" || ch === "w" ? "water" : ch === "H" || ch === "h" ? "high" : ch === "^" || ch === "r" ? "rock" : "grass";
+  };
+  P.makeTowerModel = function (family, level, spec, i, j) {
     const f = PTMT.models && PTMT.models.ctTower;
     if (typeof f === "function") {
       try {
-        const m = f(family, level, spec || null);
+        // le cygne posé hors de l'eau (butte) flotte dans une petite mare
+        const m = f(family, level, spec || null, i === undefined ? {} : { terrain: this.terrainAt(i, j) });
         if (m && m.object) return m;
       } catch (e) {
         if (!this._warnTower) console.warn("PTMT.models.ctTower :", e);
@@ -738,13 +804,15 @@
     o.position.set(toX(v.i + 0.5), v.top, toZ(v.j + 0.5));
     this.root.add(o);
     if (v.model.aim) v.model.aim(v.yaw);
+    // qualité « low » (pas de carte d'ombres) : disque d'ombre doux au pied, poussé du côté opposé au soleil
     if (!this.high) {
-      if (v.blob === undefined || v.blob < 0) v.blob = this.world.addBlob(o.position.x + 0.5, o.position.z - 0.3, v.top, 1.5, 1.3, 0.55);
+      if (v.blob === undefined || v.blob < 0) v.blob = this.world.addBlob(o.position.x, o.position.z, v.top, 2.5, 2.3, 0.8, 0.7);
     }
   };
   P.newTower = function (tw) {
+    this.world.clearForest(tw.i, tw.j);
     const v = { id: tw.id, i: tw.i, j: tw.j, family: tw.family, level: tw.level, spec: tw.spec || null, key: tw.family + tw.level + (tw.spec || ""), top: this.tileTop(tw.i, tw.j), yaw: this.roadYaw(tw.i, tw.j), pop: 0, frenzy: false, selected: false };
-    v.model = this.makeTowerModel(tw.family, tw.level, tw.spec);
+    v.model = this.makeTowerModel(tw.family, tw.level, tw.spec, tw.i, tw.j);
     this.placeTower(v);
     this.towers.set(tw.id, v);
     return v;
@@ -775,16 +843,20 @@
         try {
           old.dispose && old.dispose();
         } catch (e) {}
-        v.model = this.makeTowerModel(tw.family, tw.level, tw.spec);
+        v.model = this.makeTowerModel(tw.family, tw.level, tw.spec, v.i, v.j);
         v.key = key;
         v.level = tw.level;
         v.spec = tw.spec || null;
         v.frenzy = false;
         v.selected = false;
         this.placeTower(v);
+        // les tours du jeu jouent elles-mêmes leur montée de niveau (celebrate → « levelUp ») ;
+        // la forme de secours reçoit une colonne dorée
         if (v.model.celebrate) v.model.celebrate();
-        _v1.set(toX(v.i + 0.5), v.top, toZ(v.j + 0.5));
-        burst("goldColumn", _v1, { radius: 1.5, height: 5 }) || burst("sparkle", _v1, { color: "#ffe07a", radius: 1.4 });
+        if (v.model.fallback) {
+          _v1.set(toX(v.i + 0.5), v.top, toZ(v.j + 0.5));
+          burst("goldColumn", _v1, { radius: 1.5, height: 5 }) || burst("sparkle", _v1, { color: "#ffe07a", radius: 1.4 });
+        }
       }
       // visée : vers la cible, sinon angle fourni par la simulation
       // visée : angle monde de la simulation (0 = +Z), sinon vers la cible affichée
@@ -815,12 +887,13 @@
   };
 
   /* --------------------------------------------------- ennemis */
+  /** Ennemi : { actor, native } — native = nouveaux ennemis (échelle 1 / 1,3 / 1,6 et hauteur déjà réglées). */
   P.makeActor = function (type, champion, boss) {
     const A = PTMT.actors;
     if (A && A.create && A.ready !== false) {
       try {
         const a = A.create(type, !!champion, !!boss);
-        if (a && a.object) return a;
+        if (a && a.object) return { actor: a, native: true };
       } catch (e) {
         /* type inconnu des anciens personnages : on essaie la silhouette la plus proche */
       }
@@ -828,25 +901,31 @@
       if (old)
         try {
           const a = A.create(old, !!(champion || boss));
-          if (a && a.object) return a;
+          if (a && a.object) return { actor: a, native: false };
         } catch (e) {}
     }
-    return fallbackActor(type, champion, boss);
+    return { actor: fallbackActor(type, champion, boss), native: false };
   };
   P.newEnemy = function (e) {
-    const actor = this.makeActor(e.type, e.champion, e.boss);
+    const made = this.makeActor(e.type, e.champion, e.boss);
+    const actor = made.actor;
     const obj = actor.object;
-    const base = 0.95 * (e.boss ? 1.6 : e.champion ? 1.3 : 1);
-    obj.scale.setScalar(base);
+    // les nouveaux ennemis règlent eux-mêmes leur échelle (et leur hauteur, échelle comprise)
+    const base = made.native ? obj.scale.x || 1 : 0.95 * (e.boss ? 1.6 : e.champion ? 1.3 : 1);
+    if (!made.native) obj.scale.setScalar(base);
     const v = {
       id: e.id, type: e.type, actor, obj, base, x: e.x, y: e.y, px: e.x, py: e.y, yaw: 0, dying: 0, champion: !!e.champion, boss: !!e.boss,
       s: { speed: 0, moving: false, carrying: false, water: false, slow: 0, freeze: 0, burn: 0, fear: 0, invisible: 0, barrier: 0, haste: 0, stun: 0, disarmed: 0, radiance: 0, hp: 1, frozen: false, burning: false, inWater: false, hpFrac: 1, untargetable: false, wet: false },
-      hp: 1, barrier: 0, anchor: actor.carryAnchor || null, height: (actor.height || 2) * base, e,
+      hp: 1, barrier: 0, anchor: actor.carryAnchor || null, height: made.native ? actor.height || 2.2 * base : (actor.height || 2) * base, e, native: made.native,
     };
     if (typeof e.dir === "number") v.yaw = e.dir;
     obj.position.set(toX(e.x), this.world.groundAt(e.x, e.y, !!e.water), toZ(e.y));
     obj.rotation.y = v.yaw;
     this.root.add(obj);
+    // qualité « low » : disque d'ombre doux sous les formes de secours (les ennemis du jeu dessinent
+    // le leur dans leurs lots partagés, PTMT.actors.overlay.blobShadows)
+    const ov = PTMT.actors && PTMT.actors.overlay;
+    v.blob = !this.high && !(made.native && ov && ov.blobShadows) ? this.world.addBlob(obj.position.x, obj.position.z, obj.position.y, 0.8 * base, 0.8 * base, 0.55, 0.12) : -1;
     this.enemies.set(e.id, v);
     return v;
   };
@@ -857,6 +936,10 @@
       v.actor.release && v.actor.release();
     } catch (e) {}
     v.obj.parent && v.obj.parent.remove(v.obj);
+    if (v.blob >= 0) {
+      this.world.removeBlob(v.blob);
+      v.blob = -1;
+    }
     if (this.bossLabels && this.bossLabels.has(v.id)) {
       this.bossLabels.get(v.id).remove();
       this.bossLabels.delete(v.id);
@@ -907,6 +990,10 @@
       if (v.want !== undefined) v.yaw = turn(v.yaw, v.want, dt * 12);
       v.obj.position.set(toX(v.x), this.world.groundAt(v.x, v.y, !!e.water), toZ(v.y));
       v.obj.rotation.y = v.yaw;
+      if (v.blob >= 0) {
+        const o = v.obj.position, fx = e.fx || {};
+        this.world.setBlob(v.blob, o.x, o.z, o.y, 0.8 * v.base, 0.8 * v.base, 0.55 * (1 - 0.7 * (+fx.invisible || 0)) * (e.water ? 0.4 : 1), 0.12);
+      }
       this.fillState(v, e);
       v.hp = v.s.hp;
       v.barrier = v.s.barrier;
@@ -915,7 +1002,7 @@
   };
   P.killEnemy = function (v) {
     if (v.dying) return;
-    v.dying = 1.05;
+    v.dying = v.native ? 3 : 1.05;
     try {
       v.actor.event && v.actor.event("die");
     } catch (e) {}
@@ -928,7 +1015,8 @@
       v.dying -= dt;
       v.s.moving = false;
       if (v.actor.update) v.actor.update(dt, time, v.s);
-      if (v.dying <= 0) {
+      // nouveaux ennemis : libérés quand leur chute (ou leur fuite) est finie ; sinon minuterie
+      if (v.actor.finished === true || v.dying <= 0) {
         this.releaseEnemy(v);
         this.dying.splice(i, 1);
       }
@@ -942,7 +1030,7 @@
       if (!seen.has(v.id)) {
         this.enemies.delete(v.id);
         if (v.escaping) {
-          v.dying = 0.35;
+          v.dying = v.native ? 2 : 0.35;
           this.dying.push(v);
         } else this.releaseEnemy(v);
       }
@@ -980,7 +1068,7 @@
     if (anchor) {
       anchor.add(o);
       o.position.set(0, 0, 0);
-      o.scale.setScalar(0.8);
+      o.scale.setScalar(1);
     } else {
       ev.obj.add(o);
       o.position.set(0, (ev.height / ev.base) * 1.05, 0);
@@ -1000,10 +1088,12 @@
   P.syncGems = function (st, dt, time) {
     const lairInfo = this.world.lairInfo;
     let lairCount = 0, incoming = 0;
+    this.glows.length = 0;
     for (const gs of st.gems || []) {
       let g = this.gems.get(gs.id);
       if (!g) {
         g = { id: gs.id, color: gs.color | 0, where: null, model: this.makeGem(gs.color | 0), attachedTo: null, lastPos: new THREE.Vector3(), anim: null };
+        g.native = typeof (PTMT.models && PTMT.models.gem) === "function" && !g.model.fallback;
         g.model.object.visible = false;
         this.root.add(g.model.object);
         this.gems.set(gs.id, g);
@@ -1015,7 +1105,7 @@
         const o = g.model.object;
         if (now === "carried") {
           if (prev === "lair" || prev === null) {
-            const from = this.world.lairSlot(g.color, _v2);
+            const from = this.world.lairNative && o.visible ? o.getWorldPosition(_v2) : this.world.lairSlot(g.color, _v2);
             if (carrier && prev === "lair") this.gemAnim(g, from, () => (carrier.anchor ? carrier.anchor.getWorldPosition(_v3) : this.chest(carrier, 1.05, _v3)), 0.4, 1.6, () => this.attachGem(g, carrier));
             else if (carrier) this.attachGem(g, carrier);
           } else if (prev === "ground") {
@@ -1041,13 +1131,13 @@
           if (prev === "ground") {
             o.getWorldPosition(_v2);
             this.gemAnim(g, _v2, () => this.world.lairSlot(g.color, _v3), 1.1, 5, () => {
-              o.visible = false;
+              o.visible = !!this.world.lairNative;
               g.model.setState && g.model.setState("lair");
               burst("gemSparkle", this.world.lairSlot(g.color, _v3), { color: g.color });
             }, "gold");
           } else {
             this.detachGem(g);
-            o.visible = false;
+            o.visible = !!this.world.lairNative;
             g.anim = null;
             g.model.setState && g.model.setState("lair");
           }
@@ -1071,7 +1161,7 @@
         const o = g.model.object;
         o.position.lerpVectors(a.from, to, k);
         o.position.y += a.arcH * 4 * k * (1 - k);
-        if (a.trail) burst("gemTrail", o.position, { color: g.color, gold: a.trail === "gold" });
+        if (a.trail && !g.native) burst("gemTrail", o.position, { color: g.color, gold: a.trail === "gold" });
         if (k >= 1) {
           g.anim = null;
           a.end && a.end();
@@ -1081,13 +1171,23 @@
         const o = g.model.object;
         o.visible = true;
         o.position.set(toX(gs.x), this.world.groundAt(gs.x, gs.y, false), toZ(gs.y));
-        if (PTMT.fx && PTMT.fx.world && PTMT.fx._ && PTMT.fx._.S) PTMT.fx.world.gemGlow(o.position, g.color, this.real);
+        // halo au sol : sprite posé après la mise à jour des effets (voir drawFxSprites)
+        this.glows.push(g);
       }
       if (now === "lair") {
         if (g.anim) incoming++;
-        else lairCount++;
+        else {
+          // moulin fourni : la gemme se pose sur son emplacement du tas (recalé à chaque image)
+          const o = g.model.object;
+          if (this.world.lairNative) {
+            if (o.parent !== this.root) this.root.add(o);
+            o.visible = true;
+            this.world.lairSlot(lairCount, o.position);
+          } else o.visible = false;
+          lairCount++;
+        }
       }
-      if (g.model.update) g.model.update(dt, time);
+      if (g.model.update) g.model.update(dt, this.real);
     }
     // gemmes disparues de l'état
     if ((st.gems || []).length !== this.gems.size) {
@@ -1195,14 +1295,21 @@
       v.dir.subVectors(_v1, v.pos);
       if (v.dir.lengthSq() < 1e-8) v.dir.subVectors(v.end, v.start);
       v.pos.copy(_v1);
+      // sol sous le projectile (ombre portée des tirs en cloche)
+      const sol = this.world.groundAt(v.pos.x / TILE + MW / 2, v.pos.z / TILE + MH / 2, true);
       try {
-        v.handle.set && v.handle.set(v.pos, v.dir);
+        v.handle.set && v.handle.set(v.pos, v.dir, sol);
       } catch (e) {}
     }
     for (const v of this.projectiles.values()) {
       if (seen.has(v.id)) continue;
       // impact (s'il n'a pas déjà été montré par l'événement « impact » ou « fizzle »)
-      if (!v.impacted) this.impactBurst(v.kind, v.arc || v.t > 0.8 ? v.end : v.pos, v.splash);
+      if (!v.impacted) {
+        const at = v.arc || v.t > 0.8 ? v.end : v.pos;
+        _v2.copy(at);
+        _v2.y = this.world.groundAt(at.x / TILE + MW / 2, at.z / TILE + MH / 2, true);
+        this.impactBurst(v.kind, _v2, v.arc ? undefined : Math.max(0.2, at.y - _v2.y), v.splash, false);
+      }
       try {
         v.handle.release && v.handle.release();
       } catch (e) {}
@@ -1210,12 +1317,16 @@
     }
   };
 
-  /** Éclat d'impact d'un projectile (« kind + Hit » des modèles de tours, sinon éclat voisin). */
-  P.impactBurst = function (kind, at, splash) {
-    const r = Math.max(0.6, splash || 0) * TILE;
-    if (burst(kind + "Hit", at, { radius: splash ? splash * TILE : 0.6 * TILE, kind })) return;
+  /** Éclat d'impact d'un projectile : « kind + Hit » (fx/13-shots.js) au point au sol g (y = sol),
+   *  h = hauteur de l'impact au-dessus du sol (m ; facultative : 1 m, ou le sol pour les tirs en
+   *  cloche), splash = rayon de la zone (cases), crit = coup critique (« !! »). Sinon éclat voisin. */
+  P.impactBurst = function (kind, g, h, splash, crit) {
+    if (burst(kind + "Hit", g, { radius: splash || undefined, h, crit: !!crit })) return;
     const fb = HIT_FALLBACK[kind] || ["hit", 0.6];
-    burst(fb[0], at, { radius: splash ? r * 0.45 : fb[1], family: kind === "iceShard" ? "ice" : kind === "waterJet" || kind === "darkWater" ? "water" : "fire", color: kind === "blueFire" ? "#6aa0ff" : undefined });
+    const r = Math.max(0.6, splash || 0) * TILE;
+    _v4.copy(g);
+    _v4.y += h === undefined ? (splash ? 0.3 : 1) : h;
+    burst(fb[0], _v4, { radius: splash ? r * 0.45 : fb[1], family: kind === "iceShard" ? "ice" : kind === "waterJet" || kind === "darkWater" ? "water" : "fire", color: kind === "blueFire" ? "#6aa0ff" : undefined });
   };
 
   /* --------------------------------------------------- zones */
@@ -1286,10 +1397,10 @@
   /* --------------------------------------------------- événements */
   P.onEvent = function (ev, st) {
     const en = (id) => (id === undefined || id === null ? null : this.enemies.get(id) || this.dying.find((d) => d.id === id) || null);
-    const act = (v, name) => {
+    const act = (v, name, target) => {
       if (v && v.actor.event)
         try {
-          v.actor.event(name);
+          v.actor.event(name, target);
         } catch (e) {}
     };
     switch (ev.type) {
@@ -1320,7 +1431,7 @@
         const x = ev.x !== undefined ? ev.x : v ? v.x : 0, y = ev.y !== undefined ? ev.y : v ? v.y : 0;
         if (v) {
           this.killEnemy(v);
-          burst("ko", this.chest(v, 0.5, _v1), {});
+          if (!v.native) burst("ko", this.chest(v, 0.5, _v1), {});
         }
         if (ev.gold) {
           _v2.set(toX(x), this.world.groundAt(x, y) + 0.5, toZ(y));
@@ -1333,7 +1444,8 @@
         const a = en(ev.fromId), b = en(ev.toId);
         if (a && b) {
           burst("crepe", this.chest(a, 0.8, _v1), { to: this.chest(b, 0.7, _v2) });
-          act(a, "heal");
+          act(a, "heal", this.chest(b, 0.6, new THREE.Vector3()));
+          act(b, "healed");
           if (ev.amount) this.floatAtWorld(this.chest(b, 1.1, _v3), "+" + Math.round(ev.amount), "heal");
         }
         break;
@@ -1382,12 +1494,22 @@
       case "impact": {
         // point et rayon exacts de l'impact : l'éclat « kind + Hit » part d'ici
         const pv = this.projectiles.get(ev.projectileId);
-        _v1.set(toX(ev.x), this.world.groundAt(ev.x, ev.y), toZ(ev.y));
+        _v1.set(toX(ev.x), this.world.groundAt(ev.x, ev.y, true), toZ(ev.y));
+        // hauteur : poitrine de la cible touchée (tirs directs), sol pour les tirs en cloche
+        let h;
         if (pv) {
           pv.impacted = true;
-          if (!pv.arc && pv.t > 0.5) _v1.copy(pv.end);
-        } else _v1.y += 0.9;
-        this.impactBurst(ev.kind, _v1, ev.r || 0);
+          if (!pv.arc && pv.t > 0.5) {
+            _v1.x = pv.end.x;
+            _v1.z = pv.end.z;
+            h = Math.max(0.2, pv.end.y - _v1.y);
+          }
+        }
+        if (h === undefined && !(pv && pv.arc)) {
+          const tv = ev.enemyId !== undefined ? this.enemies.get(ev.enemyId) : null;
+          if (tv) h = tv.height * 0.55;
+        }
+        this.impactBurst(ev.kind, _v1, h, ev.r || 0, ev.crit);
         break;
       }
       case "fizzle": {
@@ -1400,24 +1522,23 @@
       }
       case "lasso": {
         const v = en(ev.enemyId);
-        act(v, "lasso");
+        const g = this.gems.get(ev.gemId);
+        const at = new THREE.Vector3();
+        if (g) g.model.object.getWorldPosition(at);
+        else if (v) this.chest(v, 0, at);
+        act(v, "lasso", at);
         break;
       }
       case "barrierUp": {
         const v = en(ev.enemyId);
-        if (v) {
-          act(v, "barrierUp");
-          burst("sparkle", this.chest(v, 0.5, _v1), { color: "#6ff0d8", radius: 0.9 });
-        }
+        if (v) burst("sparkle", this.chest(v, 0.5, _v1), { color: "#6ff0d8", radius: 0.9 });
         break;
       }
-      case "stun": {
-        const v = en(ev.enemyId);
-        if (v) burst("ko", this.chest(v, 1.05, _v1), {});
+      case "stun":
         break;
-      }
       case "immune": {
         const v = en(ev.enemyId);
+        act(v, "immune");
         if (v && (!v.immuneT || this.real - v.immuneT > 1.5)) {
           v.immuneT = this.real;
           this.floatAtWorld(this.chest(v, 1.1, _v1), "Immunisé !", "info");
@@ -1466,7 +1587,7 @@
       }
       case "pickup": {
         const v = en(ev.enemyId);
-        act(v, v && v.type === "cowboy" ? "lasso" : "pickup");
+        act(v, "pickup");
         break;
       }
       case "drop": {
@@ -1507,6 +1628,13 @@
       case "spawn": {
         const v = en(ev.enemyId);
         act(v, "spawn");
+        break;
+      }
+      case "bossArrives": {
+        // arrivée d'un boss : nuage de poussière et petite secousse
+        const v = en(ev.enemyId);
+        if (v) burst("waveDust", v.obj.position, { radius: 2.2 });
+        if (PTMT.fx) PTMT.fx.shake = Math.max(PTMT.fx.shake || 0, 0.4);
         break;
       }
     }
@@ -1631,27 +1759,32 @@
     this.previewState = { i, j, family, ok };
     this.updateTiles();
     U.uBuild.value.set(1, inside ? i : -9, inside ? j : -9, ok ? 1 : 0);
-    for (const k in this.ghosts) if (k !== family) this.ghosts[k].object.visible = false;
+    // fantôme par famille (le cygne hors de l'eau a sa mare : fantôme à part)
+    const gk = inside ? (family === "swan" && this.terrainAt(i, j) !== "water" ? "swan:mare" : family) : null;
+    for (const k in this.ghosts) if (k !== gk) this.ghosts[k].object.visible = false;
     if (!inside) {
-      if (this.ghosts[family]) this.ghosts[family].object.visible = false;
       U.uRange.value.w = 0;
       return;
     }
-    const g = this.ghost(family);
+    const g = this.ghost(family, i, j, gk);
     const top = this.tileTop(i, j);
     g.object.visible = true;
     g.object.position.set(toX(i + 0.5), top, toZ(j + 0.5));
     if (g.model.aim) g.model.aim(this.roadYaw(i, j));
-    g.mat.color.copy(lin(ok ? "#9dff7a" : "#ff6a5a"));
+    g.mat.color.copy(lin(ok ? "#d0ffb8" : "#ff9a8a"));
+    g.mat.emissive.copy(lin(ok ? "#2c6a18" : "#7a1a12"));
     g.matSk.color.copy(g.mat.color);
+    g.matSk.emissive.copy(g.mat.emissive);
     const r = this.towerRange({ family, level: 1, spec: null, i, j });
     U.uRange.value.set(toX(i + 0.5), toZ(j + 0.5), r * TILE, ok ? 0.9 : 0.45);
     U.uRangeCol.value.copy(lin(ok ? RANGE_HEX[family] || "#ffffff" : "#ff8a7a"));
   };
-  P.ghost = function (family) {
-    if (this.ghosts[family]) return this.ghosts[family];
-    const model = this.makeTowerModel(family, 1, null);
-    const mat = new THREE.MeshBasicMaterial({ color: 0x9dff7a, transparent: true, opacity: 0.5, depthWrite: false });
+  P.ghost = function (family, i, j, key) {
+    key = key || family;
+    if (this.ghosts[key]) return this.ghosts[key];
+    const model = this.makeTowerModel(family, 1, null, i, j);
+    // fantôme : la tour avec ses couleurs, teintée (vert : possible, rouge : refusé) et translucide
+    const mat = new THREE.MeshLambertMaterial({ vertexColors: true, color: 0xc8ffb0, emissive: 0x245a14, transparent: true, opacity: 0.72, depthWrite: false });
     const matSk = mat.clone();
     matSk.skinning = true;
     model.object.traverse((o) => {
@@ -1662,13 +1795,21 @@
     });
     model.object.renderOrder = 8;
     this.root.add(model.object);
-    return (this.ghosts[family] = { model, object: model.object, mat, matSk });
+    return (this.ghosts[key] = { model, object: model.object, mat, matSk });
   };
   /** Réticule d'un sort : « cut » = case visée (verte si boisée), « meteor » = disque de l'impact. */
   P.target = function (spell, x, y) {
     const U = this.world.ov;
-    if (!spell || x === undefined || x === null) {
+    if (!spell) {
       this.targetState = null;
+      U.uRet.value.w = 0;
+      return;
+    }
+    // visée commencée sans position (par exemple −99, −99) : rien à montrer tant qu'aucune vraie
+    // position n'arrive
+    const has = typeof x === "number" && typeof y === "number" && x > -1 && y > -1 && x < MW + 1 && y < MH + 1;
+    if (!has) {
+      this.targetState = { spell, x: null, y: null };
       U.uRet.value.w = 0;
       return;
     }
@@ -1745,9 +1886,28 @@
       if (!v) continue;
       const o = v.model.object.position;
       const hgt = (v.model.height || 2) * v.model.object.scale.y;
-      const b = Math.abs(Math.sin(time * 4 + v.i)) * 0.35;
-      H.put(o.x, o.y + hgt + 0.7 * k + b, o.z, 0.95 * k, HUD.glow, 1, 0.85, 0.3, 0.55, 0, 1, 0, 1);
-      H.put(o.x, o.y + hgt + 0.7 * k + b, o.z, 0.72 * k, HUD.arrow, one[0], one[1], one[2], 1, 0, 0, 0, 1);
+      const b = Math.abs(Math.sin(time * 4 + v.i)) * 0.4;
+      H.put(o.x, o.y + hgt + 0.9 * k + b, o.z, 1.7 * k, HUD.glow, 1, 0.85, 0.3, 0.6, 0, 1, 0, 1);
+      H.put(o.x, o.y + hgt + 0.9 * k + b, o.z, 1.25 * k, HUD.arrow, one[0], one[1], one[2], 1, 0, 0, 0, 1);
+    }
+    // coupe visée : coins par-dessus les arbres (le réticule au sol est caché par les feuillages)
+    const ts = this.targetState;
+    if (ts && ts.spell === "cut" && ts.x !== null) {
+      const i = Math.floor(ts.x), j = Math.floor(ts.y);
+      if (i >= 0 && j >= 0 && i < MW && j < MH) {
+        const ok = !!tileInfo(this.grid[j][i]).forest;
+        const pulse = 1 + 0.05 * Math.sin(time * 7);
+        const sz = TILE * Math.sin(this.cam.elev) * 0.98 * pulse;
+        const cx = toX(i + 0.5), cz = toZ(j + 0.5), cy = this.tileTop(i, j) + 0.1;
+        const col = ok ? [0.62, 1, 0.45] : [1, 0.42, 0.35];
+        H.put(cx, cy, cz, sz, HUD.corners, col[0], col[1], col[2], 1, 0, 0, 0, 1 / Math.sin(this.cam.elev));
+        if (ok) {
+          // repère au-dessus des cimes
+          const bob = Math.abs(Math.sin(time * 4)) * 0.4;
+          H.put(cx, cy + 5.2 + bob, cz, 1.9 * k, HUD.glow, col[0], col[1], col[2], 0.55, 0, 1, 0, 1);
+          H.put(cx, cy + 5.2 + bob, cz, 1.3 * k, HUD.arrow, col[0], col[1], col[2], 1, Math.PI, 0, 0, 1);
+        }
+      }
     }
   };
   P.updateBossLabels = function () {
@@ -1782,10 +1942,12 @@
    */
   P.sync = function (state, events, dt, time) {
     const now = performance.now();
-    const realDt = Math.min(0.1, (now - this.lastReal) / 1000);
+    dt = Math.max(0, Math.min(0.25, dt || 0));
+    // horloge du décor (eau, feuillages, animations du monde) : temps réel, sauf si l'on demande de
+    // suivre le temps du jeu (banc d'essai qui accélère la simulation : view.clock = "game")
+    const realDt = this.clock === "game" ? dt : Math.min(0.1, (now - this.lastReal) / 1000);
     this.lastReal = now;
     this.real += realDt;
-    dt = Math.max(0, Math.min(0.25, dt || 0));
     this.state = state;
     this.time = time === undefined ? this.time + dt : time;
     const st = state || {};
@@ -1822,7 +1984,6 @@
         m.model.setActive && m.model.setActive(on);
       }
     }
-    if (st.frenzy && PTMT.fx && PTMT.fx.world && PTMT.fx._ && PTMT.fx._.S) for (const v of this.towers.values()) PTMT.fx.world.frenzyAura(v.model.object.position, this.real, 1.35);
     if (this.rangeTower !== null && !this.previewState) this.showRange(this.rangeTower, this.rangeValue);
     this.updateTiles();
     this.world.update(realDt, this.real);
@@ -1831,18 +1992,39 @@
         PTMT.fx.update(dt, this.time);
       } catch (e) {}
     }
+    this.drawFxSprites(st);
     for (const k in this.ghosts) {
       const g = this.ghosts[k];
       if (g.object.visible) {
-        g.mat.opacity = 0.42 + 0.12 * Math.sin(this.real * 5);
+        g.mat.opacity = g.matSk.opacity = 0.66 + 0.1 * Math.sin(this.real * 5);
         g.model.update && g.model.update(realDt, this.real);
       }
     }
     this.drawHud(this.real);
     this.updateBossLabels();
   };
+  /** Sprites « posés » des effets (effacés à chaque PTMT.fx.update, donc écrits après) : halo des
+   *  gemmes au sol, aura de Frénésie sous les tours. */
+  P.drawFxSprites = function (st) {
+    const FX = PTMT.fx, W = FX && FX.world;
+    if (!W || !(FX._ && FX._.S)) return;
+    try {
+      if (W.gemGlow) for (const g of this.glows) if (g.model.object.visible) W.gemGlow(g.model.object.position, g.color, this.real);
+      if (st.frenzy && W.frenzyAura) for (const v of this.towers.values()) W.frenzyAura(v.model.object.position, this.real, 1.9);
+    } catch (e) {}
+  };
   P.render = function () {
-    this.renderer.render(this.scene, this.camera);
+    // petite secousse suggérée par les effets (PTMT.fx.shake, 0..1, décroît seule) : la caméra reste fixe
+    const FX = PTMT.fx, cam = this.camera;
+    const sh = this.shakeOn && FX && FX.shake > 0.01 ? Math.min(1, FX.shake) : 0;
+    if (!sh) return this.renderer.render(this.scene, cam);
+    const t = this.real * 55, a = sh * 0.2;
+    _v4.copy(this.cam.right).multiplyScalar(Math.sin(t * 1.3) * a).addScaledVector(this.cam.up, Math.cos(t * 1.7 + 1) * a);
+    cam.position.add(_v4);
+    cam.updateMatrixWorld();
+    this.renderer.render(this.scene, cam);
+    cam.position.sub(_v4);
+    cam.updateMatrixWorld();
   };
   P.dispose = function () {
     for (const v of [...this.towers.values()]) this.removeTower(v);

@@ -94,9 +94,12 @@
   const WALK = "#=ELs";
 
   /* ------------------------------------------------------------------ champ de la carte */
-  function Field(map) {
+  function Field(map, opts) {
     const A = APRON, EW = MW + 2 * A, EH = MH + 2 * A;
     this.map = map;
+    // décor fourni (PTMT.models.decorBatch) : ses talus et falaises ont leur propre relief, les cases X
+    // restent au niveau de l'herbe ; sinon le relief monte ici pour les formes de secours
+    this.flatX = !!(opts && opts.flatX);
     this.A = A;
     this.EW = EW;
     this.EH = EH;
@@ -204,9 +207,11 @@
     const pw = ss(0.08, 0.92, cw[C.WATER]) * (1 - 0.65 * ss(0.3, 0.6, road));
     h += (BED_Y - h) * pw;
     h += (1.3 - h) * ss(0.16, 0.42, cw[C.HIGH]);
-    h += (0.85 - h) * ss(0.2, 0.8, cw[C.BOULD]);
-    h += (1.8 - h) * ss(0.18, 0.82, cw[C.TALUS]);
-    h += (2.5 - h) * ss(0.3, 0.7, cw[C.CLIFF]);
+    if (!this.flatX) {
+      h += (0.85 - h) * ss(0.2, 0.8, cw[C.BOULD]);
+      h += (1.8 - h) * ss(0.18, 0.82, cw[C.TALUS]);
+      h += (2.5 - h) * ss(0.3, 0.7, cw[C.CLIFF]);
+    }
     return h + amp * (fbm(x * 0.9 + 3.1, y * 0.9 + 1.7, 21) * 2 - 1);
   };
   Field.prototype.buildHeights = function (R) {
@@ -1131,7 +1136,30 @@
       mask[k * 4 + 3] = 255;
     }
     MK.lastPaintMs = performance.now() - t0;
-    return { color: cv, emis: ecv, mask, maskW: nx, maskH: ny };
+    /** Passage secret ouvert : le sentier envahi devient un chemin de terre (repeint sur place). */
+    const openSecret = () => {
+      const zone = region(fine.secret, 0.5);
+      c.save();
+      c.clip(zone);
+      c.fillStyle = P_DIRT;
+      c.fillRect(0, 0, W, H);
+      // herbe foulée qui subsiste et touffes arrachées
+      c.globalAlpha = 0.2;
+      c.fillStyle = P_GRASS;
+      c.fillRect(0, 0, W, H);
+      c.globalAlpha = 1;
+      const r2 = PTMT.rng(field.seed + 77);
+      for (let j = 0; j < MH; j++)
+        for (let i = 0; i < MW; i++) {
+          if (field.grid[j][i] !== "s") continue;
+          for (let q = 0; q < 26; q++) {
+            const x = px(i + r2()), y = px(j + r2());
+            softDot(c, x, y, T * (0.04 + r2() * 0.07), r2() < 0.5 ? "rgba(96,150,48,0.5)" : "rgba(120,84,48,0.45)");
+          }
+        }
+      c.restore();
+    };
+    return { color: cv, emis: ecv, mask, maskW: nx, maskH: ny, openSecret };
   };
 
   /** Texture de détail répétée (r brins d'herbe, g grain de terre, b grain de roche), centrée sur 0,5. */
@@ -1240,7 +1268,8 @@
             vec3 c = uBuild.w > 0.5 ? vec3(0.45, 1.0, 0.35) : vec3(1.0, 0.28, 0.2);
             o = ptOver(o, vec4(c, max(inside * (0.32 + 0.1 * sin(uOvTime * 6.0)), edge)));
           } else if (g > 0.5 && g < 1.5) {
-            o = ptOver(o, vec4(0.72, 1.0, 0.55, max(inside * 0.12, edge * 0.75)));
+            float edge2 = 1.0 - smoothstep(aa * 0.5, aa * 1.7, abs(d + 0.035));
+            o = ptOver(o, vec4(0.78, 1.0, 0.6, max(inside * 0.08, edge2 * 0.6)));
           } else if (g > 1.5 && g < 2.5) {
             float dash = step(0.5, fract((f.x - f.y) * 3.0 + uOvTime * 0.6));
             o = ptOver(o, vec4(1.0, 0.8, 0.4, edge * (0.25 + 0.5 * dash)));
@@ -1449,6 +1478,11 @@
       lumpy(moss, 0.2, rng() * 30, -0.12, 0.66, 0.1, 0.35);
       parts.push({ g: moss, color: "#7a8f52", shade: 0.2 });
       void P;
+    } else if (kind === "stone") {
+      // pierre nue des flancs de butte (granit, sans mousse)
+      const g2 = new THREE.DodecahedronGeometry(0.75, 0);
+      lumpy(g2, 0.25, rng() * 30, 0, 0.26, 0, 0.7);
+      parts.push({ g: g2, color: v ? "#8a857c" : "#99938a", shade: 0.35 });
     } else if (kind === "stump") {
       const t = new THREE.CylinderGeometry(0.22, 0.3, 0.38, 7, 1);
       t.translate(0, 0.19, 0);
@@ -1503,7 +1537,7 @@
     this.animated = [];
     this.uTime = { value: 0 };
     const t0 = performance.now();
-    const field = (this.field = new Field(this.map));
+    const field = (this.field = new Field(this.map, { flatX: typeof (PTMT.models && PTMT.models.decorBatch) === "function" }));
     field.buildHeights(this.high ? 8 : 6);
     this.fine = field.buildFine(this.mobile ? 12 : 16);
     this.timings = { field: performance.now() - t0 };
@@ -1630,6 +1664,8 @@
       sun.shadow.needsUpdate = true;
     }
     this.bakeShadows();
+    // taches d'ombre (qualité « low ») : décalées du nouveau côté
+    if (this.blobMesh) for (let i = 0; i < this.blobArgs.length; i++) if (this.blobArgs[i]) this.placeBlob(i);
   };
   /** Ombres du relief (et du décor fixe en qualité « low ») : texture douce à 10 px par case. */
   W.bakeShadows = function () {
@@ -2195,8 +2231,8 @@
         varying vec2 vUv; varying float vK;
         void main() {
           float d = length(vUv - 0.5) * 2.0;
-          float a = (1.0 - smoothstep(0.25, 1.0, d)) * vK;
-          gl_FragColor = vec4(mix(vec3(1.0), vec3(0.38, 0.42, 0.34), a), 1.0);
+          float a = (1.0 - smoothstep(0.3, 1.0, d)) * vK;
+          gl_FragColor = vec4(mix(vec3(1.0), vec3(0.32, 0.36, 0.28), a), 1.0);
         }`,
     });
     const mesh = new THREE.InstancedMesh(g, mat, cap);
@@ -2209,29 +2245,38 @@
     this.root.add(mesh);
     this.blobMesh = mesh;
     this.blobFree = [];
+    this.blobArgs = [];
     this.disposables.push(g, mat);
   };
-  /** Ajoute une tache (monde : X, Z, hauteur y, rayons rx, rz, force 0..1) ; renvoie son indice. */
-  W.addBlob = function (X, Z, y, rx, rz, k) {
+  /** Ajoute une tache (monde : X, Z, hauteur y, rayons rx, rz, force 0..1, décalage off en m du côté
+   *  opposé au soleil — suivi quand le soleil tourne) ; renvoie son indice. */
+  W.addBlob = function (X, Z, y, rx, rz, k, off) {
     const m = this.blobMesh;
     if (!m) return -1;
     let i = this.blobFree.length ? this.blobFree.pop() : m.count < m.instanceMatrix.count ? m.count++ : -1;
     if (i < 0) return -1;
-    this.setBlob(i, X, Z, y, rx, rz, k);
+    this.setBlob(i, X, Z, y, rx, rz, k, off);
     return i;
   };
-  W.setBlob = function (i, X, Z, y, rx, rz, k) {
+  W.setBlob = function (i, X, Z, y, rx, rz, k, off) {
     const m = this.blobMesh;
     if (!m || i < 0) return;
-    _m4.compose(_p4.set(X, y + 0.04, Z), _q4.identity(), _s4.set(Math.max(0.001, rx * 2), 1, Math.max(0.001, rz * 2)));
+    const a = this.blobArgs[i] || (this.blobArgs[i] = new Float32Array(7));
+    a[0] = X; a[1] = Z; a[2] = y; a[3] = rx; a[4] = rz; a[5] = k; a[6] = off || 0;
+    this.placeBlob(i);
+  };
+  W.placeBlob = function (i) {
+    const m = this.blobMesh, a = this.blobArgs[i];
+    const d = this.sunDirH(), off = a[6];
+    _m4.compose(_p4.set(a[0] - d.x * off, a[2] + 0.04, a[1] - d.z * off), _q4.identity(), _s4.set(Math.max(0.001, a[3] * 2), 1, Math.max(0.001, a[4] * 2)));
     m.setMatrixAt(i, _m4);
-    m.instanceColor.setXYZ(i, k, k, k);
+    m.instanceColor.setXYZ(i, a[5], a[5], a[5]);
     m.instanceMatrix.needsUpdate = true;
     m.instanceColor.needsUpdate = true;
   };
   W.removeBlob = function (i) {
     if (i < 0 || !this.blobMesh) return;
-    this.setBlob(i, 0, 0, -50, 0, 0, 0);
+    this.setBlob(i, 0, 0, -50, 0, 0, 0, 0);
     this.blobFree.push(i);
   };
 
@@ -2429,9 +2474,16 @@
     if (!this.high)
       for (const it of list) {
         if (it.kind === "reeds") continue;
-        const dx = -this.sunDirH().x * 0.9, dz = -this.sunDirH().z * 0.9;
-        this.forestBlobs.set(it.key, this.addBlob(it.x + dx, it.z + dz, it.y, 2.3, 2.1, 0.7));
+        this.forestBlobs.set(it.key, this.addBlob(it.x, it.z, it.y, 2.3, 2.1, 0.7, 0.9));
       }
+  };
+  /** Une tour se pose sur une case coupée : plus de souches. */
+  W.clearForest = function (i, j) {
+    const key = i + "," + j;
+    if (!this.forestTiles || !this.forestTiles.has(key) || !this.forests) return;
+    try {
+      if (this.forests.clear) this.forests.clear(key);
+    } catch (e) {}
   };
   W.sunDirH = function () {
     const d = this.sunDir || SUN_CAM;
@@ -2540,7 +2592,7 @@
     for (const v of [0, 1]) {
       const arr = list.filter((t) => t.v === v);
       if (!arr.length) continue;
-      const mesh = new THREE.InstancedMesh(MK.treeGeo("boulder", v, 0), mat, arr.length);
+      const mesh = new THREE.InstancedMesh(MK.treeGeo("stone", v, 0), mat, arr.length);
       arr.forEach((t, i) => {
         _q4.setFromAxisAngle(_UP, t.r);
         _m4.compose(_p4.set(toX(t.x), f.heightAt(t.x, t.y) - 0.42 * t.s, toZ(t.y)), _q4, _s4.set(t.s * 1.2, t.s * 1.1, t.s * 1.2));
@@ -2604,8 +2656,9 @@
           const hx = (f.charAt(i - 1, j) === "X") + (f.charAt(i + 1, j) === "X"), vy = (f.charAt(i, j - 1) === "X") + (f.charAt(i, j + 1) === "X");
           rot = vy > hx ? Math.PI / 2 : 0;
         }
-        const nmask = (f.charAt(i - 1, j) === "X" ? 1 : 0) | (f.charAt(i + 1, j) === "X" ? 2 : 0) | (f.charAt(i, j - 1) === "X" ? 4 : 0) | (f.charAt(i, j + 1) === "X" ? 8 : 0);
-        items.push({ kind, i, j, x: toX(i + 0.5), y: f.heightAt(i + 0.5, j + 0.5), z: toZ(j + 0.5), rot, seed: (hash2(i, j, 99) * 1e6) | 0, n: nmask });
+        const same = (a, b) => f.charAt(a, b) === "X" && f.kindAt(a, b) === kind;
+        const link = (same(i + 1, j) ? 1 : 0) | (same(i, j + 1) ? 2 : 0) | (same(i - 1, j) ? 4 : 0) | (same(i, j - 1) ? 8 : 0);
+        items.push({ kind, i, j, x: toX(i + 0.5), y: f.heightAt(i + 0.5, j + 0.5), z: toZ(j + 0.5), rot, seed: (hash2(i, j, 99) * 1e6) | 0, link });
         const hh = kind === "house" || kind === "chapel" ? 4 : kind === "talus" ? 2.2 : kind === "calvaire" ? 2.5 : 1.4;
         this.staticShadowCasters.push({ x: i + 0.5, y: j + 0.5, r: 0.55, h: hh });
       }
@@ -2713,7 +2766,8 @@
     const g = new THREE.Group();
     g.name = "Moulin (secours)";
     const list = [];
-    houseParts(list, mat4(0, 0, -0.6, 0, 1.45));
+    const back = -1.5 * TILE; // centre du bâtiment : 1,5 case derrière la case L
+    houseParts(list, mat4(0, 0.22, back, 0, 2.1));
     const body = new THREE.Mesh(mergeColored(list), PTMT.mat("view:merged", () => new THREE.MeshLambertMaterial({ vertexColors: true })));
     body.geometry.setAttribute("sway", new THREE.BufferAttribute(new Float32Array(body.geometry.attributes.position.count), 1));
     body.castShadow = body.receiveShadow = true;
@@ -2727,7 +2781,8 @@
     }
     wp.push({ g: new THREE.CylinderGeometry(0.22, 0.22, 0.7, 8), color: "#4a3220", m: T4(0, 0, 0, 0, 0, Math.PI / 2) });
     const wheel = buildMerged(wp, "Roue");
-    wheel.position.set(2.55, 1.5, -0.6);
+    wheel.position.set(3.55, 1.7, back);
+    wheel.scale.setScalar(1.3);
     g.add(wheel);
     // tas de gemmes devant la porte : un lot instancié (une couleur par gemme)
     const place = [[0, 0.3, 0], [-0.45, 0.22, 0.15], [0.45, 0.22, 0.12], [-0.2, 0.2, 0.5], [0.25, 0.2, 0.48], [0, 0.62, 0.2], [0.6, 0.2, 0.5], [-0.6, 0.2, 0.52]];
@@ -2739,9 +2794,9 @@
     for (let k = 0; k < n; k++) {
       const p = place[k % place.length];
       gems.setColorAt(k, _c4.set(lin(GEM_HEX[k % GEM_HEX.length])).multiplyScalar(1.35));
-      slots.push(new THREE.Vector3(p[0], p[1] + 0.3, p[2] + 2.3));
+      slots.push(new THREE.Vector3(p[0], p[1] + 0.3, p[2] - 1.2));
     }
-    const sack = buildMerged([{ g: new THREE.CylinderGeometry(0.8, 0.95, 0.2, 12), color: "#8a6a44", m: T4(0, 0.08, 2.3) }], "Sac");
+    const sack = buildMerged([{ g: new THREE.CylinderGeometry(0.8, 0.95, 0.2, 12), color: "#8a6a44", m: T4(0, 0.08, -1.2) }], "Sac");
     g.add(sack, gems);
     let alarm = false, count = n;
     const place2 = (time) => {
@@ -2749,7 +2804,7 @@
         const p = place[k % place.length];
         const lift = alarm ? Math.abs(Math.sin(time * 10 + k)) * 0.15 : 0;
         _q4.setFromEuler(new THREE.Euler(0.25 * (k % 2 ? 1 : -1), k * 1.3 + time * (0.5 + (alarm ? 3 : 0)), 0.15));
-        _m4.compose(_p4.set(p[0], p[1] + 0.12 + lift, p[2] + 2.3), _q4, _s4.setScalar(k < count ? 1 : 0.0001));
+        _m4.compose(_p4.set(p[0], p[1] + 0.12 + lift, p[2] - 1.2), _q4, _s4.setScalar(k < count ? 1 : 0.0001));
         gems.setMatrixAt(k, _m4);
       }
       gems.instanceMatrix.needsUpdate = true;
@@ -2783,11 +2838,13 @@
     cy /= mill.length;
     let li = cx, lj = cy;
     for (let j = 0; j < MH; j++) for (let i = 0; i < MW; i++) if (this.field.grid[j][i] === "L") (li = i + 0.5), (lj = j + 0.5);
-    const yaw = Math.atan2(toX(li) - toX(cx), toZ(lj) - toZ(cy));
-    this.lairInfo = { x: cx, y: cy, yaw, lx: li, ly: lj };
+    // façade vers L, du centre du rectangle vers L, arrondie au quart de tour
+    const dx = li - cx, dy = lj - cy;
+    const yaw = Math.abs(dx) >= Math.abs(dy) ? (dx >= 0 ? Math.PI / 2 : -Math.PI / 2) : dy >= 0 ? 0 : Math.PI;
+    this.lairInfo = { x: li, y: lj, yaw, lx: li, ly: lj, cx, cy };
     this.makeLair(this.map.gems || 5);
     this.staticShadowCasters = this.staticShadowCasters || [];
-    this.staticShadowCasters.push({ x: cx, y: cy, r: 1.2, h: 5, a: 1.2 });
+    this.staticShadowCasters.push({ x: cx, y: cy, r: 1.3, h: 5, a: 1.2 });
   };
   W.makeLair = function (maxGems) {
     if (this.lair) {
@@ -2796,15 +2853,18 @@
     }
     const L = this.lairInfo;
     if (!L) return;
-    const lair = tryModel("lair", maxGems) || FallbackLair(maxGems);
+    const native = tryModel("lair", maxGems);
+    const lair = native || FallbackLair(maxGems);
+    this.lairNative = !!native;
     const o = objOf(lair);
-    o.position.set(toX(L.x), LEVEL[C.MILL] - 0.02, toZ(L.y));
+    // origine = centre de la case L, au niveau du chemin
+    o.position.set(toX(L.lx), 0, toZ(L.ly));
     o.rotation.y = L.yaw;
     this.root.add(o);
     this.lair = lair;
     this.lairMax = maxGems;
   };
-  /** Position monde d'une place de gemme du repaire (départ d'une gemme volée). */
+  /** Position monde d'une place de gemme du repaire (tas du moulin). */
   W.lairSlot = function (k, out) {
     out = out || new THREE.Vector3();
     const L = this.lair, o = L && objOf(L);
@@ -2915,7 +2975,7 @@
         const d = f.exitDir(i, j) || [0, -1];
         const gate = tryModel("gate", index) || FallbackGate(index);
         const o = objOf(gate);
-        o.position.set(toX(i + 0.5 + d[0] * 0.3), 0, toZ(j + 0.5 + d[1] * 0.3));
+        o.position.set(toX(i + 0.5), 0, toZ(j + 0.5));
         o.rotation.y = Math.atan2(-d[0], -d[1]);
         this.root.add(o);
         this.gates.push({ i, j, index, dir: d, model: gate });
@@ -2974,6 +3034,7 @@
   W.openSecret = function () {
     if (!this.secret || this.secret.t >= 0) return;
     this.secret.t = 0;
+    this.secretRepaint = true;
     for (let j = 0; j < MH; j++)
       for (let i = 0; i < MW; i++)
         if (this.field.grid[j][i] === "s" && PTMT.fx && PTMT.fx._ && PTMT.fx._.BURSTS && PTMT.fx._.BURSTS.leafBurst) PTMT.fx.burst("leafBurst", _p4.set(toX(i + 0.5), 0.6, toZ(j + 0.5)), { radius: 1.4, kind: "grass" });
@@ -3020,6 +3081,12 @@
     if (this.gates) for (const g of this.gates) g.model.update && g.model.update(dt, time);
     if (this.secret && this.secret.t >= 0 && this.secret.t < 1.3) {
       this.secret.t += dt;
+      // le sol se repeint quand le fourré s'est écarté (une seule fois)
+      if (this.secretRepaint && this.secret.t > 0.45 && this.paint && this.paint.openSecret) {
+        this.secretRepaint = false;
+        this.paint.openSecret();
+        this.tex.color.needsUpdate = true;
+      }
       this.secret.place(Math.min(1, this.secret.t / 1.2));
     }
     for (const a of this.animated) a(dt, time);

@@ -49,13 +49,22 @@
     sim: ["00-data.js", "10-maps.js"],
     models: ["10-kit.js", "20-boar.js", "21-swan.js", "22-dog.js", "40-props.js"],
     fx: ["05-kit.js", "10-fx.js", "11-areas.js", "12-props.js", "13-shots.js", "14-world.js"],
-    actors: ["10-actors.js", "11-types.js", "12-overlay.js"],
+    actors: ["10-actors.js", "11-types.js", "12-overlay.js", "13-mounts.js"],
     render: ["10-map.js", "20-entities.js", "30-camera.js"],
   };
   const SIM_ONLY = new Set(["00-data.js", "10-maps.js"]);
-  async function listDir(dir) {
+  // ?ext=<adresse d'un autre dossier jeu/>&extdirs=actors,models : ces dossiers viennent d'ailleurs
+  // (par exemple le dépôt principal servi en lecture seule), pour essayer l'intégration ;
+  // &extmerge=fx : pour ces dossiers-là, les fichiers présents seulement ici sont chargés en plus.
+  const Q = new URLSearchParams(location.search);
+  const EXT = Q.get("ext");
+  const EXTDIRS = new Set((Q.get("extdirs") || "").split(",").filter(Boolean));
+  const EXTMERGE = new Set((Q.get("extmerge") || "").split(",").filter(Boolean));
+  const localOf = (dir) => "../" + dir + "/";
+  const baseOf = (dir) => (EXT && EXTDIRS.has(dir) ? EXT.replace(/\/?$/, "/") + dir + "/" : localOf(dir));
+  async function listDir(dir, local) {
     try {
-      const r = await fetch("../" + dir + "/", { cache: "no-store" });
+      const r = await fetch(local ? localOf(dir) : baseOf(dir), { cache: "no-store" });
       if (!r.ok) return null;
       const html = await r.text();
       const files = [...html.matchAll(/href="([^"?#/]+\.js)"/g)].map((m) => decodeURIComponent(m[1]));
@@ -79,7 +88,13 @@
       let files = await listDir(dir);
       if (!files) files = KNOWN[dir];
       if (dir === "sim") files = files.filter((f) => SIM_ONLY.has(f));
-      for (const f of files) if (await load("../" + dir + "/" + f)) loaded.push(dir + "/" + f);
+      let list = files.map((f) => [f, baseOf(dir) + f]);
+      if (EXT && EXTDIRS.has(dir) && EXTMERGE.has(dir)) {
+        const mine = (await listDir(dir, true)) || KNOWN[dir];
+        for (const f of mine) if (!files.includes(f)) list.push([f, localOf(dir) + f]);
+        list.sort((a, b) => (a[0] < b[0] ? -1 : a[0] > b[0] ? 1 : 0));
+      }
+      for (const [f, src] of list) if (await load(src)) loaded.push(dir + "/" + f + (src.startsWith("../") ? "" : " (ext)"));
     }
     return loaded;
   };
@@ -729,7 +744,9 @@
   }
   // pré-simulation (captures) : l'état avance sans rendu
   const pre = +(params.get("t") || 0);
+  view.clock = "game";
   for (let k = 0; k < pre * 30; k++) tick(1 / 30);
+  view.clock = null;
   if (params.get("frenzy")) sim.frenzy();
   if (params.get("cutall")) for (let k = 0; k < 6; k++) sim.cut();
   if (params.get("range")) view.showRange(sim.state.towers[0] && sim.state.towers[0].id);
@@ -776,7 +793,10 @@
       sel.value = n;
     },
     run(seconds) {
+      // le décor suit le temps simulé pendant l'avance rapide
+      view.clock = "game";
       for (let k = 0; k < seconds * 30; k++) tick(1 / 30);
+      view.clock = null;
     },
     fire,
     focus(x, y, zoom) {
