@@ -1,912 +1,1027 @@
-// « Pas touche à mes trésors » — moteur de jeu (simulation pure, pas fixe, sans rendu).
+// « Pas touche à mes trésors » — la partie (PTMT.sim.createGame), sans THREE.
 //
-// Le rendu lit l'état (game.state) et consomme les événements (game.drainEvents()). Toutes les
-// commandes du joueur passent par les méthodes publiques, qui vérifient coûts et prérequis.
-// La pause gèle tous les systèmes ; la vitesse ×2 enchaîne deux pas par pas réel.
+// Règles de Cursed Treasure : les ennemis entrent par les chemins, vont prendre une gemme au repaire
+// et repartent vers la sortie la plus proche ; tué, un porteur lâche sa gemme sur place et les autres
+// ennemis sans gemme foncent la chercher (plus court chemin, demi-tour compris) puis repartent avec.
+// Les tours se posent sur leur terrain, gagnent de l'expérience (dégâts infligés, ennemis achevés),
+// s'achètent niveau par niveau, se spécialisent au niveau 4 et évoluent au niveau 7. Trois sorts
+// payés en mana (Couper, Frénésie, Météore), bonus des compétences, vagues minutées qu'on peut
+// appeler en avance (or en prime). Partie perdue quand toutes les gemmes sont parties.
+//
+// Pas fixe de 1/60 s (reproductible avec la graine), positions en cases continues (x vers la droite,
+// y vers le bas), angles « monde » : 0 = vers +y, π/2 = vers +x (directement rotation.y en 3D).
 (function () {
   "use strict";
   const PTMT = (globalThis.PTMT = globalThis.PTMT || {});
-  const C = PTMT.config,
-    G = PTMT.geom,
-    R = PTMT.routes;
-  const TICK = C.tick;
-  const FAMILY_SOCKET = { fire: "fire", ice: "ice", water: "water" };
-  const ZONE_NAME = { fire: "Rocaille", ice: "Givre", water: "Berge" };
-  const FORM_KEYS = ["1", "2A", "2B", "3A", "3B"];
+  const S = (PTMT.sim = PTMT.sim || {});
+  const D = S.DATA;
+  const TICK = D.tick;
+  const FAR = S.Grid.FAR;
+  const WINDUP = { boar: 0.12, swan: 0.18, dog: 0.22 };
 
-  function formKey(tier, branch) {
-    return tier === 1 ? "1" : tier + branch;
-  }
+  const clamp = (v, a, b) => (v < a ? a : v > b ? b : v);
+  const rank = (skills, id) => clamp(Math.floor((skills && skills[id]) || 0), 0, D.SKILL[id] ? D.SKILL[id].max : 0);
+
+  /** Effets chiffrés des compétences choisies. */
+  S.skillMods = function (skills) {
+    const pts = { boar: 0, swan: 0, dog: 0 };
+    for (const s of D.SKILLS) pts[s.branch] += rank(skills, s.id);
+    const r = (id) => rank(skills, id);
+    const portal = r("returnPortal");
+    return {
+      points: pts,
+      rate: 1 + D.BRANCHES.boar.perPoint.rate * pts.boar,
+      range: 1 + D.BRANCHES.swan.perPoint.range * pts.swan,
+      damage: 1 + D.BRANCHES.dog.perPoint.damage * pts.dog,
+      goldStart: D.SKILL.goldVault.per * r("goldVault"),
+      heights: D.SKILL.heights.per * r("heights"),
+      cutCost: Math.max(0, D.SPELLS.cut.cost - D.SKILL.cutStudy.per * r("cutStudy")),
+      cutGold: D.SKILL.sawmill.per * r("sawmill"),
+      boarCrit: D.SKILL.marksman.per * r("marksman"),
+      cost: { boar: 1 - D.SKILL.boarLord.per * r("boarLord"), swan: 1 - D.SKILL.swanLord.per * r("swanLord"), dog: 1 - D.SKILL.dogLord.per * r("dogLord") },
+      gemsExtra: r("mining"),
+      manaStart: D.SKILL.manaStock.per * r("manaStock"),
+      manaMax: D.SKILL.manaPool.per * r("manaPool"),
+      frenzyCost: Math.max(0, D.SPELLS.frenzy.cost - D.SKILL.frenzyStudy.per * r("frenzyStudy")),
+      manaRegen: 1 + D.SKILL.manaSpring.per * r("manaSpring"),
+      frenzyTime: D.SPELLS.frenzy.t + D.SKILL.frenzyLong.per * r("frenzyLong"),
+      swanSlow: D.SKILL.coldWater.per * r("coldWater"),
+      xp: 1 + D.SKILL.training.per * r("training"),
+      hotGems: D.SKILL.hotGems.per * r("hotGems"),
+      meteorCost: Math.max(0, D.SPELLS.meteor.cost - D.SKILL.meteorStudy.per * r("meteorStudy")),
+      meteorDamage: 1 + D.SKILL.meteorMastery.per * r("meteorMastery"),
+      portal: portal ? D.gems.returnBase - D.SKILL.returnPortal.per * (portal - 1) : 0,
+      radiance: D.SKILL.radiance.per * r("radiance"),
+    };
+  };
 
   class Game {
-    /**
-     * @param {object} opts { level, talents (répartition), unlocked (sorts débloqués), mobile, checkpoint }
-     */
-    constructor(opts = {}) {
-      this.level = opts.level || 1;
-      this.L = PTMT.layouts[this.level];
-      this.graph = R.buildGraph(this.L);
-      this.allocation = opts.talents || PTMT.talents.emptyAllocation();
-      this.T = PTMT.talents.resolve(this.allocation);
-      this.unlocked = new Set(opts.unlocked || ["meteor", "recall"]);
-      this.maxActive = opts.mobile ? C.enemies.maxActive.mobile : C.enemies.maxActive.desktop;
+    constructor(opts) {
+      opts = opts || {};
+      const level = opts.level || 1;
+      const map = opts.map || S.MAPS[level];
+      if (!map) throw new Error("Mission inconnue : " + level);
+      this.def = map;
+      this.skills = Object.assign({}, opts.skills || {});
+      this.mods = S.skillMods(this.skills);
+      this.rnd = PTMT.rng((opts.seed || 1) * 7919 + level);
+      this.grid = new S.Grid(map);
+      this.waves = S.buildWaves(level, this.grid.entrances.length);
       this.events = [];
+      this.nextId = 1;
       this.acc = 0;
-      this.uid = 1;
-      if (opts.checkpoint) this.restore(opts.checkpoint);
-      else this.reset();
-    }
-
-    // ── Mise en place ──────────────────────────────────────────────────────────
-    reset() {
-      const L = this.L;
-      const waves = PTMT.waves.levelWaves(this.level);
-      const s = (this.state = {
-        level: this.level,
-        layoutId: L.id,
-        seed: L.seed,
-        phase: "prep",
-        endless: false,
-        endlessCount: 0,
-        wave: 0, // numéro de la dernière vague lancée (0 avant la première)
-        waveCount: waves.length,
-        waves,
+      this.spawnQueue = [];
+      this.waveClock = 0;
+      this.meteors = [];
+      this.seen = new Set();
+      this.gemsDirty = true;
+      const m = this.mods;
+      const manaMax = D.mana.max + m.manaMax;
+      const gemsTotal = (map.gems || 5) + m.gemsExtra;
+      this.state = {
+        level,
+        map: {
+          id: map.id,
+          name: map.name,
+          ct: map.ct,
+          w: D.W,
+          h: D.H,
+          grid: this.grid.lines(),
+          entrances: this.grid.entrances.map((e) => ({ id: e.id, i: e.i, j: e.j })),
+          lair: { i: this.grid.lair.i, j: this.grid.lair.j },
+          biome: map.biome,
+          mill: map.mill,
+          mana: map.mana || [],
+          decor: map.decor || {},
+          secretWave: map.secretWave || 0,
+          version: 0,
+        },
         time: 0,
-        waveTime: 0,
-        paused: false,
         speed: 1,
-        gold: C.economy.startGold[this.level] || 500,
-        mana: C.mill.startMana,
-        mill: { meule: 0, roue: 0, atelier: 0 },
-        spells: {},
-        queued: {},
-        reserves: L.reserves.map((r) => ({ id: r.id, name: r.name, x: r.pos[0], z: r.pos[1], door: r.door, doorNode: r.doorNode, tier: 1, stock: [], spent: 0 })),
-        treasures: [],
+        paused: false,
+        over: null,
+        gold: map.gold + m.goldStart,
+        mana: Math.min(manaMax, D.mana.start + m.manaStart),
+        manaMax,
+        manaRegen: 0,
+        gems: [],
+        gemCount: { total: gemsTotal, lair: gemsTotal, ground: 0, carried: 0, lost: 0 },
+        wave: { index: -1, total: this.waves.length, countdown: D.economy.firstWaveDelay, running: false, nextEntrances: [], spawning: false },
         towers: [],
-        traps: [],
         enemies: [],
         projectiles: [],
         areas: [],
-        effects: [],
-        spawns: [],
-        stats: { everTaken: false, lostTotal: 0, lostByReserve: {}, kos: 0, escaped: 0, goldEarned: 0 },
-        result: null,
-        // Forêts : cases déjà coupées, coupes en cours (temps restant), nombre de coupes payées.
-        cleared: {},
-        cutting: [],
-        cuts: 0,
-      });
-      for (const id of C.spells.order) s.spells[id] = { rank: 1, cd: 0 };
-      let n = 0;
-      for (const r of s.reserves) {
-        s.stats.lostByReserve[r.id] = 0;
-        const def = L.reserves.find((x) => x.id === r.id);
-        for (let i = 0; i < def.treasures; i++) {
-          const t = { id: "T" + ++n, reserve: r.id, state: "stored", carrier: null, x: r.x, z: r.z, floating: false, everTaken: false };
-          s.treasures.push(t);
-          r.stock.push(t.id);
-        }
-      }
-      this.recomputeMill();
-      this.emit({ type: "reset" });
+        spells: {},
+        frenzy: false,
+        frenzyLeft: 0,
+        stats: { kills: 0, goldEarned: 0, escaped: 0 },
+      };
+      for (let k = 0; k < gemsTotal; k++) this.state.gems.push({ id: k + 1, color: k % D.GEM_COLORS.length, where: "lair", x: this.grid.lair.i + 0.5, y: this.grid.lair.j + 0.5, carrier: null, returnIn: 0 });
+      this.refreshWavePreview();
+      this.refreshSpells();
     }
 
-    get isOver() {
-      return this.state.phase === "victory" || this.state.phase === "defeat";
-    }
-
-    emit(ev) {
-      this.events.push(ev);
-    }
-    drainEvents() {
-      const e = this.events;
-      this.events = [];
+    /* ------------------------------------------------------------ outils */
+    emit(type, data) {
+      const e = Object.assign({ type }, data);
+      this.events.push(e);
       return e;
     }
-    nextId(prefix) {
-      return prefix + this.uid++;
+    drainEvents() {
+      const out = this.events;
+      this.events = [];
+      return out;
+    }
+    towerById(id) {
+      return this.state.towers.find((t) => t.id === id) || null;
+    }
+    enemyById(id) {
+      return this.state.enemies.find((e) => e.id === id) || null;
+    }
+    towerAt(i, j) {
+      return this.state.towers.find((t) => t.i === i && t.j === j) || null;
+    }
+    costFor(family, level, spec) {
+      const lv = D.towerLevel(family, level, spec);
+      return lv ? Math.round(lv.cost * this.mods.cost[family]) : null;
     }
 
-    // ── Temps ─────────────────────────────────────────────────────────────────
-    setPaused(p) {
+    /* ------------------------------------------------------------ requêtes */
+    tileInfo(i, j) {
+      const g = this.grid;
+      if (!g.inside(i, j)) return null;
+      const c = g.char(i, j);
+      const t = g.tile(i, j);
+      const tower = this.towerAt(i, j);
+      const buildable = t.build && !tower ? t.build.slice() : [];
+      return {
+        i,
+        j,
+        char: c,
+        terrain: t.terrain,
+        forest: !!t.forest,
+        cuttable: !!t.cutTo,
+        high: !!t.high,
+        mana: g.mana.has(j * g.w + i),
+        road: !!t.walk,
+        towerId: tower ? tower.id : null,
+        buildable,
+        costs: Object.fromEntries(buildable.map((f) => [f, this.costFor(f, 1)])),
+        cutCost: this.mods.cutCost,
+      };
+    }
+    canBuild(i, j, family) {
+      const info = this.tileInfo(i, j);
+      if (!info) return { ok: false, reason: "Hors de la carte" };
+      if (info.towerId) return { ok: false, reason: "Il y a déjà une tour ici" };
+      if (info.forest) return { ok: false, reason: "Case boisée : utilise d'abord le sort Couper" };
+      if (!info.buildable.length) return { ok: false, reason: "On ne construit pas sur " + (D.TERRAIN_NAMES[info.terrain] || "cette case").toLowerCase() };
+      if (!info.buildable.includes(family)) {
+        const need = D.FAMILIES[family].terrain;
+        return { ok: false, reason: D.FAMILIES[family].name + " : seulement sur " + D.TERRAIN_NAMES[need].toLowerCase() + " (ou une butte)" };
+      }
+      const cost = this.costFor(family, 1);
+      if (this.state.gold < cost) return { ok: false, reason: "Pas assez d'or", cost };
+      return { ok: true, cost };
+    }
+    /** Statistiques effectives d'une tour à un niveau donné (bonus de terrain et de compétences). */
+    statsFor(t, level, spec) {
+      const base = D.towerLevel(t.family, level, spec);
+      if (!base) return null;
+      const m = this.mods;
+      const high = t.high ? 1 : 0;
+      const st = Object.assign({}, base);
+      st.dmg = base.dmg * m.damage * (1 + high * (D.high.damage + m.heights));
+      st.range = base.range * m.range * (1 + high * D.high.range);
+      st.rate = base.rate * m.rate;
+      if (t.family === "boar" && m.boarCrit > 0) st.crit = { chance: (base.crit ? base.crit.chance : 0) + m.boarCrit, mult: base.crit ? base.crit.mult : 2 };
+      if (t.family === "swan" && base.slow) st.slow = { pct: Math.min(D.status.slowCap, base.slow.pct + m.swanSlow), t: base.slow.t };
+      if (base.radiance) st.radiance = { pct: base.radiance.pct + m.radiance, t: base.radiance.t };
+      return st;
+    }
+    towerInfo(id) {
+      const t = this.towerById(id);
+      if (!t) return null;
+      const cur = this.statsFor(t, t.level, t.spec);
+      const xpNeed = t.level < 7 ? D.XP[t.level] : null;
+      const out = {
+        id: t.id,
+        family: t.family,
+        level: t.level,
+        spec: t.spec,
+        name: cur.name,
+        familyName: D.FAMILIES[t.family].name,
+        specName: t.spec ? D.FAMILIES[t.family].specs[t.spec].name : null,
+        stats: cur,
+        xp: Math.floor(t.xp),
+        xpNext: xpNeed,
+        kills: t.kills,
+        high: t.high,
+        onMana: t.onMana,
+        sell: Math.floor(t.invested * D.economy.sellRatio),
+        next: null,
+        specs: null,
+      };
+      if (t.level === 3) {
+        out.specs = {};
+        for (const sp of ["A", "B"]) {
+          const st = this.statsFor(t, 4, sp);
+          out.specs[sp] = { spec: sp, name: D.FAMILIES[t.family].specs[sp].name, blurb: D.FAMILIES[t.family].specs[sp].blurb, cost: this.costFor(t.family, 4, sp), stats: st, check: this.checkUpgrade(t, sp) };
+        }
+      } else if (t.level < 7) {
+        const st = this.statsFor(t, t.level + 1, t.spec);
+        out.next = { level: t.level + 1, name: st.name, cost: this.costFor(t.family, t.level + 1, t.spec), stats: st, check: this.checkUpgrade(t, t.spec) };
+      }
+      return out;
+    }
+    checkUpgrade(t, spec) {
+      if (t.level >= 7) return { ok: false, reason: "Niveau maximum" };
+      const sp = t.level >= 4 ? t.spec : spec;
+      if (t.level === 3 && sp !== "A" && sp !== "B") return { ok: false, reason: "Choisis une spécialisation" };
+      const need = D.XP[t.level];
+      if (t.xp < need) return { ok: false, reason: "Expérience insuffisante (" + Math.floor(t.xp) + " / " + need + ")", xp: true };
+      const cost = this.costFor(t.family, t.level + 1, sp);
+      if (this.state.gold < cost) return { ok: false, reason: "Pas assez d'or", cost };
+      return { ok: true, cost };
+    }
+    /** Tours qu'on peut améliorer tout de suite (pour les flèches dorées). */
+    upgradeable() {
+      const out = [];
+      for (const t of this.state.towers) {
+        if (t.level >= 7) continue;
+        if (t.level === 3 ? this.checkUpgrade(t, "A").ok || this.checkUpgrade(t, "B").ok : this.checkUpgrade(t, t.spec).ok) out.push(t.id);
+      }
+      return out;
+    }
+    nextWave() {
+      const w = this.state.wave;
+      const k = w.index + 1;
+      if (k >= this.waves.length) return null;
+      const wave = this.waves[k];
+      const groups = new Map();
+      for (const g of wave.groups) {
+        const key = g.type + (g.boss ? ":b" : g.champion ? ":c" : "");
+        const cur = groups.get(key) || { type: g.type, champion: !!g.champion, boss: !!g.boss, count: 0, name: g.boss ? D.BOSS_NAMES[g.type] : null };
+        cur.count += g.count;
+        groups.set(key, cur);
+      }
+      return { index: k, total: this.waves.length, countdown: w.countdown, groups: [...groups.values()], entrances: [...new Set(wave.groups.map((g) => g.entrance))] };
+    }
+    describeEnemy(type) {
+      const e = D.ENEMIES[type];
+      return e ? { type, name: e.name, role: e.ct, hp: e.hp, speed: e.speed, gold: e.gold, ability: e.ability, blurb: e.blurb } : null;
+    }
+    refreshWavePreview() {
+      const n = this.nextWave();
+      this.state.wave.nextEntrances = n ? n.entrances : [];
+    }
+    refreshSpells() {
       const s = this.state;
-      if (s.paused === !!p) return;
-      s.paused = !!p;
-      this.emit({ type: "pause", paused: s.paused });
-      if (!s.paused) this.flushQueued();
+      const costs = { cut: this.mods.cutCost, frenzy: this.mods.frenzyCost, meteor: this.mods.meteorCost };
+      for (const k of Object.keys(D.SPELLS)) {
+        const unlocked = this.def.spells.includes(k);
+        const cur = s.spells[k] || (s.spells[k] = {});
+        cur.cost = costs[k];
+        cur.unlocked = unlocked;
+        cur.ready = unlocked && s.mana >= costs[k] && !s.over;
+        cur.active = k === "frenzy" ? s.frenzy : false;
+        cur.left = k === "frenzy" ? s.frenzyLeft : 0;
+      }
+    }
+
+    /* ------------------------------------------------------------ commandes */
+    build(i, j, family) {
+      const chk = this.canBuild(i, j, family);
+      if (!chk.ok) return chk;
+      const g = this.grid;
+      const t = {
+        id: this.nextId++,
+        family,
+        level: 1,
+        spec: null,
+        i,
+        j,
+        x: i + 0.5,
+        y: j + 0.5,
+        high: !!g.tile(i, j).high,
+        onMana: g.mana.has(j * g.w + i),
+        invested: chk.cost,
+        xp: 0,
+        kills: 0,
+        aim: 0,
+        charge: 0.6,
+        windup: 0,
+        windTarget: null,
+        targetId: null,
+        shots: 0,
+      };
+      this.state.gold -= chk.cost;
+      this.state.towers.push(t);
+      this.emit("build", { towerId: t.id, family, i, j, cost: chk.cost });
+      return { ok: true, towerId: t.id, cost: chk.cost };
+    }
+    upgrade(id, spec) {
+      const t = this.towerById(id);
+      if (!t) return { ok: false, reason: "Tour introuvable" };
+      const chk = this.checkUpgrade(t, spec);
+      if (!chk.ok) return chk;
+      if (t.level === 3) t.spec = spec;
+      t.level++;
+      t.invested += chk.cost;
+      this.state.gold -= chk.cost;
+      this.emit("upgrade", { towerId: t.id, level: t.level, spec: t.spec, cost: chk.cost });
+      return { ok: true, level: t.level, spec: t.spec, cost: chk.cost };
+    }
+    sell(id) {
+      const t = this.towerById(id);
+      if (!t) return { ok: false, reason: "Tour introuvable" };
+      const gold = Math.floor(t.invested * D.economy.sellRatio);
+      this.state.gold += gold;
+      this.state.towers.splice(this.state.towers.indexOf(t), 1);
+      this.emit("sell", { towerId: t.id, gold, i: t.i, j: t.j });
+      return { ok: true, gold };
+    }
+    cast(spell, at) {
+      const s = this.state;
+      const sp = s.spells[spell];
+      if (!sp || !sp.unlocked) return { ok: false, reason: "Sort indisponible dans cette mission" };
+      if (s.over) return { ok: false, reason: "Partie terminée" };
+      if (s.mana < sp.cost) return { ok: false, reason: "Pas assez de mana" };
+      if (spell === "cut") {
+        const i = Math.floor(at.x),
+          j = Math.floor(at.y);
+        const t = this.grid.tile(i, j);
+        if (!this.grid.inside(i, j) || !t.cutTo) return { ok: false, reason: "Rien à couper ici" };
+        this.grid.set(i, j, t.cutTo);
+        this.mapChanged();
+        s.mana -= sp.cost;
+        s.gold += this.mods.cutGold;
+        this.emit("cast", { spell, x: i + 0.5, y: j + 0.5 });
+        this.emit("cut", { i, j, gold: this.mods.cutGold });
+      } else if (spell === "frenzy") {
+        s.mana -= sp.cost;
+        s.frenzy = true;
+        s.frenzyLeft = this.mods.frenzyTime;
+        this.emit("cast", { spell });
+        this.emit("frenzy", { on: true, t: s.frenzyLeft });
+      } else if (spell === "meteor") {
+        const M = D.SPELLS.meteor;
+        const x = clamp(at.x, 0, D.W),
+          y = clamp(at.y, 0, D.H);
+        s.mana -= sp.cost;
+        const area = { id: this.nextId++, kind: "meteorWarn", x, y, r: M.r, t: 0, life: M.delay };
+        s.areas.push(area);
+        this.meteors.push({ x, y, left: M.delay, area });
+        this.emit("cast", { spell, x, y, r: M.r, delay: M.delay });
+      } else return { ok: false, reason: "Sort inconnu" };
+      this.refreshSpells();
+      return { ok: true };
+    }
+    callWave() {
+      const w = this.state.wave;
+      if (w.index + 1 >= this.waves.length) return { ok: false, reason: "Plus de vague à appeler" };
+      const bonus = Math.max(0, Math.floor(w.countdown * D.economy.earlyCallGoldPerSecond));
+      this.state.gold += bonus;
+      this.startWave(w.index + 1);
+      if (bonus) this.emit("earlyBonus", { gold: bonus });
+      return { ok: true, bonus };
     }
     setSpeed(v) {
-      this.state.speed = v === 2 ? 2 : 1;
+      this.state.speed = [1, 2, 3].includes(v) ? v : 1;
     }
-    /** Avance la simulation d'une durée réelle (secondes). */
-    update(dtReal) {
+    setPaused(p) {
+      this.state.paused = !!p;
+    }
+
+    /* ------------------------------------------------------------ déroulement */
+    step(dt) {
       const s = this.state;
-      if (s.paused || this.isOver) return;
-      this.acc += Math.min(0.25, dtReal) * s.speed;
+      if (s.paused || s.over) return;
+      this.acc += Math.min(dt, 0.25) * s.speed;
       let n = 0;
-      while (this.acc >= TICK && n < 16) {
+      while (this.acc >= TICK && n < 24) {
         this.tick(TICK);
         this.acc -= TICK;
         n++;
-        if (s.paused || this.isOver) break;
+        if (s.over) break;
       }
+      if (n >= 24) this.acc = 0;
     }
-    /** Avance exactement `seconds` de simulation (tests). */
-    advance(seconds) {
-      const n = Math.round(seconds / TICK);
-      for (let i = 0; i < n && !this.isOver; i++) this.tick(TICK);
-    }
-
     tick(dt) {
       const s = this.state;
       s.time += dt;
-      // Les bûcherons travaillent aussi entre les vagues (pas en pause).
-      if (s.cutting.length) this.updateCutting(dt);
-      if (s.phase !== "wave") return;
-      s.waveTime += dt;
-      // Mana et recharges : uniquement pendant l'attaque.
-      s.mana = Math.min(s.manaMax, s.mana + s.regen * dt);
-      for (const id of C.spells.order) if (s.spells[id].cd > 0) s.spells[id].cd = Math.max(0, s.spells[id].cd - dt);
-      this.spawnDue();
-      this.updateEffects(dt);
-      this.updateAreas(dt);
-      this.updateEnemies(dt);
-      this.updateProjectiles(dt);
-      this.updateTowers(dt);
-      this.updateTraps(dt);
-      this.cleanup();
-      if (s.phase === "wave" && !s.spawns.length && !s.enemies.length) this.endWave();
+      this.tickWaves(dt);
+      this.tickMana(dt);
+      this.tickSpells(dt);
+      for (const e of s.enemies) this.tickEnemy(e, dt);
+      this.tickTowers(dt);
+      this.tickProjectiles(dt);
+      this.tickGems(dt);
+      if (s.enemies.some((e) => e.dead)) s.enemies = s.enemies.filter((e) => !e.dead);
+      if (this.gemsDirty) this.countGems();
+      this.refreshSpells();
+      this.checkEnd();
+    }
+    startWave(k) {
+      const s = this.state;
+      const wave = this.waves[k];
+      s.wave.index = k;
+      s.wave.running = true;
+      s.wave.spawning = true;
+      s.wave.countdown = k < this.waves.length - 1 ? (s.level >= 8 ? D.economy.waveGapLate : D.economy.waveGap) : 0;
+      const t0 = this.waveClock;
+      for (const sp of wave.spawns) this.spawnQueue.push(Object.assign({ at: t0 + sp.t }, sp));
+      this.spawnQueue.sort((a, b) => a.at - b.at);
+      this.emit("waveStart", { index: k, total: this.waves.length });
+      if (s.map.secretWave && k + 1 === s.map.secretWave) this.openSecret();
+      this.refreshWavePreview();
+    }
+    tickWaves(dt) {
+      const s = this.state;
+      this.waveClock += dt;
+      if (s.wave.index + 1 < this.waves.length) {
+        s.wave.countdown -= dt;
+        if (s.wave.countdown <= 0) this.startWave(s.wave.index + 1);
+      } else s.wave.countdown = 0;
+      while (this.spawnQueue.length && this.spawnQueue[0].at <= this.waveClock) this.spawn(this.spawnQueue.shift());
+      s.wave.spawning = this.spawnQueue.length > 0;
+    }
+    openSecret() {
+      const g = this.grid;
+      let any = false;
+      for (let j = 0; j < g.h; j++)
+        for (let i = 0; i < g.w; i++)
+          if (g.char(i, j) === "s") {
+            g.rows[j][i] = "#";
+            any = true;
+          }
+      if (!any) return;
+      g.version++;
+      g.cache.clear();
+      this.mapChanged();
+      this.emit("secretOpen", {});
+      for (const e of this.state.enemies) e.retarget = true;
+    }
+    mapChanged() {
+      this.state.map.grid = this.grid.lines();
+      this.state.map.version++;
+    }
+    tickMana(dt) {
+      const s = this.state;
+      let regen = D.mana.regen * this.mods.manaRegen;
+      for (const t of s.towers) if (t.onMana) regen += D.mana.perManaTower;
+      s.manaRegen = regen;
+      s.mana = Math.min(s.manaMax, s.mana + regen * dt);
+    }
+    tickSpells(dt) {
+      const s = this.state;
+      if (s.frenzy) {
+        s.frenzyLeft -= dt;
+        if (s.frenzyLeft <= 0) {
+          s.frenzy = false;
+          s.frenzyLeft = 0;
+          this.emit("frenzy", { on: false });
+        }
+      }
+      for (let k = this.meteors.length - 1; k >= 0; k--) {
+        const m = this.meteors[k];
+        m.left -= dt;
+        m.area.t = clamp(1 - m.left / m.area.life, 0, 1);
+        if (m.left > 0) continue;
+        this.meteors.splice(k, 1);
+        s.areas.splice(s.areas.indexOf(m.area), 1);
+        const M = D.SPELLS.meteor;
+        const dmg = M.dmg * this.mods.meteorDamage;
+        this.emit("meteorImpact", { x: m.x, y: m.y, r: M.r });
+        for (const e of s.enemies) {
+          if (e.dead) continue;
+          if ((e.x - m.x) ** 2 + (e.y - m.y) ** 2 <= M.r * M.r) this.hurt(e, dmg, { pierce: true, area: true, kind: "meteor" });
+        }
+      }
     }
 
-    // ── Vagues ────────────────────────────────────────────────────────────────
-    nextWaveDef() {
+    /* ------------------------------------------------------------ ennemis */
+    spawn(sp) {
       const s = this.state;
-      if (s.endless) return PTMT.waves.endlessWave(this.L, this.level, s.endlessCount + 1);
-      return s.waves[s.wave] ? { groups: s.waves[s.wave] } : null;
-    }
-    launchWave() {
-      const s = this.state;
-      if (s.phase !== "prep") return { ok: false, reason: "Une vague est déjà en cours" };
-      const def = this.nextWaveDef();
-      if (!def) return { ok: false, reason: "Plus de vague" };
-      if (s.endless) s.endlessCount++;
-      s.wave++;
-      s.phase = "wave";
-      s.waveTime = 0;
-      s.spawns = [];
-      for (const gdef of def.groups) {
-        const entry = this.resolveEntry(gdef);
-        for (let i = 0; i < gdef.count; i++) s.spawns.push({ at: gdef.delay + i * gdef.interval, type: gdef.type, elite: gdef.elite, entry, target: gdef.target });
+      const def = D.ENEMIES[sp.type];
+      const ent = this.grid.entrances[sp.entrance % this.grid.entrances.length];
+      let hp = def.hp * sp.hpMul;
+      let gold = def.gold * (0.75 + 0.25 * sp.hpMul),
+        xp = def.xp;
+      if (sp.champion) {
+        hp *= D.champion.hp;
+        gold *= D.champion.gold;
+        xp *= D.champion.xp;
       }
-      s.spawns.sort((a, b) => a.at - b.at);
-      this.emit({ type: "waveStart", wave: s.wave, endless: s.endless, boss: def.groups.some((g) => g.type === "boss"), eliteBoss: !!def.eliteBoss });
-      return { ok: true };
-    }
-    resolveEntry(gdef) {
-      const L = this.L;
-      const swimmer = gdef.type === "nageur";
-      let e = L.entries.find((x) => x.id === gdef.entry);
-      if (!e || (e.kind === "water" && !swimmer)) e = L.entries.find((x) => x.kind === "land");
-      return e.node;
-    }
-    hpMultiplier() {
-      const s = this.state;
-      const waveNo = s.endless ? s.waveCount + s.endlessCount : s.wave;
-      let m = (1 + C.enemies.hpPerLevel * (this.level - 1) + C.enemies.hpPerWave * (waveNo - 1)) * this.levelHp();
-      if (s.endless) m *= 1 + C.enemies.endlessHpPerBlock * Math.floor((s.endlessCount - 1) / 5);
-      return m;
-    }
-    levelHp() {
-      return (C.enemies.levelHp && C.enemies.levelHp[this.level]) || 1;
-    }
-    spawnDue() {
-      const s = this.state;
-      let alive = s.enemies.length;
-      while (s.spawns.length && s.spawns[0].at <= s.waveTime) {
-        if (alive >= this.maxActive) {
-          // Au-delà du maximum : les apparitions sont différées, jamais supprimées.
-          for (const sp of s.spawns) sp.at = Math.max(sp.at, s.waveTime + 0.5);
-          break;
-        }
-        const sp = s.spawns.shift();
-        this.spawnEnemy(sp);
-        alive++;
+      if (sp.boss) {
+        hp *= D.boss.hp;
+        gold *= D.boss.gold;
+        xp *= D.boss.xp;
       }
+      const ab = def.ability || {};
+      const e = {
+        id: this.nextId++,
+        type: sp.type,
+        champion: !!sp.champion,
+        boss: !!sp.boss,
+        name: sp.boss ? D.BOSS_NAMES[sp.type] : def.name,
+        x: ent.i + 0.5,
+        y: ent.j + 0.5,
+        px: ent.i + 0.5,
+        py: ent.j + 0.5,
+        ox: 0,
+        oy: 0,
+        dir: 0,
+        hp,
+        hpMax: hp,
+        barrier: 0,
+        barrierMax: 0,
+        shield: 0,
+        baseSpeed: def.speed,
+        speed: def.speed,
+        moving: true,
+        gold: Math.round(gold),
+        xp,
+        ability: ab.kind || null,
+        swim: ab.kind === "swim",
+        water: false,
+        lane: (this.rnd() - 0.5) * 0.4,
+        cur: [ent.i, ent.j],
+        next: null,
+        pdx: 0,
+        pdy: 0,
+        goal: "gem",
+        target: null,
+        carrying: null,
+        retarget: true,
+        distLeft: FAR,
+        fx: { slow: 0, fear: false, freeze: false, burn: false, radiance: false, haste: false, invisible: 0, stun: false, disarmed: false },
+        t: { slow: 0, slowPct: 0, fear: 0, freeze: 0, freezeImm: 0, stun: 0, stunImm: 0, burn: 0, burnDps: 0, burnSrc: null, rad: 0, radPct: 0, radSrc: null, haste: 0, hasteMult: 1, invis: 0, ability: 0, lastHit: -99 },
+        smokeUsed: false,
+        dead: false,
+      };
+      if (ab.kind === "shield") e.shield = sp.champion ? D.champion.shield : ab.value;
+      if (ab.kind === "barrier") e.barrier = e.barrierMax = (sp.champion ? D.champion.barrier : ab.value) * (sp.boss ? 1.5 : 1);
+      if (ab.kind === "heal" || ab.kind === "haste") e.t.ability = ab.every * (0.4 + 0.3 * this.rnd());
+      s.enemies.push(e);
+      this.emit("spawn", { enemyId: e.id, type: e.type, champion: e.champion, boss: e.boss, entrance: ent.id });
+      if (!this.seen.has(e.type)) {
+        this.seen.add(e.type);
+        this.emit("newEnemy", { type: e.type });
+      }
+      if (e.boss) this.emit("bossArrives", { enemyId: e.id, type: e.type, name: e.name });
     }
-    endWave() {
+    /** Champ vers le but de l'ennemi (gemme choisie, repaire ou sortie) ; choisit la meilleure gemme. */
+    chooseGoal(e) {
+      const g = this.grid;
       const s = this.state;
-      // Les sacs encore au sol reviennent gratuitement à leur réserve.
-      for (const t of s.treasures) if (t.state === "dropped") this.returnTreasure(t, "auto");
-      s.projectiles.length = 0;
-      s.areas.length = 0;
-      s.effects.length = 0;
-      const income = C.mill.meule.levels[s.mill.meule].income;
-      s.gold += income;
-      s.stats.goldEarned += income;
-      this.emit({ type: "income", gold: income });
-      this.emit({ type: "waveEnd", wave: s.wave });
-      const saved = s.treasures.filter((t) => t.state !== "lost").length;
-      if (!s.endless && s.wave >= s.waveCount) {
-        if (saved >= 1) {
-          s.phase = "victory";
-          s.result = this.computeResult(true);
-          this.emit({ type: "victory", result: s.result });
-        }
+      e.retarget = false;
+      const [ci, cj] = e.cur;
+      const scared = e.t.fear > 0 && !e.fx.disarmed;
+      if (e.carrying) {
+        e.goal = "exit";
+        e.target = null;
+        e.field = scared ? g.toLair(e.swim) : g.toExit(e.swim);
         return;
       }
-      s.phase = "prep";
-    }
-    computeResult(win) {
-      const s = this.state;
-      const saved = s.treasures.filter((t) => t.state !== "lost").length;
-      let stars = 0;
-      if (win) {
-        stars = 1;
-        if (s.stats.lostTotal === 0) stars = 2;
-        if (!s.stats.everTaken) stars = 3;
-      }
-      return { win, stars, saved, total: s.treasures.length, lostByReserve: Object.assign({}, s.stats.lostByReserve), wave: s.wave, endless: s.endless, endlessCount: s.endlessCount };
-    }
-    /** Après une victoire : continuer sans fin avec la même disposition et les mêmes défenses. */
-    continueEndless() {
-      const s = this.state;
-      if (s.phase !== "victory") return { ok: false, reason: "Seulement après une victoire" };
-      s.endless = true;
-      s.phase = "prep";
-      this.emit({ type: "endless" });
-      return { ok: true };
-    }
-
-    // ── Réserves et trésors ─────────────────────────────────────────────────────
-    reserve(id) {
-      return this.state.reserves.find((r) => r.id === id);
-    }
-    treasure(id) {
-      return this.state.treasures.find((t) => t.id === id);
-    }
-    /** Transition sécurisée d'un trésor (empêche duplications et ramassages simultanés). */
-    moveTreasure(t, from, to, patch = {}) {
-      if (t.state !== from) return false;
-      t.state = to;
-      Object.assign(t, patch);
-      return true;
-    }
-    returnTreasure(t, how) {
-      if (t.state !== "dropped") return false;
-      const r = this.reserve(t.reserve);
-      this.moveTreasure(t, "dropped", "stored", { carrier: null, x: r.x, z: r.z, floating: false });
-      r.stock.push(t.id);
-      this.emit({ type: "treasureHome", id: t.id, reserve: r.id, how });
-      return true;
-    }
-    savedCount() {
-      return this.state.treasures.filter((t) => t.state !== "lost").length;
-    }
-
-    // ── Ennemis ───────────────────────────────────────────────────────────────
-    speeds(e) {
-      const def = C.enemies[e.type];
-      if (!def.swimmer) return { land: 1, water: 1 };
-      return { land: def.speed * (e.elite ? def.eliteLand : 1), water: def.waterSpeed * (e.elite ? def.eliteWater : 1) };
-    }
-    mover(e) {
-      return C.enemies[e.type].swimmer ? "swimmer" : "walker";
-    }
-    spawnEnemy(sp) {
-      const s = this.state;
-      const def = C.enemies[sp.type];
-      const hp = def.hp * this.hpMultiplier() * (sp.elite ? C.enemies.elite.hp : 1);
-      const node = this.L.nodes[sp.entry];
-      const e = {
-        id: this.nextId("E"),
-        type: sp.type,
-        elite: !!sp.elite,
-        klass: def.klass,
-        swimmer: !!def.swimmer,
-        name: sp.elite ? def.eliteName : def.name,
-        hp,
-        maxHp: hp,
-        bounty: Math.round(def.bounty * (sp.elite ? C.enemies.elite.bounty : 1)),
-        x: node.x,
-        z: node.z,
-        dx: 0,
-        dz: 1,
-        s: 0,
-        route: null,
-        goal: null,
-        state: "walk",
-        carrying: null,
-        stealT: 0,
-        stealRes: null,
-        waitT: 0,
-        retargetT: 0,
-        onWater: false,
-        moving: false,
-        burn: null,
-        slows: {},
-        slow: 0,
-        freezeT: 0,
-        netT: 0,
-        lure: null,
-        wetT: 0,
-        ccImmuneT: 0,
-        moveImmuneT: 0,
-        tenacity: 1,
-        fragileT: 0,
-        pendingSlow: null,
-        helmet: sp.type === "voleur" && sp.elite,
-        smokeUsed: false,
-        untargetT: 0,
-        boostT: 0,
-        moveClock: 0,
-        overheatT: 0,
-        rageUsed: false,
-        rageT: 0,
-        fooled: false,
-        contrib: new Set(),
-        hitT: 0,
-        spawnEntry: sp.entry,
-        transmitted: false,
-      };
-      s.enemies.push(e);
-      this.planFor(e, sp.target);
-      this.emit({ type: "spawn", id: e.id, enemy: e });
-      return e;
-    }
-    /** Choisit la cible d'un ennemi sans sac : réserve voulue, autre réserve, sac tombé, attente, départ. */
-    planFor(e, preferred) {
-      const s = this.state;
-      const mover = this.mover(e),
-        speeds = this.speeds(e);
-      const from = e.route ? { x: e.x, z: e.z } : e.spawnEntry;
-      const withStock = s.reserves.filter((r) => r.stock.length > 0);
-      let pref = withStock.find((r) => r.id === preferred);
-      let rt = null,
-        goal = null;
-      if (pref) {
-        rt = R.route(this.graph, from, [pref.doorNode], mover, speeds);
-        if (rt) goal = { kind: "reserve", id: pref.id };
-      }
-      if (!rt && withStock.length) {
-        rt = R.route(this.graph, from, withStock.map((r) => r.doorNode), mover, speeds);
-        if (rt) goal = { kind: "reserve", id: withStock.find((r) => r.doorNode === rt.target).id };
-      }
-      // Sacs tombés accessibles.
-      const sack = this.nearestSack(e, from);
-      if (sack && (!rt || sack.rt.cost < rt.cost * 0.8)) {
-        rt = sack.rt;
-        goal = { kind: "sack", id: sack.t.id };
-      }
-      if (rt) {
-        this.setRoute(e, rt, goal);
-        e.state = "walk";
-        return true;
-      }
-      // Rien de prenable : attendre brièvement si des trésors sont transportés, sinon partir.
-      const inTransit = s.treasures.some((t) => t.state === "carried");
-      if (inTransit && e.state !== "wait") {
-        e.state = "wait";
-        e.waitT = 0;
-        e.route = e.route || null;
-        return false;
-      }
-      this.leave(e);
-      return false;
-    }
-    nearestSack(e, from) {
-      const s = this.state;
-      const mover = this.mover(e),
-        speeds = this.speeds(e);
-      let best = null;
-      for (const t of s.treasures) {
-        if (t.state !== "dropped") continue;
-        if (t.floating && !e.swimmer) continue;
-        const loc = R.locate(this.graph, t.x, t.z, mover);
-        if (!loc || loc.d > 1.2) continue;
-        const rtNode = typeof from === "string" ? from : { x: from.x, z: from.z };
-        // Trajet jusqu'au point du graphe le plus proche du sac : on vise les extrémités de son arête.
-        const rt = R.route(this.graph, rtNode, [loc.edge.a, loc.edge.b], mover, speeds);
-        if (!rt) continue;
-        // Prolonge le trajet jusqu'au sac le long de son arête.
-        const end = rt.pts[rt.pts.length - 1];
-        const sub = R.subLine(loc.edge, rt.target === loc.edge.a ? 0 : loc.edge.length, loc.s);
-        const pts = rt.pts.concat(sub.slice(1));
-        const kinds = rt.kinds.concat(sub.slice(1).map(() => loc.edge.kind));
-        const line = G.polyline(pts);
-        if (!best || line.length < best.rt.line.length) best = { t, rt: { pts, kinds, line, cost: rt.cost + Math.abs(loc.s - (rt.target === loc.edge.a ? 0 : loc.edge.length)), target: rt.target }, end };
-      }
-      return best;
-    }
-    setRoute(e, rt, goal) {
-      e.route = { line: rt.line, kinds: rt.kinds };
-      e.s = 0;
-      e.goal = goal;
-      const p = G.at(e.route.line, 0);
-      e.x = p.x;
-      e.z = p.z;
-    }
-    leave(e) {
-      const exits = this.L.exits.filter((x) => x.kind === "land" || e.swimmer).map((x) => x.node);
-      const rt = R.route(this.graph, e.route ? { x: e.x, z: e.z } : e.spawnEntry, exits, this.mover(e), this.speeds(e));
-      e.state = "leave";
-      if (rt) this.setRoute(e, rt, { kind: "exit", id: rt.target });
-      else e.state = "escaped";
-    }
-    flee(e) {
-      const exits = this.L.exits.filter((x) => x.kind === "land" || e.swimmer).map((x) => x.node);
-      const rt = R.route(this.graph, { x: e.x, z: e.z }, exits, this.mover(e), this.speeds(e));
-      e.state = "flee";
-      if (rt) this.setRoute(e, rt, { kind: "exit", id: rt.target });
-    }
-    immobile(e) {
-      return e.freezeT > 0 || e.netT > 0 || e.overheatT > 0;
-    }
-    segKind(e) {
-      const r = e.route;
-      if (!r || !r.kinds.length) return "land";
-      const cum = r.line.cum;
-      let lo = 0,
-        hi = cum.length - 1;
-      while (hi - lo > 1) {
-        const mid = (lo + hi) >> 1;
-        if (cum[mid] <= e.s) lo = mid;
-        else hi = mid;
-      }
-      return r.kinds[Math.min(lo, r.kinds.length - 1)];
-    }
-    currentSpeed(e) {
-      const def = C.enemies[e.type];
-      let v = def.speed;
-      if (def.swimmer) v = e.onWater ? def.waterSpeed * (e.elite ? def.eliteWater : 1) : def.speed * (e.elite ? def.eliteLand : 1);
-      if (e.boostT > 0) v *= 1 + C.enemies.sprinteur.eliteBoost.pct;
-      if (e.rageT > 0) v *= 1 + C.enemies.boss.rage.pct;
-      return v * (1 - e.slow);
-    }
-    slowCap(e) {
-      return e.klass === "boss" ? C.control.boss.slowCap : e.klass === "heavy" ? C.control.heavy.slowCap : C.control.slowCap;
-    }
-    updateEnemies(dt) {
-      const s = this.state;
-      for (const e of s.enemies) {
-        if (e.state === "dead" || e.state === "escaped" || e.state === "lost") continue;
-        this.updateStatus(e, dt);
-        if (e.state === "dead") continue;
-        // Chef en tondeuse : surchauffe après 6 s de déplacement.
-        if (e.type === "boss") {
-          const B = C.enemies.boss;
-          if (e.elite && !e.rageUsed && e.hp <= e.maxHp * B.rage.at) {
-            e.rageUsed = true;
-            e.rageT = B.rage.duration;
-            this.emit({ type: "rage", id: e.id });
-          }
-          if (e.rageT > 0) {
-            e.rageT -= dt;
-            if (e.rageT <= 0) {
-              e.overheatT = B.overheatFor;
-              e.moveClock = 0;
-              this.emit({ type: "overheat", id: e.id });
-            }
-          } else if (e.overheatT > 0) {
-            e.overheatT -= dt;
-            if (e.overheatT <= 0) e.moveClock = 0;
-          } else if (e.moving) {
-            e.moveClock += dt;
-            if (e.moveClock >= B.overheatAfter) {
-              e.overheatT = B.overheatFor;
-              this.emit({ type: "overheat", id: e.id });
-            }
-          }
+      let best = null,
+        bestD = FAR,
+        bestF = null;
+      const lairStock = s.gemCount.lair;
+      if (lairStock > 0) {
+        const f = g.toLair(e.swim);
+        const d = g.at(f, ci, cj);
+        if (d < bestD) {
+          bestD = d;
+          best = "lair";
+          bestF = f;
         }
-        e.moving = false;
-        switch (e.state) {
-          case "steal":
-            this.updateSteal(e, dt);
+      }
+      for (const gem of s.gems) {
+        if (gem.where !== "ground") continue;
+        const f = g.toTile(Math.floor(gem.x), Math.floor(gem.y), e.swim);
+        const d = g.at(f, ci, cj);
+        if (d < bestD) {
+          bestD = d;
+          best = gem.id;
+          bestF = f;
+        }
+      }
+      if (best === null) {
+        e.goal = "exit";
+        e.target = null;
+        e.field = g.toExit(e.swim);
+      } else {
+        e.goal = "gem";
+        e.target = best;
+        e.field = bestF;
+      }
+      if (scared) e.field = g.toExit(e.swim);
+    }
+    tickEnemy(e, dt) {
+      if (e.dead) return;
+      const s = this.state;
+      const T = e.t;
+      const fx = e.fx;
+      // Minuteries d'effets
+      T.slow = Math.max(0, T.slow - dt);
+      T.fear = Math.max(0, T.fear - dt);
+      T.freeze = Math.max(0, T.freeze - dt);
+      T.freezeImm = Math.max(0, T.freezeImm - dt);
+      T.stun = Math.max(0, T.stun - dt);
+      T.stunImm = Math.max(0, T.stunImm - dt);
+      T.haste = Math.max(0, T.haste - dt);
+      T.invis = Math.max(0, T.invis - dt);
+      T.rad = Math.max(0, T.rad - dt);
+      const wasFear = fx.fear;
+      fx.slow = T.slow > 0 ? T.slowPct : 0;
+      fx.fear = T.fear > 0;
+      fx.freeze = T.freeze > 0;
+      fx.stun = T.stun > 0;
+      fx.haste = T.haste > 0;
+      fx.invisible = T.invis > 0 ? Math.min(1, T.invis / 0.4) : 0;
+      fx.radiance = T.rad > 0;
+      if (wasFear !== fx.fear) e.retarget = true;
+      // Brûlure et trésor brûlant
+      if (T.burn > 0) {
+        T.burn = Math.max(0, T.burn - dt);
+        fx.burn = true;
+        this.hurt(e, T.burnDps * dt, { pierce: true, dot: true, towerId: T.burnSrc, kind: "burn" });
+        if (e.dead) return;
+      } else fx.burn = false;
+      if (e.carrying && this.mods.hotGems > 0) {
+        this.hurt(e, e.hpMax * this.mods.hotGems * dt, { pierce: true, dot: true, kind: "hotGems" });
+        if (e.dead) return;
+      }
+      // Capacités
+      this.tickAbility(e, dt);
+      // Déplacement
+      if (e.retarget || !e.field) this.chooseGoal(e);
+      const stopped = fx.freeze || fx.stun;
+      let speed = e.baseSpeed * (1 - fx.slow);
+      if (fx.haste) speed *= T.hasteMult;
+      if (fx.fear) speed *= D.status.fearSpeed;
+      e.speed = stopped ? 0 : speed;
+      e.moving = !stopped;
+      if (!stopped) this.move(e, speed * dt);
+      // Décalage latéral lissé (file indienne un peu désordonnée)
+      const dx = e.next ? e.next[0] + 0.5 - e.px : 0,
+        dy = e.next ? e.next[1] + 0.5 - e.py : 0;
+      const len = Math.hypot(dx, dy);
+      if (len > 1e-4) {
+        const tx = (-dy / len) * e.lane,
+          ty = (dx / len) * e.lane;
+        const k = 1 - Math.exp(-8 * dt);
+        e.ox += (tx - e.ox) * k;
+        e.oy += (ty - e.oy) * k;
+        const want = Math.atan2(dx, dy);
+        let d = want - e.dir;
+        while (d > Math.PI) d -= Math.PI * 2;
+        while (d < -Math.PI) d += Math.PI * 2;
+        e.dir += d * Math.min(1, 12 * dt);
+      }
+      e.x = e.px + e.ox;
+      e.y = e.py + e.oy;
+      const ti = Math.floor(e.px),
+        tj = Math.floor(e.py);
+      const tile = this.grid.tile(ti, tj);
+      e.water = !!(tile.swim && !tile.walk);
+      e.distLeft = this.grid.at(e.field, e.cur[0], e.cur[1]);
+      // Lasso du cow-boy : attrape une gemme au sol à portée
+      if (!e.carrying && e.ability === "lasso" && !fx.disarmed && !stopped) {
+        const r = D.ENEMIES.cowboy.ability.range;
+        for (const gem of s.gems) {
+          if (gem.where !== "ground") continue;
+          if ((gem.x - e.x) ** 2 + (gem.y - e.y) ** 2 <= r * r) {
+            this.emit("lasso", { enemyId: e.id, gemId: gem.id });
+            this.pickup(e, gem);
             break;
-          case "wait":
-            e.waitT += dt;
-            e.retargetT -= dt;
-            if (e.retargetT <= 0) {
-              e.retargetT = 0.5;
-              const hasStock = s.reserves.some((r) => r.stock.length) || s.treasures.some((t) => t.state === "dropped" && (!t.floating || e.swimmer));
-              if (hasStock) this.planFor(e, null);
-              else if (e.waitT >= C.enemies.waitForSack || !s.treasures.some((t) => t.state === "carried")) this.leave(e);
-            }
-            break;
-          default:
-            this.move(e, dt);
-        }
-      }
-    }
-    updateStatus(e, dt) {
-      if (e.hitT > 0) e.hitT -= dt;
-      if (e.untargetT > 0) e.untargetT -= dt;
-      if (e.boostT > 0) e.boostT -= dt;
-      if (e.wetT > 0) e.wetT -= dt;
-      if (e.ccImmuneT > 0) e.ccImmuneT -= dt;
-      if (e.moveImmuneT > 0) e.moveImmuneT -= dt;
-      if (e.fragileT > 0) e.fragileT -= dt;
-      const wasFrozen = e.freezeT > 0;
-      if (e.freezeT > 0) e.freezeT -= dt;
-      if (e.netT > 0) e.netT -= dt;
-      if (wasFrozen && e.freezeT <= 0) {
-        if (this.T.brittle) e.fragileT = 3;
-        if (e.pendingSlow) {
-          this.applySlow(e, "afterFreeze", e.pendingSlow.pct, e.pendingSlow.duration, null);
-          e.pendingSlow = null;
-        }
-        this.emit({ type: "thaw", id: e.id });
-      }
-      if (e.lure) {
-        e.lure.t -= dt;
-        if (e.lure.t <= 0) this.endLure(e);
-      }
-      // Ralentissements : seul le plus fort compte, dans le plafond de la classe.
-      let slow = 0;
-      for (const k in e.slows) {
-        const sl = e.slows[k];
-        sl.t -= dt;
-        if (sl.t <= 0) delete e.slows[k];
-        else slow = Math.max(slow, sl.pct);
-      }
-      e.slow = Math.min(slow, this.slowCap(e), C.control.slowCap);
-      // Brûlure.
-      if (e.burn) {
-        e.burn.t -= dt;
-        this.damage(e, e.burn.dps * dt, "dot", e.burn.tower ? { tower: e.burn.tower, family: "fire" } : { family: "fire" });
-        if (e.burn && e.burn.t <= 0) e.burn = null;
-      }
-    }
-    move(e, dt) {
-      const s = this.state;
-      if (!e.route) return;
-      if (this.immobile(e)) return;
-      const len = e.route.line.length;
-      let v = this.currentSpeed(e);
-      const before = e.s;
-      e.s = Math.min(len, e.s + v * dt);
-      e.moving = e.s - before > 1e-5;
-      const p = G.at(e.route.line, e.s);
-      e.x = p.x;
-      e.z = p.z;
-      if (p.dx || p.dz) {
-        e.dx = p.dx;
-        e.dz = p.dz;
-      }
-      e.onWater = e.swimmer && this.segKind(e) === "water";
-      // Réserve vidée pendant l'approche : on cherche mieux.
-      if (e.goal && e.goal.kind === "reserve" && e.state === "walk") {
-        e.retargetT -= dt;
-        if (e.retargetT <= 0) {
-          e.retargetT = 1;
-          const r = this.reserve(e.goal.id);
-          if (!r.stock.length) this.planFor(e, null);
-        }
-      } else if (e.goal && e.goal.kind === "sack") {
-        const t = this.treasure(e.goal.id);
-        if (t.state !== "dropped") this.planFor(e, null);
-      }
-      if (e.lure) return;
-      if (e.state !== "walk" && e.state !== "flee" && e.state !== "leave") return;
-      if (e.s >= len - 1e-6) this.arrive(e);
-    }
-    arrive(e) {
-      const s = this.state;
-      const goal = e.goal;
-      if (!goal) return;
-      if (goal.kind === "reserve") {
-        const r = this.reserve(goal.id);
-        if (r.stock.length) {
-          e.state = "steal";
-          e.stealRes = r.id;
-          e.stealT = C.reserves.tiers[r.tier].stealTime;
-          e.stealTotal = e.stealT;
-          this.emit({ type: "stealStart", id: e.id, reserve: r.id });
-        } else this.planFor(e, null);
-      } else if (goal.kind === "sack") {
-        const t = this.treasure(goal.id);
-        if (t.state === "dropped" && Math.hypot(t.x - e.x, t.z - e.z) < 1.3 && this.moveTreasure(t, "dropped", "carried", { carrier: e.id, floating: false })) {
-          e.carrying = t.id;
-          this.emit({ type: "pickup", id: e.id, treasure: t.id });
-          this.flee(e);
-        } else this.planFor(e, null);
-      } else if (goal.kind === "exit") {
-        if (e.carrying) {
-          const t = this.treasure(e.carrying);
-          if (this.moveTreasure(t, "carried", "lost", { carrier: null })) {
-            s.stats.lostTotal++;
-            s.stats.lostByReserve[t.reserve]++;
-            this.emit({ type: "lost", id: e.id, treasure: t.id, reserve: t.reserve });
           }
-          e.carrying = null;
-          e.state = "lost";
-          if (this.savedCount() === 0) {
-            s.phase = "defeat";
-            s.result = this.computeResult(false);
-            this.emit({ type: "defeat", result: s.result });
+        }
+      }
+    }
+    move(e, dist) {
+      const g = this.grid;
+      let guard = 0;
+      while (dist > 1e-6 && guard++ < 8) {
+        if (!e.next) {
+          const n = g.step(e.field, e.cur[0], e.cur[1], e.swim, e.pdx, e.pdy);
+          if (!n) {
+            this.arrive(e);
+            if (e.dead || e.retarget) {
+              if (e.retarget && !e.dead) this.chooseGoal(e);
+              if (e.dead) return;
+              continue;
+            }
+            return;
+          }
+          e.next = n;
+        }
+        // Demi-tour si revenir en arrière rapproche du but (gemme tombée derrière, peur).
+        if (e.flip) {
+          e.flip = false;
+          const back = e.cur;
+          if (g.at(e.field, back[0], back[1]) < g.at(e.field, e.next[0], e.next[1])) {
+            e.cur = e.next;
+            e.next = back;
+          }
+        }
+        const tx = e.next[0] + 0.5,
+          ty = e.next[1] + 0.5;
+        const dx = tx - e.px,
+          dy = ty - e.py;
+        const d = Math.hypot(dx, dy);
+        if (d <= dist) {
+          e.px = tx;
+          e.py = ty;
+          dist -= d;
+          e.pdx = e.next[0] - e.cur[0];
+          e.pdy = e.next[1] - e.cur[1];
+          e.cur = e.next;
+          e.next = null;
+          if (e.retarget) {
+            this.chooseGoal(e);
+          }
+          if (g.at(e.field, e.cur[0], e.cur[1]) === 0) {
+            this.arrive(e);
+            if (e.dead) return;
+            if (e.retarget) this.chooseGoal(e);
           }
         } else {
-          e.state = "escaped";
-          this.emit({ type: "escape", id: e.id });
+          e.px += (dx / d) * dist;
+          e.py += (dy / d) * dist;
+          dist = 0;
         }
       }
     }
-    updateSteal(e, dt) {
+    /** L'ennemi est au bout de son champ : repaire, gemme ou sortie (vérifiés sur la case réelle). */
+    arrive(e) {
       const s = this.state;
-      const r = this.reserve(e.stealRes);
-      // Quitter la zone interrompt ; une immobilisation suspend.
-      if (Math.hypot(e.x - r.door[0], e.z - r.door[1]) > C.reserves.stealRadius + 0.9) {
-        e.state = "walk";
-        this.planFor(e, r.id);
-        this.emit({ type: "stealStop", id: e.id });
-        return;
-      }
-      if (this.immobile(e)) return;
-      if (!r.stock.length) {
-        this.planFor(e, null);
-        return;
-      }
-      e.stealT -= dt;
-      if (e.stealT > 0) return;
-      // Prise d'UN trésor (transition atomique).
-      const tid = r.stock[r.stock.length - 1];
-      const t = this.treasure(tid);
-      if (!this.moveTreasure(t, "stored", "carried", { carrier: e.id, everTaken: true })) {
-        this.planFor(e, null);
-        return;
-      }
-      r.stock.pop();
-      s.stats.everTaken = true;
-      e.carrying = t.id;
-      if (e.type === "sprinteur" && e.elite) e.boostT = C.enemies.sprinteur.eliteBoost.duration;
-      this.emit({ type: "steal", id: e.id, treasure: t.id, reserve: r.id });
-      this.flee(e);
-    }
-    /** Mise KO. */
-    knockout(e, src) {
-      const s = this.state;
-      if (e.state === "dead") return;
-      e.state = "dead";
-      s.stats.kos++;
-      s.gold += e.bounty;
-      s.stats.goldEarned += e.bounty;
+      const [i, j] = e.cur;
+      const ch = this.grid.char(i, j);
+      const feared = e.t.fear > 0;
       if (e.carrying) {
-        const t = this.treasure(e.carrying);
-        const floating = e.swimmer && this.segKind(e) === "water";
-        if (this.moveTreasure(t, "carried", "dropped", { carrier: null, x: e.x, z: e.z, floating })) this.emit({ type: "drop", id: e.id, treasure: t.id, floating });
-        e.carrying = null;
+        if (ch === "E" && !feared) this.escape(e);
+        else e.retarget = true;
+        return;
       }
-      // Expérience : 5 XP par tour ayant contribué (une seule fois par couple tour/ennemi).
-      const bonus = s.mill.atelier >= 3 ? 1 + C.mill.atelier.levels[3].xpBonus : 1;
-      for (const tid of e.contrib) {
-        const tw = s.towers.find((t) => t.id === tid);
-        if (tw) tw.xp += C.xp.perKo * bonus;
+      if (feared) {
+        e.retarget = true; // il attend que la peur passe
+        return;
       }
-      // Incendie contagieux (ultime) : la brûlure passe à deux voisins, sans nouvelle transmission.
-      if (this.T.contagion && e.burn && !e.transmitted) {
-        const near = s.enemies.filter((o) => o !== e && o.state !== "dead" && o.state !== "escaped" && o.state !== "lost" && Math.hypot(o.x - e.x, o.z - e.z) <= 1.5).sort((a, b) => Math.hypot(a.x - e.x, a.z - e.z) - Math.hypot(b.x - e.x, b.z - e.z));
-        for (const o of near.slice(0, 2)) {
-          this.applyBurn(o, e.burn.dps, e.burn.t0 || 3, e.burn.tower);
-          o.transmitted = true;
-          this.emit({ type: "contagion", from: e.id, to: o.id });
+      if (e.goal === "exit") {
+        if (ch === "E") this.escape(e);
+        else e.retarget = true;
+        return;
+      }
+      const lair = this.grid.lair;
+      if (e.target === "lair" && i === lair.i && j === lair.j) {
+        if (s.gemCount.lair > 0) {
+          const gem = s.gems.find((g) => g.where === "lair");
+          gem.where = "carried";
+          gem.carrier = e.id;
+          e.carrying = gem.id;
+          this.gemsDirty = true;
+          this.countGems();
+          this.emit("steal", { enemyId: e.id, gemId: gem.id });
+          this.gemsChanged();
         }
+        e.retarget = true;
+        return;
       }
-      this.emit({ type: "ko", id: e.id, bounty: e.bounty, x: e.x, z: e.z, by: src && src.kind });
+      if (typeof e.target === "number") {
+        const gem = s.gems.find((g) => g.id === e.target);
+        if (gem && gem.where === "ground" && Math.floor(gem.x) === i && Math.floor(gem.y) === j) this.pickup(e, gem);
+      }
+      e.retarget = true;
     }
-    inWater(x, z) {
-      return this.L.ponds.some((p) => G.pointInPolygon(x, z, p.poly)) || this.L.streams.some((st) => G.polylineDist(x, z, st.pts) < st.width / 2);
+    pickup(e, gem) {
+      gem.where = "carried";
+      gem.carrier = e.id;
+      gem.returnIn = 0;
+      e.carrying = gem.id;
+      e.retarget = true;
+      this.gemsDirty = true;
+      this.countGems();
+      this.emit("pickup", { enemyId: e.id, gemId: gem.id });
+      this.gemsChanged();
     }
-    cleanup() {
+    escape(e) {
       const s = this.state;
-      s.enemies = s.enemies.filter((e) => e.state !== "dead" && e.state !== "escaped" && e.state !== "lost");
-    }
-
-    // ── Dégâts et contrôles ─────────────────────────────────────────────────────
-    alive(e) {
-      return e && e.state !== "dead" && e.state !== "escaped" && e.state !== "lost";
-    }
-    sofaProtected(e) {
-      // Forteresse canapé : protège les alliés à moins de 1 U derrière lui (dégâts directs −20 %).
-      for (const o of this.state.enemies) {
-        if (o === e || o.type !== "demenageur" || !o.elite || !this.alive(o) || o.freezeT > 0) continue;
-        const vx = e.x - o.x,
-          vz = e.z - o.z;
-        if (vx * vx + vz * vz > 1) continue;
-        if (vx * o.dx + vz * o.dz < 0) return true;
+      e.dead = true;
+      s.stats.escaped++;
+      let gemId = null;
+      if (e.carrying) {
+        const gem = s.gems.find((g) => g.id === e.carrying);
+        gem.where = "lost";
+        gem.carrier = null;
+        gemId = gem.id;
+        this.gemsDirty = true;
+        this.countGems();
       }
-      return false;
+      this.emit("escape", { enemyId: e.id, gemId, x: e.x, y: e.y });
+      if (gemId) this.gemsChanged();
     }
-    /** kind : direct | explosion | dot ; src : { tower, family, kind } */
-    damage(e, amount, kind, src = {}) {
-      if (!this.alive(e) || amount <= 0) return 0;
-      let m = 1;
-      if (e.fragileT > 0) m *= 1 + this.T.brittle;
-      if (e.type === "boss" && e.overheatT > 0) m *= 1 + C.enemies.boss.overheatVuln;
-      if (kind === "direct") {
-        if (this.sofaProtected(e)) m *= 1 - C.enemies.demenageur.eliteShield.reduction;
-        if (e.helmet) {
-          m *= 0.5;
-          e.helmet = false;
-          this.emit({ type: "helmetOff", id: e.id });
+    /** Toute gemme qui change d'état : les ennemis sans gemme réfléchissent à nouveau. */
+    gemsChanged() {
+      for (const e of this.state.enemies) {
+        if (e.dead || e.carrying) continue;
+        e.retarget = true;
+        e.flip = true;
+      }
+    }
+    countGems() {
+      const c = this.state.gemCount;
+      c.lair = c.ground = c.carried = c.lost = 0;
+      for (const g of this.state.gems) c[g.where === "returning" ? "ground" : g.where]++;
+      this.gemsDirty = false;
+    }
+    tickAbility(e, dt) {
+      if (!e.ability || e.fx.disarmed) return;
+      const s = this.state;
+      const ab = D.ENEMIES[e.type].ability;
+      if (e.ability === "barrier" && e.barrier < e.barrierMax && s.time - e.t.lastHit >= ab.regen) {
+        e.barrier = e.barrierMax;
+        this.emit("barrierUp", { enemyId: e.id });
+      }
+      if (e.ability === "heal") {
+        e.t.ability -= dt;
+        if (e.t.ability <= 0) {
+          e.t.ability = ab.every;
+          let best = null,
+            miss = 0;
+          for (const o of s.enemies) {
+            if (o.dead || o === e) continue;
+            if ((o.x - e.x) ** 2 + (o.y - e.y) ** 2 > ab.range * ab.range) continue;
+            const m = o.hpMax - o.hp;
+            if (m > miss + 0.5) {
+              miss = m;
+              best = o;
+            }
+          }
+          if (best) {
+            const amount = Math.min(miss, (e.champion ? D.champion.heal : ab.value) * (e.boss ? 1.5 : 1));
+            best.hp += amount;
+            this.emit("heal", { fromId: e.id, toId: best.id, amount });
+          } else e.t.ability = 0.5;
         }
       }
-      const dmg = amount * m;
-      e.hp -= dmg;
-      if (kind !== "dot") e.hitT = 0.18;
-      if (src.tower) e.contrib.add(src.tower);
-      if (e.type === "fumigene" && !e.smokeUsed) {
+      if (e.ability === "haste") {
+        e.t.ability -= dt;
+        if (e.t.ability <= 0) {
+          e.t.ability = ab.every;
+          const ids = [];
+          for (const o of s.enemies) {
+            if (o.dead) continue;
+            if ((o.x - e.x) ** 2 + (o.y - e.y) ** 2 > ab.range * ab.range) continue;
+            o.t.haste = ab.t * (e.champion ? 1.5 : 1);
+            o.t.hasteMult = ab.mult;
+            ids.push(o.id);
+          }
+          this.emit("haste", { enemyId: e.id, ids });
+        }
+      }
+    }
+    /** Inflige des dégâts ; src = { towerId, pierce, area, dot, kind }. Renvoie les dégâts subis. */
+    hurt(e, amount, src) {
+      if (e.dead || amount <= 0) return 0;
+      const s = this.state;
+      if (e.t.rad > 0) amount *= 1 + e.t.radPct;
+      if (e.shield > 0 && !src.pierce && !e.fx.disarmed) amount = Math.max(1, amount - e.shield);
+      let absorbed = 0;
+      if (e.barrier > 0 && !e.fx.disarmed) {
+        absorbed = Math.min(e.barrier, amount);
+        e.barrier -= absorbed;
+        amount -= absorbed;
+        if (e.barrier <= 1e-6) {
+          e.barrier = 0;
+          this.emit("barrierBreak", { enemyId: e.id });
+        }
+      }
+      e.t.lastHit = s.time;
+      const dealt = Math.min(e.hp, amount);
+      e.hp -= amount;
+      const tower = src.towerId ? this.towerById(src.towerId) : null;
+      if (tower) tower.xp += (dealt + absorbed) * D.xpFromDamage * this.mods.xp;
+      if (e.ability === "smoke" && !e.smokeUsed && !e.fx.disarmed && !src.dot) {
         e.smokeUsed = true;
-        e.untargetT = e.elite ? C.enemies.fumigene.eliteSmoke : C.enemies.fumigene.smoke;
-        this.emit({ type: "smoke", id: e.id });
+        e.t.invis = D.ENEMIES.chasseur.ability.t * (e.champion ? 1.3 : 1);
+        this.emit("smoke", { enemyId: e.id });
       }
-      if (e.hp <= 0) this.knockout(e, src);
-      return dmg;
+      if (e.hp <= 0) this.kill(e, tower, src);
+      return dealt + absorbed;
     }
-    applyBurn(e, dps, duration, tower) {
-      if (!this.alive(e)) return;
-      const t = duration * this.T.burnDuration;
-      if (!e.burn) e.burn = { dps, t, t0: duration, tower };
-      else {
-        if (dps >= e.burn.dps) {
-          e.burn.dps = dps;
-          e.burn.tower = tower || e.burn.tower;
+    kill(e, tower, src) {
+      const s = this.state;
+      if (e.dead) return;
+      e.dead = true;
+      e.hp = 0;
+      s.gold += e.gold;
+      s.stats.kills++;
+      s.stats.goldEarned += e.gold;
+      if (tower) {
+        tower.kills++;
+        tower.xp += e.xp * this.mods.xp;
+      }
+      this.emit("kill", { enemyId: e.id, type: e.type, gold: e.gold, towerId: tower ? tower.id : null, x: e.x, y: e.y, carrying: e.carrying, kind: src && src.kind });
+      if (e.carrying) this.dropGem(e);
+      // Explosion du cadavre (rayonnement du dragon bleu)
+      if (e.t.rad > 0 && e.t.radSrc) {
+        const src2 = this.towerById(e.t.radSrc);
+        const st = src2 && this.statsFor(src2, src2.level, src2.spec);
+        if (st && st.corpse) {
+          const dmg = st.corpse * e.hpMax;
+          this.emit("corpseBomb", { x: e.x, y: e.y, r: 1, towerId: src2.id });
+          for (const o of s.enemies) {
+            if (o.dead || o === e) continue;
+            if ((o.x - e.x) ** 2 + (o.y - e.y) ** 2 <= 1) this.hurt(o, dmg, { towerId: src2.id, area: true, kind: "corpse" });
+          }
         }
-        e.burn.t = Math.max(e.burn.t, t);
       }
-      if (tower) e.contrib.add(tower);
     }
-    applySlow(e, key, pct, duration, tower) {
-      if (!this.alive(e) || pct <= 0) return;
-      const cur = e.slows[key];
-      if (!cur || pct >= cur.pct) e.slows[key] = { pct, t: duration };
-      else cur.t = Math.max(cur.t, duration);
-      if (tower) e.contrib.add(tower);
-    }
-    applyWet(e, duration) {
-      e.wetT = Math.max(e.wetT, duration + this.T.wetBonus);
-    }
-    classDuration(e) {
-      return e.klass === "boss" ? C.control.boss.duration : e.klass === "heavy" ? C.control.heavy.duration : 1;
-    }
-    classDisplacement(e, water) {
-      if (e.klass === "boss") return water ? this.T.bossWater : C.control.boss.displacement;
-      if (e.klass === "heavy") return water ? this.T.heavyWater : C.control.heavy.displacement;
-      return 1;
-    }
-    strongControlled(e) {
-      e.tenacity = Math.max(C.control.tenacityMin, e.tenacity * C.control.tenacityFactor);
-    }
-    /** Immobilisation (gel, filet). Renvoie la durée effective (0 si sans effet). */
-    immobilize(e, kind, duration, src = {}) {
-      if (!this.alive(e) || e.ccImmuneT > 0) return 0;
-      let d = duration * this.classDuration(e) * e.tenacity;
-      if (kind === "freeze") {
-        d *= this.T.freezeDuration;
-        if (e.wetT > 0) d *= this.T.wetFreeze;
+    dropGem(e) {
+      const s = this.state;
+      const gem = s.gems.find((g) => g.id === e.carrying);
+      e.carrying = null;
+      if (!gem) return;
+      let x = e.x,
+        y = e.y;
+      const spot = this.grid.nearestWalkable(Math.floor(e.px), Math.floor(e.py));
+      if (spot && (spot[0] !== Math.floor(x) || spot[1] !== Math.floor(y))) {
+        x = spot[0] + 0.5;
+        y = spot[1] + 0.5;
       }
-      if (e.klass === "normal") d = Math.min(d, C.control.maxImmobilize);
-      if (d <= 0.02) return 0;
-      if (kind === "freeze") e.freezeT = Math.max(e.freezeT, d);
-      else e.netT = Math.max(e.netT, d);
-      e.ccImmuneT = d + C.control.immobileImmunity;
-      this.strongControlled(e);
-      if (src.tower) e.contrib.add(src.tower);
-      this.emit({ type: kind, id: e.id, duration: d });
-      if (kind === "freeze" && this.T.shatter) {
-        const near = this.state.enemies.filter((o) => o !== e && this.alive(o) && Math.hypot(o.x - e.x, o.z - e.z) <= 1.3).slice(0, 3);
-        for (const o of near) this.damage(o, this.T.shatter, "explosion", { family: "ice", kind: "shards" });
-        if (near.length) this.emit({ type: "shards", id: e.id });
+      gem.where = "ground";
+      gem.carrier = null;
+      gem.x = x;
+      gem.y = y;
+      gem.returnIn = this.mods.portal;
+      this.gemsDirty = true;
+      this.countGems();
+      this.emit("drop", { gemId: gem.id, x, y });
+      this.gemsChanged();
+    }
+    tickGems(dt) {
+      const s = this.state;
+      if (!this.mods.portal) return;
+      for (const gem of s.gems) {
+        if (gem.where !== "ground" || !(gem.returnIn > 0)) continue;
+        gem.returnIn -= dt;
+        if (gem.returnIn <= 0) this.returnGem(gem);
       }
-      return d;
     }
-    /** Recul le long du trajet, à l'opposé du déplacement actuel. */
-    push(e, distance, src = {}) {
-      if (!this.alive(e) || e.moveImmuneT > 0 || !e.route) return 0;
-      let d = distance * this.classDisplacement(e, src.family === "water") * e.tenacity;
-      if (src.family === "water") d *= this.T.push;
-      if (d <= 0.02) return 0;
-      const before = e.s;
-      e.s = Math.max(0, e.s - d);
-      const moved = before - e.s;
-      if (moved <= 0.01) return 0;
-      const p = G.at(e.route.line, e.s);
-      e.x = p.x;
-      e.z = p.z;
-      if (e.state === "steal") {
-        e.state = "walk";
-        this.emit({ type: "stealStop", id: e.id });
-      }
-      e.moveImmuneT = C.control.moveImmunity;
-      this.strongControlled(e);
-      if (src.tower) e.contrib.add(src.tower);
-      this.emit({ type: "knockback", id: e.id, distance: moved });
-      return moved;
-    }
-    /** Attraction vers un point, sans quitter le chemin praticable. */
-    pull(e, cx, cz, distance, src = {}) {
-      if (!this.alive(e) || e.moveImmuneT > 0 || !e.route) return 0;
-      let d = distance * this.classDisplacement(e, true) * e.tenacity * this.T.push;
-      if (d <= 0.02) return 0;
-      const pr = G.project(e.route.line, cx, cz, Math.max(0, e.s - d), Math.min(e.route.line.length, e.s + d));
-      const target = pr.s;
-      const delta = Math.max(-d, Math.min(d, target - e.s));
-      if (Math.abs(delta) <= 0.02) return 0;
-      e.s += delta;
-      const p = G.at(e.route.line, e.s);
-      e.x = p.x;
-      e.z = p.z;
-      if (e.state === "steal" && Math.abs(delta) > 0.3) {
-        e.state = "walk";
-        this.emit({ type: "stealStop", id: e.id });
-      }
-      e.moveImmuneT = C.control.moveImmunity;
-      this.strongControlled(e);
-      if (src.tower) e.contrib.add(src.tower);
-      this.emit({ type: "pull", id: e.id, distance: Math.abs(delta), x: cx, z: cz });
-      return Math.abs(delta);
-    }
-    /** Leurre du faux coffre : le voleur marche vers le coffre (par les chemins) puis s'y arrête. */
-    lureTo(e, x, z, duration) {
-      if (!this.alive(e) || e.ccImmuneT > 0 || e.carrying || e.fooled || e.type === "boss" || !e.route) return false;
-      if (e.state !== "walk" && e.state !== "leave") return false;
-      const d = duration * this.classDuration(e) * e.tenacity;
-      if (d <= 0.05) return false;
-      const mover = this.mover(e);
-      const loc = R.locate(this.graph, x, z, mover);
-      if (!loc) return false;
-      const rt = R.route(this.graph, { x: e.x, z: e.z }, [loc.edge.a, loc.edge.b], mover, this.speeds(e));
-      if (!rt) return false;
-      const sub = R.subLine(loc.edge, rt.target === loc.edge.a ? 0 : loc.edge.length, loc.s);
-      const pts = rt.pts.concat(sub.slice(1));
-      const kinds = rt.kinds.concat(sub.slice(1).map(() => loc.edge.kind));
-      e.lure = { t: d, x, z, prevGoal: e.goal, prevState: e.state };
-      e.route = { line: G.polyline(pts), kinds };
-      e.s = 0;
-      e.goal = { kind: "lure" };
-      e.ccImmuneT = d + C.control.immobileImmunity;
-      this.strongControlled(e);
-      this.emit({ type: "lured", id: e.id, x, z });
-      return true;
-    }
-    endLure(e) {
-      const prev = e.lure;
-      e.lure = null;
-      e.fooled = true;
-      this.emit({ type: "fooled", id: e.id });
-      if (prev.prevState === "leave") this.leave(e);
-      else this.planFor(e, prev.prevGoal && prev.prevGoal.kind === "reserve" ? prev.prevGoal.id : null);
+    returnGem(gem) {
+      gem.where = "lair";
+      gem.returnIn = 0;
+      gem.x = this.grid.lair.i + 0.5;
+      gem.y = this.grid.lair.j + 0.5;
+      this.gemsDirty = true;
+      this.countGems();
+      this.emit("gemReturn", { gemId: gem.id });
+      this.gemsChanged();
     }
 
-    // ── Cibles ────────────────────────────────────────────────────────────────
-    targetable(e, direct) {
-      if (!this.alive(e)) return false;
-      if (direct && e.untargetT > 0) {
-        // Le coffre hurleur révèle les voleurs au fumigène pendant leur tentative.
-        if (!(e.state === "steal" && this.reserve(e.stealRes).tier >= 3)) return false;
-      }
-      return true;
-    }
-    los(ax, az, bx, bz) {
-      for (const poly of this.L.blockers) if (G.segmentHitsPolygon(ax, az, bx, bz, poly)) return false;
-      return true;
-    }
-    remaining(e) {
-      return e.route ? e.route.line.length - e.s : Infinity;
-    }
-    /** Meilleure cible d'une tour selon son mode de ciblage. */
-    pickTarget(tw, range, direct) {
+    /* ------------------------------------------------------------ tours */
+    tickTowers(dt) {
       const s = this.state;
+      const frenzy = s.frenzy ? D.SPELLS.frenzy.mult : 1;
+      for (const t of s.towers) {
+        if (!t.st || t.stKey !== t.level + (t.spec || "")) {
+          t.st = this.statsFor(t, t.level, t.spec);
+          t.stKey = t.level + (t.spec || "");
+        }
+        const st = t.st;
+        t.range = st.range;
+        t.charge = Math.min(1, t.charge + dt * st.rate * frenzy);
+        if (t.windup > 0) {
+          t.windup -= dt;
+          const target = this.enemyById(t.windTarget);
+          if (target && !target.dead) t.aim = Math.atan2(target.x - t.x, target.y - t.y);
+          if (t.windup <= 0) this.fire(t, st, target && !target.dead ? target : null);
+          continue;
+        }
+        const target = this.pickTarget(t, st.range);
+        t.targetId = target ? target.id : null;
+        if (!target) continue;
+        t.aim = Math.atan2(target.x - t.x, target.y - t.y);
+        if (t.charge >= 1) {
+          t.charge -= 1;
+          t.windup = WINDUP[t.family] * (st.shot === "bigChestnut" ? 1.6 : 1) / Math.max(1, frenzy * 0.75);
+          t.windTarget = target.id;
+          this.emit("attack", { towerId: t.id, targetId: target.id });
+        }
+      }
+    }
+    pickTarget(t, range) {
       let best = null,
         bestScore = Infinity;
-      for (const e of s.enemies) {
-        if (!this.targetable(e, direct)) continue;
-        const d = Math.hypot(e.x - tw.x, e.z - tw.z);
-        if (d > range) continue;
-        if (direct && !this.los(tw.x, tw.z, e.x, e.z)) continue;
-        let score;
-        const carrying = e.carrying ? 0 : 1;
-        if (tw.targeting === "advanced") score = this.remaining(e);
-        else if (tw.targeting === "tough") score = -e.hp;
-        else score = carrying * 10000 + this.remaining(e);
+      const r2 = range * range;
+      for (const e of this.state.enemies) {
+        if (e.dead || e.t.invis > 0) continue;
+        const d2 = (e.x - t.x) ** 2 + (e.y - t.y) ** 2;
+        if (d2 > r2) continue;
+        // Porteurs d'abord, puis l'ennemi le plus proche de son but.
+        const score = (e.carrying ? 0 : 1000) + e.distLeft + d2 * 0.001;
         if (score < bestScore) {
           bestScore = score;
           best = e;
@@ -914,939 +1029,169 @@
       }
       return best;
     }
-    enemiesIn(x, z, r) {
-      const r2 = r * r;
-      return this.state.enemies.filter((e) => this.alive(e) && (e.x - x) * (e.x - x) + (e.z - z) * (e.z - z) <= r2);
-    }
-
-    // ── Tours ─────────────────────────────────────────────────────────────────
-    socket(id) {
-      if (!this._sockets || this._socketsL !== this.L) {
-        this._sockets = new Map(this.L.sockets.map((s) => [s.id, s]));
-        this._socketsL = this.L;
-      }
-      return this._sockets.get(id);
-    }
-    /** Case de grille contenant le point (x, z), ou null. */
-    socketAt(x, z) {
-      const T = this.L.tile || 2;
-      const id = this.L.tileAt && this.L.tileAt[Math.floor(x / T) + ":" + Math.floor(z / T)];
-      return id ? this.socket(id) : null;
-    }
-    towerAt(socketId) {
-      return this.state.towers.find((t) => t.socket === socketId);
-    }
-    /** Statistiques finales d'une tour (talents compris). */
-    towerStats(tw) {
-      const fam = C.towers[tw.family];
-      const f = Object.assign({}, fam.forms[formKey(tw.tier, tw.branch)]);
-      const T = this.T;
-      if (tw.family === "fire") {
-        f.burn = { dps: fam.burn[tw.tier].dps, duration: fam.burn[tw.tier].duration * T.burnDuration };
-        if (f.damage) f.damage *= T.fireDamage;
-        if (f.splash) f.splash *= T.explosionRadius;
-        if (f.ground) f.ground = { dps: f.ground.dps * T.fireDamage, duration: f.ground.duration * T.burnDuration, radius: f.splash };
-        f.burn.dps *= T.fireDamage;
-      }
-      if (tw.family === "ice") {
-        f.range *= T.iceRange;
-        if (f.slow) f.slow = { pct: f.slow.pct + T.iceSlow, duration: f.slow.duration };
-        if (f.stormSlow) f.stormSlow += T.iceSlow;
-        if (f.freeze) f.freeze *= T.freezeDuration;
-        if (f.stormFreeze) f.stormFreeze *= T.freezeDuration;
-      }
-      if (tw.family === "water") {
-        f.wet = fam.wet + T.wetBonus;
-        if (f.push) f.push *= T.push;
-        if (f.pull) f.pull *= T.push;
-        if (f.vortexRadius) f.vortexRadius *= T.waterArea;
-      }
-      f.rate = 1 + (tw.frenzyT > 0 ? tw.frenzyRate : 0);
-      return f;
-    }
-    atelierTier() {
-      return C.mill.atelier.levels[this.state.mill.atelier].tierAllowed;
-    }
-    build(socketId, family) {
+    fire(t, st, target) {
       const s = this.state;
-      if (this.isOver) return { ok: false, reason: "Partie terminée" };
-      const so = this.socket(socketId);
-      if (!so) return { ok: false, reason: "Support inconnu" };
-      if (this.towerAt(socketId)) return { ok: false, reason: "Support occupé" };
-      if (this.isForest(socketId)) return { ok: false, reason: this.cutProgress(socketId) !== null ? "Les bûcherons n'ont pas fini" : "Forêt : coupe-la d'abord" };
-      if (FAMILY_SOCKET[family] !== so.kind) return { ok: false, reason: `Ce sol (${ZONE_NAME[so.kind].toLowerCase()}) accueille les tours de ${C.towers[so.kind].name.toLowerCase()}` };
-      const cost = C.towers[family].forms["1"].cost;
-      if (s.gold < cost) return { ok: false, reason: `Il manque ${cost - s.gold} or` };
-      s.gold -= cost;
-      const tw = { id: this.nextId("W"), socket: so.id, x: so.x, z: so.z, family, tier: 1, branch: null, xp: 0, spent: cost, cd: 0.4, shots: 0, targeting: "auto", yaw: 0, frenzyT: 0, frenzyRate: 0, storm: null, stormNext: 0 };
-      s.towers.push(tw);
-      this.emit({ type: "build", id: tw.id, tower: tw });
-      return { ok: true, tower: tw };
-    }
-    // ── Forêts à couper ─────────────────────────────────────────────────────────
-    /** La case est-elle encore boisée (non coupée) ? */
-    isForest(socketId) {
-      const so = this.socket(socketId);
-      return !!(so && so.forest && !this.state.cleared[socketId]);
-    }
-    /** Avancement d'une coupe en cours (0 → 1), ou null. */
-    cutProgress(socketId) {
-      const j = this.state.cutting.find((c) => c.id === socketId);
-      return j ? Math.max(0, Math.min(1, 1 - j.t / j.dur)) : null;
-    }
-    /** Prix de la prochaine coupe (il monte un peu à chaque coupe). */
-    cutCost() {
-      const F = C.forest;
-      return Math.min(F.costMax, F.cost + F.costStep * this.state.cuts);
-    }
-    /** Ce qu'il faut savoir avant de couper : prix, durée, raison d'impossibilité. */
-    cutInfo(socketId) {
-      const s = this.state;
-      const so = this.socket(socketId);
-      const cost = this.cutCost();
-      let reason = null;
-      if (!so) reason = "Case inconnue";
-      else if (!so.forest || s.cleared[socketId]) reason = "Pas de forêt ici";
-      else if (this.cutProgress(socketId) !== null) reason = "Coupe en cours";
-      else if (this.isOver) reason = "Partie terminée";
-      else if (s.gold < cost) reason = `Il manque ${cost - s.gold} or`;
-      return { cost, duration: C.forest.duration, reason, progress: this.cutProgress(socketId) };
-    }
-    /** Fait couper la forêt d'une case : l'or est payé tout de suite, la case se libère après la coupe. */
-    cut(socketId) {
-      const s = this.state;
-      const info = this.cutInfo(socketId);
-      if (info.reason) return { ok: false, reason: info.reason };
-      const so = this.socket(socketId);
-      s.gold -= info.cost;
-      s.cuts++;
-      const job = { id: socketId, t: info.duration, dur: info.duration };
-      s.cutting.push(job);
-      this.emit({ type: "cutStart", id: socketId, x: so.x, z: so.z, duration: info.duration, cost: info.cost });
-      return { ok: true, job };
-    }
-    updateCutting(dt) {
-      const s = this.state;
-      for (const j of s.cutting) j.t -= dt;
-      const done = s.cutting.filter((j) => j.t <= 0);
-      if (!done.length) return;
-      s.cutting = s.cutting.filter((j) => j.t > 0);
-      for (const j of done) {
-        s.cleared[j.id] = true;
-        const so = this.socket(j.id);
-        this.emit({ type: "cutDone", id: j.id, x: so.x, z: so.z });
-      }
-    }
-
-    upgradeInfo(tw) {
-      const s = this.state;
-      if (tw.tier >= 3) return { max: true };
-      const nextTier = tw.tier + 1;
-      const branches = tw.tier === 1 ? ["A", "B"] : [tw.branch];
-      const needXp = nextTier === 2 ? C.xp.tier2 : C.xp.tier3;
-      const needAtelier = nextTier - 1;
-      return {
-        nextTier,
-        options: branches.map((b) => {
-          const f = C.towers[tw.family].forms[formKey(nextTier, b)];
-          let reason = null;
-          if (tw.xp < needXp) reason = `${Math.floor(tw.xp)}/${needXp} XP`;
-          else if (s.mill.atelier < needAtelier) reason = `Atelier ${["", "I", "II", "III"][needAtelier]} requis`;
-          else if (s.gold < f.cost) reason = `Il manque ${f.cost - s.gold} or`;
-          return { branch: b, name: f.name, cost: f.cost, reason };
-        }),
-        needXp,
-        needAtelier,
+      if (!target && !st.splash) return;
+      const p = {
+        id: this.nextId++,
+        kind: st.shot,
+        fromTowerId: t.id,
+        targetId: target ? target.id : null,
+        family: t.family,
+        x: t.x,
+        y: t.y,
+        sx: t.x,
+        sy: t.y,
+        tx: target ? target.x : t.x,
+        ty: target ? target.y : t.y,
+        p: 0,
+        arc: st.shot === "bigChestnut",
+        speed: st.speed,
+        traveled: 0,
+        st,
       };
-    }
-    upgradeTower(towerId, branch) {
-      const s = this.state;
-      const tw = s.towers.find((t) => t.id === towerId);
-      if (!tw) return { ok: false, reason: "Tour inconnue" };
-      const info = this.upgradeInfo(tw);
-      if (info.max) return { ok: false, reason: "Évolution finale atteinte" };
-      const opt = info.options.find((o) => o.branch === (tw.tier === 1 ? branch : tw.branch));
-      if (!opt) return { ok: false, reason: "Choisis une spécialisation" };
-      if (opt.reason) return { ok: false, reason: opt.reason };
-      s.gold -= opt.cost;
-      tw.spent += opt.cost;
-      tw.tier = info.nextTier;
-      tw.branch = opt.branch;
-      tw.shots = 0;
-      tw.storm = null;
-      this.emit({ type: "upgrade", id: tw.id, tower: tw });
-      return { ok: true };
-    }
-    sellValue(obj) {
-      return Math.floor(obj.spent * C.economy.sellRatio);
-    }
-    sellTower(towerId) {
-      const s = this.state;
-      const i = s.towers.findIndex((t) => t.id === towerId);
-      if (i < 0) return { ok: false, reason: "Tour inconnue" };
-      const tw = s.towers[i];
-      const v = this.sellValue(tw);
-      s.gold += v;
-      s.towers.splice(i, 1);
-      s.areas = s.areas.filter((a) => a.tower !== tw.id);
-      this.emit({ type: "sell", id: tw.id, gold: v });
-      return { ok: true, gold: v };
-    }
-    setTargeting(towerId, mode) {
-      const tw = this.state.towers.find((t) => t.id === towerId);
-      if (tw && ["auto", "carriers", "advanced", "tough"].includes(mode)) tw.targeting = mode;
-    }
-    updateTowers(dt) {
-      const s = this.state;
-      for (const tw of s.towers) {
-        if (tw.frenzyT > 0) {
-          tw.frenzyT -= dt;
-          if (tw.frenzyT <= 0) tw.frenzyRate = 0;
-        }
-        const f = this.towerStats(tw);
-        tw.cd -= dt * f.rate;
-        if (f.attack === "storm") {
-          this.towerStorm(tw, f, dt);
-          continue;
-        }
-        if (tw.cd > 0) continue;
-        const direct = !!f.direct;
-        const target = this.pickTarget(tw, f.range, direct);
-        if (!target) {
-          tw.cd = Math.min(tw.cd, 0);
-          continue;
-        }
-        tw.yaw = Math.atan2(target.x - tw.x, target.z - tw.z);
-        tw.cd = f.period;
-        tw.shots++;
-        this.fire(tw, f, target);
-      }
-    }
-    fire(tw, f, target) {
-      const s = this.state;
-      const base = { tower: tw.id, family: tw.family, x: tw.x, z: tw.z };
-      switch (f.attack) {
-        case "fireball":
-          this.projectile("fireball", tw, target, 11, { damage: f.damage, splash: f.splash, burn: f.burn, direct: true });
-          break;
-        case "lava":
-          this.projectile("lavaShell", tw, target, 0, { damage: f.damage, splash: f.splash, burn: f.burn, ground: f.ground, flight: 1.05 });
-          break;
-        case "shard":
-          this.projectile("iceShard", tw, target, 16, { damage: f.damage, slow: f.slow, direct: true });
-          break;
-        case "spike": {
-          const freeze = f.freezeEvery && tw.shots % f.freezeEvery === 0;
-          this.projectile("iceSpike", tw, target, 14, { damage: f.damage, slow: f.slow, direct: true, freeze: freeze ? f.freeze : 0, neighbours: f.freezeNeighbours || 0, neighbourRadius: f.neighbourRadius || 0 });
-          break;
-        }
-        case "jet": {
-          const push = f.pushEvery && tw.shots % f.pushEvery === 0 ? f.push : 0;
-          this.projectile("waterJet", tw, target, 15, { damage: f.damage, wet: f.wet, push, direct: true });
-          break;
-        }
-        case "cone": {
-          const half = ((f.coneDeg * Math.PI) / 180) * 0.5;
-          const dx = (target.x - tw.x) / (Math.hypot(target.x - tw.x, target.z - tw.z) || 1),
-            dz = (target.z - tw.z) / (Math.hypot(target.x - tw.x, target.z - tw.z) || 1);
-          for (const e of this.enemiesIn(tw.x, tw.z, f.range)) {
-            if (!this.targetable(e, false)) continue;
-            if (G.angleTo(tw.x, tw.z, dx, dz, e.x, e.z) > half) continue;
-            if (!this.los(tw.x, tw.z, e.x, e.z)) continue;
-            this.damage(e, f.damage, "direct", base);
-            this.applyBurn(e, f.burn.dps, f.burn.duration / this.T.burnDuration, tw.id);
-          }
-          this.emit({ type: "cone", tower: tw.id, kind: "flame", x: tw.x, z: tw.z, yaw: tw.yaw, angle: f.coneDeg, range: f.range, mouths: f.mouths || 1 });
-          break;
-        }
-        case "line": {
-          const L = f.range,
-            dx = (target.x - tw.x) / (Math.hypot(target.x - tw.x, target.z - tw.z) || 1),
-            dz = (target.z - tw.z) / (Math.hypot(target.x - tw.x, target.z - tw.z) || 1);
-          const hits = [];
-          for (const e of this.enemiesIn(tw.x, tw.z, L)) {
-            if (!this.targetable(e, true)) continue;
-            const along = (e.x - tw.x) * dx + (e.z - tw.z) * dz;
-            if (along < 0) continue;
-            const across = Math.abs((e.x - tw.x) * dz - (e.z - tw.z) * dx);
-            if (across > f.lineWidth / 2 + 0.25) continue;
-            if (!this.los(tw.x, tw.z, e.x, e.z)) continue;
-            hits.push({ e, along });
-          }
-          hits.sort((a, b) => a.along - b.along);
-          for (const h of hits.slice(0, f.maxTargets)) this.waterHit(h.e, f, tw);
-          this.emit({ type: "blast", tower: tw.id, kind: "line", x: tw.x, z: tw.z, yaw: tw.yaw, range: L });
-          break;
-        }
-        case "wave": {
-          const half = ((f.coneDeg * Math.PI) / 180) * 0.5;
-          const dx = (target.x - tw.x) / (Math.hypot(target.x - tw.x, target.z - tw.z) || 1),
-            dz = (target.z - tw.z) / (Math.hypot(target.x - tw.x, target.z - tw.z) || 1);
-          const hits = this.enemiesIn(tw.x, tw.z, f.range)
-            .filter((e) => this.targetable(e, true) && G.angleTo(tw.x, tw.z, dx, dz, e.x, e.z) <= half && this.los(tw.x, tw.z, e.x, e.z))
-            .sort((a, b) => Math.hypot(a.x - tw.x, a.z - tw.z) - Math.hypot(b.x - tw.x, b.z - tw.z));
-          for (const e of hits.slice(0, f.maxTargets)) this.waterHit(e, f, tw);
-          this.emit({ type: "cone", tower: tw.id, kind: "waterCone", x: tw.x, z: tw.z, yaw: tw.yaw, angle: f.coneDeg, range: f.range });
-          break;
-        }
-        case "vortex": {
-          const a = {
-            id: this.nextId("A"),
-            kind: "vortex",
-            big: tw.tier === 3,
-            tower: tw.id,
-            x: target.x,
-            z: target.z,
-            r: f.vortexRadius,
-            t: f.vortexDuration,
-            dur: f.vortexDuration,
-            dps: f.vortexDps,
-            slow: f.vortexSlow,
-            splash: f.finalSplash || 0,
-            wet: f.wet,
-            secondPull: this.T.insatiable,
-            pull: f.pull,
-          };
-          s.areas.push(a);
-          for (const e of this.enemiesIn(a.x, a.z, a.r)) {
-            this.pull(e, a.x, a.z, f.pull / this.T.push, { tower: tw.id, family: "water" });
-            this.applyWet(e, f.wet - this.T.wetBonus);
-          }
-          this.emit({ type: "area", area: a });
-          break;
-        }
-      }
-      this.emit({ type: "fire", tower: tw.id, attack: f.attack, target: target.id });
-    }
-    waterHit(e, f, tw) {
-      this.damage(e, f.damage, "direct", { tower: tw.id, family: "water" });
-      this.applyWet(e, f.wet - this.T.wetBonus);
-      if (f.push) this.push(e, f.push / this.T.push, { tower: tw.id, family: "water" });
-    }
-    towerStorm(tw, f, dt) {
-      const s = this.state;
-      const cur = tw.storm && s.areas.find((a) => a.id === tw.storm);
-      if (cur) return;
-      tw.storm = null;
-      if (tw.cd > 0) return;
-      const target = this.pickTarget(tw, f.range, false);
-      if (!target) return;
-      tw.yaw = Math.atan2(target.x - tw.x, target.z - tw.z);
-      const a = { id: this.nextId("A"), kind: "storm", big: tw.tier === 3, tower: tw.id, x: target.x, z: target.z, r: f.stormRadius, t: f.stormDuration, dur: f.stormDuration, dps: f.stormDps, slow: f.stormSlow };
-      s.areas.push(a);
-      tw.storm = a.id;
-      tw.cd = 0.25;
-      if (f.stormFreeze) for (const e of this.enemiesIn(a.x, a.z, a.r)) this.immobilize(e, "freeze", f.stormFreeze / this.T.freezeDuration, { tower: tw.id });
-      this.emit({ type: "area", area: a });
-      this.emit({ type: "fire", tower: tw.id, attack: "storm", target: target.id });
-    }
-
-    // ── Projectiles ───────────────────────────────────────────────────────────
-    projectile(kind, tw, target, speed, payload) {
-      const s = this.state;
-      const p = { id: this.nextId("P"), kind, tower: tw.id, family: tw.family, x: tw.x, z: tw.z, fx: tw.x, fz: tw.z, tx: target.x, tz: target.z, target: target.id, speed, t: 0, payload };
-      if (payload.flight) p.flight = payload.flight;
       s.projectiles.push(p);
-      this.emit({ type: "projectile", projectile: p });
+      t.shots++;
+      this.emit("shot", { towerId: t.id, projectileId: p.id, kind: p.kind });
     }
-    updateProjectiles(dt) {
+    tickProjectiles(dt) {
       const s = this.state;
-      const keep = [];
+      let dirty = false;
       for (const p of s.projectiles) {
-        const target = s.enemies.find((e) => e.id === p.target);
-        if (target && this.alive(target) && !p.flight) {
+        const target = p.targetId ? this.enemyById(p.targetId) : null;
+        if (target && !target.dead) {
           p.tx = target.x;
-          p.tz = target.z;
+          p.ty = target.y;
+        } else if (p.targetId && !p.st.splash) {
+          p.done = true; // cible disparue : le tir se perd
+          dirty = true;
+          this.emit("fizzle", { projectileId: p.id, x: p.x, y: p.y, kind: p.kind });
+          continue;
         }
-        p.t += dt;
-        let arrived = false;
-        if (p.flight) {
-          const k = Math.min(1, p.t / p.flight);
-          p.x = p.fx + (p.tx - p.fx) * k;
-          p.z = p.fz + (p.tz - p.fz) * k;
-          p.arc = Math.sin(k * Math.PI);
-          arrived = k >= 1;
+        const dx = p.tx - p.x,
+          dy = p.ty - p.y;
+        const d = Math.hypot(dx, dy);
+        const stepLen = p.speed * dt;
+        if (d <= stepLen + 0.05) {
+          p.x = p.tx;
+          p.y = p.ty;
+          p.p = 1;
+          p.done = true;
+          dirty = true;
+          this.impact(p, target && !target.dead ? target : null);
         } else {
-          const dx = p.tx - p.x,
-            dz = p.tz - p.z,
-            d = Math.hypot(dx, dz);
-          const step = p.speed * dt;
-          if (d <= step + 0.05) {
-            p.x = p.tx;
-            p.z = p.tz;
-            arrived = true;
-          } else {
-            p.x += (dx / d) * step;
-            p.z += (dz / d) * step;
-          }
+          p.x += (dx / d) * stepLen;
+          p.y += (dy / d) * stepLen;
+          p.traveled += stepLen;
+          p.p = p.traveled / (p.traveled + d);
         }
-        if (arrived) this.impact(p, target && this.alive(target) ? target : null);
-        else keep.push(p);
       }
-      s.projectiles = keep;
+      if (dirty) s.projectiles = s.projectiles.filter((p) => !p.done);
     }
     impact(p, target) {
       const s = this.state;
-      const P = p.payload;
-      const src = { tower: p.tower, family: p.family };
-      switch (p.kind) {
-        case "fireball": {
-          if (target) {
-            this.damage(target, P.damage, "direct", src);
-            this.applyBurn(target, P.burn.dps, P.burn.duration / this.T.burnDuration, p.tower);
-          }
-          for (const e of this.enemiesIn(p.x, p.z, P.splash)) {
-            if (e === target) continue;
-            this.damage(e, P.damage, "explosion", src);
-            this.applyBurn(e, P.burn.dps, P.burn.duration / this.T.burnDuration, p.tower);
-          }
-          this.emit({ type: "explode", kind: "fire", x: p.x, z: p.z, r: P.splash });
-          break;
+      const st = p.st;
+      const tower = this.towerById(p.fromTowerId);
+      const src = { towerId: tower ? tower.id : null, pierce: !!st.pierce, kind: p.kind };
+      let crit = false;
+      let dmg = st.dmg;
+      if (st.crit && this.rnd() < st.crit.chance) {
+        crit = true;
+        dmg *= st.crit.mult;
+      }
+      const victims = [];
+      if (st.splash) {
+        for (const e of s.enemies) {
+          if (e.dead) continue;
+          if ((e.x - p.x) ** 2 + (e.y - p.y) ** 2 <= st.splash * st.splash || e === target) victims.push(e);
         }
-        case "lavaShell": {
-          for (const e of this.enemiesIn(p.x, p.z, P.splash)) {
-            this.damage(e, P.damage, "explosion", src);
-            this.applyBurn(e, P.burn.dps, P.burn.duration / this.T.burnDuration, p.tower);
-          }
-          const a = { id: this.nextId("A"), kind: "groundFire", tower: p.tower, x: p.x, z: p.z, r: P.ground.radius, t: P.ground.duration, dur: P.ground.duration, dps: P.ground.dps, big: P.splash > 2 };
-          s.areas.push(a);
-          this.emit({ type: "explode", kind: "lava", x: p.x, z: p.z, r: P.splash });
-          this.emit({ type: "area", area: a });
-          break;
+      } else if (target) {
+        if (target.ability === "evade" && !target.fx.disarmed && this.rnd() < D.ENEMIES.rugbyman.ability.chance) {
+          this.emit("hit", { enemyId: target.id, dmg: 0, evaded: true, x: target.x, y: target.y, kind: p.kind, projectileId: p.id });
+          return;
         }
-        case "iceShard":
-        case "iceSpike": {
-          if (!target) break;
-          this.damage(target, P.damage, "direct", src);
-          this.applySlow(target, "ice", Math.min(1, P.slow.pct), P.slow.duration, p.tower);
-          if (P.freeze) {
-            this.immobilize(target, "freeze", P.freeze / this.T.freezeDuration, src);
-            if (P.neighbours) {
-              const near = this.enemiesIn(target.x, target.z, P.neighbourRadius)
-                .filter((e) => e !== target)
-                .sort((a, b) => Math.hypot(a.x - target.x, a.z - target.z) - Math.hypot(b.x - target.x, b.z - target.z));
-              for (const e of near.slice(0, P.neighbours)) this.immobilize(e, "freeze", P.freeze / this.T.freezeDuration, src);
-            }
-          }
-          this.emit({ type: "explode", kind: p.kind === "iceSpike" ? "iceBig" : "ice", x: p.x, z: p.z, r: 0.6 });
-          break;
+        victims.push(target);
+      }
+      this.emit("impact", { projectileId: p.id, kind: p.kind, x: p.x, y: p.y, r: st.splash || 0, towerId: src.towerId, crit });
+      if (st.mana && victims.length) s.mana = Math.min(s.manaMax, s.mana + st.mana);
+      for (const e of victims) {
+        const before = e.barrier;
+        const dealt = this.hurt(e, dmg, Object.assign({ area: !!st.splash }, src));
+        this.emit("hit", { enemyId: e.id, dmg: dealt, crit, absorbed: before - e.barrier, x: e.x, y: e.y, kind: p.kind });
+        if (!e.dead) this.applyEffects(e, st, tower);
+      }
+    }
+    applyEffects(e, st, tower) {
+      if (e.ability === "immune" && !e.fx.disarmed) {
+        if (st.slow || st.fear || st.freeze || st.stun || st.burn || st.radiance || st.disarm) this.emit("immune", { enemyId: e.id });
+        return;
+      }
+      const T = e.t;
+      const boss = e.boss ? 0.5 : 1; // les boss résistent à moitié aux contrôles
+      if (st.slow) {
+        const pct = Math.min(D.status.slowCap, st.slow.pct * (e.boss ? 0.6 : 1));
+        if (T.slow <= 0 || pct >= T.slowPct) T.slowPct = pct;
+        T.slow = Math.max(T.slow, st.slow.t);
+      }
+      if (st.fear && this.rnd() < st.fear.chance * boss && T.fear <= 0) {
+        T.fear = st.fear.t;
+        e.retarget = true;
+        e.flip = true;
+        this.emit("fear", { enemyId: e.id });
+      }
+      if (st.freeze && T.freezeImm <= 0 && this.rnd() < st.freeze.chance * boss) {
+        T.freeze = st.freeze.t;
+        T.freezeImm = st.freeze.t + D.status.freezeImmunity;
+        this.emit("freeze", { enemyId: e.id });
+      }
+      if (st.stun && T.stunImm <= 0 && this.rnd() < st.stun.chance * boss) {
+        T.stun = st.stun.t;
+        T.stunImm = st.stun.t + D.status.stunImmunity;
+        this.emit("stun", { enemyId: e.id });
+      }
+      if (st.burn) {
+        if (T.burn <= 0 || st.burn.dps >= T.burnDps) {
+          T.burnDps = st.burn.dps * (this.mods.damage || 1);
+          T.burnSrc = tower ? tower.id : null;
         }
-        case "waterJet": {
-          if (!target) break;
-          this.damage(target, P.damage, "direct", src);
-          this.applyWet(target, P.wet - this.T.wetBonus);
-          if (P.push) this.push(target, P.push / this.T.push, src);
-          this.emit({ type: "explode", kind: "splash", x: p.x, z: p.z, r: 0.6 });
-          break;
+        T.burn = Math.max(T.burn, st.burn.t);
+      }
+      if (st.radiance) {
+        T.rad = Math.max(T.rad, st.radiance.t);
+        if (st.radiance.pct >= T.radPct) {
+          T.radPct = st.radiance.pct;
+          T.radSrc = tower ? tower.id : T.radSrc;
         }
+      }
+      if (st.disarm && !e.fx.disarmed && e.ability && this.rnd() < st.disarm * boss) {
+        e.fx.disarmed = true;
+        e.barrier = 0;
+        e.shield = 0;
+        T.invis = 0;
+        this.emit("disarm", { enemyId: e.id });
       }
     }
 
-    // ── Zones (sols incendiés, tempêtes, vortex) ─────────────────────────────────
-    updateAreas(dt) {
+    /* ------------------------------------------------------------ fin */
+    checkEnd() {
       const s = this.state;
-      const best = new Map(); // ennemi → { groundFire, storm, vortex }
-      for (const a of s.areas) {
-        a.t -= dt;
-        if (a.kind === "vortex" && a.secondPull && !a.pulled2 && a.t <= a.dur / 2) {
-          a.pulled2 = true;
-          for (const e of this.enemiesIn(a.x, a.z, a.r)) if (e.wetT > 0) this.pull(e, a.x, a.z, a.pull / this.T.push, { tower: a.tower, family: "water" });
-          this.emit({ type: "vortexPull", area: a.id });
-        }
-        for (const e of this.enemiesIn(a.x, a.z, a.r)) {
-          let slot = best.get(e);
-          if (!slot) best.set(e, (slot = {}));
-          const cur = slot[a.kind];
-          if (!cur || a.dps > cur.dps) slot[a.kind] = a;
-        }
+      if (s.over) return;
+      const c = s.gemCount;
+      if (c.lair + c.ground + c.carried === 0) {
+        s.over = { win: false, gemsLeft: 0, gemsTotal: c.total, brilliant: false, time: s.time, kills: s.stats.kills };
+        this.emit("lose", {});
+        return;
       }
-      for (const [e, slot] of best) {
-        for (const kind in slot) {
-          const a = slot[kind];
-          this.damage(e, a.dps * dt, "dot", { tower: a.tower, family: kind === "groundFire" ? "fire" : kind === "storm" ? "ice" : "water" });
-          if (a.slow) this.applySlow(e, kind, a.slow, 0.25, a.tower);
-        }
+      const lastStarted = s.wave.index >= this.waves.length - 1;
+      if (lastStarted && !this.spawnQueue.length && s.enemies.every((e) => e.dead)) {
+        for (const gem of s.gems) if (gem.where === "ground") this.returnGem(gem);
+        const left = s.gems.filter((g) => g.where === "lair").length;
+        s.over = { win: true, gemsLeft: left, gemsTotal: c.total, brilliant: left === c.total, time: s.time, kills: s.stats.kills };
+        this.emit("win", { gemsLeft: left });
       }
-      const keep = [];
-      for (const a of s.areas) {
-        if (a.t > 0) keep.push(a);
-        else {
-          if (a.kind === "vortex" && a.splash) {
-            for (const e of this.enemiesIn(a.x, a.z, a.r)) this.damage(e, a.splash, "explosion", { tower: a.tower, family: "water" });
-            this.emit({ type: "explode", kind: "vortexSplash", x: a.x, z: a.z, r: a.r });
-          }
-          this.emit({ type: "areaEnd", id: a.id });
-        }
-      }
-      s.areas = keep;
-    }
-
-    // ── Pièges ────────────────────────────────────────────────────────────────
-    trapSlot(id) {
-      return this.L.trapSlots.find((t) => t.id === id);
-    }
-    trapLimit() {
-      return C.mill.atelier.levels[this.state.mill.atelier].trapLimit;
-    }
-    defaultSpringDir(slot) {
-      // Le ressort renvoie par défaut les voleurs qui montent vers une réserve.
-      const E = this.graph.byId.get(slot.edge);
-      const doors = this.state.reserves.map((r) => r.doorNode);
-      const da = R.dijkstra(this.graph, [{ node: E.a, cost: 0 }]).dist;
-      const db = R.dijkstra(this.graph, [{ node: E.b, cost: 0 }]).dist;
-      const minA = Math.min(...doors.map((d) => da.get(d) ?? Infinity));
-      const minB = Math.min(...doors.map((d) => db.get(d) ?? Infinity));
-      // Direction du ressort : de la réserve vers l'entrée (+1 = sens a → b de l'arête).
-      return minB < minA ? -1 : 1;
-    }
-    buildTrap(slotId, kind) {
-      const s = this.state;
-      const slot = this.trapSlot(slotId);
-      if (!slot) return { ok: false, reason: "Emplacement inconnu" };
-      if (s.traps.some((t) => t.slot === slotId)) return { ok: false, reason: "Emplacement occupé" };
-      if (s.traps.length >= this.trapLimit()) return { ok: false, reason: `Limite de ${this.trapLimit()} pièges (améliore l'Atelier)` };
-      const def = C.traps[kind];
-      if (!def) return { ok: false, reason: "Piège inconnu" };
-      const cost = def.tiers[1].cost;
-      if (s.gold < cost) return { ok: false, reason: `Il manque ${cost - s.gold} or` };
-      s.gold -= cost;
-      const tr = { id: this.nextId("R"), slot: slotId, x: slot.x, z: slot.z, kind, tier: 1, spent: cost, cd: 0, dir: kind === "spring" ? this.defaultSpringDir(slot) : 1, fired: 0 };
-      s.traps.push(tr);
-      this.emit({ type: "buildTrap", id: tr.id, trap: tr });
-      return { ok: true, trap: tr };
-    }
-    upgradeTrap(trapId) {
-      const s = this.state;
-      const tr = s.traps.find((t) => t.id === trapId);
-      if (!tr) return { ok: false, reason: "Piège inconnu" };
-      if (tr.tier >= 3) return { ok: false, reason: "Palier maximum" };
-      const next = tr.tier + 1;
-      if (s.mill.atelier < next - 1) return { ok: false, reason: `Atelier ${["", "I", "II"][next - 1]} requis` };
-      const cost = C.traps[tr.kind].tiers[next].cost;
-      if (s.gold < cost) return { ok: false, reason: `Il manque ${cost - s.gold} or` };
-      s.gold -= cost;
-      tr.spent += cost;
-      tr.tier = next;
-      this.emit({ type: "upgradeTrap", id: tr.id, trap: tr });
-      return { ok: true };
-    }
-    sellTrap(trapId) {
-      const s = this.state;
-      const i = s.traps.findIndex((t) => t.id === trapId);
-      if (i < 0) return { ok: false, reason: "Piège inconnu" };
-      const v = this.sellValue(s.traps[i]);
-      s.gold += v;
-      this.emit({ type: "sellTrap", id: s.traps[i].id, gold: v });
-      s.traps.splice(i, 1);
-      return { ok: true, gold: v };
-    }
-    flipSpring(trapId) {
-      const tr = this.state.traps.find((t) => t.id === trapId);
-      if (tr && tr.kind === "spring") tr.dir *= -1;
-    }
-    updateTraps(dt) {
-      const s = this.state;
-      const cdMul = s.mill.atelier >= 3 ? C.mill.atelier.levels[3].trapCooldown : 1;
-      for (const tr of s.traps) {
-        if (tr.cd > 0) {
-          tr.cd -= dt;
-          continue;
-        }
-        const T = C.traps[tr.kind].tiers[tr.tier];
-        let affected = 0;
-        if (tr.kind === "net") {
-          const cands = this.enemiesIn(tr.x, tr.z, T.radius).filter((e) => e.ccImmuneT <= 0 && !e.onWater);
-          cands.sort((a, b) => Math.hypot(a.x - tr.x, a.z - tr.z) - Math.hypot(b.x - tr.x, b.z - tr.z));
-          for (const e of cands.slice(0, T.targets)) if (this.immobilize(e, "net", T.duration)) affected++;
-        } else if (tr.kind === "spring") {
-          const slot = this.trapSlot(tr.slot);
-          const sdx = slot.dx * tr.dir,
-            sdz = slot.dz * tr.dir;
-          const cands = this.enemiesIn(tr.x, tr.z, T.radius).filter((e) => e.moveImmuneT <= 0 && e.route && e.dx * sdx + e.dz * sdz < -0.2);
-          for (const e of cands.slice(0, T.targets)) if (this.push(e, T.push, { family: "trap" })) affected++;
-        } else if (tr.kind === "lure") {
-          const cands = this.enemiesIn(tr.x, tr.z, T.radius).filter((e) => !e.carrying && !e.fooled && e.type !== "boss" && e.ccImmuneT <= 0);
-          cands.sort((a, b) => Math.hypot(a.x - tr.x, a.z - tr.z) - Math.hypot(b.x - tr.x, b.z - tr.z));
-          for (const e of cands) {
-            if (affected >= T.targets) break;
-            if (this.lureTo(e, tr.x, tr.z, T.duration)) affected++;
-          }
-        }
-        if (affected) {
-          tr.cd = T.cooldown * cdMul;
-          tr.fired++;
-          this.emit({ type: "trap", id: tr.id, kind: tr.kind, count: affected });
-        }
-      }
-    }
-
-    // ── Moulin, réserves, sorts : améliorations ────────────────────────────────────
-    recomputeMill() {
-      const s = this.state;
-      const roue = C.mill.roue.levels[s.mill.roue];
-      s.manaMax = roue.manaMax;
-      s.regen = roue.regen;
-      s.mana = Math.min(s.mana, s.manaMax);
-    }
-    upgradeMill(kind) {
-      const s = this.state;
-      const def = C.mill[kind];
-      if (!def) return { ok: false, reason: "Amélioration inconnue" };
-      const next = s.mill[kind] + 1;
-      if (next >= def.levels.length) return { ok: false, reason: "Niveau maximum" };
-      const cost = def.levels[next].cost;
-      if (s.gold < cost) return { ok: false, reason: `Il manque ${cost - s.gold} or` };
-      s.gold -= cost;
-      s.mill[kind] = next;
-      this.recomputeMill();
-      this.emit({ type: "mill", kind, level: next });
-      return { ok: true };
-    }
-    upgradeReserve(id) {
-      const s = this.state;
-      const r = this.reserve(id);
-      if (!r) return { ok: false, reason: "Réserve inconnue" };
-      if (r.tier >= 3) return { ok: false, reason: "Palier maximum" };
-      const T = C.reserves.tiers[r.tier + 1];
-      if (s.mill.atelier < T.atelier) return { ok: false, reason: `Atelier ${["", "I", "II"][T.atelier]} requis` };
-      if (s.gold < T.cost) return { ok: false, reason: `Il manque ${T.cost - s.gold} or` };
-      s.gold -= T.cost;
-      r.spent += T.cost;
-      r.tier++;
-      this.emit({ type: "reserve", id: r.id, tier: r.tier });
-      return { ok: true };
-    }
-    upgradeSpell(id) {
-      const s = this.state;
-      const sp = s.spells[id];
-      if (!sp || !this.unlocked.has(id)) return { ok: false, reason: "Sort non débloqué" };
-      if (sp.rank >= 3) return { ok: false, reason: "Rang maximum" };
-      const next = sp.rank + 1;
-      if (s.mill.atelier < C.spells.rankAtelier[next]) return { ok: false, reason: `Atelier ${["", "I", "II"][C.spells.rankAtelier[next]]} requis` };
-      const cost = C.spells.rankCost[next];
-      if (s.gold < cost) return { ok: false, reason: `Il manque ${cost - s.gold} or` };
-      s.gold -= cost;
-      sp.rank = next;
-      this.emit({ type: "spellRank", id, rank: next });
-      return { ok: true };
-    }
-
-    // ── Sorts ─────────────────────────────────────────────────────────────────
-    spellMana(id) {
-      const m = C.spells[id].mana;
-      return id === "freeze" ? Math.round(m * this.T.freezeMana) : m;
-    }
-    spellCooldown(id) {
-      const c = C.spells[id].cooldown;
-      return id === "meteor" ? c * this.T.meteorCooldown : c;
-    }
-    /** Valeurs finales d'un sort à son rang actuel (talents compris) — affichées par l'interface. */
-    spellStats(id) {
-      const s = this.state;
-      const r = C.spells[id].ranks[s.spells[id].rank];
-      const T = this.T;
-      const out = Object.assign({}, r, { mana: this.spellMana(id), cooldown: this.spellCooldown(id) });
-      if (id === "meteor") {
-        out.damage = r.damage * T.meteorDamage;
-        out.radius = r.radius * T.explosionRadius;
-        out.ground = { dps: r.ground.dps * T.meteorDamage, duration: r.ground.duration * T.burnDuration };
-      }
-      if (id === "freeze") out.freeze = r.freeze * T.freezeDuration;
-      if (id === "flood") {
-        out.length = r.length * T.waterArea;
-        out.width = r.width * T.waterArea;
-        out.push = r.push * T.push;
-        out.wet = r.wet + T.wetBonus;
-      }
-      return out;
-    }
-    /** Raison d'indisponibilité d'un sort (ou null). */
-    spellBlocked(id) {
-      const s = this.state;
-      if (!this.unlocked.has(id)) return `Débloqué au niveau ${C.spells.unlockLevel[id]}`;
-      if (s.phase !== "wave") return "Pendant une attaque seulement";
-      if (s.spells[id].cd > 0) return `Recharge ${Math.ceil(s.spells[id].cd)} s`;
-      if (s.mana < this.spellMana(id)) return `Mana ${Math.floor(s.mana)}/${this.spellMana(id)}`;
-      return null;
-    }
-    eligibleSacks(x, z, radius, count) {
-      return this.state.treasures
-        .filter((t) => t.state === "dropped" && Math.hypot(t.x - x, t.z - z) <= radius + 0.9)
-        .sort((a, b) => Math.hypot(a.x - x, a.z - z) - Math.hypot(b.x - x, b.z - z))
-        .slice(0, count);
-    }
-    /** Lance un sort au point (x, z). En pause, la commande est mise en attente (une par sort). */
-    cast(id, x, z) {
-      const s = this.state;
-      if (!C.spells[id]) return { ok: false, reason: "Sort inconnu" };
-      if (!this.unlocked.has(id)) return { ok: false, reason: `Débloqué au niveau ${C.spells.unlockLevel[id]}` };
-      if (s.phase !== "wave") return { ok: false, reason: "Pendant une attaque seulement" };
-      if (s.paused) {
-        s.queued[id] = { x, z };
-        this.emit({ type: "spellQueued", id, x, z });
-        return { ok: true, queued: true };
-      }
-      return this.execute(id, x, z);
-    }
-    cancelQueued(id) {
-      delete this.state.queued[id];
-    }
-    flushQueued() {
-      const s = this.state;
-      const q = s.queued;
-      s.queued = {};
-      for (const id of Object.keys(q)) {
-        const r = this.execute(id, q[id].x, q[id].z);
-        this.emit({ type: "spellResumed", id, ok: r.ok, reason: r.reason });
-      }
-    }
-    execute(id, x, z) {
-      const s = this.state;
-      const blocked = this.spellBlocked(id);
-      if (blocked) return { ok: false, reason: blocked };
-      const rank = s.spells[id].rank;
-      const R0 = this.spellStats(id);
-      if (id === "recall" && !this.eligibleSacks(x, z, R0.radius, R0.count).length) return { ok: false, reason: "Aucun sac tombé à cet endroit" };
-      s.mana -= this.spellMana(id);
-      s.spells[id].cd = this.spellCooldown(id);
-      let yaw = 0;
-      if (id === "flood") {
-        const loc = R.locate(this.graph, x, z, "walker");
-        if (loc) {
-          const p = G.at(loc.edge.line, loc.s);
-          yaw = Math.atan2(p.dx, p.dz);
-        }
-      }
-      s.effects.push({ id: this.nextId("F"), spell: id, rank, x, z, yaw, t: C.spells[id].delay, stats: R0 });
-      this.emit({ type: "spell", id, x, z, rank, yaw, stats: R0, delay: C.spells[id].delay });
-      return { ok: true };
-    }
-    updateEffects(dt) {
-      const s = this.state;
-      const keep = [];
-      for (const fx of s.effects) {
-        fx.t -= dt;
-        if (fx.t > 0) {
-          keep.push(fx);
-          continue;
-        }
-        const S = fx.stats;
-        switch (fx.spell) {
-          case "meteor":
-            for (const e of this.enemiesIn(fx.x, fx.z, S.radius)) this.damage(e, S.damage, "explosion", { family: "fire", kind: "meteor" });
-            {
-              const a = { id: this.nextId("A"), kind: "groundFire", tower: null, x: fx.x, z: fx.z, r: S.radius, t: S.ground.duration, dur: S.ground.duration, dps: S.ground.dps, big: true, meteor: true };
-              s.areas.push(a);
-              this.emit({ type: "area", area: a });
-            }
-            this.emit({ type: "explode", kind: "meteor", x: fx.x, z: fx.z, r: S.radius });
-            break;
-          case "freeze":
-            for (const e of this.enemiesIn(fx.x, fx.z, S.radius)) {
-              const d = this.immobilize(e, "freeze", S.freeze / this.T.freezeDuration, { kind: "spell" });
-              if (d && S.afterSlow) e.pendingSlow = S.afterSlow;
-            }
-            this.emit({ type: "explode", kind: "freeze", x: fx.x, z: fx.z, r: S.radius });
-            break;
-          case "flood": {
-            const dx = Math.sin(fx.yaw),
-              dz = Math.cos(fx.yaw);
-            for (const e of this.state.enemies) {
-              if (!this.alive(e)) continue;
-              const along = (e.x - fx.x) * dx + (e.z - fx.z) * dz,
-                across = (e.x - fx.x) * dz - (e.z - fx.z) * dx;
-              if (Math.abs(along) > S.length / 2 || Math.abs(across) > S.width / 2) continue;
-              this.damage(e, S.damage, "explosion", { family: "water", kind: "flood" });
-              this.applyWet(e, S.wet - this.T.wetBonus);
-              this.push(e, S.push / this.T.push, { family: "water" });
-            }
-            this.emit({ type: "explode", kind: "flood", x: fx.x, z: fx.z, yaw: fx.yaw, length: S.length, width: S.width });
-            break;
-          }
-          case "frenzy":
-            for (const tw of s.towers) {
-              if (Math.hypot(tw.x - fx.x, tw.z - fx.z) > S.radius) continue;
-              tw.frenzyRate = Math.max(tw.frenzyT > 0 ? tw.frenzyRate : 0, S.rate);
-              tw.frenzyT = Math.max(tw.frenzyT, S.duration);
-            }
-            this.emit({ type: "explode", kind: "frenzy", x: fx.x, z: fx.z, r: S.radius });
-            break;
-          case "recall": {
-            const sacks = this.eligibleSacks(fx.x, fx.z, S.radius, S.count);
-            for (const t of sacks) this.returnTreasure(t, "recall");
-            if (!sacks.length) {
-              // Rien à rappeler au moment de l'effet : rien n'est consommé.
-              s.mana = Math.min(s.manaMax, s.mana + this.spellMana("recall"));
-              s.spells.recall.cd = 0;
-            }
-            break;
-          }
-        }
-      }
-      s.effects = keep;
-    }
-
-    // ── Préparation : parcours prévus, fronts et menace ──────────────────────────
-    /**
-     * Vague à venir : offset 0 = la prochaine vague à lancer, 1 = la suivante… (mode sans fin
-     * compris). Renvoie { def, number, endless } ou null s'il n'y en a plus.
-     */
-    waveDefAt(offset = 0) {
-      const s = this.state;
-      if (s.endless) {
-        const n = s.endlessCount + 1 + offset;
-        return { def: PTMT.waves.endlessWave(this.L, this.level, n), number: n, endless: true };
-      }
-      const i = s.wave + offset;
-      return s.waves[i] ? { def: { groups: s.waves[i] }, number: i + 1, endless: false } : null;
-    }
-    /** Entrée (de la disposition) d'un groupe, avec sa couleur et son nom. */
-    entryOf(gdef) {
-      const node = this.resolveEntry(gdef);
-      const e = this.L.entries.find((x) => x.node === node) || { id: node, node, label: node, kind: "land" };
-      return e;
-    }
-    /** Résumé d'une vague : fronts (par entrée), types et nombres, menace, boss. */
-    describeWave(def, offset = 0) {
-      const s = this.state;
-      const fronts = new Map(),
-        types = {};
-      let threat = 0,
-        total = 0;
-      const waveNo = s.endless ? s.waveCount + s.endlessCount + 1 + offset : s.wave + 1 + offset;
-      let hpm = (1 + C.enemies.hpPerLevel * (this.level - 1) + C.enemies.hpPerWave * (waveNo - 1)) * this.levelHp();
-      if (s.endless) hpm *= 1 + C.enemies.endlessHpPerBlock * Math.floor((s.endlessCount + offset) / 5);
-      for (const gdef of def.groups) {
-        const e = this.entryOf(gdef);
-        const E = C.enemies[gdef.type];
-        const key = gdef.type + (gdef.elite ? "*" : "");
-        types[key] = (types[key] || 0) + gdef.count;
-        total += gdef.count;
-        threat += gdef.count * E.hp * hpm * (gdef.elite ? 1.5 : 1) * (0.6 + E.speed * 0.5);
-        let f = fronts.get(e.node);
-        if (!f) fronts.set(e.node, (f = { entry: e.node, id: e.id, label: e.label, color: e.color || "#e8453c", kind: e.kind, targets: [], groups: [], count: 0, first: Infinity }));
-        if (!f.targets.includes(gdef.target)) f.targets.push(gdef.target);
-        let g = f.groups.find((x) => x.type === gdef.type && x.elite === !!gdef.elite);
-        if (!g) f.groups.push((g = { type: gdef.type, elite: !!gdef.elite, count: 0 }));
-        g.count += gdef.count;
-        f.count += gdef.count;
-        f.first = Math.min(f.first, gdef.delay || 0);
-      }
-      const list = [...fronts.values()].sort((a, b) => a.first - b.first);
-      const level = threat < 900 ? "Faible" : threat < 2200 ? "Moyenne" : threat < 4500 ? "Forte" : "Très forte";
-      return { fronts: list, types, total, threat: Math.round(threat), level, boss: def.groups.some((g) => g.type === "boss"), eliteBoss: !!def.eliteBoss };
-    }
-    preview() {
-      const s = this.state;
-      const at = this.waveDefAt(0);
-      if (!at) return null;
-      const def = at.def;
-      const info = this.describeWave(def, 0);
-      const routes = [],
-        seen = new Set();
-      for (const gdef of def.groups) {
-        const entry = this.resolveEntry(gdef);
-        const key = entry + ">" + gdef.target + ":" + (gdef.type === "nageur");
-        if (seen.has(key)) continue;
-        seen.add(key);
-        const r = this.reserve(gdef.target);
-        const mover = gdef.type === "nageur" ? "swimmer" : "walker";
-        const rt = r && R.route(this.graph, entry, [r.doorNode], mover, { land: 0.9, water: 1.15 });
-        const e = this.entryOf(gdef);
-        if (rt) routes.push({ entry, target: gdef.target, pts: rt.pts, kinds: rt.kinds, swimmer: mover === "swimmer", color: e.color || "#e8453c" });
-      }
-      const upcoming = [];
-      for (let k = 1; k <= 3; k++) {
-        const nx = this.waveDefAt(k);
-        if (!nx) break;
-        upcoming.push(Object.assign({ number: nx.number, endless: nx.endless }, this.describeWave(nx.def, k)));
-      }
-      const exits = this.L.exits.map((e) => e.node);
-      return Object.assign(info, { number: at.number, endless: at.endless, last: !s.endless && at.number === s.waveCount, routes, exits, upcoming });
-    }
-
-    // ── Sauvegarde (point de reprise entre les vagues) ───────────────────────────
-    serialize() {
-      const s = this.state;
-      return {
-        v: C.version,
-        level: this.level,
-        layoutId: s.layoutId,
-        seed: s.seed,
-        phase: s.phase === "wave" ? "prep" : s.phase,
-        endless: s.endless,
-        endlessCount: s.endlessCount,
-        wave: s.wave,
-        gold: s.gold,
-        mana: s.mana,
-        mill: Object.assign({}, s.mill),
-        spells: JSON.parse(JSON.stringify(s.spells)),
-        reserves: s.reserves.map((r) => ({ id: r.id, tier: r.tier, stock: r.stock.slice(), spent: r.spent })),
-        treasures: s.treasures.map((t) => ({ id: t.id, reserve: t.reserve, state: t.state === "carried" || t.state === "dropped" ? "stored" : t.state, everTaken: t.everTaken })),
-        towers: s.towers.map((t) => ({ id: t.id, socket: t.socket, family: t.family, tier: t.tier, branch: t.branch, xp: t.xp, spent: t.spent, targeting: t.targeting })),
-        traps: s.traps.map((t) => ({ id: t.id, slot: t.slot, kind: t.kind, tier: t.tier, spent: t.spent, dir: t.dir })),
-        cleared: Object.keys(s.cleared),
-        cutting: s.cutting.map((j) => ({ id: j.id, t: j.t, dur: j.dur })),
-        cuts: s.cuts,
-        stats: JSON.parse(JSON.stringify(s.stats)),
-        talents: this.allocation,
-        unlocked: [...this.unlocked],
-        uid: this.uid,
-      };
-    }
-    /** Une sauvegarde est-elle lisible par cette version (même format, même disposition) ? */
-    static compatible(cp) {
-      if (!cp || cp.v !== C.version || !PTMT.layouts[cp.level]) return false;
-      const L = PTMT.layouts[cp.level];
-      if (cp.layoutId !== L.id) return false;
-      const ids = new Set(L.sockets.map((s) => s.id));
-      const slots = new Set(L.trapSlots.map((t) => t.id));
-      return (cp.towers || []).every((t) => ids.has(t.socket)) && (cp.traps || []).every((t) => slots.has(t.slot)) && (cp.cleared || []).every((id) => ids.has(id));
-    }
-    restore(cp) {
-      if (!Game.compatible(cp)) throw new Error("Sauvegarde d'une ancienne version du domaine");
-      this.level = cp.level;
-      this.L = PTMT.layouts[cp.level];
-      this.graph = R.buildGraph(this.L);
-      if (cp.talents) {
-        this.allocation = cp.talents;
-        this.T = PTMT.talents.resolve(cp.talents);
-      }
-      if (cp.unlocked) this.unlocked = new Set(cp.unlocked);
-      this.reset();
-      const s = this.state;
-      Object.assign(s, { phase: cp.phase === "victory" || cp.phase === "defeat" ? cp.phase : "prep", endless: cp.endless, endlessCount: cp.endlessCount, wave: cp.wave, gold: cp.gold, mill: cp.mill, spells: cp.spells, stats: cp.stats });
-      for (const id of C.spells.order) s.spells[id].cd = s.spells[id].cd || 0;
-      this.recomputeMill();
-      s.mana = Math.min(s.manaMax, cp.mana);
-      for (const t of s.treasures) {
-        const c = cp.treasures.find((x) => x.id === t.id);
-        if (c) Object.assign(t, { state: c.state, everTaken: c.everTaken, carrier: null });
-      }
-      for (const r of s.reserves) {
-        const c = cp.reserves.find((x) => x.id === r.id);
-        r.tier = c.tier;
-        r.spent = c.spent;
-        r.stock = s.treasures.filter((t) => t.reserve === r.id && t.state === "stored").map((t) => t.id);
-      }
-      s.towers = cp.towers.map((t) => {
-        const so = this.socket(t.socket);
-        return Object.assign({ x: so.x, z: so.z, cd: 0.4, shots: 0, yaw: 0, frenzyT: 0, frenzyRate: 0, storm: null }, t);
-      });
-      s.traps = cp.traps.map((t) => {
-        const sl = this.trapSlot(t.slot);
-        return Object.assign({ x: sl.x, z: sl.z, cd: 0, fired: 0 }, t);
-      });
-      s.cleared = {};
-      for (const id of cp.cleared || []) s.cleared[id] = true;
-      s.cutting = (cp.cutting || []).filter((j) => this.socket(j.id) && !s.cleared[j.id]).map((j) => ({ id: j.id, t: j.t, dur: j.dur }));
-      s.cuts = cp.cuts || 0;
-      this.uid = cp.uid || 1000;
-      this.emit({ type: "restored" });
     }
   }
 
-  PTMT.Game = Game;
-  PTMT.formKey = formKey;
-  PTMT.FORM_KEYS = FORM_KEYS;
+  S.Game = Game;
+  S.createGame = (opts) => new Game(opts);
 })();

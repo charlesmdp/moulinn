@@ -173,82 +173,83 @@
   };
 
   /* ------------------------------------------------------------------ ennemis */
-  // hp, speed (cases/s), gold (prime), xp (bonus d'expérience de la tour qui l'achève).
+  // hp, speed (cases/s), gold (prime de base, qui grandit un peu avec les PV de la vague), xp (bonus
+  // d'expérience de la tour qui l'achève), threat (poids dans le budget d'une vague).
   D.ENEMIES = {
     fermier: {
       name: "Agriculteur en colère",
       ct: "Paysan",
-      hp: 40, speed: 1.0, gold: 3, xp: 2,
+      hp: 40, speed: 1.0, gold: 6, xp: 2, threat: 4,
       ability: null,
       blurb: "Il a sorti la fourche. Pas bien solide, mais ils arrivent nombreux.",
     },
     quad: {
       name: "Voleur en quad",
       ct: "Voleur",
-      hp: 70, speed: 1.6, gold: 5, xp: 3,
+      hp: 70, speed: 1.6, gold: 9, xp: 3, threat: 6,
       ability: null,
       blurb: "Rapide sur son petit quad : il faut l'arrêter avant qu'il ne file avec une gemme.",
     },
     cowboy: {
       name: "Cow-boy au lasso",
       ct: "Guerrier",
-      hp: 120, speed: 0.75, gold: 6, xp: 4,
+      hp: 120, speed: 0.75, gold: 12, xp: 4, threat: 8,
       ability: { kind: "lasso", range: 1.5 },
       blurb: "Lent mais costaud. Son lasso attrape une gemme tombée jusqu'à une case et demie.",
     },
     vache: {
       name: "Cavalier sur vache",
       ct: "Chevalier",
-      hp: 150, speed: 0.7, gold: 8, xp: 5,
+      hp: 150, speed: 0.7, gold: 16, xp: 5, threat: 11,
       ability: { kind: "shield", value: 5 },
       blurb: "Son bidon de lait sert de bouclier : chaque coup perd 5 points de dégâts (sauf le feu du berger).",
     },
     druide: {
       name: "Druide",
       ct: "Mage",
-      hp: 100, speed: 1.0, gold: 8, xp: 5,
+      hp: 100, speed: 1.0, gold: 15, xp: 5, threat: 10,
       ability: { kind: "barrier", value: 100, regen: 6 },
       blurb: "Une bulle de gui absorbe 100 points de dégâts et se reforme après 6 s sans être touché.",
     },
     bigoudene: {
       name: "Bigoudène aux crêpes",
       ct: "Prêtre",
-      hp: 120, speed: 1.0, gold: 9, xp: 5,
+      hp: 120, speed: 1.0, gold: 16, xp: 5, threat: 11,
       ability: { kind: "heal", value: 30, every: 3, range: 2 },
       blurb: "Toutes les 3 s, une crêpe rend 30 PV à l'allié le plus blessé autour d'elle.",
     },
     chasseur: {
       name: "Chasseur camouflé",
       ct: "Ninja",
-      hp: 100, speed: 1.5, gold: 8, xp: 5,
+      hp: 100, speed: 1.5, gold: 15, xp: 5, threat: 10,
       ability: { kind: "smoke", t: 5 },
       blurb: "Au premier coup reçu, il lance un fumigène et devient invisible 5 s. Les zones le touchent quand même.",
     },
     rugbyman: {
       name: "Rugbyman",
       ct: "Assassin",
-      hp: 110, speed: 1.5, gold: 9, xp: 6,
+      hp: 110, speed: 1.5, gold: 16, xp: 6, threat: 11,
       ability: { kind: "evade", chance: 0.5 },
       blurb: "Il esquive un projectile sur deux. Les dégâts de zone ne s'esquivent pas.",
     },
     sonneur: {
       name: "Sonneur de biniou",
       ct: "Barde",
-      hp: 110, speed: 1.0, gold: 9, xp: 6,
+      hp: 110, speed: 1.0, gold: 16, xp: 6, threat: 11,
       ability: { kind: "haste", every: 8, t: 3, range: 2, mult: 2 },
       blurb: "Toutes les 8 s, un air de biniou double la vitesse des alliés proches pendant 3 s.",
     },
     pompier: {
       name: "Pompier",
       ct: "Paladin",
-      hp: 200, speed: 0.85, gold: 12, xp: 8,
+      hp: 200, speed: 0.85, gold: 22, xp: 8, threat: 16,
       ability: { kind: "immune" },
       blurb: "Rien ne le ralentit : immunisé contre le gel, la peur, la brûlure, l'étourdissement, le rayonnement et le désarmement.",
     },
     canard: {
       name: "Cavalier sur canard",
       ct: "Valkyrie",
-      hp: 90, speed: 1.2, gold: 8, xp: 5,
+      hp: 90, speed: 1.2, gold: 14, xp: 5, threat: 9,
       ability: { kind: "swim" },
       blurb: "Son canard géant nage : il coupe par l'eau au lieu de suivre le chemin.",
     },

@@ -1,116 +1,132 @@
-// « Pas touche à mes trésors » — progression permanente (étoiles, points de talent, déblocages,
-// records) et point de reprise de la partie en cours. Stockés séparément dans le navigateur.
+// « Pas touche à mes trésors » — progression du joueur (PTMT.progress) : missions gagnées, gemmes
+// sauvées, rang « Brillant », points et rangs de compétences, ennemis déjà rencontrés, réglages.
+//
+// Comme dans Cursed Treasure : chaque mission gagnée pour la première fois rapporte 3 points de
+// compétence ; on peut redistribuer les points à tout moment entre les missions. La progression reste
+// dans le navigateur (localStorage, clé « ptmt-v3 »), avec repli en mémoire si le stockage est bloqué.
 (function () {
   "use strict";
   const PTMT = (globalThis.PTMT = globalThis.PTMT || {});
-  const C = PTMT.config;
-  const KEY_PROGRESS = "ptmt.progress.v1";
-  // Point de reprise : format 2 (terrain à cases, forêts). Les anciennes parties ne se reprennent pas.
-  const KEY_SAVE = "ptmt.save.v2";
-  const OLD_SAVES = ["ptmt.save.v1"];
+  const D = PTMT.sim.DATA;
+  const KEY = "ptmt-v3";
+  let memory = null;
 
-  function fresh() {
-    const levels = {};
-    for (let l = 1; l <= 5; l++) levels[l] = { stars: 0, won: false, rewards: { win: false, star2: false, star3: false } };
-    return { v: 1, unlockedLevel: 1, highestStarted: 1, levels, talents: PTMT.talents.emptyAllocation(), records: {}, tutorial: {} };
-  }
-  function pointsEarned(p) {
-    let n = 0;
-    for (const l of Object.values(p.levels)) n += (l.rewards.win ? C.rewards.win : 0) + (l.rewards.star2 ? C.rewards.star2 : 0) + (l.rewards.star3 ? C.rewards.star3 : 0);
-    return n;
-  }
-  function pointsAvailable(p) {
-    return pointsEarned(p) - PTMT.talents.spentTotal(p.talents);
-  }
-  /** Enregistre un résultat ; renvoie les nouveaux points et déblocages. Rejouer ne redonne rien. */
-  function recordResult(p, level, result) {
-    const L = p.levels[level];
-    let points = 0;
-    if (result.win) {
-      if (!L.rewards.win) {
-        L.rewards.win = true;
-        points += C.rewards.win;
-      }
-      if (result.stars >= 2 && !L.rewards.star2) {
-        L.rewards.star2 = true;
-        points += C.rewards.star2;
-      }
-      if (result.stars >= 3 && !L.rewards.star3) {
-        L.rewards.star3 = true;
-        points += C.rewards.star3;
-      }
-      L.won = true;
-      L.stars = Math.max(L.stars, result.stars);
-      p.unlockedLevel = Math.min(5, Math.max(p.unlockedLevel, level + 1));
-    }
-    return { points, unlockedLevel: p.unlockedLevel };
-  }
-  function markStarted(p, level) {
-    p.highestStarted = Math.max(p.highestStarted || 1, level);
-  }
-  /** Sorts disponibles : ceux des niveaux déjà atteints restent acquis, même en rejouant. */
-  function unlockedSpells(p, level) {
-    const reach = Math.max(level, p.highestStarted || 1);
-    return Object.entries(C.spells.unlockLevel)
-      .filter(([, l]) => l <= reach)
-      .map(([k]) => k);
-  }
-  function recordEndless(p, level, layoutId, waves) {
-    const key = level + ":" + layoutId;
-    const prev = p.records[key] || 0;
-    if (waves > prev) p.records[key] = waves;
-    return waves > prev;
-  }
-  function storage() {
-    try {
-      return globalThis.localStorage || null;
-    } catch {
-      return null;
-    }
-  }
-  function load() {
-    const st = storage();
-    try {
-      const raw = st && st.getItem(KEY_PROGRESS);
-      if (raw) {
-        const p = JSON.parse(raw);
-        const f = fresh();
-        const merged = Object.assign(f, p);
-        merged.levels = Object.assign(f.levels, p.levels || {});
-        if (!PTMT.talents.validate(merged.talents || {}, pointsEarned(merged))) merged.talents = PTMT.talents.emptyAllocation();
-        return merged;
-      }
-    } catch {}
-    return fresh();
-  }
-  function save(p) {
-    const st = storage();
-    try {
-      st && st.setItem(KEY_PROGRESS, JSON.stringify(p));
-    } catch {}
-  }
-  /** Point de reprise lisible, ou null (une sauvegarde incompatible est effacée sans bruit). */
-  function loadCheckpoint(st = storage()) {
-    try {
-      for (const k of OLD_SAVES) if (st && st.getItem(k) !== null) st.removeItem(k);
-      const raw = st && st.getItem(KEY_SAVE);
-      if (!raw) return null;
-      const cp = JSON.parse(raw);
-      if (PTMT.Game && PTMT.Game.compatible && !PTMT.Game.compatible(cp)) {
-        st.removeItem(KEY_SAVE);
-        return null;
-      }
-      return cp;
-    } catch {
-      return null;
-    }
-  }
-  function saveCheckpoint(cp, st = storage()) {
-    try {
-      if (cp) st && st.setItem(KEY_SAVE, JSON.stringify(cp));
-      else st && st.removeItem(KEY_SAVE);
-    } catch {}
-  }
+  const P = (PTMT.progress = {});
+  P.fresh = () => ({ version: 3, levels: {}, unlocked: 1, skills: {}, seen: {}, settings: { quality: "auto", speed: 1 } });
 
-  PTMT.progress = { fresh, pointsEarned, pointsAvailable, recordResult, markStarted, unlockedSpells, recordEndless, load, save, loadCheckpoint, saveCheckpoint };
+  P.load = function () {
+    let raw = null;
+    try {
+      raw = globalThis.localStorage ? localStorage.getItem(KEY) : null;
+    } catch {}
+    let p = null;
+    try {
+      p = raw ? JSON.parse(raw) : memory ? JSON.parse(memory) : null;
+    } catch {}
+    return P.sanitize(p);
+  };
+  P.save = function (p) {
+    const text = JSON.stringify(P.sanitize(p));
+    memory = text;
+    try {
+      if (globalThis.localStorage) localStorage.setItem(KEY, text);
+    } catch {}
+  };
+  /** Relit une progression inconnue sans jamais planter (valeurs bornées, compétences cohérentes). */
+  P.sanitize = function (p) {
+    const out = P.fresh();
+    if (!p || typeof p !== "object") return out;
+    const maxLevel = PTMT.sim.MAPS ? PTMT.sim.MAPS.length - 1 : 15;
+    if (p.levels && typeof p.levels === "object")
+      for (const [k, v] of Object.entries(p.levels)) {
+        const n = Number(k);
+        if (!(n >= 1 && n <= maxLevel) || !v || typeof v !== "object") continue;
+        out.levels[n] = { won: !!v.won, bestGems: Math.max(0, Math.floor(v.bestGems || 0)), gemsTotal: Math.max(0, Math.floor(v.gemsTotal || 0)), brilliant: !!v.brilliant };
+      }
+    const won = Object.keys(out.levels).filter((k) => out.levels[k].won).map(Number);
+    out.unlocked = Math.min(maxLevel, Math.max(1, Math.floor(p.unlocked || 1), ...won.map((n) => n + 1)));
+    if (p.seen && typeof p.seen === "object") for (const k of Object.keys(p.seen)) if (D.ENEMIES[k]) out.seen[k] = true;
+    if (p.settings && typeof p.settings === "object") {
+      if (["auto", "high", "low"].includes(p.settings.quality)) out.settings.quality = p.settings.quality;
+      if ([1, 2, 3].includes(p.settings.speed)) out.settings.speed = p.settings.speed;
+    }
+    // Compétences : rangs bornés, puis retrait de ce qui dépasse les points ou les prérequis.
+    if (p.skills && typeof p.skills === "object")
+      for (const s of D.SKILLS) {
+        const r = Math.floor(p.skills[s.id] || 0);
+        if (r > 0) out.skills[s.id] = Math.min(s.max, r);
+      }
+    while (P.pointsSpent(out) > P.pointsTotal(out) || !P.valid(out)) {
+      const last = [...D.SKILLS].reverse().find((s) => out.skills[s.id] > 0);
+      if (!last) break;
+      out.skills[last.id]--;
+      if (!out.skills[last.id]) delete out.skills[last.id];
+    }
+    return out;
+  };
+  P.pointsTotal = (p) => Object.values(p.levels).filter((l) => l.won).length * D.pointsPerLevel;
+  P.pointsSpent = (p) => Object.values(p.skills || {}).reduce((a, b) => a + b, 0);
+  P.pointsFree = (p) => Math.max(0, P.pointsTotal(p) - P.pointsSpent(p));
+  P.branchPoints = (p, branch) => D.SKILLS.filter((s) => s.branch === branch).reduce((a, s) => a + (p.skills[s.id] || 0), 0);
+  /** Chaque compétence prise respecte son prérequis (points dans la branche sans compter elle-même). */
+  P.valid = function (p) {
+    for (const s of D.SKILLS) {
+      const r = p.skills[s.id] || 0;
+      if (!r) continue;
+      if (P.branchPoints(p, s.branch) - r < s.req) return false;
+    }
+    return true;
+  };
+  P.canRaise = function (p, id) {
+    const s = D.SKILL[id];
+    if (!s) return { ok: false, reason: "Compétence inconnue" };
+    const r = p.skills[id] || 0;
+    if (r >= s.max) return { ok: false, reason: "Rang maximum" };
+    if (P.pointsFree(p) <= 0) return { ok: false, reason: "Plus de point libre : gagne une mission" };
+    const have = P.branchPoints(p, s.branch) - r;
+    if (have < s.req) return { ok: false, reason: "Demande " + s.req + " points dans la branche " + D.BRANCHES[s.branch].name + " (" + have + ")" };
+    return { ok: true };
+  };
+  P.raise = function (p, id) {
+    if (!P.canRaise(p, id).ok) return false;
+    p.skills[id] = (p.skills[id] || 0) + 1;
+    return true;
+  };
+  P.canLower = function (p, id) {
+    if (!(p.skills[id] > 0)) return { ok: false, reason: "Aucun rang à retirer" };
+    p.skills[id]--;
+    const ok = P.valid(p);
+    p.skills[id]++;
+    return ok ? { ok: true } : { ok: false, reason: "D'autres compétences de la branche en dépendent" };
+  };
+  P.lower = function (p, id) {
+    if (!P.canLower(p, id).ok) return false;
+    p.skills[id]--;
+    if (!p.skills[id]) delete p.skills[id];
+    return true;
+  };
+  P.resetSkills = function (p) {
+    p.skills = {};
+  };
+  P.markSeen = function (p, type) {
+    if (!D.ENEMIES[type] || p.seen[type]) return false;
+    p.seen[type] = true;
+    return true;
+  };
+  /** Enregistre la fin d'une mission ; renvoie ce qui a changé (pour l'écran de victoire). */
+  P.recordResult = function (p, level, over) {
+    const cur = p.levels[level] || { won: false, bestGems: 0, gemsTotal: 0, brilliant: false };
+    const firstWin = !!over.win && !cur.won;
+    if (over.win) {
+      cur.won = true;
+      cur.bestGems = Math.max(cur.bestGems, over.gemsLeft);
+      cur.gemsTotal = over.gemsTotal;
+      cur.brilliant = cur.brilliant || !!over.brilliant;
+    }
+    p.levels[level] = cur;
+    const maxLevel = PTMT.sim.MAPS.length - 1;
+    const before = p.unlocked;
+    if (over.win) p.unlocked = Math.min(maxLevel, Math.max(p.unlocked, level + 1));
+    return { firstWin, points: firstWin ? D.pointsPerLevel : 0, unlocked: p.unlocked > before ? p.unlocked : null, best: cur };
+  };
 })();

@@ -151,7 +151,7 @@ Le moulin (repaire) occupe les cases `X` voisines de `L`. Une carte a 1 repaire,
 
 ```js
 const game = PTMT.sim.createGame({ level: 1, skills: { goldVault: 2, ... }, seed: 1 });
-game.step(dt);                 // dt réel × vitesse ; pas fixes internes de 1/60 s
+game.step(dt);                 // dt réel ; vitesse (×1/×2/×3) et pause appliquées dedans ; pas fixes de 1/60 s
 game.state                     // état vivant (lecture seule pour le rendu et l'interface)
 game.drainEvents()             // événements depuis le dernier appel (tableau)
 // Commandes → { ok: true } ou { ok: false, reason: "texte en français" }
@@ -187,13 +187,20 @@ game.describeEnemy(type)       // { name, role, hp, speed, ability } pour les fi
 }
 ```
 
-Événements (`type` + champs) : `spawn {enemyId}`, `shot {towerId, projectileId}`, `hit {enemyId, dmg,
+Événements (`type` + champs) : `spawn {enemyId}`, `attack {towerId, targetId}` (début de l'élan de la
+tour), `shot {towerId, projectileId}`, `impact {projectileId, kind, x, y, r, crit}`, `fizzle {projectileId}`
+(cible disparue), `hit {enemyId, dmg,
 crit, evaded, absorbed, x, y, kind}`, `kill {enemyId, gold, towerId, x, y}`, `steal {enemyId, gemId}`
 (pris au repaire), `drop {gemId, x, y}`, `pickup {gemId, enemyId}`, `escape {enemyId, gemId}`,
 `gemReturn {gemId}`, `build {towerId}`, `upgrade {towerId, level, spec}`, `sell {towerId, gold}`,
 `cast {spell, x, y}`, `meteorImpact {x, y, r}`, `cut {i, j}`, `heal {fromId, toId, amount}`,
 `smoke {enemyId}`, `haste {enemyId}`, `barrierBreak {enemyId}`, `disarm {enemyId}`, `fear {enemyId}`,
-`freeze {enemyId}`, `corpseBomb {x, y, r}`, `waveStart {index}`, `newEnemy {type}`, `win`, `lose`.
+`freeze {enemyId}`, `stun {enemyId}`, `immune {enemyId}`, `lasso {enemyId, gemId}`, `barrierUp {enemyId}`,
+`corpseBomb {x, y, r}`, `frenzy {on}`, `waveStart {index}`, `newEnemy {type}`, `bossArrives {enemyId, name}`,
+`secretOpen`, `earlyBonus {gold}`, `win`, `lose`.
+
+Angles : `dir` (ennemis) et `aim` (tours) sont des angles « monde » : 0 = vers +y (+Z), π/2 = vers +x
+(+X), utilisables tels quels en `rotation.y`. `state.gemCount = { total, lair, ground, carried, lost }`.
 
 Projectiles `kind` : `chestnut` (sanglier 1–3 et chasseur), `bigChestnut` (baliste, catapulte ; tir en
 cloche), `waterJet` (cygne 1–3), `iceShard` (cygne des glaces), `darkWater` (cygne noir), `fireball`

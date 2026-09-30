@@ -26,7 +26,7 @@
   S.DECOR_BY_BIOME = { bocage: "talus", rocheux: "boulders", marais: "pond_rocks", village: "house" };
 
   add({
-    id: 1, name: "Le chemin du moulin", ct: "Basics", difficulty: "tutoriel", waves: 5, gold: 120, biome: "bocage", mana: [], mill: [[18, 10], [19, 10], [18, 11], [19, 11]],
+    id: 1, name: "Le chemin du moulin", ct: "Basics", difficulty: "tutoriel", waves: 5, gold: 160, biome: "bocage", mana: [], mill: [[18, 10], [19, 10], [18, 11], [19, 11]],
     grid: [
       "..ffff.......ff.....",
       "E################...",
