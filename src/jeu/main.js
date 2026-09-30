@@ -97,6 +97,10 @@
       }
     }
     app.scene = new THREE.Scene();
+    // Les calques d'états des ennemis (glaçons, fumées, bulles…) se raccrochent tout seuls à la scène
+    // du premier ennemi mis à jour : on les détache de l'ancienne scène.
+    const overlay = PTMT.actors && PTMT.actors.overlay;
+    if (overlay && overlay.root && overlay.root.parent) overlay.root.parent.remove(overlay.root);
     app.map = map;
     app.view = PTMT.view.create({ renderer: app.renderer, scene: app.scene, map, mobile: app.mobile, quality: app.quality() });
     app.viewAdapter = {
