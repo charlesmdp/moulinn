@@ -2,9 +2,9 @@
 
 Le jardin interactif 3D du moulin, **version 32** : le moulin, la dépendance,
 les jardins, l'eau, les véhicules, les animaux, l'aménagement et les commandes
-tactiles, avec la météo et l'heure réelles. L'onglet **Jeu** ouvre
-« Pas touche à mes trésors », un tower defense dans le domaine du moulin
-(adresse `/jeu/`).
+tactiles, avec la météo et l'heure réelles. Le tower defense « Pas touche à
+mes trésors » se joue à part, à l'adresse `/jeu/` (plus de bouton sur la page
+d'accueil).
 
 Le dossier `dist/` est le site prêt à publier (Cloudflare Pages ou tout
 hébergement statique en HTTPS). Les sources modifiables sont dans `src/`.
@@ -13,10 +13,10 @@ hébergement statique en HTTPS). Les sources modifiables sont dans `src/`.
 
 | Adresse | Contenu |
 | --- | --- |
-| `/` | L'accueil des visiteurs : Personnage, Vue libre, Météo et Jeu |
+| `/` | L'accueil des visiteurs : Personnage, Vue libre et Météo |
 | `/3D/` | La même page avec la **Vue 3D** en plus |
 | `/build/` | La vue 3D et l'atelier **Aménager** (page non indexée par les moteurs de recherche) |
-| `/jeu/` | Le jeu « Pas touche à mes trésors » |
+| `/jeu/` | Le jeu « Pas touche à mes trésors » (seule façon d'y accéder) |
 
 `/3d` ou `/Build` (autres majuscules, avec ou sans « / ») mènent aux mêmes
 pages. Rappel : les retouches faites dans l'atelier restent dans le navigateur
@@ -24,6 +24,20 @@ qui les a faites ; `/build` évite surtout que les visiteurs tombent sur
 l'atelier.
 
 ## Nouveautés de cette série
+
+- **« Pas touche à mes trésors » refait façon Cursed Treasure** (adresse
+  `/jeu/`) : vue du dessus fixe, quinze missions, gemmes volées que les autres
+  ennemis viennent ramasser, sanglier, cygne et berger australien qui devient
+  dragon, onze ennemis (agriculteurs en colère, voleurs en quad, cavaliers sur
+  vache ou sur canard, cow-boys au lasso…), sorts, compétences, logo et icônes
+  (détails plus bas).
+- **Plus de bouton Jeu sur la page d'accueil** : le jeu ne s'ouvre qu'à
+  l'adresse `/jeu/`.
+- **Chapeau de paille** : le personnage porte un grand chapeau de paille à la
+  One Piece (bord large, ruban rouge), en toutes saisons ; il remplace le
+  bonnet d'hiver.
+
+## Retouches précédentes
 
 - **Plus de gel quand la lumière change** : allumer la lampe torche ou les
   phares du quad, le lever et le coucher du soleil (y compris en faisant
@@ -49,8 +63,6 @@ l'atelier.
   les ponts, les bâtiments et l'abord du moulin restent dégagés. Densité
   réglable, liste des zones, « Annuler la dernière zone », « Tout effacer » ;
   sur téléphone, le panneau se replie pendant le tracé.
-
-## Retouches précédentes
 
 - **L'eau coule dans le bon sens** : du ruisseau du sud-ouest au grand étang,
   puis par le bief jusqu'au moulin et vers la rivière de l'est. Rides, écume,
@@ -98,78 +110,80 @@ l'atelier.
 
 ## Le jeu « Pas touche à mes trésors »
 
-Onglet **Jeu** de la barre des modes, ou adresse `/jeu/`. Des voleurs
-farfelus viennent prendre les six trésors cachés dans le moulin et ses
-dépendances : tours, pièges et sorts les arrêtent avant qu'ils ne repartent
-avec leur sac. Un voleur mis KO lâche son butin, que l'on peut reprendre ; le
-sort Rappel le ramène, et un sac tombé à l'eau flotte.
+Adresse `/jeu/` uniquement (plus de bouton sur la page d'accueil). Un tower
+defense calqué sur **Cursed Treasure: Don't Touch My Gems!**, dans la campagne
+du moulin : la carte entière se voit du dessus, sans déplacer la caméra.
 
-- **Cinq niveaux** : Bienvenue chez moi (10 vagues), Le domaine coupé en deux
-  (12), Les trois mauvaises portes (15), Les pirates du pédalo (15), Le grand
-  cambriolage (20). Chaque niveau gagné peut continuer sans fin.
-- **Cartes pensées pour le jeu** : elles s'éloignent de la vraie géographie du
-  domaine. Des chemins sinueux partent d'une à trois portes au bord de la carte
-  (chacune a sa couleur et son panneau) et mènent au moulin, à sa roue et à ses
-  dépendances, où brillent les réserves de trésors.
-- **Cases de construction** : de part et d'autre des chemins, 74 à 87 cases
-  libres par niveau, en trois terrains : la rocaille (dalles de pierre) pour
-  les tours de feu, le givre (cercles de runes) pour la glace, la berge et le
-  marais pour l'eau. Les tours se posent côte à côte. En construction, la
-  grille apparaît, les cases de la bonne famille s'allument et la case visée
-  montre la portée et le prix.
-- **Forêts à couper** : 18 à 32 cases boisées par niveau (pinède, sapins
-  givrés, bosquet de la berge). « Couper la forêt » coûte 30 or, 5 de plus à
-  chaque nouvelle coupe (60 au plus), et dure 4 secondes de jeu, aussi entre
-  les vagues : les arbres tremblent et tombent, il reste des souches, et la
-  case accueille ensuite une tour de sa famille.
-- **Vagues annoncées** : le panneau « Prochaine vague » dit d'où viennent les
-  voleurs et ce qu'ils visent (porte → réserve), combien et lesquels
-  (portraits, élites, chef, nageurs, fumigènes…), puis résume les trois vagues
-  suivantes. Sur la carte, un repère se dresse à chaque porte utilisée et le
-  trajet défile en chevrons de sa couleur ; une porte hors de l'écran est
-  signalée par une flèche au bord, qu'on touche pour y aller. Pendant la
-  vague, un bandeau rappelle la suivante. Le mode sans fin est annoncé de la
-  même façon.
-- **Trois familles de tours**, chacune avec deux branches d'évolution :
-  - Feu : Brasier grognon → Souffle infernal → Dragon de la fournaise, ou
-    Crache-lave → Volcan furieux ;
-  - Glace : Obélisque givré → Crypte du gel → Trône du zéro absolu, ou
-    Souffleur de blizzard → Tempête polaire ;
-  - Eau : Cygne grincheux (un cygne en colère qui crache de l'eau) →
-    Bélier hydraulique → Canon tsunami, ou
-    Fontaine siphon → Maelström glouton.
+- **Les gemmes** : cinq gemmes (six avec la compétence Filon) brillent devant
+  le moulin. Chaque ennemi vient en prendre une et repart vers la sortie la
+  plus proche ; s'il sort, elle est perdue. Tué, il la lâche sur place et les
+  autres ennemis sans gemme foncent la chercher par le plus court chemin (en
+  faisant demi-tour s'il le faut) puis repartent avec. Mission perdue quand
+  toutes les gemmes sont parties, gagnée s'il en reste au moins une ;
+  « Brillant » si aucune n'a été perdue.
+- **Trois tours, trois terrains** : le **sanglier** sur l'herbe (bogues de
+  châtaigne, dégâts réguliers), le **cygne** sur l'eau (jet d'eau qui trempe et
+  ralentit), le **berger australien cracheur de feu** sur la roche (boules de
+  feu qui traversent les boucliers). Les **buttes** acceptent les trois et
+  donnent +30 % de portée et +10 % de dégâts ; une tour posée sur un **menhir**
+  accélère la régénération du mana. Les cases boisées se dégagent avec le sort
+  **Couper**.
+- **Niveaux 1 à 7** : chaque tour gagne de l'expérience en combattant, puis on
+  achète le niveau suivant. Au niveau 4, elle se spécialise, au niveau 7 elle
+  évolue encore :
+  - Marcassin → Jeune sanglier → Sanglier des talus, puis Sanglier chasseur
+    (coups critiques) → Grand Solitaire, ou Laie baliste (tir de zone) →
+    Catapulte à châtaignes ;
+  - Cygneau → Cygne → Cygne majestueux, puis Cygne des glaces (ralentit, fait
+    reculer de peur) → Cygne royal des glaces (gel), ou Cygne noir (vole du
+    mana, désarme) → Cygne noir enchanteur ;
+  - Chiot berger → Berger australien → Berger de feu, puis il devient dragon :
+    Dragon merle rouge (feu de zone, brûlure) → Grand dragon rouge, ou Dragon
+    merle bleu (rayonnement, explosion des vaincus) → Grand dragon bleu.
+- **Onze ennemis** (même rôle que ceux de Cursed Treasure) : agriculteur en
+  colère, voleur en quad, cow-boy au lasso (attrape les gemmes tombées),
+  cavalier sur vache (bouclier), druide (barrière qui se reforme), bigoudène
+  aux crêpes (soigne), chasseur camouflé (fumigène : invisible), rugbyman
+  (esquive un tir sur deux), sonneur de biniou (accélère ses voisins), pompier
+  (insensible aux effets) et cavalier sur canard (coupe par l'eau). Chacun a
+  sa version champion, et chaque mission se termine par un boss nommé.
+- **Trois sorts** payés en mana : Couper, Frénésie (les tours tirent deux fois
+  plus vite pendant 5 s), Météore.
+- **Quinze missions** reprenant la progression de Cursed Treasure (5 à 50
+  vagues) : Le chemin du moulin, Le Gué, Les Deux Prés, La Croix, Le Hallier,
+  Le Vieux Fort, Les Yeux du serpent, Le Labyrinthe de talus, Le Carrefour,
+  L'Allée des chênes, L'Hydre du marais, La Percée, Le Manoir du Roi, Le
+  Passage secret (un fourré s'ouvre en chemin à la 25e vague) et La Bataille
+  du Moulin.
+- **Compétences** : 3 points par mission gagnée, à répartir dans trois
+  branches (Sanglier : or et Couper ; Cygne : mana et Frénésie ; Berger :
+  gemmes et Météore), 21 compétences de 1 à 5 rangs, redistribuables.
 
-  Les tours gagnent de l'expérience ; faire évoluer une tour demande l'Atelier.
-- **Pièges** : filet entre les arbres, ressort farceur, faux coffre, posés sur
-  les emplacements marqués des chemins.
-- **Sorts** (mana) : Météore et Rappel dès le niveau 1, Gel instantané au
-  niveau 2, Vague de crue au 3, Frénésie au 4.
-- **Onglet Moulin** : Meule, Roue magique et Atelier ; talents entre les
-  niveaux.
-- **Voleurs** : voleur du dimanche, sprinteur en claquettes, déménageur en
-  matelas, voleur au fumigène, nageur en flamant rose, chef en tondeuse blindée,
-  et leurs versions d'élite (voleur à casserole, patineur, forteresse canapé,
-  ninja au rideau de douche, pirate en pédalo, limousine-tondeuse). Ce sont des
-  personnages de dessin animé (grosse tête, couleurs vives, contour sombre),
-  lisibles vus d'en haut, qui brandissent le sac doré quand ils ont volé.
-- **Étoiles** : trois sans aucun vol, deux sans perte définitive.
+- **Interface de jeu vidéo** : logo, écran titre, carte des missions (gemmes
+  sauvées, couronne « Brillant »), compétences, encyclopédie des ennemis et des
+  tours, fiche « Nouvel ennemi ! » à la première apparition d'un type, bandeau
+  du boss, aperçu de la prochaine vague (ennemis, nombre, entrées, compte à
+  rebours) avec le bouton « Appeler » qui rapporte de l'or, icônes dessinées
+  pour tout (tours à chaque niveau, ennemis, sorts, compétences, terrains,
+  états). Police des titres : Lilita One (licence SIL OFL, jointe dans
+  `/jeu/OFL-LilitaOne.txt`).
 
 Commandes :
 
 | | Ordinateur | Téléphone et tablette |
 | --- | --- | --- |
-| Déplacer la vue | glisser, ou ZQSD / WASD / flèches | glisser un doigt |
-| Zoomer | molette, `+` et `-` | pincer |
-| Tourner | clic droit ou Maj + glisser | tourner deux doigts |
-| Construire | choisir une tour ou un piège en bas, puis cliquer une case allumée | toucher une case pour voir la portée, toucher encore pour construire |
-| Couper une forêt | cliquer une case boisée, puis « Couper la forêt » | pareil, en touchant |
-| Pause, vitesse ×2 | Espace ou P, F | boutons en haut à droite |
-| Lancer la vague | Entrée | « Lancer la vague » |
-| Sorts | touches 1 à 5 | onglet Sorts |
+| Construire | cliquer une case de terrain, puis la tour | toucher une case, puis la tour |
+| Améliorer, spécialiser, vendre | cliquer la tour | toucher la tour |
+| Couper une forêt | cliquer la case boisée (ou sort Couper puis la case) | pareil, en touchant |
+| Sorts | Q, W, E (puis la cible pour Couper et Météore) | gros boutons ronds en bas |
+| Pause | Espace | bouton pause |
+| Vitesse ×1, ×2, ×3 | 1, 2, 3 | bouton de vitesse |
+| Appeler la vague suivante | Entrée | « Appeler » |
+| Annuler | Échap | toucher ailleurs |
 
-La progression (étoiles, talents, records) reste dans le navigateur ; une
-partie se reprend entre deux vagues, coupes de forêt comprises. Une partie
-enregistrée avec les anciennes cartes est oubliée (la progression reste).
+La caméra ne bouge pas : la carte entière est toujours visible (sur téléphone
+debout, elle pivote d'un quart de tour pour remplir l'écran). La progression
+(missions, gemmes, compétences, ennemis rencontrés) reste dans le navigateur.
 
 ## Nouveautés de la version 32
 
