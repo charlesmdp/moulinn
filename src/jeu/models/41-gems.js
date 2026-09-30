@@ -514,8 +514,8 @@
     graniteW: "#c9c0ad",
     graniteD: "#8e8574",
     dressed: "#d2c8b2",
-    slate: "#5f6c82",
-    slateD: "#3d4454",
+    slate: "#7486a0",
+    slateD: "#4d586c",
     wood: "#9a7652",
     woodD: "#5e4430",
     woodW: "#a88d6c",
@@ -604,14 +604,17 @@
       BW = bz1 - bz0,
       bcx = (bx0 + bx1) / 2,
       bcz = (bz0 + bz1) / 2;
-    const EAVE = FL + 3.3,
-      RISE = 2.35;
+    // Moulin assez bas pour ne jamais cacher le tas de gemmes, quelle que soit son orientation
+    // (vue du dessus inclinée à 60° : le toit masque le sol sur environ 0,58 fois sa hauteur).
+    const EAVE = FL + 2.9,
+      RISE = 2.0;
     const WH = { x: 3.9, y: FL + 0.5, z: -2.95, r: 1.38, w: 0.6 }; // roue
 
     /* --- socle : levée de terre herbue bordée de granit, marches vers le chemin (évidée pour la fosse) */
     const grassO = { c: C.grassD, g: [C.earth, C.grass, -0.2, FL], vj: 0.1 };
-    W.put(T.boxB(7.85, FL + 0.35, 6.85), [-1.425, -0.35, -5.52], 0, 1, grassO);
-    W.put(T.boxB(2.85, FL + 0.35, 5.3), [3.925, -0.35, -6.3], 0, 1, grassO);
+    // Sommet de la levée à peine sous le sol peint de la carte : c'est lui qu'on voit (pas d'aplat vert).
+    W.put(T.boxB(7.85, FL + 0.31, 6.85), [-1.425, -0.35, -5.52], 0, 1, grassO);
+    W.put(T.boxB(2.85, FL + 0.31, 5.3), [3.925, -0.35, -6.3], 0, 1, grassO);
     S.put(T.boxB(10.8, FL + 0.37, 0.36), [0, -0.35, -1.98], 0, 1, { c: C.graniteD, box: 1.4, vj: 0.08 });
     for (let i = 0; i < 2; i++) S.put(T.boxB(1.9 - i * 0.25, 0.15 * (i + 1), 0.34), [-0.3, 0, -1.47 - i * 0.26], 0, 1, { c: C.dressed, box: 1.2 });
     // Pavés devant la porte.
@@ -768,7 +771,7 @@
     }
 
     /* --- le tas de gemmes : meule couchée, trésor scintillant (rôle 5 : s'aplatit avec setGems) */
-    const mz = 0.15;
+    const mz = 0.55; // tas avancé sur la case L, bien dégagé de l'avant-toit
     W.put(T.cylB(1.08, 1.14, 0.28, 24), [0, 0, mz], 0, 1, { c: "#cbc2b0", vj: 0.1, vs: 4, ao: [0.7, 0, 0.28], rim: 0.2 });
     W.put(T.cylB(1.1, 1.1, 0.05, 24, true), [0, 0.2, mz], 0, 1, { c: "#9c9384" });
     for (let i = 0; i < 12; i++) {
@@ -789,14 +792,14 @@
     }
 
     /* --- lanterne (support de fer) et cloche d'alarme (rôle 4 : se balance) */
-    const lan = { x: 0.75, y: FL + 2.35, z: bz1 + 0.42 };
+    const lan = { x: 0.75, y: FL + 1.95, z: bz1 + 0.42 };
     W.put(T.box(0.05, 0.05, 0.5), [lan.x, lan.y + 0.62, bz1 + 0.2], 0, 1, { c: C.iron });
     W.put(T.box(0.05, 0.4, 0.05), [lan.x, lan.y + 0.42, bz1 + 0.02], [0.6, 0, 0], 1, { c: C.iron });
     W.put(T.boxB(0.3, 0.04, 0.3), [lan.x, lan.y - 0.02, lan.z], 0, 1, { c: C.iron });
     W.put(T.cone(0.24, 0.2, 4), [lan.x, lan.y + 0.4, lan.z], [0, Math.PI / 4, 0], 1, { c: C.iron });
     for (const sx of [-1, 1]) for (const sz of [-1, 1]) W.put(T.boxB(0.03, 0.4, 0.03), [lan.x + sx * 0.12, lan.y, lan.z + sz * 0.12], 0, 1, { c: C.iron });
     W.put(T.boxB(0.2, 0.34, 0.2), [lan.x, lan.y + 0.02, lan.z], 0, 1, { c: C.lantern, emit: 1.1 });
-    const bell = { x: -1.5, y: FL + 2.75, z: bz1 + 0.62 };
+    const bell = { x: -1.5, y: FL + 2.35, z: bz1 + 0.62 };
     // Potence de chêne, petit auvent de planches, et la cloche de bronze.
     W.put(T.box(0.13, 0.13, 0.85), [bell.x, bell.y + 0.2, bz1 + 0.38], 0, 1, { c: C.woodD });
     W.put(T.box(0.1, 0.62, 0.1), [bell.x, bell.y - 0.1, bz1 + 0.12], [-0.75, 0, 0], 1, { c: C.woodD });

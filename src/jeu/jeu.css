@@ -3708,6 +3708,9 @@ kbd {
 .pt-in {
   animation: pt-fade 0.25s ease-out;
 }
+.pt-title.pt-in {
+  animation: none;
+}
 .pt-pulse::after,
 .pt-pulse-s::after,
 .pt-call.pt-hot::after {
@@ -3929,16 +3932,16 @@ kbd {
     scale: 0.3;
   }
 }
+/* Entrées de l'écran titre : mouvement seulement, sans partir d'une opacité nulle (si les premières
+   images tardent pendant la compilation des shaders, le titre reste lisible). */
 @keyframes pt-logo-in {
   from {
-    opacity: 0;
     scale: 0.6;
     translate: 0 -40px;
   }
 }
 @keyframes pt-rise-in {
   from {
-    opacity: 0;
     translate: 0 30px;
   }
 }

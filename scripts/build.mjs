@@ -133,7 +133,8 @@ async function main() {
       throw new Error(error.message);
     });
   const jeuFile = await emit("jeu", "js", await minifyJs(await concat(jeuFiles), "jeu.js"), report);
-  const vendorFiles = ["GLTFLoader.js", "SkeletonUtils.js", "BufferGeometryUtils.js"].map((f) => path.join(jeuDir, "vendor", f));
+  // Seul BufferGeometryUtils sert encore (fusion de géométries des effets) : plus de modèle GLB à charger.
+  const vendorFiles = ["BufferGeometryUtils.js"].map((f) => path.join(jeuDir, "vendor", f));
   const jeuVendorFile = await emit("jeu-vendor", "js", await minifyJs(await concat(vendorFiles), "jeu-vendor.js"), report);
   // Police des titres et des boutons (Lilita One, licence SIL OFL, jointe à côté de la page du jeu).
   const jeuFontFile = await emit("lilita-one", "woff2", await fs.readFile(path.join(jeuDir, "fonts", "lilita-one-latin.woff2")), report);
