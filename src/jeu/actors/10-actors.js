@@ -1,22 +1,28 @@
 // « Pas touche à mes trésors » — les ennemis animés (PTMT.actors).
 //
-//   await PTMT.actors.load();                   // prépare les douze variantes une seule fois (l'adresse passée est ignorée)
-//   const a = PTMT.actors.create(type, elite);  // réutilisé depuis une réserve
-//   a.object  a.update(dt, time, s)  a.event(name)  a.release()  a.height
+//   await PTMT.actors.load();                            // prépare tous les gabarits (11 types × 3 rangs)
+//   const a = PTMT.actors.create(type, champion, boss);  // réutilisé depuis une réserve par variante
+//   a.object  a.height  a.carryAnchor  a.update(dt, time, s)  a.event(name[, cible])  a.release()
 //
-// Personnages « chibi » entièrement procéduraux (11-types.js) : grosse tête, corps trapu, moufles et
-// gros souliers, couleurs franches propres à chaque type. Squelette léger fait maison (21 os de corps
-// + os d'accessoires), animé à la main : marche rebondie, pas de loup, course, patin, dandinement,
-// nage, pédalo, conduite, et toutes les réactions (coup, projection, tourbillon, K.-O. étoilé, vol,
-// filet, feu, gel…). Aucun clip ni mélangeur d'animations.
+// Personnages « chibi » entièrement procéduraux (11-types.js pour les piétons, 13-mounts.js pour les
+// cavaliers) : grosse tête, corps trapu, moufles et gros souliers, couvre-chef et monture lisibles de
+// haut. Squelette léger fait maison (21 os de corps + os d'accessoires et de monture), animé à la main :
+// démarches, conduite, chevauchée, nage du canard, gestes des capacités (crêpe, fumigène, lasso, biniou,
+// pas de côté), réactions (coup, K.-O., gel, feu, peur, étourdissement…). Aucun clip ni mélangeur.
 //
-// Rendu : un seul SkinnedMesh par ennemi (corps, visage, accessoires et coque de contour fusionnés),
-// une seule matière partagée par tous les ennemis : un appel de dessin (+ ombre sur ordinateur). La
-// coque de contour est une copie retournée de la géométrie, gonflée à l'écran par le shader : liseré
-// sombre d'épaisseur constante en pixels, qui détache les silhouettes de l'herbe vue d'avion. Les
-// données par instance (éclair de coup, mouillé, gelé, brûlé, fantôme, dissolution, surchauffe)
-// passent par un « os de données » (indice 0) lu par le shader. Les états visibles (glaçon, filet,
-// flammes, fumée, étoiles…) sont dessinés en lots instanciés partagés (12-overlay.js).
+// Rangs : 0 ordinaire, 1 champion (couleurs plus riches, dorures), 2 boss (champion + grande couronne et
+// cape, ou monture dorée). a.object.scale est réglé d'office (× 1,3 champion, × 1,6 boss, d'après
+// PTMT.sim.DATA) ; a.height en tient compte.
+//
+// Rendu : un seul SkinnedMesh par ennemi (corps, visage, accessoires, monture et coque de contour
+// fusionnés), une seule matière partagée par tous les ennemis : un appel de dessin (+ ombre sur
+// ordinateur). La coque de contour est une copie retournée de la géométrie, gonflée à l'écran par le
+// shader : liseré sombre d'épaisseur constante en pixels, qui détache les silhouettes de l'herbe. Les
+// motifs (rayures, vichy, pie noir, camouflage, dentelle, tartan) sont calculés dans le shader et fondus
+// quand ils deviennent plus fins que quelques pixels. Les données par instance (éclair de coup, mouillé,
+// gelé, brûlé, fantôme, dissolution, immunité, hâte, rayonnement) passent par un « os de données »
+// (indice 0) lu par le shader. Les états visibles (glaçon, bulle, flammes, étoiles, notes…) sont
+// dessinés en lots partagés (12-overlay.js).
 (function () {
   "use strict";
   if (typeof THREE === "undefined") return; // rendu seulement : sans three.js (banc de simulation), rien à enregistrer
@@ -31,8 +37,9 @@
   A._timeUniform = { value: 0 };
   // x, y : taille du tampon de dessin (px) ; z : rapport de pixels ; w : contour actif (1) ou non (0)
   A._outline = { value: new THREE.Vector4(1280, 800, 1, 1) };
+  A.RANKS = ["ordinaire", "champion", "boss"];
 
-  // Os du corps, dans l'ordre des tableaux de pose (les accessoires suivent).
+  // Os du corps, dans l'ordre des tableaux de pose (les accessoires et la monture suivent).
   const BODY = [
     "root", "hips", "body", "head", "eye_l", "eye_r", "brow_l", "brow_r", "mouth",
     "arm_l", "fore_l", "hand_l", "arm_r", "fore_r", "hand_r",
@@ -41,6 +48,15 @@
   const BI = {};
   BODY.forEach((n, i) => (BI[n] = i));
   A.BODY_BONES = BODY;
+  A.BI = BI;
+
+  /** Agrandissement d'un rang (données du jeu si chargées). */
+  A.sizeFactor = function (rank) {
+    const D = PTMT.sim && PTMT.sim.DATA;
+    if (rank >= 2) return (D && D.boss && D.boss.scale) || 1.6;
+    if (rank >= 1) return (D && D.champion && D.champion.scale) || 1.3;
+    return 1;
+  };
 
   // ---------------------------------------------------------------------------------------------
   // Chargement : tout est procédural, rien à télécharger
@@ -50,8 +66,10 @@
     if (A._loading) return A._loading;
     A._loading = new Promise((ok, ko) => {
       try {
-        for (const t of A.TYPES) for (const e of [false, true]) templateFor(t, e);
+        const t0 = performance.now();
+        for (const t of A.TYPES) for (const r of [0, 1, 2]) templateFor(t, r);
         if (A.overlay && A.overlay.init) A.overlay.init();
+        A.loadMs = performance.now() - t0;
         A.ready = true;
         ok(A);
       } catch (err) {
@@ -65,11 +83,12 @@
   // ---------------------------------------------------------------------------------------------
   // Assemblage : pièces placées dans l'espace de liaison (debout, face +Z, gauche = +X, pieds à y = 0),
   // chacune liée à un os ou pondérée entre plusieurs (bras et jambes « tuyau d'arrosage »), avec sa
-  // coque de contour. Même signature que PTMT.gfx.Parts.add (le sac de trésor partagé s'y construit).
+  // coque de contour.
   // ---------------------------------------------------------------------------------------------
-  const _m = new THREE.Matrix4(), _n3 = new THREE.Matrix3(), _q = new THREE.Quaternion(), _e = new THREE.Euler();
+  const _m = new THREE.Matrix4(), _n3 = new THREE.Matrix3(), _q = new THREE.Quaternion(), _q2 = new THREE.Quaternion(), _e = new THREE.Euler();
   const _v = new THREE.Vector3(), _v2 = new THREE.Vector3(), _s = new THREE.Vector3();
   const ZERO3 = [0, 0, 0];
+  const _UP = new THREE.Vector3(0, 1, 0);
   const colCache = new Map();
   function lin(hex) {
     let c = colCache.get(hex);
@@ -86,7 +105,7 @@
       this.tris = 0;
       this.hullTris = 0;
       this.defaultBone = "root";
-      this.minOutline = 0.085; // rayon minimal d'une pièce pour recevoir un contour automatique
+      this.minOutline = 0.1; // rayon minimal d'une pièce pour recevoir un contour automatique
     }
     bone(name) {
       const i = this.bi[name];
@@ -94,9 +113,10 @@
       return i;
     }
     /**
-     * opt : { color, mat (classe), part, pos, rot, scale, quat, order, matrix, bone, weights(x,y,z) → [[os, poids], ...],
+     * opt : { color, mat (classe), part (motif), pal (2e couleur du motif, indice de palette), pos, rot,
+     *         scale, quat, order, matrix, bone, weights(x,y,z) → [[os, poids], ...],
      *         colors (garder l'attribut color de la géométrie, linéaire), grad [hexHaut, hexBas, y0, y1],
-     *         outline (true/false ; automatique selon la taille sinon), jitter, seed }
+     *         outline (true/false ; automatique selon la taille sinon), jitter, seed, bend(v) }
      */
     add(geometry, opt) {
       opt = opt || {};
@@ -119,7 +139,7 @@
         idx = new Uint32Array(n);
         for (let i = 0; i < n; i++) idx[i] = i;
       }
-      // bosselage (sac) : décalage par position, identique pour les sommets confondus
+      // bosselage : décalage par position, identique pour les sommets confondus
       let jit = null;
       if (opt.jitter) {
         const rnd = PTMT.rng(opt.seed || 7);
@@ -139,14 +159,20 @@
         _v.set(pos.getX(i), pos.getY(i), pos.getZ(i));
         if (jit) _v.set(_v.x + jit[i * 3], _v.y + jit[i * 3 + 1], _v.z + jit[i * 3 + 2]);
         _v.applyMatrix4(_m);
+        if (opt.bend) opt.bend(_v);
         P[i * 3] = _v.x; P[i * 3 + 1] = _v.y; P[i * 3 + 2] = _v.z;
         cx += _v.x; cy += _v.y; cz += _v.z;
         if (nor) _v2.set(nor.getX(i), nor.getY(i), nor.getZ(i)).applyMatrix3(_n3).normalize();
         else _v2.set(0, 1, 0);
         N[i * 3] = _v2.x; N[i * 3 + 1] = _v2.y; N[i * 3 + 2] = _v2.z;
       }
-      const flip = _m.determinant() < 0;
-      if (jit || !nor) computeNormals(P, N, idx, flip);
+      let flip = _m.determinant() < 0;
+      if (jit || !nor || opt.bend) computeNormals(P, N, idx, flip);
+      // face intérieure (doublure, dedans d'une couronne) : normales et enroulement inversés
+      if (opt.invert) {
+        for (let i = 0; i < N.length; i++) N[i] = -N[i];
+        flip = !flip;
+      }
       // couleurs
       const C = new Float32Array(n * 3);
       const base = lin(opt.color === undefined ? 0xffffff : opt.color);
@@ -176,9 +202,10 @@
         const b = this.bone(opt.bone || this.defaultBone);
         for (let i = 0; i < n; i++) { SI[i * 4] = b; SW[i * 4] = 1; }
       }
-      this._push(P, N, C, opt.part === undefined ? 0 : opt.part, opt.mat || 0, SI, SW, idx, flip);
+      const part = opt.part === undefined ? 0 : opt.part, mat = opt.mat || 0, pal = opt.pal || 0;
+      this._push(P, N, C, part, mat, pal, SI, SW, idx, flip);
       // contour : automatique pour les pièces assez grandes
-      let outline = opt.outline;
+      let outline = opt.invert ? false : opt.outline;
       if (outline === undefined) {
         cx /= n; cy /= n; cz /= n;
         let rr = 0;
@@ -188,15 +215,15 @@
       if (outline) {
         const HN = smoothNormals(P, N, n);
         const t0 = this.tris;
-        this._push(P, HN, new Float32Array(n * 3), HULL, 0, SI, SW, idx, !flip);
+        this._push(P, HN, new Float32Array(n * 3), HULL, 0, 0, SI, SW, idx, !flip);
         this.hullTris += this.tris - t0;
       }
       return this;
     }
-    _push(P, N, C, part, mat, SI, SW, idx, flip) {
+    _push(P, N, C, part, mat, pal, SI, SW, idx, flip) {
       const o = this.nv, n = P.length / 3;
       for (let i = 0; i < P.length; i++) { this.P.push(P[i]); this.N.push(N[i]); this.C.push(C[i]); }
-      for (let i = 0; i < n; i++) { this.M.push(part, mat); for (let k = 0; k < 4; k++) { this.SI.push(SI[i * 4 + k]); this.SW.push(SW[i * 4 + k]); } }
+      for (let i = 0; i < n; i++) { this.M.push(part, mat, pal); for (let k = 0; k < 4; k++) { this.SI.push(SI[i * 4 + k]); this.SW.push(SW[i * 4 + k]); } }
       for (let i = 0; i < idx.length; i += 3) {
         if (flip) this.I.push(idx[i] + o, idx[i + 2] + o, idx[i + 1] + o);
         else this.I.push(idx[i] + o, idx[i + 1] + o, idx[i + 2] + o);
@@ -209,7 +236,7 @@
       geo.setAttribute("position", new THREE.Float32BufferAttribute(this.P, 3));
       geo.setAttribute("normal", new THREE.Float32BufferAttribute(this.N, 3));
       geo.setAttribute("color", new THREE.Float32BufferAttribute(this.C, 3));
-      geo.setAttribute("aMat", new THREE.Float32BufferAttribute(this.M, 2));
+      geo.setAttribute("aMat", new THREE.Float32BufferAttribute(this.M, 3));
       geo.setAttribute("skinIndex", new THREE.Uint16BufferAttribute(this.SI, 4));
       geo.setAttribute("skinWeight", new THREE.Float32BufferAttribute(this.SW, 4));
       geo.setIndex(new THREE.BufferAttribute(this.nv > 65535 ? new Uint32Array(this.I) : new Uint16Array(this.I), 1));
@@ -240,7 +267,7 @@
     }
     return out;
   }
-  /** Normales recalculées (pièces bosselées), pondérées par l'aire des triangles. */
+  /** Normales recalculées (pièces bosselées ou tordues), pondérées par l'aire des triangles. */
   function computeNormals(P, N, idx, flip) {
     N.fill(0);
     const a = new THREE.Vector3(), b = new THREE.Vector3(), c = new THREE.Vector3();
@@ -261,25 +288,30 @@
   // ---------------------------------------------------------------------------------------------
   // Matière partagée (tous les ennemis) : couleurs de sommets franches, motifs, états, contour
   // ---------------------------------------------------------------------------------------------
-  // Parties (aMat.x) : 0 uni, 2 rayures horizontales crème, 3 coutil (rayures verticales sur crème),
-  // 4 blanc des yeux, 5 pupille, 30 coque de contour. Classes (aMat.y) : 0 mat, 1 satiné, 2 brillant,
-  // 3 métal, 4 lumineux, 5 grille chauffée, 6 or, 7 verre sombre.
+  // Parties (aMat.x) : 0 uni, 2 rayures fines, 3 rayures verticales, 4 blanc des yeux, 5 pupille,
+  // 6 dentelle, 7 pie noir, 8 camouflage, 9 vichy, 10 cerceaux larges, 11 tartan, 12 plumage,
+  // 30 coque de contour. La 2e couleur d'un motif vient de la palette (aMat.z).
+  // Classes (aMat.y) : 0 mat, 1 satiné, 2 brillant, 3 métal, 4 lumineux, 5 fluo, 6 or, 7 verre sombre.
   const VERT_PARS = /* glsl */ `
-    attribute vec2 aMat;
-    varying vec2 vMat;
+    attribute vec3 aMat;
+    varying vec3 vMat;
     varying vec3 vRest;
+    varying vec3 vCol2;
     varying vec4 vFx0;
     varying vec4 vFx1;
+    varying vec4 vFx2;
     uniform vec4 uOutline;
+    uniform vec3 uPal[16];
   `;
   const VERT_SKIN = /* glsl */ `
     vMat = aMat;
     vRest = position;
+    vCol2 = uPal[int(aMat.z + 0.5)];
     #ifdef USE_SKINNING
       mat4 ptData = getBoneMatrix(0.0);
-      vFx0 = ptData[0]; vFx1 = ptData[1];
+      vFx0 = ptData[0]; vFx1 = ptData[1]; vFx2 = ptData[2];
     #else
-      vFx0 = vec4(0.0); vFx1 = vec4(0.0);
+      vFx0 = vec4(0.0); vFx1 = vec4(0.0); vFx2 = vec4(0.0);
     #endif
   `;
   const VERT_HULL = /* glsl */ `
@@ -292,10 +324,12 @@
     }
   `;
   const FRAG_PARS = /* glsl */ `
-    varying vec2 vMat;
+    varying vec3 vMat;
     varying vec3 vRest;
+    varying vec3 vCol2;
     varying vec4 vFx0;
     varying vec4 vFx1;
+    varying vec4 vFx2;
     uniform float uTime;
     ${"PTMT_NOISE"}
     float ptBayer(vec2 p){
@@ -303,6 +337,18 @@
       float i = q.x + q.y * 4.0;
       float b = mod(i * 7.0 + floor(i / 4.0) * 5.0, 16.0);
       return (b + 0.5) / 16.0;
+    }
+    // créneau 0/1 antialiasé, fondu à la moyenne quand la période devient plus fine que ~4 px
+    float ptSq(float x){
+      float w = max(fwidth(x), 1e-4);
+      float t = abs(fract(x) - 0.5) * 2.0;
+      float s = clamp((t - 0.5) / (2.0 * w) + 0.5, 0.0, 1.0);
+      return mix(s, 0.5, smoothstep(0.25, 0.5, w));
+    }
+    // seuil antialiasé d'un champ continu (taches)
+    float ptStep(float e, float x){
+      float w = max(fwidth(x), 1e-4);
+      return clamp((x - e) / w * 0.5 + 0.5, 0.0, 1.0);
     }
   `;
   const FRAG_COLOR = /* glsl */ `
@@ -312,19 +358,62 @@
     float ptHull = step(29.5, ptPart);
     // fantôme (fumigène) et dissolution (K.-O.) : transparence tramée, sans tri
     float ptGhost = vFx1.x, ptDiss = vFx1.y;
-    if (ptGhost > 0.01 && ptBayer(gl_FragCoord.xy) < ptGhost * 0.82) discard;
+    if (ptGhost > 0.01 && ptBayer(gl_FragCoord.xy) < ptGhost * 0.8) discard;
     float ptN = 0.0;
     if (ptDiss > 0.001) { ptN = ptNoise3(vRest * 7.0); if (ptN < ptDiss) discard; }
     vec3 ptAlb = diffuseColor.rgb;
-    // motifs fondus au loin (pas de moiré vu d'avion)
-    float ptNear = smoothstep(75.0, 32.0, length(vViewPosition));
-    vec3 ptCream = vec3(0.86, 0.82, 0.72);
-    if (ptPart > 1.5 && ptPart < 2.5) {
-      float st = step(0.5, fract(vRest.y * 7.0));
-      ptAlb = mix(mix(ptAlb, ptCream, 0.42), mix(ptAlb, ptCream, st), ptNear);
-    } else if (ptPart > 2.5 && ptPart < 3.5) {
-      float st = step(0.6, fract(vRest.x * 5.5 + 0.2));
-      ptAlb = mix(mix(ptCream, ptAlb, 0.35), mix(ptCream, ptAlb, st), ptNear);
+    vec3 ptB = vCol2;
+    if (ptHull < 0.5 && ptPart > 1.5) {
+      if (ptPart < 2.5) {
+        ptAlb = mix(ptAlb, ptB, ptSq(vRest.y * 6.5));
+      } else if (ptPart < 3.5) {
+        ptAlb = mix(ptAlb, ptB, ptSq(vRest.x * 5.5 + 0.2));
+      } else if (ptPart > 5.5 && ptPart < 6.5) {
+        // dentelle : jours ronds en quinconce et fines côtes (coiffe bigoudène)
+        vec2 uv = vec2(atan(vRest.x, vRest.z - 0.02) * 0.95, vRest.y * 5.5);
+        vec2 gq = uv * 2.6;
+        gq.x += floor(gq.y) * 0.5;
+        vec2 f = fract(gq) - 0.5;
+        float wv = max(fwidth(gq.x), fwidth(gq.y));
+        float hole = 1.0 - clamp((length(f) - 0.26) / max(wv, 1e-4) + 0.5, 0.0, 1.0);
+        float rib = ptSq(uv.y * 2.6 + 0.5) * 0.35;
+        float lace = mix(max(hole, rib), 0.3, smoothstep(0.2, 0.45, wv));
+        ptAlb = mix(ptAlb, ptB, lace);
+      } else if (ptPart > 6.5 && ptPart < 7.5) {
+        // pie noir : grandes taches blanches, ventre plus clair (une robe par ennemi)
+        float n = ptNoise3(vRest * 1.55 + vec3(vFx2.w * 17.0, vFx2.w * 5.0, 0.0));
+        n += (0.78 - vRest.y) * 0.55;
+        ptAlb = mix(ptAlb, ptB, ptStep(0.62, n));
+      } else if (ptPart > 7.5 && ptPart < 8.5) {
+        // camouflage : deux tons de taches par-dessus le vert
+        float n1 = ptNoise3(vRest * 3.4 + 3.1), n2 = ptNoise3(vRest * 5.7 + 9.7);
+        ptAlb = mix(ptAlb, ptB, ptStep(0.56, n1));
+        ptAlb = mix(ptAlb, ptAlb * 0.42, ptStep(0.62, n2));
+      } else if (ptPart > 8.5 && ptPart < 9.5) {
+        // vichy : bandes croisées (fond de la 2e couleur, croisements de la couleur pleine)
+        float a = ptSq(vRest.x * 5.2 + 0.25), b = ptSq(vRest.y * 5.2);
+        ptAlb = mix(ptB, ptAlb, (a + b) * 0.5);
+      } else if (ptPart > 9.5 && ptPart < 10.5) {
+        ptAlb = mix(ptAlb, ptB, ptSq(vRest.y * 3.3 + 0.25));
+      } else if (ptPart > 10.5 && ptPart < 11.5) {
+        float a = ptSq(vRest.x * 6.0), b = ptSq(vRest.y * 6.0 + 0.3);
+        float l = ptSq(vRest.x * 18.0 + 0.5) * ptSq(vRest.y * 18.0);
+        ptAlb = mix(ptAlb, ptB, clamp(a * b * 0.8 + l * 0.35, 0.0, 1.0));
+      } else if (ptPart > 11.5 && ptPart < 12.5) {
+        // plumage : écailles en quinconce, bord plus sombre
+        vec2 q = vec2(vRest.x * 7.0, vRest.z * 5.5 - vRest.y * 3.0);
+        q.x += floor(q.y) * 0.5;
+        vec2 f = fract(q) - vec2(0.5, 0.0);
+        float d = length(f * vec2(1.0, 1.4));
+        float wv = max(fwidth(q.x), fwidth(q.y));
+        float edge = clamp((d - 0.5) / max(wv, 1e-4) + 0.5, 0.0, 1.0) * (1.0 - clamp((d - 0.62) / max(wv, 1e-4) + 0.5, 0.0, 1.0));
+        ptAlb = mix(ptAlb, ptB, edge * (1.0 - smoothstep(0.2, 0.45, wv)) * 0.8);
+      }
+    }
+    // blanc des yeux : liseré d'encre au bord du globe (sans coque)
+    if (ptPart > 3.5 && ptPart < 4.5) {
+      float ptK = abs(dot(normalize(vNormal), normalize(vViewPosition)));
+      ptAlb *= mix(0.12, 1.0, smoothstep(0.12, 0.42, ptK));
     }
     // états : gelé, mouillé, brûlé, éclair de coup
     float ptFlash = vFx0.x, ptWet = vFx0.y, ptFrozen = vFx0.z, ptBurn = vFx0.w;
@@ -332,35 +421,40 @@
     ptAlb *= 1.0 - 0.3 * ptWet;
     ptAlb *= 1.0 - 0.55 * ptBurn * (0.6 + 0.4 * ptNoise(vRest.xy * 12.0));
     ptAlb = mix(ptAlb, vec3(1.0), ptFlash * 0.55);
-    if (ptGhost > 0.01) ptAlb = mix(ptAlb, vec3(0.32, 0.26, 0.42), ptGhost * 0.7);
+    if (ptGhost > 0.01) ptAlb = mix(ptAlb, vec3(0.34, 0.4, 0.36), ptGhost * 0.6);
     diffuseColor.rgb = ptAlb;
-    // contour : sombre, bleuté quand gelé, clair à l'éclair du coup
-    vec3 ptLine = mix(vec3(0.028, 0.022, 0.04), vec3(0.12, 0.3, 0.5), ptFrozen * 0.7);
+    // contour : sombre, bleuté (gelé, rayonnement), doré (immunité), clair à l'éclair du coup
+    float ptRad = vFx2.y, ptImm = vFx1.z;
+    vec3 ptLine = mix(vec3(0.028, 0.022, 0.04), vec3(0.12, 0.3, 0.5), max(ptFrozen * 0.7, ptRad * 0.8));
+    ptLine = mix(ptLine, vec3(1.0, 0.72, 0.18), ptImm * 0.85);
     ptLine = mix(ptLine, vec3(1.0, 0.92, 0.7), ptFlash * 0.65);
   `;
   const FRAG_ROUGH = /* glsl */ `
-    roughnessFactor = ptCls < 0.5 ? 0.8 : (ptCls < 1.5 ? 0.55 : (ptCls < 2.5 ? 0.32 : (ptCls < 3.5 ? 0.34 : (ptCls < 6.5 ? 0.38 : 0.16))));
+    roughnessFactor = ptCls < 0.5 ? 0.82 : (ptCls < 1.5 ? 0.55 : (ptCls < 2.5 ? 0.3 : (ptCls < 3.5 ? 0.3 : (ptCls < 5.5 ? 0.6 : (ptCls < 6.5 ? 0.34 : 0.14)))));
     if (ptPart > 4.5 && ptPart < 5.5) roughnessFactor = 0.18;
     roughnessFactor *= 1.0 - 0.55 * ptWet;
   `;
   const FRAG_METAL = /* glsl */ `
-    metalnessFactor = ptCls > 2.5 && ptCls < 3.5 ? 0.5 : (ptCls > 5.5 && ptCls < 6.5 ? 0.35 : 0.0);
+    metalnessFactor = ptCls > 2.5 && ptCls < 3.5 ? 0.55 : (ptCls > 5.5 && ptCls < 6.5 ? 0.4 : 0.0);
   `;
   const FRAG_EMISSIVE = /* glsl */ `
     {
       vec3 ptV = normalize(vViewPosition);
       float ptFres = pow(1.0 - clamp(abs(dot(normalize(vNormal), ptV)), 0.0, 1.0), 2.5);
       // teintes franches même côté ombre (éclairage de dessin animé) + fin liseré clair
-      totalEmissiveRadiance += diffuseColor.rgb * 0.17;
+      totalEmissiveRadiance += diffuseColor.rgb * 0.18;
       totalEmissiveRadiance += vec3(1.0, 0.97, 0.9) * ptFres * 0.08;
       if (ptPart > 3.5 && ptPart < 4.5) totalEmissiveRadiance += diffuseColor.rgb * 0.32;
       if (ptCls > 3.5 && ptCls < 4.5) totalEmissiveRadiance += diffuseColor.rgb * 1.4;
-      float ptHeat = vFx1.z;
-      if (ptCls > 4.5 && ptCls < 5.5) totalEmissiveRadiance += vec3(1.0, 0.28, 0.04) * ptHeat * (2.0 + 0.6 * sin(uTime * 9.0));
-      if (ptCls > 5.5 && ptCls < 6.5) totalEmissiveRadiance += vec3(1.0, 0.6, 0.1) * (0.2 + 1.3 * ptFres) * (0.85 + 0.15 * sin(uTime * 4.0));
+      if (ptCls > 4.5 && ptCls < 5.5) totalEmissiveRadiance += diffuseColor.rgb * 0.65;
+      if (ptCls > 5.5 && ptCls < 6.5) totalEmissiveRadiance += vec3(1.0, 0.62, 0.12) * (0.22 + 1.3 * ptFres) * (0.8 + 0.2 * sin(uTime * 4.0 + vRest.x * 5.0 + vRest.y * 3.0));
       totalEmissiveRadiance += vec3(1.0, 0.96, 0.9) * ptFlash * 0.9;
       totalEmissiveRadiance += vec3(1.0, 0.36, 0.05) * ptBurn * (0.14 + 0.12 * sin(uTime * 23.0 + vRest.y * 6.0));
       totalEmissiveRadiance += vec3(0.4, 0.75, 1.0) * ptFrozen * 0.12;
+      // rayonnement (dragon bleu) : halo bleu qui palpite ; immunité : éclat doré ; hâte : liseré chaud
+      totalEmissiveRadiance += vec3(0.25, 0.6, 1.0) * ptRad * (0.16 + 1.7 * ptFres) * (0.75 + 0.25 * sin(uTime * 7.0));
+      totalEmissiveRadiance += vec3(1.0, 0.78, 0.3) * ptImm * (0.3 + 2.2 * ptFres);
+      totalEmissiveRadiance += vec3(1.0, 0.85, 0.4) * vFx1.w * ptFres * 0.45;
       if (ptDiss > 0.001 && ptN < ptDiss + 0.07) totalEmissiveRadiance += vec3(1.0, 0.9, 0.55) * 2.5;
     }
   `;
@@ -370,13 +464,17 @@
   `;
 
   let bodyMat = null;
+  const palUniform = { value: [] };
   function bodyMaterial() {
     if (bodyMat) return bodyMat;
+    palUniform.value = (A.PALETTE || [0xffffff]).concat(new Array(16).fill(0xffffff)).slice(0, 16).map((h) => PTMT.color(h));
     const m = new THREE.MeshStandardMaterial({ vertexColors: true, skinning: true, roughness: 0.8, metalness: 0 });
     m.name = "ptmt:actor";
+    m.extensions = { derivatives: true };
     m.onBeforeCompile = (sh) => {
       sh.uniforms.uTime = A._timeUniform;
       sh.uniforms.uOutline = A._outline;
+      sh.uniforms.uPal = palUniform;
       sh.vertexShader = sh.vertexShader
         .replace("#include <common>", "#include <common>\n" + VERT_PARS)
         .replace("#include <skinning_vertex>", "#include <skinning_vertex>\n" + VERT_SKIN)
@@ -389,7 +487,7 @@
         .replace("#include <emissivemap_fragment>", "#include <emissivemap_fragment>\n" + FRAG_EMISSIVE)
         .replace("#include <tonemapping_fragment>", FRAG_OUT);
     };
-    m.customProgramCacheKey = () => "ptmt-actor-chibi-v1";
+    m.customProgramCacheKey = () => "ptmt-actor-ct-v1";
     bodyMat = m;
     return m;
   }
@@ -400,77 +498,30 @@
     const m = new THREE.MeshDepthMaterial({ depthPacking: THREE.RGBADepthPacking, skinning: true });
     m.onBeforeCompile = (sh) => {
       sh.vertexShader = sh.vertexShader
-        .replace("#include <common>", "#include <common>\nattribute vec2 aMat;")
+        .replace("#include <common>", "#include <common>\nattribute vec3 aMat;")
         .replace("#include <project_vertex>", "#include <project_vertex>\nif (aMat.x > 29.5) gl_Position = vec4(0.0, 0.0, 2.0, 1.0);");
     };
-    m.customProgramCacheKey = () => "ptmt-actor-depth-v1";
+    m.customProgramCacheKey = () => "ptmt-actor-depth-v2";
     depthMat = m;
     return m;
-  }
-
-  /** Rideau de douche translucide (ninja élite) : matière à part, battement dans le vertex shader. */
-  function makeCapeMaterial(top, len) {
-    return PTMT.mat("actors:cape:" + top + ":" + len, () => {
-      const c = document.createElement("canvas");
-      c.width = c.height = 256;
-      const x = c.getContext("2d");
-      x.fillStyle = "rgba(150,220,255,0.62)"; x.fillRect(0, 0, 256, 256);
-      // plis verticaux, petits canards jaunes et bulles
-      for (let i = 0; i < 8; i++) { x.fillStyle = i % 2 ? "rgba(255,255,255,0.16)" : "rgba(40,120,200,0.12)"; x.fillRect(i * 32, 0, 16, 256); }
-      for (let i = 0; i < 3; i++) for (let j = 0; j < 3; j++) {
-        const cx = 42 + i * 86 + (j % 2) * 26, cy = 42 + j * 86;
-        x.fillStyle = "#ffd21f"; x.beginPath(); x.ellipse(cx, cy + 8, 22, 15, 0, 0, Math.PI * 2); x.fill();
-        x.beginPath(); x.arc(cx + 14, cy - 10, 12, 0, Math.PI * 2); x.fill();
-        x.fillStyle = "#ff8a1f"; x.beginPath(); x.moveTo(cx + 24, cy - 12); x.lineTo(cx + 36, cy - 8); x.lineTo(cx + 24, cy - 4); x.fill();
-        x.fillStyle = "#111"; x.beginPath(); x.arc(cx + 16, cy - 13, 2.6, 0, Math.PI * 2); x.fill();
-        x.strokeStyle = "rgba(255,255,255,0.95)"; x.lineWidth = 3; x.beginPath(); x.arc(cx - 26, cy + 30, 7, 0, Math.PI * 2); x.stroke();
-      }
-      x.fillStyle = "rgba(255,255,255,0.85)"; x.fillRect(0, 0, 256, 10);
-      const tex = new THREE.CanvasTexture(c);
-      tex.encoding = THREE.sRGBEncoding;
-      tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
-      const m = new THREE.MeshStandardMaterial({ map: tex, transparent: true, side: THREE.DoubleSide, skinning: true, roughness: 0.25, metalness: 0, depthWrite: false });
-      m.name = "ptmt:actor:cape";
-      m.onBeforeCompile = (sh) => {
-        sh.uniforms.uTime = A._timeUniform;
-        sh.vertexShader = sh.vertexShader
-          .replace("#include <common>", "#include <common>\nuniform float uTime;")
-          .replace(
-            "#include <skinning_vertex>",
-            `#include <skinning_vertex>
-            {
-              float hang = clamp((${top.toFixed(3)} - position.y) / ${len.toFixed(3)}, 0.0, 1.0);
-              float spd = 0.0;
-              #ifdef USE_SKINNING
-                spd = getBoneMatrix(0.0)[2].x;
-              #endif
-              float wave = sin(uTime * (5.0 + spd * 4.0) + position.y * 5.0 + position.x * 4.0);
-              transformed.z -= hang * hang * (0.14 + spd * 0.55 + 0.06 * wave);
-              transformed.y += hang * hang * spd * 0.18;
-              transformed.x += hang * 0.05 * sin(uTime * 3.0 + position.y * 3.0);
-            }`,
-          );
-      };
-      m.customProgramCacheKey = () => "ptmt-cape-chibi-v1";
-      return m;
-    });
   }
 
   // ---------------------------------------------------------------------------------------------
   // Gabarit d'une variante : squelette, géométrie fusionnée, statistiques
   // ---------------------------------------------------------------------------------------------
-  function templateFor(type, elite) {
-    const key = type + (elite ? ":elite" : "");
+  function templateFor(type, rank) {
+    rank = rank | 0;
+    const key = type + ":" + rank;
     let tpl = TEMPLATES.get(key);
     if (tpl) return tpl;
-    const spec = A.variantSpec(type, elite);
-    // squelette : corps + accessoires (positions de liaison dans l'espace du personnage)
+    const spec = A.variantSpec(type, rank);
+    // squelette : corps + accessoires + monture (positions de liaison dans l'espace du personnage)
     const bones = spec.skeleton.map((b) => ({ name: b.name, parent: b.parent, pos: b.pos.slice() }));
     for (const pd of spec.propDefs) bones.push({ name: "p_" + pd.name, parent: pd.parent === undefined ? "root" : pd.parent, pos: pd.pos.slice(), prop: true });
-    if (spec.sack) bones.push({ name: "p_sack", parent: spec.sack.parent, pos: spec.sack.pos.slice(), prop: true });
     const world = {};
     for (const b of bones) world[b.name] = b.pos;
     for (const b of bones) {
+      if (b.parent && !world[b.parent]) throw new Error("PTMT.actors : parent inconnu « " + b.parent + " » (" + key + ")");
       const pp = b.parent ? world[b.parent] : ZERO3;
       b.local = [b.pos[0] - pp[0], b.pos[1] - pp[1], b.pos[2] - pp[2]];
     }
@@ -479,63 +530,31 @@
     const bodyTris = k.tris;
     const props = {};
     for (const pd of spec.propDefs) {
+      if (!pd.build) continue;
       const t0 = k.tris;
       k.defaultBone = "p_" + pd.name;
       pd.build(k, spec);
       props[pd.name] = k.tris - t0;
     }
-    if (spec.sack) {
-      const t0 = k.tris;
-      k.defaultBone = "p_sack";
-      const sp = spec.sack.pos;
-      A.buildSack(k, { bone: "p_sack", pos: sp, rot: spec.sack.rot || ZERO3, scale: spec.sack.scale || 1 });
-      props.sack = k.tris - t0;
-    }
     k.defaultBone = "root";
     const geo = k.build();
-    const d = spec.dims, sc = spec.scale || 1;
-    geo.boundingSphere = new THREE.Sphere(new THREE.Vector3(0, (d.h / sc) * 0.45, 0), Math.max(d.w, d.h, d.d) / sc * 0.75 + 0.8);
-    geo.boundingBox = new THREE.Box3(new THREE.Vector3(-d.w / sc, 0, -d.d / sc), new THREE.Vector3(d.w / sc, (d.h / sc) * 1.2, d.d / sc));
+    geo.computeBoundingSphere();
+    geo.boundingSphere.radius = geo.boundingSphere.radius * 1.35 + 0.4;
+    geo.computeBoundingBox();
     // os : inverses de liaison (translations pures), os de données en tête
     const inverses = [new THREE.Matrix4()];
     for (const b of bones) inverses.push(new THREE.Matrix4().makeTranslation(-b.pos[0], -b.pos[1], -b.pos[2]));
-    // rideau de douche (ninja élite) : maillage translucide séparé sur le même squelette
-    let cape = null;
-    if (spec.cape) {
-      const cs = spec.cape;
-      const cg = new THREE.PlaneGeometry(cs.w, cs.len, 6, 8);
-      cg.rotateY(Math.PI);
-      cg.translate(0, cs.top - cs.len / 2, cs.z);
-      const cp = cg.getAttribute("position");
-      for (let i = 0; i < cp.count; i++) {
-        const y = cp.getY(i), x = cp.getX(i);
-        // s'évase vers le bas, épouse le dos en haut
-        const t = (cs.top - y) / cs.len;
-        cp.setX(i, x * (0.72 + 0.5 * t));
-        cp.setZ(i, cp.getZ(i) - 0.06 * t - Math.pow(Math.abs(x) * 1.4, 2) * 0.16 * (1 - t));
-      }
-      cg.computeVertexNormals();
-      const n2 = cp.count;
-      const si = new Uint16Array(n2 * 4), sw = new Float32Array(n2 * 4);
-      const bb = k.bone("body");
-      for (let i = 0; i < n2; i++) { si[i * 4] = bb; sw[i * 4] = 1; }
-      cg.setAttribute("skinIndex", new THREE.Uint16BufferAttribute(si, 4));
-      cg.setAttribute("skinWeight", new THREE.BufferAttribute(sw, 4));
-      cg.boundingSphere = geo.boundingSphere.clone();
-      cape = { geometry: cg, material: makeCapeMaterial(cs.top, cs.len) };
-    }
-    const capeTris = cape ? cape.geometry.index.count / 3 : 0;
     tpl = {
-      key, type, elite: !!elite, spec, geometry: geo, bones, boneInverses: inverses, cape,
+      key, type, rank, spec, geometry: geo, bones, boneInverses: inverses,
       stats: {
-        triangles: k.tris + capeTris,
+        triangles: k.tris,
         bodyTriangles: bodyTris,
         accessoryTriangles: k.tris - bodyTris,
         outlineTriangles: k.hullTris,
         props,
         vertices: k.nv,
         bones: bones.length + 1,
-        drawCalls: cape ? 2 : 1,
+        drawCalls: 1,
       },
     };
     TEMPLATES.set(key, tpl);
@@ -548,40 +567,71 @@
   // ---------------------------------------------------------------------------------------------
   const ARM = {
     rest: [0.05, 0, 0.14, -0.22, 0, 0, 0, 0, 0, 1],
-    overhead: [-2.98, 0, 0.16, -0.12, 0, 0, -0.5, 0, 0, 1.85],
-    carryR: [-2.95, 0, 0.18, -0.2, 0, 0, -0.5, 0, 0, 1.75],
+    overhead: [-2.98, 0, 0.16, -0.12, 0, 0, -0.5, 0, 0, 1.8],
+    carryUp: [-2.95, 0, 0.3, -0.18, 0, 0, -0.4, 0, 0, 1.7],
+    carryFwd: [-2.35, 0, 0.26, -0.55, 0, 0, -0.3, 0, 0, 1.5],
     cheer: [-2.55, 0, 0.8, -0.2, 0, 0, 0, 0, 0, 1.4],
-    mattress: [-2.92, 0, 0.3, -0.22, 0, 0, -0.45, 0, 0, 1.75],
-    shield: [-1.35, 0, 0.3, -0.35, 0, 0, 0.2, 0, 0, 1.3],
-    waist: [-0.45, 0, 0.62, -1.05, 0, 0, 0.3, 0, 0, 1.05],
-    sneak: [-1.1, 0, 0.38, -1.6, 0, 0, 0.75, 0, 0, 1],
-    naruto: [1.2, 0, 0.28, -0.12, 0, 0, 0.35, 0, 0, 1.12],
-    reach: [-1.5, 0, 0.12, -0.12, 0, 0, -0.25, 0, 0, 1.35],
-    fist: [-2.75, 0, 0.3, -1.25, 0, 0, 0, 0, 0, 1.15],
-    hip: [0.3, 0, 0.75, -1.95, 0, 0, 0, 0, 0, 1],
     shrug: [-0.25, 0, 1.05, -1.35, 0, 0, 0.3, 0, 0, 1],
-    drive: [-1.2, 0, 0.26, -0.75, 0, 0, 0, 0, 0, 1.15],
-    pedal: [-1.05, 0, 0.3, -0.9, 0, 0, 0, 0, 0, 1.1],
-    boatUp: [-0.35, 0, 0.78, -0.75, 0, 0, 0.2, 0, 0, 1.1],
+    droop: [0.2, 0, 0.05, -0.1, 0, 0, 0.2, 0, 0, 1.05],
+    koA: [-2.6, 0, 1.2, -0.3, 0, 0, 0, 0, 0, 1.1],
     flailA: [-2.9, 0, 0.9, -0.4, 0, 0, 0, 0, 0, 1.2],
     flailB: [-2.05, 0, 1.75, -0.95, 0, 0, 0, 0, 0, 1.2],
-    swimA: [-2.3, 0, 0.35, -0.35, 0, 0, 0, 0, 0, 1.15],
-    swimB: [-1.05, 0, 0.4, -1.4, 0, 0, 0, 0, 0, 1.15],
-    digA: [-1.45, 0, 0.18, -0.55, 0, 0, 0.3, 0, 0, 1.3],
-    digB: [-0.65, 0, 0.3, -1.35, 0, 0, 0.3, 0, 0, 1.3],
-    koA: [-2.6, 0, 1.2, -0.3, 0, 0, 0, 0, 0, 1.1],
+    // fourche brandie (bras droit) et poing qui menace (bras gauche)
+    forkA: [-2.0, 0, 0.35, -0.95, 0, 0, 0, 0, 0, 1.12],
+    forkB: [-2.55, 0, 0.3, -0.35, 0, 0, 0, 0, 0, 1.12],
+    fistA: [-1.35, 0, 0.55, -1.75, 0, 0, 0, 0, 0, 1.05],
+    fistB: [-1.75, 0, 0.5, -1.35, 0, 0, 0, 0, 0, 1.05],
+    // lasso : main au-dessus de la tête qui décrit un petit cercle
+    lassoA: [-2.72, 0, 0.36, -0.42, 0, 0, 0, 0, 0, 1.08],
+    lassoB: [-2.92, 0, 0.18, -0.22, 0, 0, 0, 0, 0, 1.08],
+    toss: [-1.35, 0, 0.12, -0.05, 0, 0, -0.2, 0, 0, 1.3],
+    // lancer (crêpe, fumigène) : armé en arrière puis détente vers l'avant
+    throwA: [-2.55, 0, 0.55, -1.35, 0, 0, 0.4, 0, 0, 1.05],
+    throwB: [-1.35, 0, 0.12, -0.08, 0, 0, -0.3, 0, 0, 1.2],
+    // guidon, rênes, cou du canard
+    drive: [-0.92, 0, -0.06, -0.3, 0, 0, 0.15, 0, 0, 1.22],
+    reins: [-0.95, 0, 0.18, -0.95, 0, 0, 0.2, 0, 0, 1.05],
+    neck: [-1.25, 0, 0.18, -0.55, 0, 0, 0, 0, 0, 1.18],
+    // bouclier (bidon de lait, bras gauche) et aiguillon (bras droit)
+    shield: [-1.05, 0, 0.62, -1.2, 0, 0, 0.2, 0, 0, 1.0],
+    lance: [-0.75, 0, 0.3, -0.55, 0, 0, 0, 0, 0, 1.05],
+    // biniou : poche sous le bras gauche, main droite sur le hautbois
+    bagL: [-0.72, 0, 0.42, -1.55, 0, 0, 0.3, 0, 0, 1.0],
+    pipeA: [-1.0, 0, 0.3, -1.85, 0, 0, 0.1, 0, 0, 1.0],
+    pipeB: [-1.08, 0, 0.26, -1.95, 0, 0, 0.2, 0, 0, 1.0],
+    // plateau de crêpes (bras gauche), ballon calé sous le bras, lance à incendie
+    plate: [-0.95, 0, 0.3, -1.15, 0, 0, 0.35, 0, 0, 1.0],
+    tuck: [-0.2, 0, 0.32, -1.75, 0, 0, 0.3, 0, 0, 1.0],
+    nozzle: [-1.3, 0, 0.18, -0.55, 0, 0, 0, 0, 0, 1.1],
+    hoseL: [-1.0, 0, 0.35, -0.9, 0, 0, 0, 0, 0, 1.05],
+    // faucille levée, bâton
+    sickleA: [-2.1, 0, 0.42, -0.95, 0, 0, 0, 0, 0, 1.05],
+    sickleB: [-2.35, 0, 0.38, -0.7, 0, 0, 0, 0, 0, 1.05],
+    sneak: [-1.1, 0, 0.38, -1.6, 0, 0, 0.75, 0, 0, 1],
+    hip: [0.3, 0, 0.75, -1.95, 0, 0, 0, 0, 0, 1],
+    binoc: [-1.55, 0, 0.35, -2.1, 0, 0, 0.3, 0, 0, 1.0],
   };
   A.ARM_POSES = ARM;
+  /** Poses animées : [pose A, pose B, fréquence (rad/s), décalage du bras droit]. */
+  const OSC = {
+    fork: ["forkA", "forkB", 9, 0],
+    fist: ["fistA", "fistB", 12, 0],
+    lasso: ["lassoA", "lassoB", 11, 0],
+    pipe: ["pipeA", "pipeB", 14, 0],
+    sickle: ["sickleA", "sickleB", 3.5, 0],
+    flail: ["flailA", "flailB", 11, Math.PI],
+  };
   // Démarches : longueur de cycle (m), amplitude des jambes, genoux, rebond, bras, penchée, roulis…
   const GAIT = {
-    walk: { stride: 1.15, leg: 0.6, knee: 0.95, bob: 0.08, arm: 0.65, fore: 0.35, lean: 0.12, roll: 0.06, twist: 0.12, hop: 0.05 },
-    sneak: { stride: 1.25, leg: 0.62, knee: 1.55, bob: 0.1, arm: 0.12, fore: 0.1, lean: 0.34, roll: 0.07, twist: 0.1, crouch: 0.06, hop: 0.06 },
-    jog: { stride: 1.45, leg: 0.8, knee: 1.35, bob: 0.1, arm: 0.9, fore: 1.25, lean: 0.24, roll: 0.05, twist: 0.16, hop: 0.07 },
-    run: { stride: 1.75, leg: 0.95, knee: 1.55, bob: 0.13, arm: 1.15, fore: 1.45, lean: 0.3, roll: 0.05, twist: 0.2, hop: 0.09 },
-    heavy: { stride: 0.8, leg: 0.42, knee: 0.6, bob: 0.05, arm: 0.3, fore: 0.3, lean: 0.1, roll: 0.13, twist: 0.06, hop: 0.02 },
-    skate: { stride: 2.6, leg: 0.22, knee: 0.45, bob: 0.03, arm: 0.95, fore: 0.3, lean: 0.34, roll: 0.14, twist: 0.26, skate: 1, hop: 0, squash: 0.3 },
-    waddle: { stride: 0.85, leg: 0.48, knee: 1.05, bob: 0.07, arm: 0.3, fore: 0.3, lean: 0.0, roll: 0.17, twist: 0.05, flap: 1, hop: 0.06 },
-    drive: { stride: 1.2, leg: 0, knee: 0, bob: 0, arm: 0, fore: 0, lean: 0, roll: 0, twist: 0 },
+    walk: { stride: 1.6, leg: 0.6, knee: 0.95, bob: 0.08, arm: 0.65, fore: 0.35, lean: 0.12, roll: 0.06, twist: 0.12, hop: 0.05 },
+    stomp: { stride: 1.55, leg: 0.62, knee: 1.05, bob: 0.1, arm: 0.5, fore: 0.3, lean: 0.2, roll: 0.09, twist: 0.14, hop: 0.07 },
+    heavy: { stride: 1.35, leg: 0.46, knee: 0.7, bob: 0.06, arm: 0.35, fore: 0.3, lean: 0.08, roll: 0.13, twist: 0.07, hop: 0.03 },
+    march: { stride: 1.6, leg: 0.58, knee: 0.95, bob: 0.08, arm: 0.4, fore: 0.3, lean: 0.06, roll: 0.05, twist: 0.08, hop: 0.05 },
+    sneak: { stride: 2.1, leg: 0.66, knee: 1.55, bob: 0.1, arm: 0.12, fore: 0.1, lean: 0.36, roll: 0.07, twist: 0.1, crouch: 0.07, hop: 0.06 },
+    run: { stride: 2.3, leg: 0.95, knee: 1.6, bob: 0.13, arm: 1.1, fore: 1.4, lean: 0.34, roll: 0.05, twist: 0.2, hop: 0.1 },
+    glide: { stride: 1.6, leg: 0.38, knee: 0.5, bob: 0.03, arm: 0.3, fore: 0.25, lean: 0.05, roll: 0.03, twist: 0.05, hop: 0.015 },
+    shuffle: { stride: 1.25, leg: 0.42, knee: 0.62, bob: 0.05, arm: 0.35, fore: 0.3, lean: 0.08, roll: 0.09, twist: 0.06, hop: 0.035 },
+    ride: { stride: 1.5, leg: 0, knee: 0, bob: 0, arm: 0, fore: 0, lean: 0, roll: 0, twist: 0, hop: 0 },
   };
   A.GAITS = GAIT;
 
@@ -589,15 +639,18 @@
   // Ennemi
   // ---------------------------------------------------------------------------------------------
   const EMPTY = {};
+  const NO_ARMS = [null, null];
   let _uid = 1;
   const clamp = (x, a, b) => (x < a ? a : x > b ? b : x);
   const smooth = (cur, target, dt, rate) => cur + (target - cur) * (1 - Math.exp(-dt * rate));
   const ease = (t) => t * t * (3 - 2 * t);
-  const REACT = {
-    hit: 0.28, knockback: 0.85, pull: 0.95, ko: 1.75, steal: 0.7, drop: 0.7, helmetOff: 0.9, flipflops: 0.8,
-    smokePuff: 0.45, overheat: 1.0, rage: 1.25, splash: 0.5, fooled: 1.0,
-  };
-  A.KO_DURATION = REACT.ko;
+  // Réactions du corps (durées, priorité) et gestes des bras (durées).
+  const REACT = { hit: 0.28, healed: 0.45, immune: 0.55, barrierBreak: 0.4, dodge: 0.46, spawn: 0.5, escape: 0.75, die: 1.0 };
+  const PRIO = { hit: 1, healed: 2, immune: 3, barrierBreak: 3, dodge: 5, spawn: 7, escape: 8, die: 9 };
+  const GESTURE = { pickup: 0.55, drop: 0.6, heal: 0.7, smoke: 0.6, tune: 1.3, lasso: 1.0 };
+  A.KO_DURATION = REACT.die;
+  A.ESCAPE_DURATION = REACT.escape;
+  A.EVENTS = Object.keys(REACT).concat(Object.keys(GESTURE));
   const NB = BODY.length;
   const ORDER_YXZ = new Set([BI.root, BI.hips, BI.body, BI.head]);
   const IDENTITY = new THREE.Matrix4();
@@ -608,18 +661,22 @@
       this.tpl = tpl;
       this.spec = tpl.spec;
       this.type = tpl.type;
-      this.elite = tpl.elite;
+      this.rank = tpl.rank;
+      this.champion = tpl.rank >= 1;
+      this.boss = tpl.rank >= 2;
+      this.elite = this.champion; // ancien nom
       this.label = tpl.spec.label;
       this.dims = tpl.spec.dims;
       this.scale = tpl.spec.scale || 1;
-      /** Sommet (m) : sert à placer la barre de vie ; monte avec le sac tenu au-dessus de la tête. */
+      this.sizeFactor = A.sizeFactor(tpl.rank);
+      /** Sommet sans agrandissement de rang (m) ; a.height donne la valeur dans le repère du parent. */
       this.baseHeight = tpl.spec.height;
-      this.height = this.baseHeight;
-      const sk = tpl.spec.sack;
-      this.carryLift = sk && (sk.parent === "body" || sk.parent === "p_mattress") ? Math.max(0, (sk.pos[1] + 0.82 * (sk.scale || 1)) * this.scale + 0.05 - this.baseHeight) : 0;
+      const cp = tpl.spec.carry.pos;
+      this.carryLift = Math.max(0, (cp[1] + 0.32) * this.scale - this.baseHeight);
       /** Vitesse (m/s) de démonstration (galerie) : celle du jeu pour ce type. */
-      this.naturalSpeed = tpl.spec.motion.natural;
+      this.naturalSpeed = tpl.spec.natural;
       this.gait = Object.assign({}, GAIT[tpl.spec.motion.gait || "walk"], tpl.spec.motion.gaitOver || null);
+      this.mountDef = tpl.spec.mount ? A.MOUNTS[tpl.spec.mount.kind] : null;
       this.object = new THREE.Group();
       this.object.name = "ptmt:actor:" + tpl.key;
       this.rig = new THREE.Group();
@@ -650,12 +707,10 @@
       this.mesh.receiveShadow = false;
       this.mesh.onBeforeRender = onBeforeRender;
       this.rig.add(this.mesh);
-      if (tpl.cape) {
-        this.cape = new THREE.SkinnedMesh(tpl.cape.geometry, tpl.cape.material);
-        this.cape.bind(this.skeleton, IDENTITY);
-        this.cape.renderOrder = 2;
-        this.rig.add(this.cape);
-      }
+      // point d'accroche de la gemme portée (au-dessus de la tête, suit les bras)
+      this.carryAnchor = new THREE.Object3D();
+      this.carryAnchor.name = "ptmt:carry";
+      this.B.p_gem.add(this.carryAnchor);
       this.bones = BODY.map((n) => this.B[n]);
       this.restArr = BODY.map((n) => this.rest[n]);
       this.orders = BODY.map((n, i) => (ORDER_YXZ.has(i) ? "YXZ" : "XYZ"));
@@ -678,43 +733,69 @@
       this.armTmp = new Float32Array(10);
       this.w = {};
       this.fly = {};
+      /** Mouvement de la selle (monture) appliqué au bassin du cavalier. */
+      this.mm = { y: 0, z: 0, pitch: 0, roll: 0, yaw: 0 };
+      this.mountT = {};
       this.face = { open: 1, wide: 1, tilt: 0, up: 0, mouth: 0, grin: 1, lookX: 0, lookY: 0, tx: 0, ty: 0, lookT: 0, blinkT: 2, blink: 0, dizzy: 0 };
-      this.anchor = { head: new THREE.Vector3(), headTop: new THREE.Vector3(), chest: new THREE.Vector3(), sack: new THREE.Vector3(), exhaust: new THREE.Vector3(), feet: new THREE.Vector3(), fwd: new THREE.Vector3(), right: new THREE.Vector3(), eyeL: new THREE.Vector3(), eyeR: new THREE.Vector3() };
+      this.target = new THREE.Vector3();
+      this._reach = { x: 0, z: 0, len: 0 };
+      this.hasTarget = false;
+      this.anchor = { head: new THREE.Vector3(), headTop: new THREE.Vector3(), chest: new THREE.Vector3(), gem: new THREE.Vector3(), exhaust: new THREE.Vector3(), hand: new THREE.Vector3(), feet: new THREE.Vector3(), fwd: new THREE.Vector3(), right: new THREE.Vector3(), eyeL: new THREE.Vector3(), eyeR: new THREE.Vector3() };
       this.reset();
+    }
+
+    /** Sommet (m, depuis les pieds, dans le repère du parent) : pour placer la barre de vie. */
+    get height() {
+      return (this.baseHeight + this.carryLift * (this.w.carry || 0)) * this.object.scale.y;
+    }
+    set height(v) {
+      // compatibilité : l'ancien code écrivait a.height ; on garde la valeur de base
+      this.baseHeight = v / Math.max(1e-3, this.object.scale.y);
+    }
+    /** Échelle totale (gabarit × rang) appliquée au personnage dans le repère du parent. */
+    get worldScale() {
+      return this.scale * this.object.scale.y;
     }
 
     reset() {
       this.object.visible = true;
       this.object.position.set(0, 0, 0);
       this.object.rotation.set(0, 0, 0);
-      this.object.scale.set(1, 1, 1);
+      this.object.scale.setScalar(this.sizeFactor);
       this.rig.position.set(0, 0, 0);
       this.rig.quaternion.identity();
       this.rig.scale.setScalar(this.scale);
       const w = this.w;
-      for (const k of ["carry", "frozen", "wet", "burn", "net", "lure", "ghost", "heat", "boost", "water", "armL", "armR", "flash", "lean", "move", "diss", "steal", "scared"]) w[k] = 0;
-      this.prev = { carrying: false, hitFlash: 0 };
-      this.height = this.baseHeight;
+      for (const k of ["carry", "frozen", "wet", "burn", "ghost", "haste", "water", "fear", "stun", "radiance", "barrier", "disarm", "armL", "armR", "flash", "move", "diss", "imm", "hp"]) w[k] = 0;
+      w.hp = 1;
+      this.prev = { carrying: false };
       this.react = null;
       this.reactT = 0;
+      this.gesture = null;
+      this.gestureT = 0;
       this.finished = false;
-      this.ko = false;
+      this.dead = false;
       this.speed = 0;
       this.phase = Math.random() * TAU;
       this.idleT = Math.random() * 10;
       this.wheelA = 0;
       this.spin = 0;
-      this.helmetGone = false;
-      this.flipGone = false;
-      this.sackPop = 1;
-      this.lureKind = this.id % 2 ? "heart" : "dollar";
-      this.lookT = 0;
+      this.dodgeSide = 1;
+      this.hatGone = false;
+      this.gemPop = 1;
+      this.lassoA = Math.random() * TAU;
+      this.hasTarget = false;
       this.look = [0, 0];
       this.lookTo = [0, 0];
+      this.lookT = 0;
       this.emitT = {};
       this.time = 0;
       this.state = EMPTY;
       this._poofed = false;
+      this.seed = Math.random();
+      const mm = this.mm;
+      mm.y = mm.z = mm.pitch = mm.roll = mm.yaw = 0;
+      for (const k in this.mountT) this.mountT[k] = 0;
       for (const k in this.fly) this._landProp(k);
       for (const b of this.tpl.bones) {
         const bone = this.B[b.name];
@@ -722,55 +803,60 @@
         bone.quaternion.identity();
         bone.scale.set(1, 1, 1);
       }
+      // la gemme garde sa taille quel que soit le rang
+      this.carryAnchor.scale.setScalar(1 / (this.scale * this.sizeFactor));
       this.armCur.l.set(ARM.rest);
       this.armCur.r.set(ARM.rest);
       const f = this.face;
       f.open = 1; f.wide = 1; f.tilt = 0; f.up = 0; f.mouth = 0; f.grin = 1; f.lookX = 0; f.lookY = 0; f.tx = 0; f.ty = 0; f.lookT = 0; f.blinkT = 1 + Math.random() * 3; f.blink = 0; f.dizzy = 0;
-      this._pose(0.016, EMPTY, false, 0, false, null, 0);
-      this._writeData(0, 0);
+      if (this.mountDef) this.mountDef.pose(this, 0.016, EMPTY, false, 0);
+      this._pose(0.016, EMPTY, false, 0);
+      if (this.spec.animate) this.spec.animate(this, 0.016, EMPTY, false, 0);
+      this._writeData(0);
     }
 
     // --- événements ponctuels ------------------------------------------------------------------
-    event(name) {
-      if (this.ko && name !== "ko") return;
-      const ov = A.overlay;
-      switch (name) {
-        case "ko":
-          if (this.ko) return;
-          this.ko = true;
-          this._react("ko");
-          break;
-        case "helmetOff":
-          if (!this.B.p_helmet || this.helmetGone) return;
-          this.helmetGone = true;
-          this._launchProp("helmet", 1.6, 4.6, -1.4, 14);
-          this._react("helmetOff");
-          break;
-        case "flipflops":
-          if (!this.B.p_flip_l || this.flipGone) return;
-          this.flipGone = true;
-          this._launchProp("flip_l", 0.9, 3.8, -1.8, 18);
-          this._launchProp("flip_r", -0.9, 4.1, -1.6, -16);
-          this._react("flipflops");
-          break;
-        case "smokePuff":
-        case "splash":
-          // effet seul : n'interrompt pas l'animation en cours
-          break;
-        case "hit":
+    /**
+     * name : "hit" | "die" | "pickup" | "drop" | "heal" | "healed" | "smoke" | "tune" | "lasso" | "dodge"
+     *        | "barrierBreak" | "spawn" | "escape" | "immune". target (facultatif) : position monde visée
+     *        (crêpe lancée vers l'allié soigné, lasso vers la gemme).
+     */
+    event(name, target) {
+      if (this.dead) return;
+      if (target && target.x !== undefined) {
+        this.target.set(target.x, target.y || 0, target.z);
+        this.hasTarget = true;
+      } else this.hasTarget = false;
+      if (GESTURE[name] !== undefined) {
+        this.gesture = name;
+        this.gestureT = 0;
+      } else if (REACT[name] !== undefined) {
+        if (name === "die") {
+          this.dead = true;
+          this.gesture = null;
+          this._react("die");
+          if (this.B.p_hat && !this.hatGone) {
+            this.hatGone = true;
+            this._launchProp("hat", (Math.random() - 0.5) * 2, 4.2, -1.6, 12);
+          }
+        } else if (name === "hit") {
           if (!this.react || this.react === "hit") this._react("hit");
-          break;
-        default:
-          if (REACT[name] === undefined) return;
+          this.w.flash = 1;
+        } else {
+          if (this.react && PRIO[this.react] > PRIO[name] && this.reactT < REACT[this.react]) return;
+          if (name === "dodge") this.dodgeSide = Math.random() < 0.5 ? -1 : 1;
+          if (name === "immune") this.w.imm = 1;
           this._react(name);
-      }
+        }
+      } else return;
+      const ov = A.overlay;
       if (ov && ov.burst) ov.burst(this, name);
     }
     _react(name) {
       this.react = name;
       this.reactT = 0;
     }
-    /** Fait décoller un accessoire (casserole, claquettes) dans le repère de la scène. */
+    /** Fait décoller un accessoire (chapeau) dans le repère de la scène. */
     _launchProp(name, side, up, back, spin) {
       const bone = this.B["p_" + name];
       const scene = this.object.parent;
@@ -780,7 +866,8 @@
       const f = { bone, parent: bone.parent, t: 0, pos: _v.clone(), quat: _q.clone(), scl: _v2.clone(), vel: new THREE.Vector3(), spin: new THREE.Vector3(spin, spin * 0.4, spin * 0.25), ground: this.object.position.y };
       const yaw = this.object.rotation.y;
       const fx = Math.sin(yaw), fz = Math.cos(yaw);
-      f.vel.set(fz * side * 0.6 + fx * back * 0.5, up, -fx * side * 0.6 + fz * back * 0.5);
+      const k = this.object.scale.y;
+      f.vel.set((fz * side * 0.6 + fx * back * 0.5) * k, up * Math.sqrt(k), (-fx * side * 0.6 + fz * back * 0.5) * k);
       scene.attach(bone);
       this.fly[name] = f;
     }
@@ -799,15 +886,15 @@
         f.t += dt;
         f.vel.y -= 13 * dt;
         f.pos.addScaledVector(f.vel, dt);
-        if (f.pos.y < f.ground + 0.05 && f.vel.y < 0) {
-          f.pos.y = f.ground + 0.05;
+        if (f.pos.y < f.ground + 0.08 && f.vel.y < 0) {
+          f.pos.y = f.ground + 0.08;
           f.vel.multiplyScalar(0.45);
-          f.vel.y = -f.vel.y * 0.8;
+          f.vel.y = -f.vel.y * 0.7;
           f.spin.multiplyScalar(0.5);
         }
         _e.set(f.spin.x * dt, f.spin.y * dt, f.spin.z * dt, "XYZ");
         f.quat.multiply(_q.setFromEuler(_e));
-        const shrink = f.t > 1.3 ? Math.max(0, 1 - (f.t - 1.3) / 0.25) : 1;
+        const shrink = f.t > 0.8 ? Math.max(0, 1 - (f.t - 0.8) / 0.2) : 1;
         f.bone.position.copy(f.pos);
         f.bone.quaternion.copy(f.quat);
         f.bone.scale.copy(f.scl).multiplyScalar(shrink);
@@ -816,6 +903,10 @@
     }
 
     // --- mise à jour -------------------------------------------------------------------------
+    /**
+     * s = { speed (m/s au sol), moving, carrying, water, slow (0..1), freeze, burn, fear, invisible (0..1),
+     *       barrier (0..1), haste, stun, disarmed, radiance, hp (0..1) }
+     */
     update(dt, time, s) {
       s = s || EMPTY;
       dt = clamp(dt || 0, 0, 0.1);
@@ -824,178 +915,151 @@
       A._timeUniform.value = time;
       const ov = A.overlay;
       if (ov && ov.frame) ov.frame(time, this.object);
-      const mo = this.spec.motion, w = this.w;
+      const w = this.w;
 
-      // réaction en cours
-      let react = this.react;
-      if (react) {
+      // réaction et geste en cours
+      if (this.react) {
         this.reactT += dt;
-        if (this.reactT >= REACT[react]) {
-          if (react === "ko") this.finished = true;
-          else this.react = react = null;
+        if (this.reactT >= REACT[this.react]) {
+          if (this.react === "die" || this.react === "escape") this.finished = true;
+          else this.react = null;
         }
       }
-      // coup reçu (éclair) : petit sursaut, même sans événement explicite
-      const hf = s.hitFlash || 0;
-      if (hf > this.prev.hitFlash + 0.35 && !this.ko && (!react || react === "hit")) { this._react("hit"); react = "hit"; }
-      this.prev.hitFlash = hf;
-      const rt = this.reactT;
-      const moving = !!s.moving && !this.ko;
-      const speed = moving ? Math.max(0, s.speed === undefined ? mo.natural : s.speed) : 0;
+      if (this.gesture) {
+        this.gestureT += dt;
+        if (this.gestureT >= GESTURE[this.gesture]) this.gesture = null;
+      }
+      const dead = this.dead, gone = this.react === "escape";
+      const frozen = !!s.freeze && !dead;
+      const moving = !!s.moving && !dead && !gone;
+      const speed = moving ? Math.max(0, s.speed === undefined ? this.naturalSpeed : s.speed) : 0;
       this.speed = speed;
-      const inWater = !!s.inWater;
-      const frozen = !!s.frozen && !this.ko;
 
       // poids lissés
-      w.carry = smooth(w.carry, s.carrying ? 1 : 0, dt, 9);
+      w.carry = smooth(w.carry, s.carrying && !dead ? 1 : 0, dt, 10);
       w.frozen = smooth(w.frozen, frozen ? 1 : 0, dt, 14);
-      w.wet = smooth(w.wet, s.wet ? 1 : 0, dt, 3);
-      w.burn = smooth(w.burn, s.burning ? 1 : 0, dt, 6);
-      w.net = smooth(w.net, s.netted ? 1 : 0, dt, 10);
-      w.lure = smooth(w.lure, s.lured ? 1 : 0, dt, 8);
-      w.ghost = smooth(w.ghost, s.untargetable ? 1 : 0, dt, 6);
-      w.heat = smooth(w.heat, s.overheated ? 1 : 0, dt, 3);
-      w.boost = smooth(w.boost, s.boosted ? 1 : 0, dt, 6);
-      w.water = smooth(w.water, inWater ? 1 : 0, dt, 5);
+      w.wet = smooth(w.wet, clamp((s.slow || 0) * 1.8, 0, 1), dt, 3);
+      w.burn = smooth(w.burn, s.burn && !dead ? 1 : 0, dt, 6);
+      w.ghost = smooth(w.ghost, clamp(s.invisible || 0, 0, 1), dt, 8);
+      w.haste = smooth(w.haste, s.haste && !dead ? 1 : 0, dt, 6);
+      w.water = smooth(w.water, s.water ? 1 : 0, dt, 4);
+      w.fear = smooth(w.fear, s.fear && !dead ? 1 : 0, dt, 8);
+      w.stun = smooth(w.stun, s.stun && !dead ? 1 : 0, dt, 10);
+      w.radiance = smooth(w.radiance, s.radiance && !dead ? 1 : 0, dt, 6);
+      w.barrier = smooth(w.barrier, dead ? 0 : clamp(s.barrier || 0, 0, 1), dt, 10);
+      w.disarm = smooth(w.disarm, s.disarmed && !dead ? 1 : 0, dt, 6);
+      w.hp = s.hp === undefined ? 1 : s.hp;
       w.move = smooth(w.move, moving ? 1 : 0, dt, 7);
-      w.steal = smooth(w.steal, s.stealing && !moving ? 1 : 0, dt, 8);
-      w.flash = Math.max(hf, react === "hit" ? Math.max(0, 1 - rt / REACT.hit) * 0.8 : 0);
-      this.height = this.baseHeight + this.carryLift * w.carry;
-      if (s.carrying && !this.prev.carrying) this.sackPop = 0;
-      this.sackPop = Math.min(1, this.sackPop + dt / 0.35);
+      w.imm = Math.max(0, w.imm - dt * 2.2);
+      w.flash = Math.max(0, w.flash - dt * 5);
+      if (s.carrying && !this.prev.carrying) this.gemPop = 0;
+      this.gemPop = Math.min(1, this.gemPop + dt / 0.35);
       this.prev.carrying = !!s.carrying;
 
       const solid = frozen && w.frozen > 0.98;
-      if (!solid) this._pose(dt, s, moving, speed, inWater, react, rt);
-      this._rigLayer(dt, s, moving, speed, inWater, react, rt, solid);
-      this._props(dt, s, moving, speed, inWater, react, rt);
+      if (!solid) {
+        if (this.mountDef) this.mountDef.pose(this, dt, s, moving, speed);
+        this._pose(dt, s, moving, speed);
+        if (this.spec.animate) this.spec.animate(this, dt, s, moving, speed);
+      }
+      this._rigLayer(dt, s, moving, speed, solid);
+      this._common(dt, s, moving, speed);
       this._updateFly(dt);
-      w.diss = react === "ko" ? clamp((rt - 1.25) / 0.45, 0, 1) : 0;
-      this._writeData(w.flash, speed);
+      w.diss = this.react === "die" ? clamp((this.reactT - 0.72) / 0.26, 0, 1) : this.react === "escape" ? clamp((this.reactT - 0.55) / 0.2, 0, 1) : 0;
+      this._writeData(speed);
       if (ov && ov.actor) ov.actor(this, dt, s);
     }
 
-    // --- pose du squelette (couches : démarche, bras, réactions, visage) ------------------------
-    _pose(dt, s, moving, speed, inWater, react, rt) {
+    // --- pose du squelette (couches : démarche, monture, bras, réactions, visage) ---------------
+    _pose(dt, s, moving, speed) {
       const pr = this.pr, pt = this.pt, ps = this.ps;
       pr.fill(0);
       pt.fill(0);
       ps.fill(1);
-      const mo = this.spec.motion, g = this.gait, w = this.w;
+      const spec = this.spec, mo = spec.motion, g = this.gait, w = this.w;
       const t = this.time;
       const R = this._R, T = this._T;
-      const swim = mo.swims && inWater && !mo.boat;
-      const boatIn = mo.boat && inWater;
-      const seated = mo.vehicle || boatIn;
-      const ko = react === "ko";
+      const ride = !!spec.mount;
+      const react = this.react, rt = this.reactT, dead = react === "die";
+      const ges = this.gesture, gt = this.gestureT;
 
-      // 1) démarche
-      let amp = w.move;
-      if (seated || swim) amp = 0;
-      const rate = moving ? Math.max(0.55, speed / g.stride) * (s.burning ? 1.3 : 1) : 0;
-      this.phase += dt * rate * TAU;
+      // 1) démarche (à reculons quand il a peur)
+      const amp = ride ? 0 : w.move;
+      const back = w.fear > 0.5 ? -1 : 1;
+      const rateMul = (1 + 0.5 * w.haste) * (s.burn ? 1.25 : 1) * (1 + 0.35 * w.fear);
+      const rate = moving ? Math.max(0.6, speed / g.stride) * rateMul : 0;
+      this.phase += dt * rate * TAU * back;
       this.idleT += dt;
       const ph = this.phase;
       const sn = Math.sin(ph), cs = Math.cos(ph);
-      if (!seated && !swim) {
+      if (!ride) {
         for (let si = 0; si < 2; si++) {
           const p = ph + (si ? Math.PI : 0), sp = Math.sin(p), cp = Math.cos(p);
           const th = si ? BI.thigh_r : BI.thigh_l, sh = si ? BI.shin_r : BI.shin_l, ft = si ? BI.foot_r : BI.foot_l;
-          const sg = si ? -1 : 1;
-          if (g.skate) {
-            // patin : poussée latérale, genoux fléchis, glisse
-            const push = Math.max(0, sp);
-            R(th, -0.25 * amp - 0.15 * cp * amp, 0, sg * push * 0.5 * amp);
-            R(sh, (0.45 + 0.25 * push) * amp, 0, 0);
-            R(ft, -0.2 * amp, 0, -sg * push * 0.3 * amp);
-          } else {
-            const lift = Math.max(0, cp);
-            R(th, -g.leg * sp * amp - (g.crouch ? 0.25 * amp : 0), 0, 0);
-            R(sh, (g.knee * lift + (g.crouch ? 0.4 : 0)) * amp, 0, 0);
-            const fx = g.flap ? (0.7 * lift - 0.2) * amp : -(-g.leg * sp + g.knee * lift) * 0.55 * amp;
-            R(ft, fx, 0, 0);
-          }
+          const lift = Math.max(0, cp * back);
+          R(th, -g.leg * sp * amp - (g.crouch ? 0.25 * amp : 0), 0, 0);
+          R(sh, (g.knee * lift + (g.crouch ? 0.4 : 0)) * amp, 0, 0);
+          R(ft, -(-g.leg * sp + g.knee * lift) * 0.55 * amp, 0, 0);
         }
         const bob = g.bob * (Math.abs(cs) - 0.5) * 2 * amp;
         T(BI.hips, 0, bob - (g.crouch || 0) * amp, 0);
         R(BI.hips, 0, g.twist * sn * amp, g.roll * sn * amp);
-        R(BI.body, g.lean * amp, -g.twist * 1.3 * sn * amp, -g.roll * 0.4 * sn * amp);
-        R(BI.head, -g.lean * 0.55 * amp + Math.sin(ph * 2 - 0.8) * 0.04 * amp, 0, g.roll * 0.6 * sn * amp);
+        const lean = g.lean * (1 - 1.9 * w.fear) + 0.12 * w.haste;
+        R(BI.body, lean * amp, -g.twist * 1.3 * sn * amp, -g.roll * 0.4 * sn * amp);
+        R(BI.head, -lean * 0.55 * amp + Math.sin(ph * 2 - 0.8) * 0.04 * amp, 0, g.roll * 0.6 * sn * amp);
+      } else {
+        // en selle : bassin sur la selle (mouvement de la monture), jambes de part et d'autre
+        const st = spec.mount.seat, mm = this.mm;
+        T(BI.hips, 0, st.dy + mm.y, st.dz + mm.z);
+        R(BI.hips, mm.pitch, mm.yaw, mm.roll);
+        for (let si = 0; si < 2; si++) {
+          const sg = si ? -1 : 1;
+          R(si ? BI.thigh_r : BI.thigh_l, st.thigh, 0, sg * st.spread);
+          R(si ? BI.shin_r : BI.shin_l, st.shin, 0, -sg * st.spread * 0.55);
+          R(si ? BI.foot_r : BI.foot_l, st.foot || 0.1, 0, 0);
+        }
+        R(BI.body, (st.lean || 0) - mm.pitch * 0.5, 0, -mm.roll * 0.4);
       }
       // respiration au repos
       const idle = 1 - w.move;
-      if (!ko) {
+      if (!dead) {
         const br = Math.sin(this.idleT * 2.2 + this.id);
         ps[BI.body * 3 + 1] *= 1 + br * 0.018 * idle;
         R(BI.head, br * 0.02 * idle, 0, 0);
       }
-      // assis (tondeuse, pédalo à flot) : bassin sur le siège, jambes pliées
-      if (seated) {
-        const st = boatIn ? this.spec.boatSeat : this.spec.seat;
-        const k = boatIn ? w.water : 1;
-        T(BI.hips, 0, st.dy * k, st.dz * k);
-        for (let si = 0; si < 2; si++) {
-          const th = si ? BI.thigh_r : BI.thigh_l, sh = si ? BI.shin_r : BI.shin_l, ft = si ? BI.foot_r : BI.foot_l;
-          let a = 0;
-          if (boatIn) a = Math.sin(t * 7 + (si ? Math.PI : 0)) * (moving ? 0.35 : 0.08);
-          R(th, (-1.35 + a) * k, 0, (si ? -1 : 1) * 0.12 * k);
-          R(sh, (1.25 - a * 0.8) * k, 0, 0);
-          R(ft, 0.1 * k, 0, 0);
-        }
-        if (mo.vehicle) {
-          const bump = moving ? Math.sin(t * 13) * 0.02 : 0;
-          T(BI.hips, 0, bump, 0);
-          R(BI.body, s.overheated ? -0.05 : 0.04, 0, Math.sin(t * 5.1) * 0.03 * (moving ? 1 : 0.2));
-        }
-      }
-      // nage : buste incliné, battements de jambes
-      if (swim) {
-        R(BI.body, 0.25, 0, Math.sin(t * 3) * 0.06);
-        R(BI.head, -0.2, 0, 0);
-        for (let si = 0; si < 2; si++) {
-          const k = Math.sin(t * 9 + (si ? Math.PI : 0));
-          R(si ? BI.thigh_r : BI.thigh_l, -0.35 + 0.35 * k, 0, 0);
-          R(si ? BI.shin_r : BI.shin_l, 0.4 - 0.25 * k, 0, 0);
-          R(si ? BI.foot_r : BI.foot_l, 0.6, 0, 0);
-        }
-      }
 
       // 2) bras
       let poseL = null, poseR = null, osc = null;
-      const hold = this.spec.sack ? this.spec.sack.hold : null;
-      const big = react === "knockback" || react === "pull" || s.netted;
-      if (ko) poseL = poseR = "koA";
-      else if (react === "steal") poseL = poseR = "cheer";
-      else if (react === "rage" && !mo.vehicle) { poseR = "fist"; poseL = "hip"; }
-      else if (react === "fooled") { poseR = "fist"; poseL = "hip"; }
-      else if (react === "drop") poseL = poseR = "shrug";
-      else if (big) osc = "flail";
-      else if (mo.vehicle) poseL = poseR = "drive";
-      else if (swim) osc = "swim";
-      else if (boatIn) poseL = poseR = "pedal";
-      else if (s.burning && !(s.carrying && hold === "carryR")) osc = "flail";
-      else if (s.lured) poseL = poseR = "reach";
-      else if (w.steal > 0.5 && !s.carrying) osc = "dig";
-      else if (s.carrying && hold) poseL = poseR = hold;
-      else if (moving && mo.moveArms) poseL = poseR = mo.moveArms;
-      else if (!moving && mo.idleArms) poseL = poseR = mo.idleArms;
-      if (s.carrying && hold === "carryR" && !ko && !big && react !== "steal") { poseR = "carryR"; poseL = s.burning ? "flailA" : null; if (s.burning) osc = null; }
-      const persistent = mo.moveArms === "mattress" || mo.moveArms === "shield";
-      if (persistent && !(ko || react === "steal" || react === "drop" || react === "fooled" || big)) poseL = poseR = mo.moveArms;
-      if (mo.boat && !inWater && !(big || ko)) poseL = poseR = "boatUp";
-      if (mo.swims && !mo.boat && !inWater && !(big || ko || react === "steal")) poseL = poseR = "waist";
+      const arms = mo.arms || NO_ARMS;
+      const carry = !!s.carrying && !dead;
+      const carryArms = spec.carry.arms;
+      if (dead) poseL = poseR = "koA";
+      else if (react === "escape" || ges === "pickup") poseL = poseR = "cheer";
+      else if (ges === "drop") poseL = poseR = "shrug";
+      else if (ges === "heal" || ges === "smoke") {
+        poseR = gt < 0.24 ? "throwA" : "throwB";
+        poseL = carry ? carryArms[0] : arms[0];
+      } else if (ges === "lasso") {
+        poseR = gt < 0.3 ? "lasso" : gt < 0.75 ? "toss" : "lasso";
+        poseL = arms[0];
+      } else if ((w.fear > 0.5 || s.burn) && !ride && !carry) osc = "flail";
+      else if (w.stun > 0.5 && !carry) poseL = poseR = "droop";
+      else if (carry) { poseL = carryArms[0]; poseR = carryArms[1]; }
+      else { poseL = arms[0]; poseR = arms[1]; }
+      if (w.disarm > 0.5 && !carry && !dead && !ges && poseR && mo.disarmDrop) poseR = "droop";
       const tmp = this.armTmp;
       for (let si = 0; si < 2; si++) {
         const side = si ? "r" : "l";
         const sg = si ? -1 : 1;
-        let name = si ? poseR : poseL;
-        let active = false;
-        if (osc && !(si === 1 && poseR === "carryR")) {
-          const a = ARM[osc + "A"], b = ARM[osc + "B"];
-          const f = osc === "flail" ? 11 : osc === "dig" ? 7 : 5.5;
-          const k = 0.5 + 0.5 * Math.sin(t * f + (si ? Math.PI : 0) + this.id);
+        const name = si ? poseR : poseL;
+        let active = false, fast = false;
+        const o = osc ? OSC[osc] : name ? OSC[name] : null;
+        if (o) {
+          const a = ARM[o[0]], b = ARM[o[1]];
+          const k = 0.5 + 0.5 * Math.sin(t * o[2] * (ges === "tune" && name === "pipe" ? 1.6 : 1) + (si ? o[3] : 0) + this.id);
           for (let i = 0; i < 10; i++) tmp[i] = a[i] + (b[i] - a[i]) * k;
           active = true;
+          fast = true;
         } else if (name && ARM[name]) {
           tmp.set(ARM[name]);
           active = true;
@@ -1003,7 +1067,7 @@
         const key = si ? "armR" : "armL";
         const cur = this.armCur[side];
         if (active) {
-          const kk = w[key] < 0.02 ? 1 : 1 - Math.exp(-dt * (osc ? 30 : 12));
+          const kk = w[key] < 0.02 ? 1 : 1 - Math.exp(-dt * (fast || ges ? 30 : 12));
           for (let i = 0; i < 10; i++) cur[i] += (tmp[i] - cur[i]) * kk;
         }
         w[key] = smooth(w[key], active ? 1 : 0, dt, 9);
@@ -1024,43 +1088,39 @@
           ps[ha * 3 + 1] /= str * str;
         }
       }
-      // K.-O. : jambes en l'air
-      if (ko) {
+      // K.-O. : jambes en l'air (à pied)
+      if (dead && !ride) {
         for (let si = 0; si < 2; si++) {
-          R(si ? BI.thigh_r : BI.thigh_l, -0.9 + Math.sin(t * 9 + si) * 0.1, 0, (si ? -1 : 1) * 0.35);
+          R(si ? BI.thigh_r : BI.thigh_l, -0.9 + Math.sin(t * 9 + si) * 0.12, 0, (si ? -1 : 1) * 0.35);
           R(si ? BI.shin_r : BI.shin_l, 0.5, 0, 0);
         }
       }
-      // filet : on se débat
-      if (s.netted && !ko) {
-        R(BI.body, Math.sin(t * 13) * 0.12, Math.sin(t * 7) * 0.2, 0);
-        for (let si = 0; si < 2; si++) R(si ? BI.thigh_r : BI.thigh_l, -0.3 + Math.sin(t * 15 + si * 3) * 0.3, 0, 0);
+      // gestes : lancer (le buste accompagne), ramassage (accroupi puis debout), air de biniou (balancement)
+      if (ges === "heal" || ges === "smoke") {
+        const k = gt < 0.24 ? -gt / 0.24 : Math.sin(clamp((gt - 0.24) / 0.3, 0, 1) * Math.PI);
+        R(BI.body, 0.25 * k, 0.35 * (gt < 0.24 ? -gt / 0.24 : 1 - clamp((gt - 0.24) / 0.4, 0, 1)), 0);
       }
-      // vol en cours : penché sur le coffre
-      if (w.steal > 0.01 && !ko) {
-        R(BI.body, 0.42 * w.steal, 0, Math.sin(t * 5) * 0.05 * w.steal);
-        R(BI.head, -0.15 * w.steal, Math.sin(t * 3.1) * 0.25 * w.steal, 0);
-        T(BI.hips, 0, -0.06 * w.steal + Math.abs(Math.sin(t * 7)) * 0.03 * w.steal, 0);
+      if (ges === "pickup" && !ride) {
+        const k = Math.sin(clamp(gt / 0.22, 0, 1) * Math.PI);
+        T(BI.hips, 0, -0.18 * k, 0);
+        R(BI.body, 0.5 * k, 0, 0);
+        for (let si = 0; si < 2; si++) { R(si ? BI.thigh_r : BI.thigh_l, -0.8 * k, 0, 0); R(si ? BI.shin_r : BI.shin_l, 1.3 * k, 0, 0); }
       }
-      // porteur : petit sautillement de joie
-      if (s.carrying && moving && !ko) R(BI.head, 0, 0, Math.sin(ph) * 0.05);
+      if (ges === "tune") {
+        const k = Math.sin(clamp(gt / GESTURE.tune, 0, 1) * Math.PI);
+        R(BI.body, -0.12 * k, Math.sin(gt * 9) * 0.15 * k, Math.sin(gt * 4.5) * 0.12 * k);
+        R(BI.head, -0.2 * k, 0, Math.sin(gt * 9) * 0.12 * k);
+      }
+      // porteur : petit dandinement de joie
+      if (carry && moving && !dead) R(BI.head, 0, 0, Math.sin(ph) * 0.05);
 
-      // 3) tête : colère, K.-O. étourdi, attiré
-      if (ko) R(BI.head, 0, 0, Math.sin(t * 6) * 0.22);
-      if (react === "fooled" || (react === "rage" && !mo.vehicle)) R(BI.head, 0, Math.sin(t * 22) * 0.22, 0);
+      // 3) tête : K.-O., étourdi, coup, peur (regarde derrière lui)
+      if (dead) R(BI.head, 0, 0, Math.sin(t * 6) * 0.22);
+      if (w.stun > 0.01) R(BI.head, Math.cos(t * 5) * 0.12 * w.stun, 0, Math.sin(t * 5) * 0.18 * w.stun);
       if (react === "hit") { const k = Math.sin((rt / REACT.hit) * Math.PI); R(BI.head, 0.35 * k, 0, 0); R(BI.body, -0.15 * k, 0, 0); }
-      if (react === "helmetOff") R(BI.head, 0, 0, Math.sin(rt * 18) * 0.25 * (1 - rt / REACT.helmetOff));
-      if (s.lured) R(BI.head, -0.15 + Math.sin(t * 3) * 0.05, 0, 0);
-      if (mo.vehicle && react === "rage") {
-        R(BI.body, -0.15, 0, 0);
-        R(BI.head, 0, Math.sin(t * 20) * 0.25, 0);
-        const k = Math.sin(t * 16);
-        const cur = this.armCur.r;
-        const f = ARM.fist;
-        for (let i = 0; i < 9; i++) cur[i] += (f[i] - cur[i]) * 0.9;
-        R(BI.fore_r, k * 0.3, 0, 0);
-      }
-      if (swim) R(BI.head, 0, Math.sin(t * 2.5) * 0.15, 0);
+      if (react === "dodge") { const k = Math.sin(clamp(rt / REACT.dodge, 0, 1) * Math.PI); R(BI.body, 0, 0, -this.dodgeSide * 0.35 * k); }
+      if (react === "immune") { const k = Math.sin(clamp(rt / REACT.immune, 0, 1) * Math.PI); R(BI.body, -0.18 * k, 0, 0); R(BI.head, -0.15 * k, 0, 0); }
+      if (w.fear > 0.01 && !dead) R(BI.head, 0, Math.sin(t * 6.5) * 0.55 * w.fear, 0);
 
       // 4) visage
       this._face(dt, s, moving, react, rt);
@@ -1078,20 +1138,22 @@
 
     /** Visage : clignements, regard, sourcils, bouche selon l'humeur. */
     _face(dt, s, moving, react, rt) {
-      const f = this.face, w = this.w, t = this.time;
-      const ko = react === "ko";
-      // humeur : [ouverture, écarquillé, inclinaison des sourcils (colère > 0), hauteur, bouche ouverte, sourire large]
-      let open = 1, wide = 1, tilt = this.spec.mood === "sad" ? -0.25 : 0.28, up = 0, mouth = 0, grin = 1;
-      const scared = s.burning || s.netted || react === "knockback" || react === "pull" || s.frozen || w.water > 0.5 && !this.spec.motion.swims;
-      if (s.carrying || w.steal > 0.3) { tilt = -0.15; up = 0.02; grin = 1.45; open = 0.8; }
-      if (scared) { wide = 1.22; tilt = -0.35; up = 0.05; mouth = 1; grin = 0.8; }
-      if (s.lured) { wide = 1.15; tilt = -0.3; up = 0.05; mouth = 0.7; grin = 1.1; }
+      const f = this.face, w = this.w, t = this.time, spec = this.spec;
+      const dead = react === "die";
+      // humeur : [ouverture, écarquillé, sourcils (colère > 0), hauteur, bouche ouverte, sourire large]
+      const m = MOODS[spec.mood] || MOODS.neutral;
+      let open = m[0], wide = m[1], tilt = m[2], up = m[3], mouth = m[4], grin = m[5];
+      if (spec.mood === "angry" && moving) mouth = 0.55 + 0.45 * Math.abs(Math.sin(t * 5 + this.id));
+      if (spec.mood === "puff") mouth = 0.15;
+      const scared = s.burn || w.fear > 0.5 || s.freeze;
+      if (s.carrying) { tilt = -0.15; up = 0.02; grin = 1.45; open = 0.8; mouth = Math.max(mouth, 0.3); }
+      if (scared) { wide = 1.25; tilt = -0.38; up = 0.05; mouth = 1; grin = 0.8; open = 1; }
+      if (w.stun > 0.5) { wide = 1.05; tilt = -0.2; mouth = 0.6; }
       if (react === "hit") { open = 0.15; tilt = 0.45; mouth = 0.6; }
-      if (react === "rage" || react === "fooled") { open = 0.75; tilt = 0.6; up = -0.02; mouth = 1; grin = 1.2; }
-      if (react === "steal") { open = 0.55; tilt = -0.25; up = 0.04; mouth = 0.8; grin = 1.5; }
-      if (react === "drop") { wide = 1.2; tilt = -0.4; up = 0.05; mouth = 0.5; }
-      if (react === "overheat" || (s.overheated && this.spec.motion.vehicle)) { tilt = -0.3; up = 0.04; mouth = 0.8; wide = 1.15; }
-      if (ko) { wide = 1.1; tilt = -0.2; up = 0.03; mouth = 1; }
+      if (this.gesture === "pickup" || react === "escape") { open = 0.55; tilt = -0.25; up = 0.04; mouth = 0.8; grin = 1.5; }
+      if (this.gesture === "drop") { wide = 1.2; tilt = -0.4; up = 0.05; mouth = 0.5; }
+      if (react === "immune") { open = 0.6; tilt = 0.2; grin = 1.4; mouth = 0.2; }
+      if (dead) { wide = 1.1; tilt = -0.2; up = 0.03; mouth = 1; }
       const k = 1 - Math.exp(-dt * 14);
       f.open += (open - f.open) * k;
       f.wide += (wide - f.wide) * k;
@@ -1099,7 +1161,7 @@
       f.up += (up - f.up) * k;
       f.mouth += (mouth - f.mouth) * k;
       f.grin += (grin - f.grin) * k;
-      f.dizzy = ko ? Math.min(1, f.dizzy + dt * 4) : Math.max(0, f.dizzy - dt * 4);
+      f.dizzy = dead || w.stun > 0.5 ? Math.min(1, f.dizzy + dt * 4) : Math.max(0, f.dizzy - dt * 4);
       // clignement
       f.blinkT -= dt;
       if (f.blinkT <= 0) { f.blink = 0.13; f.blinkT = 1.6 + Math.random() * 3.5; }
@@ -1112,7 +1174,6 @@
         f.tx = (Math.random() - 0.5) * (moving ? 0.8 : 1.8);
         f.ty = (Math.random() - 0.5) * 0.8;
       }
-      if (s.lured) { f.tx = 0; f.ty = -0.3; }
       f.lookX += (f.tx - f.lookX) * (1 - Math.exp(-dt * 16));
       f.lookY += (f.ty - f.lookY) * (1 - Math.exp(-dt * 16));
       const pr = this.pr, pt = this.pt, ps = this.ps;
@@ -1133,80 +1194,76 @@
         pt[b * 3 + 1] = f.up + (1 - eo) * -0.02;
       }
       ps[BI.mouth * 3] = f.grin;
-      ps[BI.mouth * 3 + 1] = 1 + f.mouth * 2.6 + (react === "steal" ? Math.abs(Math.sin(rt * 20)) * 0.6 : 0);
+      ps[BI.mouth * 3 + 1] = 1 + f.mouth * 2.6;
     }
 
-    _rigLayer(dt, s, moving, speed, inWater, react, rt, solid) {
-      const mo = this.spec.motion, w = this.w, rig = this.rig, t = this.time;
+    _rigLayer(dt, s, moving, speed, solid) {
+      const spec = this.spec, w = this.w, rig = this.rig, t = this.time;
       if (solid) return;
+      const ride = !!spec.mount;
       let y = 0, pitch = 0, roll = 0, yaw = 0, sx = 1, sy = 1, px = 0, pz = 0, pivotY = 0;
       const ph = this.phase;
-      // eau : nage (bouée à la surface), pédalo à flot, pataugeage pour les autres
-      if (mo.swims && !mo.boat) y += w.water * (this.spec.swimY + Math.sin(t * 2.6 + this.id) * 0.04);
-      else if (mo.boat) y += w.water * this.spec.boatY;
-      else if (!mo.vehicle) y += w.water * -0.42;
-      // démarches : petit bond à chaque pas (en l'air au passage des jambes, écrasé au contact)
-      if (!mo.vehicle && !(mo.swims && inWater) && w.move > 0.01) {
-        const g = this.gait, up = Math.abs(Math.cos(ph)), k = w.move * (g.squash === undefined ? 1 : g.squash);
+      const react = this.react, rt = this.reactT;
+      // petit bond à chaque pas (en l'air au passage des jambes, écrasé au contact)
+      if (!ride && w.move > 0.01) {
+        const g = this.gait, up = Math.abs(Math.cos(ph)), k = w.move;
         y += up * (g.hop || 0) * w.move;
         sy *= 1 + (up - 0.5) * 0.07 * k;
         sx *= 1 - (up - 0.5) * 0.045 * k;
       }
-      // véhicule : cahots, vibration en surchauffe
-      if (mo.vehicle) {
-        const bump = moving ? Math.sin(t * 13.0) * 0.012 + Math.sin(t * 7.3) * 0.01 : Math.sin(t * 30) * 0.003;
-        y += bump;
-        pitch += moving ? Math.sin(t * 5.1) * 0.012 : 0;
-        if (s.overheated) { px += (Math.random() - 0.5) * 0.05; pz += (Math.random() - 0.5) * 0.05; y += Math.abs(Math.sin(t * 17)) * 0.05; roll += Math.sin(t * 31) * 0.02; }
-      }
       // états
-      if (s.netted) { px += Math.sin(t * 17) * 0.04; roll += Math.sin(t * 11) * 0.08; sy *= 0.92 + Math.sin(t * 14) * 0.03; }
-      if (s.lured) y += Math.abs(Math.sin(t * 4)) * 0.06;
-      if (s.burning && !mo.vehicle) y += Math.abs(Math.sin(t * 9)) * 0.12;
-      const C = this.spec.center;
+      if (s.burn && !ride && !this.dead) y += Math.abs(Math.sin(t * 9)) * 0.12;
+      if (w.stun > 0.01) { roll += Math.sin(t * 4.5) * 0.07 * w.stun; pitch += Math.cos(t * 4.5) * 0.04 * w.stun; }
+      if (w.fear > 0.01) px += Math.sin(t * 31) * 0.02 * w.fear;
       // réactions
       if (react === "hit") { const k = Math.sin((rt / REACT.hit) * Math.PI); sy *= 1 - 0.12 * k; sx *= 1 + 0.09 * k; }
-      if (react === "knockback") {
-        const T = 0.62, k = clamp(rt / T, 0, 1);
-        if (mo.vehicle) { pitch -= Math.sin(k * Math.PI) * 0.45; y += Math.sin(k * Math.PI) * 0.35; pivotY = 0; }
-        else {
-          pivotY = C;
-          pitch -= ease(k) * TAU;
-          y += Math.sin(k * Math.PI) * 1.2;
-          if (rt > T) { const q = clamp((rt - T) / 0.2, 0, 1); sy *= 1 - 0.2 * Math.sin(q * Math.PI); sx *= 1 + 0.12 * Math.sin(q * Math.PI); }
-        }
+      if (react === "healed") { const k = Math.sin(clamp(rt / REACT.healed, 0, 1) * Math.PI); y += 0.25 * k; sy *= 1 + 0.06 * k; }
+      if (react === "barrierBreak") { const k = Math.sin(clamp(rt / REACT.barrierBreak, 0, 1) * Math.PI); sy *= 1 - 0.1 * k; sx *= 1 + 0.08 * k; }
+      if (react === "dodge") {
+        // cadrage-débordement : bond de côté puis retour
+        const k = clamp(rt / REACT.dodge, 0, 1);
+        const q = Math.sin(k * Math.PI);
+        px += this.dodgeSide * q * 1.0;
+        roll -= this.dodgeSide * q * 0.22;
+        y += Math.sin(Math.min(1, k * 2) * Math.PI) * 0.22;
       }
-      if (react === "pull") {
-        const k = clamp(rt / REACT.pull, 0, 1);
-        this.spin += dt * 16 * Math.sin(k * Math.PI);
-        yaw += this.spin;
-        roll += Math.sin(k * Math.PI) * 0.35;
-        y += Math.sin(k * Math.PI) * 0.3;
-      } else this.spin = 0;
-      if (react === "ko") {
-        if (mo.vehicle) {
-          const k = clamp(rt / 0.4, 0, 1);
-          pitch -= bounceOut(k) * 0.3; roll += bounceOut(k) * 0.12; y -= bounceOut(k) * 0.15;
+      if (react === "spawn") {
+        const k = clamp(rt / REACT.spawn, 0, 1);
+        const sc = k < 0.55 ? backOut(k / 0.55) : 1 + 0.08 * Math.sin(((k - 0.55) / 0.45) * Math.PI) * (1 - k);
+        sx *= Math.max(0.01, sc); sy *= Math.max(0.01, sc);
+        y += (1 - Math.min(1, k * 2)) * 0.6;
+      }
+      if (react === "escape") {
+        // saut de joie, pirouette, puis « pouf »
+        const k = clamp(rt / REACT.escape, 0, 1);
+        y += Math.sin(Math.min(1, k / 0.7) * Math.PI) * 1.3;
+        yaw += ease(k) * TAU;
+        const sh = 1 - clamp((k - 0.62) / 0.3, 0, 1);
+        sx *= Math.max(0.001, sh); sy *= Math.max(0.001, sh * (1 + 0.3 * (1 - sh)));
+      }
+      if (react === "die") {
+        const C = spec.center;
+        if (ride) {
+          // la monture bascule sur le flanc
+          const k = clamp(rt / 0.34, 0, 1);
+          const side = this.id % 2 ? 1 : -1;
+          roll += side * bounceOut(k) * 1.35;
+          px += side * bounceOut(k) * 0.35 * (spec.dims.w / this.scale);
+          y += Math.sin(clamp(rt / 0.2, 0, 1) * Math.PI) * 0.25;
         } else {
-          const k = clamp(rt / 0.42, 0, 1);
+          // chute en arrière, rebond, puis couché
+          const k = clamp(rt / 0.32, 0, 1);
           pitch -= bounceOut(k) * (Math.PI / 2 - 0.12);
-          y += Math.sin(clamp(rt / 0.25, 0, 1) * Math.PI) * 0.4 + 0.18 * bounceOut(k);
+          y += Math.sin(clamp(rt / 0.2, 0, 1) * Math.PI) * 0.35 + 0.16 * bounceOut(k);
           pz -= bounceOut(k) * 0.2;
-          if (rt < 0.5) { const q = Math.sin(clamp(rt / 0.5, 0, 1) * Math.PI); sy *= 1 + 0.1 * q; }
+          pivotY = 0.05;
+          if (rt < 0.4) { const q = Math.sin(clamp(rt / 0.4, 0, 1) * Math.PI); sy *= 1 + 0.1 * q; }
+          void C;
         }
-        const sh = clamp((rt - 1.3) / 0.45, 0, 1);
+        const sh = clamp((rt - 0.72) / 0.26, 0, 1);
         sx *= 1 - 0.3 * sh; sy *= 1 - 0.3 * sh;
       }
-      if (react === "steal" || react === "flipflops") { const q = Math.abs(Math.sin(clamp(rt / 0.5, 0, 1) * Math.PI)); y += q * 0.55; sy *= 1 + q * 0.08; sx *= 1 - q * 0.05; }
-      if (react === "fooled") { y += Math.abs(Math.sin(rt * 14)) * 0.14 * (1 - rt / REACT.fooled); }
-      if (react === "rage") {
-        if (mo.vehicle) { const k = clamp(rt / REACT.rage, 0, 1); pitch -= Math.sin(k * Math.PI) * 0.35; pivotY = 0; y += Math.sin(k * Math.PI) * 0.1; px += Math.sin(t * 40) * 0.03; }
-        else { y += Math.abs(Math.sin(rt * 12)) * 0.18; }
-      }
-      if (react === "overheat") { const k = 1 - rt / REACT.overheat; y += Math.abs(Math.sin(rt * 25)) * 0.12 * k; roll += Math.sin(rt * 37) * 0.06 * k; }
-      if (react === "helmetOff") { const k = 1 - rt / REACT.helmetOff; roll += Math.sin(rt * 18) * 0.12 * k; sy *= 1 - 0.1 * Math.sin(Math.min(1, rt / 0.2) * Math.PI); }
-      if (react === "drop") { const q = Math.sin(Math.min(1, rt / 0.35) * Math.PI); sy *= 1 - 0.08 * q; }
-      // composition : pivot à mi-corps pour les saltos
+      // composition : pivot près du sol pour les chutes
       _e.set(pitch, yaw, roll, "YXZ");
       rig.quaternion.setFromEuler(_e);
       const sc = this.scale;
@@ -1216,63 +1273,87 @@
       rig.scale.set(sx * sc, sy * sc, sx * sc);
     }
 
-    _props(dt, s, moving, speed, inWater, react, rt) {
-      const B = this.B, mo = this.spec.motion, w = this.w, t = this.time;
-      // sac : apparaît d'un coup (petit rebond), disparaît vite
-      if (B.p_sack) {
-        let k = 0;
-        if (s.carrying && !(react === "ko" && rt > 1.2)) { const p = this.sackPop; k = p < 1 ? 1 + Math.sin(p * Math.PI) * 0.35 - (1 - p) * (1 - p) : 1; }
-        else k = w.carry > 0.35 && react !== "drop" ? w.carry : 0;
-        B.p_sack.scale.setScalar(Math.max(0, k));
-        // balancement au rythme des pas
-        B.p_sack.rotation.set(Math.sin(this.phase * 2) * 0.06 * w.move, 0, Math.sin(this.phase) * 0.08 * w.move);
+    /** Accessoires communs : gemme portée (petit saut à la prise), cape, chapeau. */
+    _common(dt, s, moving, speed) {
+      const B = this.B, w = this.w, t = this.time;
+      // gemme : ancre qui « pop » à la prise et suit le pas
+      const gb = B.p_gem, gr = this.rest.p_gem;
+      if (gb) {
+        const p = this.gemPop;
+        const k = s.carrying ? (p < 1 ? 0.35 + 0.65 * backOut(p) : 1) : 1;
+        gb.scale.setScalar(k);
+        gb.position.set(gr.x, gr.y + (moving ? Math.abs(Math.sin(this.phase)) * 0.06 : Math.sin(t * 2.4 + this.id) * 0.03), gr.z);
+        gb.rotation.set(0, 0, moving ? Math.sin(this.phase) * 0.06 : 0);
       }
-      if (B.p_helmet && !this.fly.helmet) B.p_helmet.scale.setScalar(this.helmetGone ? 0 : 1);
-      // matelas : tangue au rythme des pas lourds
-      if (B.p_mattress) B.p_mattress.rotation.set(Math.sin(this.phase * 2) * 0.04 * w.move, 0, Math.sin(this.phase) * 0.07 * w.move + (react === "hit" ? 0.1 * Math.sin(rt * 30) : 0));
-      for (let fi = 0; fi < 2; fi++) {
-        const k = fi ? "flip_r" : "flip_l";
-        const b = B["p_" + k];
-        if (!b || this.fly[k]) continue;
-        if (this.flipGone) { b.scale.setScalar(0); continue; }
-        b.scale.setScalar(1);
-        // claquette qui bat sous le talon
-        const ph = this.phase + (fi ? Math.PI : 0);
-        b.rotation.set(moving ? -Math.max(0, Math.sin(ph)) * 0.6 : 0, 0, 0);
+      // cape : se soulève avec la vitesse et ondule
+      if (B.p_cape && !this.dead) {
+        const k = Math.min(1, speed / 4);
+        B.p_cape.rotation.set(0.12 + 0.45 * k + Math.sin(t * 7 + this.id) * 0.05 * (0.3 + k), 0, Math.sin(this.phase) * 0.06 * w.move);
       }
-      // bouée flamant
-      if (B.p_float) {
-        const b = B.p_float, r = this.rest.p_float;
-        if (inWater || w.water > 0.02) {
-          b.position.set(r.x, r.y + Math.sin(t * 2.6 + this.id) * 0.015, r.z);
-          b.rotation.set(Math.sin(t * 1.9 + this.id) * 0.07 * w.water, Math.sin(t * 0.7) * 0.1 * w.water, Math.sin(t * 2.3) * 0.07 * w.water);
-        } else {
-          b.position.set(r.x, r.y + (moving ? Math.abs(Math.cos(this.phase)) * 0.04 : 0), r.z);
-          b.rotation.set(0, 0, moving ? Math.sin(this.phase) * 0.14 : 0);
-        }
-      }
-      // pédalo : sur la tête à terre, à flot dans l'eau
-      if (B.p_boat) {
-        const b = B.p_boat, k = w.water, bs = this.spec.boat;
-        const bob = Math.sin(t * 2.2 + this.id) * 0.03;
-        const landY = bs.landY + (moving ? Math.abs(Math.sin(this.phase)) * 0.05 : 0);
-        b.position.set(0, landY * (1 - k) + (bs.waterY + bob) * k, bs.landZ * (1 - k));
-        b.rotation.set(0.05 * (1 - k) + Math.sin(t * 1.7) * 0.03 * k, 0, Math.sin(t * 2.1) * 0.04 * k + (moving && k < 0.5 ? Math.sin(this.phase) * 0.06 : 0));
-        if (B.p_paddle) { if (k > 0.5 && moving) this.wheelA += dt * 7; B.p_paddle.rotation.set(this.wheelA, 0, 0); }
-      }
-      // tondeuse : roues selon la vitesse
-      if (B.p_wheelR) {
-        this.wheelA += (speed * dt) / 0.45 * (s.overheated ? 1.6 : 1);
-        B.p_wheelR.rotation.set(this.wheelA, 0, 0);
-        B.p_wheelF.rotation.set(this.wheelA * 1.5, 0, 0);
+      if (B.p_hat && !this.fly.hat) {
+        B.p_hat.scale.setScalar(this.hatGone ? 0 : 1);
+        if (!this.hatGone) B.p_hat.rotation.set(this.react === "hit" ? -0.25 * Math.sin((this.reactT / REACT.hit) * Math.PI) : 0, 0, 0);
       }
     }
 
-    _writeData(flash, speed) {
+    /**
+     * Accessoire tenu en main (os p_<name>, enfant de la main) gardé dans une orientation voulue par
+     * rapport au buste : on annule la rotation cumulée du bras, puis on applique (rx, ry, rz).
+     */
+    hold(name, side, rx, ry, rz) {
+      const b = this.B["p_" + name];
+      if (!b) return;
+      const bones = this.bones;
+      const arm = bones[side ? BI.arm_r : BI.arm_l], fore = bones[side ? BI.fore_r : BI.fore_l], hand = bones[side ? BI.hand_r : BI.hand_l];
+      _q.copy(arm.quaternion).multiply(fore.quaternion).multiply(hand.quaternion).invert();
+      _q2.setFromEuler(_e.set(rx || 0, ry || 0, rz || 0, "XYZ"));
+      b.quaternion.copy(_q).multiply(_q2);
+    }
+
+    /** Décale un accessoire tenu en main, le décalage (ox, oy, oz) étant exprimé dans le repère du buste. */
+    holdOffset(name, side, ox, oy, oz) {
+      const b = this.B["p_" + name];
+      if (!b) return;
+      const r = this.rest["p_" + name];
+      if (!ox && !oy && !oz) { b.position.copy(r); return; }
+      const bones = this.bones;
+      _q.copy(bones[side ? BI.arm_r : BI.arm_l].quaternion).multiply(bones[side ? BI.fore_r : BI.fore_l].quaternion).multiply(bones[side ? BI.hand_r : BI.hand_l].quaternion).invert();
+      _v.set(ox, oy, oz).applyQuaternion(_q);
+      b.position.copy(r).add(_v);
+    }
+    /** Oriente un bout de corde (cylindre unité le long de +Y, os enfant de la main) vers (dx, dy, dz),
+     *  vecteur du repère du buste, et l'étire à sa longueur ; show = 0 le cache. */
+    aimFromHand(name, side, dx, dy, dz, show) {
+      const b = this.B["p_" + name];
+      if (!b) return;
+      const len = Math.hypot(dx, dy, dz);
+      if (!show || len < 1e-4) { b.scale.setScalar(0); return; }
+      const bones = this.bones;
+      _q.copy(bones[side ? BI.arm_r : BI.arm_l].quaternion).multiply(bones[side ? BI.fore_r : BI.fore_l].quaternion).multiply(bones[side ? BI.hand_r : BI.hand_l].quaternion).invert();
+      _v.set(dx / len, dy / len, dz / len);
+      _q2.setFromUnitVectors(_UP, _v);
+      b.quaternion.copy(_q).multiply(_q2);
+      b.scale.set(1, len, 1);
+    }
+    /** Vecteur horizontal (repère du personnage, m avant échelle) vers la cible de l'événement, borné. */
+    reachTo(maxLen, defLen) {
+      const r = this._reach;
+      if (!this.hasTarget || !this.object.parent) { r.x = 0; r.z = defLen; r.len = defLen; return r; }
+      this.object.updateMatrixWorld();
+      _v.copy(this.target);
+      this.object.worldToLocal(_v);
+      _v.divideScalar(this.scale);
+      const len = Math.hypot(_v.x, _v.z) || 1e-3;
+      const k = Math.min(1, maxLen / len);
+      r.x = _v.x * k; r.z = _v.z * k; r.len = len * k;
+      return r;
+    }
+
+    _writeData(speed) {
       const e = this.dataBone.matrixWorld.elements, w = this.w;
-      e[0] = flash; e[1] = w.wet; e[2] = w.frozen; e[3] = w.burn;
-      e[4] = w.ghost; e[5] = w.diss; e[6] = w.heat; e[7] = w.boost;
-      e[8] = Math.min(1.5, speed / 3); e[9] = w.lure; e[10] = 0; e[11] = 0;
+      e[0] = Math.max(w.flash, this.react === "hit" ? Math.max(0, 1 - this.reactT / REACT.hit) * 0.8 : 0); e[1] = w.wet; e[2] = w.frozen; e[3] = w.burn;
+      e[4] = w.ghost * 0.85; e[5] = w.diss; e[6] = w.imm; e[7] = w.haste;
+      e[8] = Math.min(1.5, speed / 3); e[9] = w.radiance; e[10] = w.stun; e[11] = this.seed;
       e[12] = 0; e[13] = 0; e[14] = 0; e[15] = 1;
     }
 
@@ -1290,6 +1371,19 @@
       POOLS.get(key).push(this);
     }
   }
+  // Humeurs : [ouverture, écarquillé, sourcils (colère > 0), hauteur, bouche, sourire]
+  const MOODS = {
+    neutral: [1, 1, 0.28, 0, 0, 1],
+    angry: [0.85, 1.05, 0.7, -0.02, 0.6, 1.1],
+    sly: [0.6, 1, 0.35, 0, 0, 1.35],
+    stern: [0.7, 1, 0.45, -0.01, 0, 0.9],
+    calm: [0.55, 1, -0.1, 0.01, 0, 1.15],
+    jolly: [0.9, 1.05, -0.2, 0.03, 0.35, 1.45],
+    sneaky: [0.65, 1, 0.4, 0, 0, 1.25],
+    fierce: [0.8, 1.05, 0.55, -0.01, 0.45, 1.2],
+    puff: [0.75, 1, 0.1, 0.02, 0.15, 0.7],
+    proud: [0.8, 1, 0.3, 0, 0, 1.3],
+  };
   /** Résolution du tampon de dessin pour l'épaisseur du contour (une fois par image suffit). */
   const _res = new THREE.Vector2();
   let _resFrame = -1;
@@ -1308,15 +1402,21 @@
     if (t < 2.5 / d1) return n1 * (t -= 2.25 / d1) * t + 0.9375;
     return n1 * (t -= 2.625 / d1) * t + 0.984375;
   }
+  function backOut(t) {
+    const c1 = 1.70158, c3 = c1 + 1;
+    return 1 + c3 * Math.pow(t - 1, 3) + c1 * Math.pow(t - 1, 2);
+  }
   A.Actor = Actor;
+  A.MOUNTS = A.MOUNTS || {};
 
   // ---------------------------------------------------------------------------------------------
   // API publique
   // ---------------------------------------------------------------------------------------------
-  /** Crée (ou réutilise) un ennemi. type : 'voleur'|'sprinteur'|'demenageur'|'fumigene'|'nageur'|'boss'. */
-  A.create = function (type, elite) {
+  /** Crée (ou réutilise) un ennemi. type : une clé de PTMT.actors.TYPES ; champion, boss : booléens. */
+  A.create = function (type, champion, boss) {
     if (!A.ready) throw new Error("PTMT.actors.create : appeler d’abord await PTMT.actors.load()");
-    const tpl = templateFor(type, !!elite);
+    const rank = boss ? 2 : champion ? 1 : 0;
+    const tpl = templateFor(type, rank);
     const pool = POOLS.get(tpl.key);
     let a = pool && pool.length ? pool.pop() : null;
     if (a) { a.reset(); a.released = false; a.object.visible = true; }
@@ -1326,9 +1426,9 @@
     return a;
   };
   /** Pré-remplit la réserve (évite les pics de création en jeu). */
-  A.prewarm = function (type, elite, count) {
+  A.prewarm = function (type, champion, boss, count) {
     const list = [];
-    for (let i = 0; i < count; i++) list.push(A.create(type, elite));
+    for (let i = 0; i < (count || 1); i++) list.push(A.create(type, champion, boss));
     for (const a of list) a.release();
   };
   /** Statistiques par variante (triangles, sommets, os, appels de dessin). */
@@ -1342,5 +1442,4 @@
     A._outline.value.w = on ? 1 : 0;
   };
   A.template = templateFor;
-  A.base = () => null;
 })();
