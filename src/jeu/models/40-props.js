@@ -891,6 +891,48 @@
     graniteTex.name = "ptmt:props-granite";
     return graniteTex;
   };
+  /* ------------------------------------------------------------------ feuillage */
+  // Petites feuilles claires et sombres semées en tous sens (blanc cassé, à multiplier par les
+  // couleurs de sommets) : donne du grain aux houppiers, buissons et haies, vu de près comme de loin.
+  let leafTex = null;
+  P.leafTex = function () {
+    if (leafTex) return leafTex;
+    const S = 256,
+      cv = document.createElement("canvas");
+    cv.width = cv.height = S;
+    const g = cv.getContext("2d");
+    g.fillStyle = "rgb(236,236,236)";
+    g.fillRect(0, 0, S, S);
+    const rnd = PTMT.rng(31);
+    for (let i = 0; i < 520; i++) {
+      const x = rnd() * S,
+        y = rnd() * S,
+        a = rnd() * TAU,
+        l = 7 + rnd() * 9,
+        w = l * (0.35 + rnd() * 0.15);
+      const v = rnd();
+      const c = v < 0.45 ? 150 + rnd() * 50 : v < 0.8 ? 255 : 205 + rnd() * 30;
+      g.fillStyle = `rgb(${c},${c},${c})`;
+      for (const ox of [-S, 0, S])
+        for (const oy of [-S, 0, S]) {
+          if (x + ox < -l || x + ox > S + l || y + oy < -l || y + oy > S + l) continue;
+          g.save();
+          g.translate(x + ox, y + oy);
+          g.rotate(a);
+          g.beginPath();
+          g.ellipse(0, 0, l / 2, w / 2, 0, 0, TAU);
+          g.fill();
+          g.restore();
+        }
+    }
+    leafTex = new THREE.CanvasTexture(cv);
+    leafTex.encoding = THREE.sRGBEncoding;
+    leafTex.wrapS = leafTex.wrapT = THREE.RepeatWrapping;
+    leafTex.anisotropy = 4;
+    leafTex.name = "ptmt:props-leaves";
+    return leafTex;
+  };
+
   /** Matière des rochers naturels (granit moucheté, liseré sombre), partagée. */
   P.rockMat = function (o) {
     const base = { map: P.graniteTex(), tri: 1.6, rim: [0.16, 0.5, 0.75], lift: 0.1, rough: 0.9, name: "rochers" };

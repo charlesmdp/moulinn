@@ -424,7 +424,7 @@
     cutTex.magFilter = cutTex.minFilter = THREE.NearestFilter;
     cutTex.generateMipmaps = false;
     cutTex.needsUpdate = true;
-    const mat = P.paint({ sway: true, cut: { tex: cutTex, n: N }, lift: 0.1, rim: [0.18, 0.52, 0.8], name: "forêts" });
+    const mat = P.paint({ sway: true, cut: { tex: cutTex, n: N }, map: P.leafTex(), tri: 1.4, lift: 0.1, rim: [0.18, 0.52, 0.8], name: "forêts" });
     const rmat = P.rockMat({ cut: { tex: cutTex, n: N }, name: "rochers des forêts" });
     const meshes = [];
     if (!A.empty) meshes.push(P.mesh(A, mat, { cast: true, name: "forêts" }));
