@@ -83,7 +83,7 @@
     for (const t of PTMT.actors.TYPES) for (const c of [false, true]) {
       const svg = P.get(t, c), key = t + (c ? "_champion" : "");
       rows.push(`<tr><td class="name">${P.names[key]}<br><small>${c ? "champion" : t}</small></td>` +
-        [64, 48, 36, 28].map((s) => `<td class="dark"><div style="width:${s}px;height:${s}px">${svg}</div></td>`).join("") +
+        (params.has("big") ? [160, 64, 28] : [64, 48, 36, 28]).map((s) => `<td class="dark"><div style="width:${s}px;height:${s}px">${svg}</div></td>`).join("") +
         [48, 28].map((s) => `<td class="light"><div style="width:${s}px;height:${s}px">${svg}</div></td>`).join("") + "</tr>");
     }
     document.getElementById("sheet").innerHTML = "<table>" + rows.join("") + "</table>";

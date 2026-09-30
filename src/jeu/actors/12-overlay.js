@@ -132,12 +132,12 @@
           vec2 f = abs(fract(q) - 0.5);
           float cell = smoothstep(0.42, 0.49, max(f.x, f.y));
           float n = ptNoise(vL.xz * 3.0 + uTime * 0.4);
-          vec3 green = vec3(0.35, 1.0, 0.45), gold = vec3(1.0, 0.85, 0.32);
-          vec3 col = mix(green, gold, clamp(0.3 + 0.7 * n * fres + 0.5 * vL.y, 0.0, 1.0));
+          vec3 green = vec3(0.3, 1.0, 0.4), gold = vec3(1.0, 0.82, 0.25);
+          vec3 col = mix(green, gold, clamp(0.25 + 0.7 * n * fres + 0.45 * vL.y, 0.0, 1.0)) * 1.25;
           float pulse = 0.85 + 0.15 * sin(uTime * 3.0);
-          float alpha = (0.1 + 0.75 * fres + 0.28 * cell) * pulse;
+          float alpha = (0.2 + 0.95 * fres + 0.4 * cell) * pulse;
           col += vec3(1.0) * pow(max(dot(reflect(-normalize(vec3(0.3, 0.9, 0.3)), N), V), 0.0), 24.0) * 0.8;
-          gl_FragColor = vec4(col, clamp(alpha, 0.0, 0.85) * vFade);
+          gl_FragColor = vec4(col, clamp(alpha, 0.0, 0.9) * vFade);
           #include <tonemapping_fragment>
           #include <encodings_fragment>
         }`,
@@ -333,6 +333,12 @@
     an.headTop.set(an.head.x, a.object.position.y + a.baseHeight * a.object.scale.y, an.head.z);
     a.es = a.scale * a.object.scale.y;
   }
+  /** Repères à jour pour cette image (recalcul des matrices d'os seulement si un effet en a besoin). */
+  function ensure(a) {
+    if (a._anchAt === a.time) return;
+    anchors(a);
+    a._anchAt = a.time;
+  }
   function every(a, key, period, dt) {
     if (ov.mobile) period *= 2; // mobile : moitié moins de particules
     const t = (a.emitT[key] || 0) + dt;
@@ -354,14 +360,15 @@
       ghostPuff: { drag: 0.8, life: 1.1, s0: 0.4, s1: 0.9, cell: C.puff, col: [0.62, 0.66, 0.6], a: 0.35, a1: 0, rot: "rand", spin: 0.4, curve: 1 },
       exhaust: { drag: 1.1, life: 0.9, s0: 0.18, s1: 0.7, cell: C.puffDark, col: [0.3, 0.29, 0.3], a: 0.55, a1: 0, rot: "rand", spin: 1.5, curve: 1 },
       dust: { drag: 2.5, life: 0.6, s0: 0.2, s1: 0.55, cell: C.puff, col: [0.8, 0.72, 0.58], a: 0.55, a1: 0, rot: "rand", curve: 1 },
-      boost: { drag: 3, life: 0.3, s0: 0.2, s1: 0.08, cell: C.spark, mode: 2, stretch: 0.14, col: [1, 0.95, 0.7], a: 1, a1: 0, add: 0.6 },
+      boost: { drag: 2.5, life: 0.36, s0: 0.32, s1: 0.12, cell: C.spark, mode: 2, stretch: 0.2, col: [1, 0.86, 0.4], a: 1, a1: 0, add: 0.5 },
       boostWind: { drag: 2, life: 0.35, s0: 0.7, s1: 0.9, cell: C.wind, mode: 3, rot: 0, a: 0.85, a1: 0 },
       ripple: { life: 1.1, s0: 1, s1: 2, cell: C.ripple, mode: 1, col: [0.9, 0.97, 1], a: 0.55, a1: 0, curve: 1 },
       wake: { life: 0.9, s0: 0.3, s1: 0.9, cell: C.foam, mode: 1, col: [0.95, 1, 1], a: 0.6, a1: 0, rot: "rand", curve: 1 },
       paddle: { grav: 9, life: 0.45, s0: 0.07, s1: 0.05, cell: C.drop, mode: 2, stretch: 0.05, col: [0.8, 0.95, 1], a: 0.9, a1: 0.5 },
       gemSparkle: { life: 0.55, s0: 0.05, s1: 0.28, cell: C.twinkle, col: [1, 0.95, 0.75], a: 1, a1: 0, add: 1, spin: 3, curve: 2 },
       sweat: { grav: 7, life: 0.55, s0: 0.12, s1: 0.1, cell: C.sweat, a: 1, a1: 0.2, rot: 0 },
-      panic: { life: 0.45, s0: 0.3, s1: 0.4, cell: MY.panic, a: 1, a1: 0, curve: 2 },
+      panic: { life: 0.5, s0: 0.45, s1: 0.6, cell: MY.panic, a: 1, a1: 0, curve: 2 },
+      fearSweat: { grav: 7, life: 0.6, s0: 0.2, s1: 0.16, cell: C.sweat, a: 1, a1: 0.2, rot: 0 },
       radSpark: { life: 0.8, s0: 0.12, s1: 0.04, cell: C.twinkle, col: [0.35, 0.7, 1], a: 1, a1: 0, add: 1, curve: 1 },
       leaf: { grav: 3, drag: 1.5, life: 1.2, s0: 0.2, s1: 0.2, cell: C.leaf, a: 1, a1: 0.6, spin: 4, rot: "rand", fadeOut: 0.7 },
     };
@@ -376,12 +383,14 @@
     const pos = a.object.position;
     const os = a.object.scale.y;
     const dw = a.dims.w * os, dh = a.dims.h * os, dd = a.dims.d * os;
-    const need = w.frozen > 0.05 || w.burn > 0.05 || w.ghost > 0.05 || w.wet > 0.05 || w.haste > 0.05 || w.water > 0.05 || w.fear > 0.05 || w.stun > 0.05 ||
-      w.radiance > 0.05 || w.disarm > 0.05 || w.barrier > 0.02 || s.carrying || react || w.hp < 0.3 || (a.mountDef && a.speed > 0.1);
-    if (need) anchors(a);
-    else a.es = a.scale * os;
-    const an = a.anchor, es = a.es;
+    const an = a.anchor;
     const yaw = a.object.rotation.y;
+    // repères bon marché (sans les os) ; tête, yeux, gemme, pot d'échappement : à la demande (ensure)
+    an.fwd.set(Math.sin(yaw), 0, Math.cos(yaw));
+    an.right.set(-Math.cos(yaw), 0, Math.sin(yaw));
+    a.es = a.scale * os;
+    const es = a.es;
+    const topY = pos.y + a.baseHeight * os;
     const visible = a.object.visible;
     // ombre portée douce (lisibilité vue de haut)
     if (ov.blobShadows && visible) {
@@ -399,6 +408,7 @@
       tmpM.compose(tmpP, tmpQ, tmpS);
       ice.push(tmpM);
       if (k > 0.6) {
+        ensure(a);
         a.lookT -= dt;
         if (a.lookT <= 0) { a.lookT = 0.25 + rnd() * 0.5; a.lookTo[0] = (rnd() - 0.5) * 2; a.lookTo[1] = (rnd() - 0.5) * 2; }
         a.look[0] += (a.lookTo[0] - a.look[0]) * Math.min(1, dt * 18);
@@ -429,6 +439,7 @@
     }
     // en feu : flammes qui dansent + fumée + braises
     if (w.burn > 0.05) {
+      ensure(a);
       const k = w.burn;
       for (let i = 0; i < FIRE_PTS.length; i++) {
         const p = FIRE_PTS[i];
@@ -468,16 +479,17 @@
     }
     // accéléré (air de biniou) : traits de vitesse
     if (w.haste > 0.05 && a.speed > 0.1) {
-      const n = every(a, "boost", 0.035, dt);
+      const n = every(a, "boost", 0.025, dt);
       for (let i = 0; i < n; i++) {
-        v1.copy(pos).addScaledVector(an.right, (rnd() - 0.5) * dw * 0.7).addScaledVector(UP, 0.15 + rnd() * dh * 0.6);
-        fx.emitR(R.boost, v1.x, v1.y, v1.z, -an.fwd.x * 8, 0, -an.fwd.z * 8, null, w.haste);
-        if (i === 0 && rnd() < 0.5) {
+        v1.copy(pos).addScaledVector(an.right, (rnd() - 0.5) * dw * 0.8).addScaledVector(UP, 0.15 + rnd() * dh * 0.6);
+        fx.emitR(R.boost, v1.x, v1.y, v1.z, -an.fwd.x * 9, 0, -an.fwd.z * 9, null, w.haste);
+        if (i === 0 && rnd() < 0.7) {
           R.boostWind.rot = rnd() > 0.5 ? Math.PI / 2 : -Math.PI / 2;
           fx.emitR(R.boostWind, v1.x - an.fwd.x * 0.6, v1.y, v1.z - an.fwd.z * 0.6, -an.fwd.x * 2, 0, -an.fwd.z * 2, null, w.haste);
         }
       }
-      if (every(a, "hasteNote", 0.45, dt)) fx.emit({ x: an.head.x, y: an.headTop.y + 0.1, z: an.head.z, vx: (rnd() - 0.5) * 0.6, vy: 0.9, vz: (rnd() - 0.5) * 0.6, life: 0.8, s0: 0.2 * es, s1: 0.3 * es, cell: MY.note, r: 1, g: 0.85, b: 0.3, a: w.haste, a1: 0, rot: (rnd() - 0.5) * 0.6, curve: 2, fadeOut: 0.6 });
+      if (every(a, "hasteNote", 0.4, dt)) fx.emit({ x: pos.x, y: topY + 0.1, z: pos.z, vx: (rnd() - 0.5) * 0.6, vy: 0.9, vz: (rnd() - 0.5) * 0.6, life: 0.8, s0: 0.32 * es, s1: 0.42 * es, cell: MY.note, r: 1, g: 0.85, b: 0.3, a: w.haste, a1: 0, rot: (rnd() - 0.5) * 0.6, curve: 2, fadeOut: 0.6 });
+      if (every(a, "hasteDust", 0.12, dt)) fx.emit({ x: pos.x - an.fwd.x * dd * 0.3, y: pos.y + 0.1, z: pos.z - an.fwd.z * dd * 0.3, vx: -an.fwd.x * 1.5, vy: 0.4, vz: -an.fwd.z * 1.5, drag: 2.5, life: 0.5, s0: 0.25, s1: 0.6, cell: C.puff, r: 1, g: 0.9, b: 0.6, a: 0.7 * w.haste, a1: 0, rot: rnd() * 6, curve: 1 });
     }
     // dans l'eau (canard) : ronds, sillage, gouttes des pattes
     if (w.water > 0.3) {
@@ -498,7 +510,7 @@
     // montures : fumée du quad, poussière des sabots
     if (a.mountDef && a.speed > 0.1 && react !== "die") {
       const kind = a.spec.mount.kind;
-      if (kind === "quad" && every(a, "exhaust", 0.1, dt)) fx.emitR(R.exhaust, an.exhaust.x, an.exhaust.y, an.exhaust.z, -an.fwd.x * 1.2 + (rnd() - 0.5) * 0.4, 0.8 + rnd() * 0.4, -an.fwd.z * 1.2 + (rnd() - 0.5) * 0.4);
+      if (kind === "quad" && every(a, "exhaust", 0.1, dt) && (ensure(a), true)) fx.emitR(R.exhaust, an.exhaust.x, an.exhaust.y, an.exhaust.z, -an.fwd.x * 1.2 + (rnd() - 0.5) * 0.4, 0.8 + rnd() * 0.4, -an.fwd.z * 1.2 + (rnd() - 0.5) * 0.4);
       if ((kind === "cow" || kind === "quad") && every(a, "dust", kind === "cow" ? 0.4 : 0.22, dt)) {
         v1.copy(pos).addScaledVector(an.fwd, -dd * 0.3).addScaledVector(an.right, (rnd() - 0.5) * dw * 0.8);
         fx.emitR(R.dust, v1.x, pos.y + 0.08, v1.z, -an.fwd.x * 0.5, 0.3, -an.fwd.z * 0.5);
@@ -506,10 +518,11 @@
     }
     // gemme portée : paillettes
     if (s.carrying && w.carry > 0.5 && react !== "die") {
-      if (every(a, "sparkle", 0.18, dt)) fx.emitR(R.gemSparkle, an.gem.x + (rnd() - 0.5) * 0.6, an.gem.y + (rnd() - 0.4) * 0.6, an.gem.z + (rnd() - 0.5) * 0.6, 0, 0.3, 0);
+      if (every(a, "sparkle", 0.18, dt) && (ensure(a), true)) fx.emitR(R.gemSparkle, an.gem.x + (rnd() - 0.5) * 0.6, an.gem.y + (rnd() - 0.4) * 0.6, an.gem.z + (rnd() - 0.5) * 0.6, 0, 0.3, 0);
     }
     // à bout de forces : gouttes de sueur
     if (w.hp < 0.3 && react !== "die" && every(a, "sweat", 0.45, dt)) {
+      ensure(a);
       const sgn = rnd() > 0.5 ? 1 : -1;
       v1.copy(an.head).addScaledVector(an.right, sgn * 0.35 * es).addScaledVector(UP, 0.25 * es);
       R.sweat.rot = -sgn * 0.5;
@@ -518,36 +531,43 @@
     // peur : traits de panique et sueur
     if (w.fear > 0.3 && react !== "die") {
       if (every(a, "panic", 0.3, dt)) {
+        ensure(a);
         const sgn = rnd() > 0.5 ? 1 : -1;
         v1.copy(an.head).addScaledVector(an.right, sgn * 0.45 * es).addScaledVector(UP, 0.35 * es);
         R.panic.rot = sgn > 0 ? 0 : 0.8;
         fx.emitR(R.panic, v1.x, v1.y, v1.z, an.right.x * sgn * 0.5, 0.5, an.right.z * sgn * 0.5, null, w.fear);
       }
-      if (every(a, "fearSweat", 0.25, dt)) fx.emitR(R.sweat, an.head.x, an.head.y + 0.3 * es, an.head.z, (rnd() - 0.5) * 2, 1.8, (rnd() - 0.5) * 2);
+      if (every(a, "fearSweat", 0.2, dt)) {
+        ensure(a);
+        const sgn = rnd() > 0.5 ? 1 : -1;
+        R.fearSweat.rot = -sgn * 0.6;
+        fx.emitR(R.fearSweat, an.head.x + an.right.x * sgn * 0.3 * es, an.head.y + 0.3 * es, an.head.z + an.right.z * sgn * 0.3 * es, an.right.x * sgn * 1.6, 1.8, an.right.z * sgn * 1.6);
+      }
     }
     // étourdi : étoiles qui tournent au-dessus de la tête
     if (w.stun > 0.05 && react !== "die") {
       for (let i = 0; i < 4; i++) {
         const ang = t * 5 + (i * Math.PI * 2) / 4;
-        v1.copy(an.headTop);
+        v1.set(pos.x, topY, pos.z);
         now.put(v1.x + Math.cos(ang) * 0.5 * es, v1.y + 0.12 * es + Math.sin(ang * 2) * 0.05, v1.z + Math.sin(ang) * 0.5 * es, 0.26 * es * w.stun, C.star, 1, 1, 1, w.stun, ang, 0);
       }
     }
     // rayonnement (dragon bleu) : rune bleue au sol qui tourne + étincelles
     if (w.radiance > 0.05) {
       const k = w.radiance;
-      now.put(pos.x, pos.y + 0.05, pos.z, Math.max(dw, dd) * 1.15, C.rune, 0.3, 0.65, 1, 0.85 * k, t * 1.2, 0.8, 1);
-      now.put(pos.x, pos.y + 0.06, pos.z, Math.max(dw, dd) * 0.9, C.glow, 0.25, 0.55, 1, 0.45 * k, 0, 1, 1);
+      now.put(pos.x, pos.y + 0.05, pos.z, Math.max(dw, dd) * 1.2, C.rune, 0.12, 0.42, 1, 0.95 * k, t * 1.2, 0.35, 1);
+      now.put(pos.x, pos.y + 0.06, pos.z, Math.max(dw, dd) * 1.0, C.glow, 0.15, 0.45, 1, 0.55 * k, 0, 0.9, 1);
       if (every(a, "radSpark", 0.12, dt)) fx.emitR(R.radSpark, pos.x + (rnd() - 0.5) * dw, pos.y + rnd() * dh, pos.z + (rnd() - 0.5) * dd, 0, 0.8, 0, null, k);
     }
     // désarmé : petite icône au-dessus de la tête
     if (w.disarm > 0.05 && react !== "die") {
       const b = 1 + 0.06 * Math.sin(t * 4 + a.id);
-      now.put(an.headTop.x, an.headTop.y + 0.28 * es + (w.stun > 0.05 ? 0.3 * es : 0), an.headTop.z, 0.36 * es * b * w.disarm, MY.disarm, 1, 1, 1, 0.9 * w.disarm, 0, 0);
+      now.put(pos.x, topY + 0.28 * es + (w.stun > 0.05 ? 0.3 * es : 0), pos.z, 0.36 * es * b * w.disarm, MY.disarm, 1, 1, 1, 0.9 * w.disarm, 0, 0);
     }
     // K.-O. : étoiles qui tournent, puis « pouf »
     if (react === "die") {
       if (rt > 0.2 && rt < 0.8) {
+        ensure(a);
         for (let i = 0; i < 5; i++) {
           const ang = t * 6 + (i * Math.PI * 2) / 5;
           v1.copy(an.head).addScaledVector(UP, 0.35 * es);
@@ -591,6 +611,7 @@
   ov.burst = function (a, name) {
     if (!root) return;
     anchors(a);
+    a._anchAt = a.time;
     const an = a.anchor, pos = a.object.position, es = a.es, os = a.object.scale.y;
     const dw = a.dims.w * os, dh = a.dims.h * os;
     const E = (o) => fx.emit(o);
@@ -610,14 +631,14 @@
       }
       case "pickup": {
         v1.copy(an.headTop).addScaledVector(UP, 0.45 * es);
-        E({ x: v1.x, y: v1.y, z: v1.z, vy: 0.5, life: 0.9, s0: 0.3 * es, s1: 0.42 * es, cell: C.exclaim, a: 1, a1: 1, fadeOut: 0.75, curve: 2 });
-        E({ x: an.gem.x, y: an.gem.y, z: an.gem.z, life: 0.35, s0: 0.3, s1: 1.4, cell: C.ring, r: 1, g: 0.92, b: 0.6, a: 1, a1: 0, add: 0.8, curve: 1 });
+        E({ x: v1.x, y: v1.y, z: v1.z, vy: 0.5, life: 0.9, s0: 0.5 * es, s1: 0.65 * es, cell: C.exclaim, a: 1, a1: 1, fadeOut: 0.75, curve: 2 });
+        E({ x: an.gem.x, y: an.gem.y, z: an.gem.z, life: 0.3, s0: 0.4, s1: 1.8, cell: C.glow, r: 1, g: 0.9, b: 0.55, a: 1, a1: 0, add: 1, curve: 1 });
         for (let i = 0; i < 10; i++) E({ x: an.gem.x + (rnd() - 0.5) * 0.8, y: an.gem.y + (rnd() - 0.5) * 0.8, z: an.gem.z + (rnd() - 0.5) * 0.8, life: 0.5, s0: 0.05, s1: 0.35, cell: C.twinkle, r: 1, g: 0.95, b: 0.7, a: 1, a1: 0, add: 1, delay: rnd() * 0.2, curve: 2 });
         break;
       }
       case "drop": {
         v1.copy(an.headTop).addScaledVector(UP, 0.4 * es);
-        E({ x: v1.x, y: v1.y, z: v1.z, vy: 0.4, life: 0.9, s0: 0.3 * es, s1: 0.4 * es, cell: C.question, a: 1, a1: 1, fadeOut: 0.7, curve: 2 });
+        E({ x: v1.x, y: v1.y, z: v1.z, vy: 0.4, life: 0.9, s0: 0.5 * es, s1: 0.62 * es, cell: C.question, a: 1, a1: 1, fadeOut: 0.7, curve: 2 });
         for (let i = 0; i < 6; i++) E({ x: pos.x + (rnd() - 0.5) * dw * 0.5, y: pos.y + 0.1, z: pos.z + (rnd() - 0.5) * dw * 0.5, vx: (rnd() - 0.5) * 2, vy: 0.5 + rnd(), vz: (rnd() - 0.5) * 2, drag: 3, life: 0.6, s0: 0.25, s1: 0.6, cell: C.puff, r: 0.8, g: 0.72, b: 0.6, a: 0.8, a1: 0, curve: 1 });
         break;
       }
@@ -630,13 +651,13 @@
         else { tx = pos.x + an.fwd.x * 3.5; ty = pos.y + 0.8; tz = pos.z + an.fwd.z * 3.5; }
         const g = 9;
         const vx = (tx - v1.x) / fly, vz = (tz - v1.z) / fly, vy = (ty - v1.y) / fly + 0.5 * g * fly;
-        E({ x: v1.x, y: v1.y, z: v1.z, vx, vy, vz, grav: g, delay: T0, life: fly, s0: 0.42, s1: 0.5, cell: MY.crepe, a: 1, a1: 1, spin: 14, fadeIn: 0.02, fadeOut: 0.95 });
+        E({ x: v1.x, y: v1.y, z: v1.z, vx, vy, vz, grav: g, delay: T0, life: fly, s0: 0.6, s1: 0.7, cell: MY.crepe, a: 1, a1: 1, spin: 14, fadeIn: 0.02, fadeOut: 0.95 });
         E({ x: v1.x, y: v1.y, z: v1.z, delay: T0, life: 0.25, s0: 0.2, s1: 0.8, cell: C.glow, r: 1, g: 0.85, b: 0.5, a: 0.9, a1: 0, add: 1 });
-        for (let i = 0; i < 4; i++) E({ x: tx + (rnd() - 0.5) * 0.6, y: ty - 0.4 + rnd() * 0.6, z: tz + (rnd() - 0.5) * 0.6, vy: 1.2, delay: T0 + fly + i * 0.08, life: 0.7, s0: 0.22, s1: 0.32, cell: MY.plus, r: 0.4, g: 1, b: 0.45, a: 1, a1: 0, curve: 2, fadeOut: 0.6 });
+        for (let i = 0; i < 4; i++) E({ x: tx + (rnd() - 0.5) * 0.6, y: ty - 0.4 + rnd() * 0.6, z: tz + (rnd() - 0.5) * 0.6, vy: 1.2, delay: T0 + fly + i * 0.08, life: 0.7, s0: 0.38, s1: 0.5, cell: MY.plus, r: 0.4, g: 1, b: 0.45, a: 1, a1: 0, curve: 2, fadeOut: 0.6 });
         break;
       }
       case "healed": {
-        for (let i = 0; i < 5; i++) E({ x: pos.x + (rnd() - 0.5) * dw * 0.6, y: pos.y + dh * (0.5 + rnd() * 0.4), z: pos.z + (rnd() - 0.5) * dw * 0.6, vy: 1.3, delay: i * 0.06, life: 0.75, s0: 0.2 * es, s1: 0.3 * es, cell: MY.plus, r: 0.4, g: 1, b: 0.45, a: 1, a1: 0, curve: 2, fadeOut: 0.6 });
+        for (let i = 0; i < 5; i++) E({ x: pos.x + (rnd() - 0.5) * dw * 0.6, y: pos.y + dh * (0.5 + rnd() * 0.4), z: pos.z + (rnd() - 0.5) * dw * 0.6, vy: 1.3, delay: i * 0.06, life: 0.75, s0: 0.38 * es, s1: 0.5 * es, cell: MY.plus, r: 0.4, g: 1, b: 0.45, a: 1, a1: 0, curve: 2, fadeOut: 0.6 });
         E({ x: pos.x, y: pos.y + dh * 0.5, z: pos.z, life: 0.35, s0: dw * 0.5, s1: dw * 1.4, cell: C.glow, r: 0.5, g: 1, b: 0.5, a: 0.7, a1: 0, add: 1 });
         break;
       }
@@ -646,7 +667,7 @@
         v1.copy(an.hand).addScaledVector(UP, 0.3 * es);
         const tx = pos.x + an.fwd.x * 1.2, tz = pos.z + an.fwd.z * 1.2;
         const fly = 0.3;
-        E({ x: v1.x, y: v1.y, z: v1.z, vx: (tx - v1.x) / fly, vy: (pos.y + 0.15 - v1.y) / fly + 0.5 * 12 * fly, vz: (tz - v1.z) / fly, grav: 12, delay: T0, life: fly, s0: 0.3, s1: 0.3, cell: MY.grenade, a: 1, a1: 1, spin: 12, fadeIn: 0.02, fadeOut: 0.98 });
+        E({ x: v1.x, y: v1.y, z: v1.z, vx: (tx - v1.x) / fly, vy: (pos.y + 0.15 - v1.y) / fly + 0.5 * 12 * fly, vz: (tz - v1.z) / fly, grav: 12, delay: T0, life: fly, s0: 0.42, s1: 0.42, cell: MY.grenade, a: 1, a1: 1, spin: 12, fadeIn: 0.02, fadeOut: 0.98 });
         const n = Math.round(18 * Q);
         for (let i = 0; i < n; i++) {
           const ang = rnd() * Math.PI * 2, sp = 1.5 + rnd() * 2.5;
@@ -660,7 +681,7 @@
         const n = Math.round(9 * Q) + 2;
         for (let i = 0; i < n; i++) {
           const ang = rnd() * Math.PI * 2, c = NOTE_COLS[i % NOTE_COLS.length];
-          E({ x: an.chest.x, y: an.chest.y + 0.4 * es, z: an.chest.z, vx: Math.cos(ang) * (0.8 + rnd()), vy: 1.2 + rnd() * 1.2, vz: Math.sin(ang) * (0.8 + rnd()), drag: 0.8, delay: i * 0.08, life: 1.2, s0: 0.28 * es, s1: 0.4 * es, cell: i % 2 ? MY.note : MY.notes, r: c[0], g: c[1], b: c[2], a: 1, a1: 0, rot: (rnd() - 0.5) * 0.8, spin: (rnd() - 0.5) * 2, curve: 2, fadeOut: 0.7 });
+          E({ x: an.chest.x, y: an.chest.y + 0.4 * es, z: an.chest.z, vx: Math.cos(ang) * (0.8 + rnd()), vy: 1.2 + rnd() * 1.2, vz: Math.sin(ang) * (0.8 + rnd()), drag: 0.8, delay: i * 0.08, life: 1.2, s0: 0.45 * es, s1: 0.6 * es, cell: i % 2 ? MY.note : MY.notes, r: c[0], g: c[1], b: c[2], a: 1, a1: 0, rot: (rnd() - 0.5) * 0.8, spin: (rnd() - 0.5) * 2, curve: 2, fadeOut: 0.7 });
         }
         const reach = ((PTMT.sim && PTMT.sim.DATA && PTMT.sim.DATA.TILE) || 3.6) * 2;
         E({ x: pos.x, y: pos.y + 0.08, z: pos.z, life: 0.9, s0: 0.6, s1: reach * 2, cell: C.ring, mode: 1, r: 1, g: 0.85, b: 0.35, a: 0.9, a1: 0, add: 0.6, curve: 1 });
@@ -706,12 +727,12 @@
       }
       case "escape": {
         v1.copy(an.headTop).addScaledVector(UP, 0.4 * es);
-        E({ x: v1.x, y: v1.y, z: v1.z, vy: 0.8, life: 0.8, s0: 0.3 * es, s1: 0.42 * es, cell: C.exclaim, a: 1, a1: 1, fadeOut: 0.75, curve: 2 });
+        E({ x: v1.x, y: v1.y, z: v1.z, vy: 0.8, life: 0.8, s0: 0.5 * es, s1: 0.65 * es, cell: C.exclaim, a: 1, a1: 1, fadeOut: 0.75, curve: 2 });
         break;
       }
       case "immune": {
-        v1.copy(an.headTop).addScaledVector(UP, 0.35 * es);
-        E({ x: v1.x, y: v1.y, z: v1.z, vy: 0.6, life: 0.8, s0: 0.3 * es, s1: 0.45 * es, cell: MY.badge, a: 1, a1: 1, fadeOut: 0.7, curve: 2 });
+        v1.copy(an.headTop).addScaledVector(UP, 0.4 * es);
+        E({ x: v1.x, y: v1.y, z: v1.z, vy: 0.6, life: 0.8, s0: 0.5 * es, s1: 0.7 * es, cell: MY.badge, a: 1, a1: 1, fadeOut: 0.7, curve: 2 });
         E({ x: an.chest.x, y: an.chest.y, z: an.chest.z, life: 0.3, s0: 0.5 * es, s1: 2.2 * es, cell: C.ring, r: 1, g: 0.82, b: 0.3, a: 1, a1: 0, add: 0.8, curve: 1 });
         for (let i = 0; i < 8; i++) E({ x: an.chest.x + (rnd() - 0.5) * dw * 0.7, y: an.chest.y + (rnd() - 0.3) * dh * 0.6, z: an.chest.z + (rnd() - 0.5) * dw * 0.7, life: 0.5, s0: 0.06, s1: 0.35, cell: C.twinkle, r: 1, g: 0.85, b: 0.4, a: 1, a1: 0, add: 1, delay: rnd() * 0.15, curve: 2 });
         break;

@@ -452,9 +452,9 @@
       totalEmissiveRadiance += vec3(1.0, 0.36, 0.05) * ptBurn * (0.14 + 0.12 * sin(uTime * 23.0 + vRest.y * 6.0));
       totalEmissiveRadiance += vec3(0.4, 0.75, 1.0) * ptFrozen * 0.12;
       // rayonnement (dragon bleu) : halo bleu qui palpite ; immunité : éclat doré ; hâte : liseré chaud
-      totalEmissiveRadiance += vec3(0.25, 0.6, 1.0) * ptRad * (0.16 + 1.7 * ptFres) * (0.75 + 0.25 * sin(uTime * 7.0));
-      totalEmissiveRadiance += vec3(1.0, 0.78, 0.3) * ptImm * (0.3 + 2.2 * ptFres);
-      totalEmissiveRadiance += vec3(1.0, 0.85, 0.4) * vFx1.w * ptFres * 0.45;
+      totalEmissiveRadiance += vec3(0.2, 0.55, 1.0) * ptRad * (0.05 + 1.25 * ptFres) * (0.7 + 0.3 * sin(uTime * 7.0));
+      totalEmissiveRadiance += vec3(1.0, 0.78, 0.3) * ptImm * (0.12 + 1.8 * ptFres);
+      totalEmissiveRadiance += vec3(1.0, 0.8, 0.3) * vFx1.w * ptFres * 0.9;
       if (ptDiss > 0.001 && ptN < ptDiss + 0.07) totalEmissiveRadiance += vec3(1.0, 0.9, 0.55) * 2.5;
     }
   `;
@@ -612,6 +612,8 @@
     binoc: [-1.55, 0, 0.35, -2.1, 0, 0, 0.3, 0, 0, 1.0],
   };
   A.ARM_POSES = ARM;
+  /** Poses de port de la gemme (main levée). */
+  const CARRY_UP = { overhead: 1, carryUp: 1, carryFwd: 1 };
   /** Poses animées : [pose A, pose B, fréquence (rad/s), décalage du bras droit]. */
   const OSC = {
     fork: ["forkA", "forkB", 9, 0],
@@ -645,7 +647,7 @@
   const smooth = (cur, target, dt, rate) => cur + (target - cur) * (1 - Math.exp(-dt * rate));
   const ease = (t) => t * t * (3 - 2 * t);
   // Réactions du corps (durées, priorité) et gestes des bras (durées).
-  const REACT = { hit: 0.28, healed: 0.45, immune: 0.55, barrierBreak: 0.4, dodge: 0.46, spawn: 0.5, escape: 0.75, die: 1.0 };
+  const REACT = { hit: 0.28, healed: 0.45, immune: 0.55, barrierBreak: 0.4, dodge: 0.46, spawn: 0.6, escape: 0.75, die: 1.0 };
   const PRIO = { hit: 1, healed: 2, immune: 3, barrierBreak: 3, dodge: 5, spawn: 7, escape: 8, die: 9 };
   const GESTURE = { pickup: 0.55, drop: 0.6, heal: 0.7, smoke: 0.6, tune: 1.3, lasso: 1.0 };
   A.KO_DURATION = REACT.die;
@@ -739,6 +741,11 @@
       this.face = { open: 1, wide: 1, tilt: 0, up: 0, mouth: 0, grin: 1, lookX: 0, lookY: 0, tx: 0, ty: 0, lookT: 0, blinkT: 2, blink: 0, dizzy: 0 };
       this.target = new THREE.Vector3();
       this._reach = { x: 0, z: 0, len: 0 };
+      const hp = tpl.spec.p;
+      this._handOffL = [0.015, -hp.handR * 0.72, 0.02];
+      this._handOffR = [-0.015, -hp.handR * 0.72, 0.02];
+      this.v1 = new THREE.Vector3();
+      this.v2 = new THREE.Vector3();
       this.hasTarget = false;
       this.anchor = { head: new THREE.Vector3(), headTop: new THREE.Vector3(), chest: new THREE.Vector3(), gem: new THREE.Vector3(), exhaust: new THREE.Vector3(), hand: new THREE.Vector3(), feet: new THREE.Vector3(), fwd: new THREE.Vector3(), right: new THREE.Vector3(), eyeL: new THREE.Vector3(), eyeR: new THREE.Vector3() };
       this.reset();
@@ -1229,9 +1236,10 @@
       }
       if (react === "spawn") {
         const k = clamp(rt / REACT.spawn, 0, 1);
-        const sc = k < 0.55 ? backOut(k / 0.55) : 1 + 0.08 * Math.sin(((k - 0.55) / 0.45) * Math.PI) * (1 - k);
-        sx *= Math.max(0.01, sc); sy *= Math.max(0.01, sc);
-        y += (1 - Math.min(1, k * 2)) * 0.6;
+        const q = Math.min(1, k / 0.6);
+        const sc = q < 1 ? backOut(q, 1.2) : 1;
+        sx *= Math.max(0.01, sc * (1 + 0.12 * Math.sin(q * Math.PI))); sy *= Math.max(0.01, sc * (1 - 0.08 * Math.sin(q * Math.PI)));
+        y += Math.sin(Math.min(1, k / 0.5) * Math.PI) * 0.45;
       }
       if (react === "escape") {
         // saut de joie, pirouette, puis « pouf »
@@ -1276,13 +1284,21 @@
     /** Accessoires communs : gemme portée (petit saut à la prise), cape, chapeau. */
     _common(dt, s, moving, speed) {
       const B = this.B, w = this.w, t = this.time;
-      // gemme : ancre qui « pop » à la prise et suit le pas
+      // gemme : ancre posée sur la main levée (ou entre les deux mains), « pop » à la prise
       const gb = B.p_gem, gr = this.rest.p_gem;
       if (gb) {
         const p = this.gemPop;
         const k = s.carrying ? (p < 1 ? 0.35 + 0.65 * backOut(p) : 1) : 1;
         gb.scale.setScalar(k);
-        gb.position.set(gr.x, gr.y + (moving ? Math.abs(Math.sin(this.phase)) * 0.06 : Math.sin(t * 2.4 + this.id) * 0.03), gr.z);
+        const bob = moving ? Math.abs(Math.sin(this.phase)) * 0.05 : Math.sin(t * 2.4 + this.id) * 0.03;
+        if (w.carry > 0.01 && !this.dead) {
+          const arms = this.spec.carry.arms;
+          const upL = CARRY_UP[arms[0]], upR = CARRY_UP[arms[1]];
+          const h = this.handInBody(upL ? 0 : 1, this.v1);
+          if (upL && upR) h.add(this.handInBody(1, this.v2)).multiplyScalar(0.5);
+          h.y += 0.1 + bob;
+          gb.position.set(gr.x + (h.x - gr.x) * w.carry, gr.y + (h.y - gr.y) * w.carry, gr.z + (h.z - gr.z) * w.carry);
+        } else gb.position.set(gr.x, gr.y + bob, gr.z);
         gb.rotation.set(0, 0, moving ? Math.sin(this.phase) * 0.06 : 0);
       }
       // cape : se soulève avec la vitesse et ondule
@@ -1321,18 +1337,37 @@
       _v.set(ox, oy, oz).applyQuaternion(_q);
       b.position.copy(r).add(_v);
     }
-    /** Oriente un bout de corde (cylindre unité le long de +Y, os enfant de la main) vers (dx, dy, dz),
-     *  vecteur du repère du buste, et l'étire à sa longueur ; show = 0 le cache. */
-    aimFromHand(name, side, dx, dy, dz, show) {
+    /** Centre de la moufle (side 0 gauche, 1 droite) dans le repère de l'os du buste (unités de liaison). */
+    handInBody(side, out) {
+      const hand = this.bones[side ? BI.hand_r : BI.hand_l];
+      hand.updateWorldMatrix(true, false);
+      out.fromArray(side ? this._handOffR : this._handOffL);
+      hand.localToWorld(out);
+      return this.B.body.worldToLocal(out);
+    }
+    /** Cible de l'événement (sinon un point à defLen m devant), bornée à maxLen, dans le repère du buste. */
+    targetInBody(out, maxLen, defLen) {
+      const o = this.object, sc = this.scale;
+      o.updateWorldMatrix(true, false);
+      if (this.hasTarget) { out.copy(this.target); o.worldToLocal(out); }
+      else out.set(0, 0, defLen * sc);
+      const len = Math.hypot(out.x, out.z) || 1e-3, k = Math.min(1, (maxLen * sc) / len);
+      out.x *= k; out.z *= k;
+      out.y = Math.max(out.y, 0);
+      o.localToWorld(out);
+      this.B.body.updateWorldMatrix(true, false);
+      return this.B.body.worldToLocal(out);
+    }
+    /** Corde (cylindre unité le long de +Y, os enfant du buste) tendue du point a au point (bx, by, bz),
+     *  coordonnées du repère du buste ; show = 0 la cache. */
+    rope(name, a, bx, by, bz, show) {
       const b = this.B["p_" + name];
       if (!b) return;
-      const len = Math.hypot(dx, dy, dz);
+      const dx = bx - a.x, dy = by - a.y, dz = bz - a.z, len = Math.hypot(dx, dy, dz);
       if (!show || len < 1e-4) { b.scale.setScalar(0); return; }
-      const bones = this.bones;
-      _q.copy(bones[side ? BI.arm_r : BI.arm_l].quaternion).multiply(bones[side ? BI.fore_r : BI.fore_l].quaternion).multiply(bones[side ? BI.hand_r : BI.hand_l].quaternion).invert();
+      b.position.set(a.x, a.y, a.z);
       _v.set(dx / len, dy / len, dz / len);
-      _q2.setFromUnitVectors(_UP, _v);
-      b.quaternion.copy(_q).multiply(_q2);
+      b.quaternion.setFromUnitVectors(_UP, _v);
       b.scale.set(1, len, 1);
     }
     /** Vecteur horizontal (repère du personnage, m avant échelle) vers la cible de l'événement, borné. */
@@ -1402,8 +1437,8 @@
     if (t < 2.5 / d1) return n1 * (t -= 2.25 / d1) * t + 0.9375;
     return n1 * (t -= 2.625 / d1) * t + 0.984375;
   }
-  function backOut(t) {
-    const c1 = 1.70158, c3 = c1 + 1;
+  function backOut(t, c) {
+    const c1 = c === undefined ? 1.70158 : c, c3 = c1 + 1;
     return 1 + c3 * Math.pow(t - 1, 3) + c1 * Math.pow(t - 1, 2);
   }
   A.Actor = Actor;

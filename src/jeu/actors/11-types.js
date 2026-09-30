@@ -531,7 +531,7 @@
     champion: { look: { hat: 0xf4efe2, hatBand: GOLD, shirt: 0xc0282a, vest: 0x2a2420, bandana: 0x1f2a5c, buckle: GOLD, pants: 0x24407a, legStops: [[0, 0x24407a], [0.6, 0x5a3418]], shoe: 0x5a3418 } },
     mood: "stern",
     motion: { gait: "heavy", arms: ["hip", "lasso"] },
-    carry: { pos: [0.56, 2.6, 0.1], arms: ["carryUp", "lasso"] },
+    carry: { pos: [0.56, 2.6, 0.1], arms: ["carryUp", null] },
     dims: { w: 1.4, h: 2.6, d: 1.2 },
     height: 2.62,
     props(s) {
@@ -541,8 +541,8 @@
           const top = cowboyHat(k, s.p, { color: s.look.hat, band: s.look.hatBand, gold: s.champion });
           if (s.boss) crown(k, { pos: [0, top - 0.12, s.p.headZ - 0.02], r: 0.26, h: 0.15, big: true });
         } },
-        { name: "lasso", parent: "hand_r", pos: hc, build: (k, s) => lassoLoop(k, hc, s.look.rope) },
-        { name: "rope", parent: "hand_r", pos: hc, build: (k, s) => k.add(G.cyl(0.02, 0.02, 1, 4), { pos: [hc[0], hc[1] + 0.5, hc[2]], color: s.look.rope, mat: 1, outline: true }) },
+        { name: "lasso", parent: "body", pos: hc, build: (k, s) => lassoLoop(k, hc, s.look.rope) },
+        { name: "rope", parent: "body", pos: hc, build: (k, s) => k.add(G.cyl(0.02, 0.02, 1, 4), { pos: [hc[0], hc[1] + 0.5, hc[2]], color: s.look.rope, mat: 1, outline: true }) },
       ];
       if (s.boss) out.push(capeProp({ top: p.shY + 0.14, z: -0.26, w0: 0.8, w1: 1.25, len: 1.2, color: 0x7a1a1a }));
       return out;
@@ -563,26 +563,29 @@
         k.add(G.shape("star5s", starPts(0.1, 0.045, 5), 0.03), { bone: "body", pos: [0.19, p.waist + 0.4, p.torsoR * p.torsoD + 0.06], rot: [-0.1, 0, 0], color: GOLD, mat: MAT.gold, outline: false });
       }
     },
-    animate(a, dt, s, moving) {
-      // le lasso tournoie au-dessus de la tête ; au geste « lasso », la boucle part vers la cible
+    animate(a, dt, s) {
+      // le lasso tournoie au-dessus de la main ; au geste « lasso », la boucle file vers la cible (gemme
+      // tombée), se referme, puis revient. Boucle et corde sont des os du buste placés d'après la main.
       const B = a.B, g = a.gesture === "lasso" ? a.gestureT : -1;
-      a.lassoA += dt * (g >= 0 && g < 0.3 ? 16 : 9);
-      let ox = 0, oy = 0, oz = 0, sc = 1;
-      if (g >= 0.25) {
-        const d = a.reachTo(5.4, 3.2);
-        const k = g < 0.55 ? (g - 0.25) / 0.3 : g < 0.8 ? 1 : 1 - (g - 0.8) / 0.2;
-        const kk = Math.max(0, Math.min(1, k));
-        const e = kk * kk * (3 - 2 * kk);
-        ox = d.x * e; oz = d.z * e; oy = (-1.8 * e + Math.sin(e * Math.PI) * 0.8) * (d.len > 0 ? 1 : 0);
-        sc = g > 0.55 && g < 0.8 ? 0.7 : 1 + 0.25 * e;
-      }
+      a.lassoA += dt * (g >= 0 && g < 0.32 ? 17 : 9);
       const show = s.carrying || a.dead ? 0 : 1;
-      a.hold("lasso", 1, 0, a.lassoA, 0);
-      a.holdOffset("lasso", 1, ox, oy, oz);
-      B.p_lasso.scale.setScalar(sc * show);
+      if (!show) { B.p_lasso.scale.setScalar(0); B.p_rope.scale.setScalar(0); return; }
+      const hand = a.handInBody(1, a.v1);
+      let cx = hand.x, cy = hand.y + 0.5, cz = hand.z, sc = 1;
+      if (g >= 0.3) {
+        const tb = a.targetInBody(a.v2, 5.4, 3.2);
+        const k = g < 0.58 ? (g - 0.3) / 0.28 : g < 0.8 ? 1 : 1 - (g - 0.8) / 0.2;
+        const e = k * k * (3 - 2 * k);
+        cx += (tb.x - cx) * e; cz += (tb.z - cz) * e;
+        cy += (tb.y + 0.12 - cy) * e + (g < 0.58 ? Math.sin(e * Math.PI) * 0.7 : 0);
+        sc = g < 0.58 ? 1 + 0.25 * e : g < 0.8 ? 0.62 : 0.62 + 0.38 * (1 - k);
+      }
+      B.p_lasso.position.set(cx, cy - 0.5 * sc, cz);
+      B.p_lasso.rotation.set(0, a.lassoA, 0);
+      B.p_lasso.scale.setScalar(sc);
       // corde : de la main au nœud de la boucle (qui tourne avec elle)
       const r = 0.5 * sc;
-      a.aimFromHand("rope", 1, ox + Math.sin(a.lassoA) * r, oy + r, oz + Math.cos(a.lassoA) * r, show);
+      a.rope("rope", hand, cx + Math.sin(a.lassoA) * r, cy, cz + Math.cos(a.lassoA) * r, 1);
     },
   };
   function starPts(R, r, n) {
