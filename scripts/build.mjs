@@ -135,16 +135,20 @@ async function main() {
   const jeuFile = await emit("jeu", "js", await minifyJs(await concat(jeuFiles), "jeu.js"), report);
   const vendorFiles = ["GLTFLoader.js", "SkeletonUtils.js", "BufferGeometryUtils.js"].map((f) => path.join(jeuDir, "vendor", f));
   const jeuVendorFile = await emit("jeu-vendor", "js", await minifyJs(await concat(vendorFiles), "jeu-vendor.js"), report);
-  const jeuCss = await transform(await fs.readFile(path.join(jeuDir, "jeu.css"), "utf8"), { loader: "css", minify: true, target: ["safari15"] });
+  // Police des titres et des boutons (Lilita One, licence SIL OFL, jointe à côté de la page du jeu).
+  const jeuFontFile = await emit("lilita-one", "woff2", await fs.readFile(path.join(jeuDir, "fonts", "lilita-one-latin.woff2")), report);
+  const jeuCssSource = (await fs.readFile(path.join(jeuDir, "jeu.css"), "utf8")).replaceAll("{{asset:jeu-font}}", path.basename(jeuFontFile));
+  const jeuCss = await transform(jeuCssSource, { loader: "css", minify: true, target: ["safari15"] });
   const jeuCssFile = await emit("jeu", "css", jeuCss.code, report);
   let jeuBoot = await fs.readFile(path.join(jeuDir, "boot.js"), "utf8");
   jeuBoot = jeuBoot.replaceAll("{{asset:jeu-js}}", "../" + jeuFile).replaceAll("{{asset:jeu-vendor}}", "../" + jeuVendorFile);
   const jeuBootFile = await emit("jeu-boot", "js", await minifyJs(jeuBoot, "jeu-boot.js"), report);
   let jeuHtml = await fs.readFile(path.join(jeuDir, "index.html"), "utf8");
   jeuHtml = jeuHtml.replaceAll("{{asset:jeu-css}}", "../" + jeuCssFile).replaceAll("{{asset:jeu-boot}}", "../" + jeuBootFile);
-  if (/\{\{asset:/.test(jeuHtml + jeuBoot)) throw new Error("Jeton {{asset:…}} non remplacé dans le jeu");
+  if (/\{\{asset:/.test(jeuHtml + jeuBoot + jeuCss.code)) throw new Error("Jeton {{asset:…}} non remplacé dans le jeu");
   await fs.mkdir(path.join(stage, "jeu"), { recursive: true });
   await fs.writeFile(path.join(stage, "jeu", "index.html"), jeuHtml);
+  await fs.copyFile(path.join(jeuDir, "fonts", "OFL-LilitaOne.txt"), path.join(stage, "jeu", "OFL-LilitaOne.txt"));
 
   // Vérification : chaque ressource citée par le chargeur et la page existe.
   const referenced = new Set([...`${html}\n${start}\n${jeuHtml}\n${jeuBoot}`.matchAll(/assets\/[A-Za-z0-9_.-]+\.[a-z0-9]+/g)].map((m) => m[0]));

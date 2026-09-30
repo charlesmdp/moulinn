@@ -20,6 +20,7 @@ const types = {
   ".mp3": "audio/mpeg",
   ".gz": "application/octet-stream",
   ".txt": "text/plain; charset=utf-8",
+  ".woff2": "font/woff2",
 };
 
 http
