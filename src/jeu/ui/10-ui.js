@@ -49,7 +49,6 @@
   const SPELLS = ["cut", "frenzy", "meteor"];
   const FAMS = ["boar", "swan", "dog"];
   const KEYS = { cut: "Q", frenzy: "W", meteor: "E" };
-  const ROMAN = ["", "I", "II", "III", "IV", "V"];
   // Teinte des portraits de secours (quand PTMT.portraits ne connaît pas le type).
   const TINT = { fermier: "#6f8f3a", quad: "#3f4f78", cowboy: "#a0602d", vache: "#3a3a3a", druide: "#cfd6c4", bigoudene: "#2a4c9a", chasseur: "#56733a", rugbyman: "#2a5cb8", sonneur: "#35508f", pompier: "#c8342a", canard: "#e8b820" };
   const ABILITY = {
@@ -199,7 +198,14 @@
     this.el.classList.toggle("pt-tiny", Math.min(W, H) < 380);
     this.el.classList.toggle("pt-touch", this.mobile);
     this._insets = null;
+    if (changed) {
+      this.last.mana = null;
+      this.last.nextkey = null;
+      if (this.tuto) this.tuto.placed = null;
+      if (this.marks) for (const m of this.marks) m.tr = null;
+    }
     if (changed && this.mode === "map") this.showMap(this.mapSel);
+    if (this.mode === "game") this.insets();
     if (this.sel) this.placeSel(true);
     if (this.tuto) this.placeTuto();
   };
@@ -242,6 +248,7 @@
       "header",
       { class: "pt-shead" },
       back ? h("button", { class: "pt-btn pt-sq pt-wood", title: "Retour", "aria-label": "Retour", onclick: back }, ico("back")) : h("span", { class: "pt-shead-sp" }),
+      PTMT.logo ? h("span", { class: "pt-shead-logo", "aria-hidden": "true", html: PTMT.logo.emblem() }) : null,
       h("h1", { class: "pt-shead-t" }, title),
       h("div", { class: "pt-shead-x" }, extra || null),
     );
@@ -313,6 +320,7 @@
     const maps = this.maps();
     const n = this.missionCount();
     const unlocked = clamp(p.unlocked || 1, 1, n);
+    if (focus > unlocked) focus = unlocked;
     if (!focus) {
       focus = unlocked;
       for (let k = 1; k <= unlocked; k++)
@@ -449,7 +457,7 @@
     s += `<path d="M0 0H330Q300 40 250 60Q190 90 120 84Q60 96 30 140Q10 170 0 176Z" fill="#f2dfa2"/>`;
     s += `<path d="M0 0H300Q270 34 228 50Q170 72 110 68Q52 80 22 122Q8 144 0 150Z" fill="#3f9be8" stroke="#1d5a9a" stroke-width="4"/>`;
     s += `<path d="M40 30Q60 22 80 30M120 40Q140 32 160 40M60 70Q80 62 100 70M180 20Q200 12 220 20" fill="none" stroke="#cfe9ff" stroke-width="4" stroke-linecap="round"/>`;
-    s += `<g transform="translate(64 108)"><rect x="-8" y="-30" width="16" height="30" rx="3" fill="#fffaf0" stroke="#2b1a10" stroke-width="3"/><rect x="-8" y="-20" width="16" height="7" fill="#e8412f"/><path d="M-10 -30H10L6 -38H-6Z" fill="#e8412f" stroke="#2b1a10" stroke-width="3" stroke-linejoin="round"/><circle cx="0" cy="-42" r="5" fill="#ffd84a" stroke="#2b1a10" stroke-width="2.5"/></g>`;
+    s += `<g transform="translate(64 108)${portrait ? " rotate(90)" : ""}"><rect x="-8" y="-30" width="16" height="30" rx="3" fill="#fffaf0" stroke="#2b1a10" stroke-width="3"/><rect x="-8" y="-20" width="16" height="7" fill="#e8412f"/><path d="M-10 -30H10L6 -38H-6Z" fill="#e8412f" stroke="#2b1a10" stroke-width="3" stroke-linejoin="round"/><circle cx="0" cy="-42" r="5" fill="#ffd84a" stroke="#2b1a10" stroke-width="2.5"/></g>`;
     // Rivière qui descend vers le moulin
     const river = "M1000 470Q930 470 900 420Q870 360 900 300Q930 240 880 190Q840 150 860 90Q880 40 850 0";
     s += `<path d="${river}" fill="none" stroke="#1d5a9a" stroke-width="30" stroke-linecap="round"/><path d="${river}" fill="none" stroke="#3f9be8" stroke-width="22" stroke-linecap="round"/><path d="${river}" fill="none" stroke="#9fd3ff" stroke-width="4" stroke-dasharray="18 26" stroke-linecap="round"/>`;
@@ -487,9 +495,29 @@
     s += `<path d="${d}" fill="none" stroke="#6b4428" stroke-width="20" stroke-linecap="round" stroke-linejoin="round" opacity=".55"/>`;
     s += `<path d="${d}" fill="none" stroke="#e8cf94" stroke-width="12" stroke-linecap="round" stroke-linejoin="round"/>`;
     s += `<path d="${d}" fill="none" stroke="#b8935a" stroke-width="3" stroke-dasharray="2 12" stroke-linecap="round"/>`;
-    // Le moulin au bout du chemin (vu de trois quarts, reste lisible une fois tourné)
+    // Le moulin au bout du chemin : maison de granit au toit d'ardoise, grande roue à aubes côté
+    // rivière. Vu de trois quarts : sur la carte tournée (portrait), on le redresse.
     const last = P2[P2.length - 1];
-    s += `<g transform="translate(${last[0] + 46} ${last[1] - 10})"><circle cx="-4" cy="-4" r="22" fill="none" stroke="#6b4428" stroke-width="7" stroke-dasharray="7 5"/><rect x="-18" y="-18" width="36" height="30" rx="3" fill="#b9a58a" stroke="#2b1a10" stroke-width="3"/><path d="M-22 -16L0 -34L22 -16Z" fill="#5a6272" stroke="#2b1a10" stroke-width="3" stroke-linejoin="round"/><rect x="-5" y="0" width="10" height="12" fill="#6b4428"/></g>`;
+    const up = portrait ? " rotate(90)" : "";
+    let spokes = "";
+    for (let k = 0; k < 8; k++) {
+      const an = (k * Math.PI) / 4;
+      spokes += `M0 0L${(19 * Math.cos(an)).toFixed(1)} ${(19 * Math.sin(an)).toFixed(1)}`;
+    }
+    let paddles = "";
+    for (let k = 0; k < 12; k++) paddles += `<rect x="-3" y="-27" width="6" height="9" rx="1" fill="#8a5a2c" stroke="#2b1a10" stroke-width="2" transform="rotate(${k * 30})"/>`;
+    s +=
+      `<g transform="translate(${last[0] + 62} ${last[1] - 14})${up}">` +
+      `<ellipse cx="4" cy="30" rx="44" ry="8" fill="#000" opacity=".18"/>` +
+      `<g transform="translate(30 6)">${paddles}<circle r="21" fill="none" stroke="#2b1a10" stroke-width="7"/><circle r="21" fill="none" stroke="#a8733f" stroke-width="4"/><path d="${spokes}" stroke="#6b4428" stroke-width="3"/><circle r="5" fill="#6b4428" stroke="#2b1a10" stroke-width="2"/></g>` +
+      `<rect x="-28" y="-6" width="46" height="32" rx="3" fill="#c2b49c" stroke="#2b1a10" stroke-width="3"/>` +
+      `<path d="M-24 4H-14M-8 12H4M-22 18H-12" stroke="#8f8373" stroke-width="2.5" stroke-linecap="round"/>` +
+      `<path d="M-33 -4L-5 -30L23 -4Z" fill="#56627a" stroke="#2b1a10" stroke-width="3" stroke-linejoin="round"/>` +
+      `<path d="M-24 -10H14M-16 -18H6" stroke="#7a88a3" stroke-width="2" stroke-linecap="round"/>` +
+      `<rect x="-2" y="10" width="11" height="16" rx="4" fill="#6b4428" stroke="#2b1a10" stroke-width="2.5"/>` +
+      `<rect x="-22" y="6" width="9" height="8" fill="#ffe7a0" stroke="#2b1a10" stroke-width="2"/>` +
+      `<rect x="6" y="-28" width="7" height="12" fill="#8f8373" stroke="#2b1a10" stroke-width="2.5"/>` +
+      `</g>`;
     const vb = portrait ? "0 0 600 1000" : "0 0 1000 600";
     const inner = portrait ? `<g transform="translate(0 1000) rotate(-90)">${s}</g>` : s;
     return `<svg class="pt-wm-svg" viewBox="${vb}" preserveAspectRatio="xMidYMid meet" aria-hidden="true">${inner}</svg>`;
@@ -681,6 +709,11 @@
   /* ------------------------------------------------------------------ partie */
   P.enterLevel = function (game, view) {
     this.closeModal(true);
+    this.cancelAim();
+    this.closeSel();
+    this.tutoEnd();
+    this.hideTip();
+    this.pausedBanner(false);
     this.modalQueue = [];
     this.setScreen(null);
     this.setMode("game");
@@ -701,6 +734,11 @@
     this.wasWon = !!(p.levels && p.levels[this.level] && p.levels[this.level].won);
     const m = this.maps()[this.level] || {};
     this.mapInfo = m;
+    this.nextInfo = null;
+    // Durée de la Frénésie (anneau du bouton) : donnée de la simulation si elle existe, sinon règles + compétence.
+    const D = this.D();
+    const fz = s.spells && s.spells.frenzy;
+    this.frenzyDur = (fz && (fz.duration || fz.t)) || ((D.SPELLS && D.SPELLS.frenzy && D.SPELLS.frenzy.t) || 5) + 0.5 * ((p.skills && p.skills.frenzyLong) || 0);
     this.missionEl.textContent = "";
     this.missionEl.append(h("span", { class: "pt-mission-n pt-num" }, String(this.level)), h("span", { class: "pt-mission-t" }, s.map && s.map.name ? s.map.name : m.name || "Mission " + this.level));
     // Pastilles de gemmes
@@ -821,7 +859,8 @@
       this.overShown = true;
       this.cancelAim();
       this.closeSel();
-      setTimeout(() => this.showResult(s.over), 900);
+      const g = this.game;
+      setTimeout(() => this.game === g && this.showResult(s.over), 900);
     }
   };
   P.bump = function (el, kind) {
@@ -835,8 +874,10 @@
     const nw = call(this.game, "nextWave");
     const D = this.D();
     const w = s.wave || {};
+    if (nw && nw.groups) this.nextInfo = nw;
     if (!nw || !nw.groups || (w.total && nw.index > w.total)) {
       this.put("nextkey", "none", () => {
+        this.marksEl.textContent = "";
         this.nextEl.classList.add("done");
         this.nextTitle.textContent = w.total && w.index >= w.total ? "Dernière vague !" : "";
         this.nextFoes.textContent = "";
@@ -849,7 +890,7 @@
     const key = nw.index + ":" + nw.groups.map((g) => g.type + (g.champion ? "*" : "") + (g.boss ? "!" : "") + g.count).join(",") + ":" + (nw.entrances || []).join(",");
     this.put("nextkey", key, () => {
       this.nextEl.classList.remove("done");
-      this.nextTitle.textContent = "Vague " + nw.index;
+      this.last.nextcd = null;
       this.nextFoes.textContent = "";
       const groups = nw.groups.slice().sort((a, b) => (b.boss ? 1 : 0) - (a.boss ? 1 : 0) || (b.champion ? 1 : 0) - (a.champion ? 1 : 0) || b.count - a.count);
       const max = this.layout === "landscape" ? 3 : this.layout === "portrait" ? 4 : 5;
@@ -869,6 +910,7 @@
     const cd = Math.max(0, Math.ceil(nw.countdown || 0));
     const bonus = Math.max(0, Math.round((nw.countdown || 0) * (((D.economy || {}).earlyCallGoldPerSecond) || 1)));
     this.put("nextcd", cd + ":" + bonus, () => {
+      this.nextTitle.textContent = "Vague " + nw.index + (cd > 0 ? " dans" : "");
       this.nextTime.textContent = cd > 0 ? cd + NB + "s" : "";
       this.callBonus.textContent = String(bonus);
       this.callBtn.classList.toggle("pt-hot", cd > 0 && cd <= 5);
@@ -937,15 +979,9 @@
       this.last["sp" + k + "was"] = state;
     });
     const prog = locked ? 0 : clamp(s.mana / Math.max(1, cost), 0, 1);
-    const dur = k === "frenzy" ? this.frenzyDuration() : 1;
+    const dur = k === "frenzy" ? this.frenzyDur || 5 : 1;
     const ring = active ? clamp(active / dur, 0, 1) : prog;
     this.put("spr" + k, (active ? "a" : "p") + ring.toFixed(2), () => b.style.setProperty("--p", ring.toFixed(3)));
-  };
-  P.frenzyDuration = function () {
-    const D = this.D();
-    const base = (D.SPELLS && D.SPELLS.frenzy && D.SPELLS.frenzy.t) || 5;
-    const p = this.loadP();
-    return base + 0.5 * ((p.skills && p.skills.frenzyLong) || 0);
   };
 
   /* ------------------------------------------------------------------ commandes */
@@ -1010,7 +1046,7 @@
     const def = (D.SPELLS && D.SPELLS[k]) || { name: k };
     if (st === "locked") return this.refuse(b, def.name + " se débloque dans une prochaine mission");
     if (this.aim === k) return this.cancelAim();
-    if (st === "low") return this.refuse(b, `Pas assez de mana pour ${def.name} (${b._cost.textContent})`);
+    if (st === "low") return this.refuse(b, s.mana < +b._cost.textContent ? `Pas assez de mana pour ${def.name} (${b._cost.textContent})` : `${def.name} n'est pas encore prêt`);
     if (st === "active") return this.refuse(b, "Frénésie déjà en cours");
     if (k === "frenzy") {
       const res = call(this.game, "cast", "frenzy");
@@ -1147,7 +1183,7 @@
     const W = window.innerWidth,
       H = window.innerHeight;
     const ins = this.insets();
-    const pad = 8;
+    const pad = 14;
     const cell = this.cellPx();
     let x, y, side;
     if (sel.kind === "tower") {
@@ -1187,8 +1223,10 @@
       const t = (this.game.state.towers || []).find((x) => x.id === sel.id);
       if (!t) return this.closeSel();
       const key = this.towerKey(t);
-      if (key !== sel.key) this.openTower(sel.id, sel.i, sel.j, true);
-      else this.updateTowerLive(t);
+      if (key !== sel.key) {
+        this.openTower(sel.id, sel.i, sel.j, true);
+        this.bump(this.sel.el.querySelector(".pt-tp"), "good");
+      } else this.updateTowerLive(t);
     } else if (sel.kind === "build") {
       const g = Math.floor(this.game.state.gold);
       sel.el.querySelectorAll("[data-cost]").forEach((b) => b.classList.toggle("poor", +b.dataset.cost > g));
@@ -1298,10 +1336,9 @@
   };
 
   // ── Panneau de tour ──────────────────────────────────────────────────────
+  /** Clé de reconstruction du panneau : niveau, voie. Le reste (or, raisons) se met à jour en place. */
   P.towerKey = function (t) {
-    const g = this.game.state;
-    const v = this.towerView(t);
-    return [t.level, t.spec || "", v.canUp ? 1 : 0, v.upReason, g.gold >= (v.cost || 0) ? 1 : 0, v.specs ? v.specs.map((x) => x.reason).join("|") : ""].join(":");
+    return t.level + ":" + (t.spec || "");
   };
   /** Vue normalisée d'une tour (towerInfo de la simulation, complétée par les données). */
   P.towerView = function (t) {
@@ -1314,6 +1351,15 @@
     const xp = info.xp !== undefined ? info.xp : t.xp || 0;
     const v = { t, info, stats, xp, xpNext, level: lv, spec: t.spec || null, family: t.family, name: info.name || stats.name || "", max: lv >= 7 };
     v.sell = info.sellValue !== undefined ? info.sellValue : info.sell !== undefined ? info.sell : null;
+    if (v.sell === null) {
+      // Repli : somme des prix payés × part rendue à la revente.
+      let spent = 0;
+      for (let l = 1; l <= lv; l++) {
+        const L = D.towerLevel(t.family, l, l >= 4 ? t.spec : null);
+        spent += (L && L.cost) || 0;
+      }
+      v.sell = Math.round(spent * ((D.economy && D.economy.sellRatio) || 0.6));
+    }
     const reasonFor = (cost, needXp) => {
       if (needXp !== null && needXp !== undefined && xp < needXp) return `Il faut ${needXp} d'expérience`;
       if (cost !== null && cost !== undefined && s.gold < cost) return `Il manque ${Math.ceil(cost - s.gold)} or`;
@@ -1357,7 +1403,7 @@
     if (st.corpse) row("splash", "Explosion", pc(st.corpse), N.corpse ? pc(N.corpse) : null, "Un ennemi tué explose : part de ses PV max infligée autour");
     if (st.mana) row("manaSteal", "Vol de mana", "+" + f1(st.mana), N.mana ? "+" + f1(N.mana) : null, "Mana rendu à chaque coup");
     if (st.disarm) row("disarm", "Désarme", pc(st.disarm), N.disarm ? pc(N.disarm) : null, "Chance de retirer la capacité de l'ennemi");
-    if (st.pierce && !rows.some((r) => r.title && r.title.includes("perce"))) row("pierce", "Perce", "boucliers", null);
+    if (st.pierce) row("pierce", "Perce", "boucliers", null, "Traverse le bouclier des ennemis");
     return rows;
   };
   P.stars = function (level) {
@@ -1388,18 +1434,21 @@
       actions.append(h("div", { class: "pt-spec-t" }, "Spécialisation : choisis une voie"));
       const row = h("div", { class: "pt-specs" });
       for (const o of v.specs) {
-        row.append(
-          h(
-            "button",
-            { class: "pt-speccard" + (o.reason ? " off" : ""), "aria-disabled": o.reason ? "true" : "false", onclick: (e) => this.doUpgrade(t.id, o.spec, e.currentTarget, o.reason) },
-            h("span", { class: "pt-spec-l" }, o.spec),
-            h("span", { class: "pt-tp", "data-f": t.family, html: TP ? TP.get(t.family, 4, o.spec) : "" }),
-            h("b", { class: "pt-speccard-n" }, o.name),
-            h("small", {}, o.blurb),
-            h("span", { class: "pt-price" + (o.reason ? " off" : "") }, ico("gold"), h("b", { class: "pt-num" }, String(o.cost))),
-            o.reason ? h("em", { class: "pt-reason" }, o.reason) : null,
-          ),
+        const reason = h("em", { class: "pt-reason" });
+        const price = h("span", { class: "pt-price" }, ico("gold"), h("b", { class: "pt-num" }, String(o.cost)));
+        const btn = h(
+          "button",
+          { class: "pt-speccard", "data-spec": o.spec, onclick: (e) => this.doUpgrade(t.id, o.spec, e.currentTarget, e.currentTarget.dataset.reason || "") },
+          h("span", { class: "pt-spec-l" }, o.spec),
+          h("span", { class: "pt-tp", "data-f": t.family, html: TP ? TP.get(t.family, 4, o.spec) : "" }),
+          h("b", { class: "pt-speccard-n" }, o.name),
+          h("small", {}, o.blurb),
+          price,
+          reason,
         );
+        btn._reason = reason;
+        btn._price = price;
+        row.append(btn);
       }
       actions.append(row);
     } else if (!v.max) {
@@ -1407,16 +1456,17 @@
       actions.append(
         h(
           "button",
-          { class: "pt-btn pt-go pt-up" + (v.canUp ? " pt-pulse-s" : ""), "aria-disabled": v.canUp ? "false" : "true", onclick: (e) => this.doUpgrade(t.id, null, e.currentTarget, v.upReason) },
+          { class: "pt-btn pt-go pt-up", onclick: (e) => this.doUpgrade(t.id, null, e.currentTarget, e.currentTarget.dataset.reason || "") },
           ico("upgrade"),
           h("span", { class: "pt-up-t" }, h("b", {}, "Améliorer"), h("small", {}, nextName)),
           h("span", { class: "pt-price" }, ico("gold"), h("b", { class: "pt-num" }, v.cost !== null && v.cost !== undefined ? String(v.cost) : "—")),
         ),
-        v.upReason ? h("small", { class: "pt-reason" }, v.upReason) : null,
+        h("small", { class: "pt-reason" }),
       );
     } else actions.append(h("div", { class: "pt-maxed" }, ico("crown"), "Évolution finale"));
     const sellTxt = h("b", { class: "pt-num" }, v.sell !== null ? "+" + v.sell : "");
-    const sell = h("button", { class: "pt-btn pt-red pt-sell", title: "Revendre la tour", onclick: (e) => this.doSell(t.id, e.currentTarget) }, ico("sell"), h("span", { class: "pt-sell-l" }, "Vendre"), h("span", { class: "pt-price" }, ico("gold"), sellTxt));
+    const armed = keep && this.sel && this.sel.kind === "tower" && this.sel.id === id && this.sel.sellArm && performance.now() - this.sel.sellArm <= 2500;
+    const sell = h("button", { class: "pt-btn pt-red pt-sell" + (armed ? " armed" : ""), title: "Revendre la tour", onclick: (e) => this.doSell(t.id, e.currentTarget) }, ico("sell"), h("span", { class: "pt-sell-l" }, armed ? "Confirmer ?" : "Vendre"), h("span", { class: "pt-price" }, ico("gold"), sellTxt));
     const body = h("div", { class: "pt-sel-in pt-tw", style: `--acc:${accent}` }, head, xp, stats, actions, h("div", { class: "pt-tw-f" }, sell));
     const prevSell = keep && this.sel && this.sel.kind === "tower" && this.sel.id === id ? this.sel.sellArm : 0;
     this.openSel({ kind: "tower", id, i: t.i !== undefined ? t.i : i, j: t.j !== undefined ? t.j : j }, body, "pt-tower" + (v.specs ? " wide" : ""));
@@ -1427,13 +1477,48 @@
     sel.kills = kills;
     sel.sellTxt = sellTxt;
     sel.sellArm = prevSell;
-    this.updateTowerLive(t);
+    sel.upBtn = body.querySelector(".pt-up");
+    sel.upReason = sel.upBtn ? sel.upBtn.nextSibling : null;
+    sel.specBtns = [...body.querySelectorAll(".pt-speccard")];
+    this.updateTowerLive(t, v);
+    this.placeSel(true);
     this.v("showRange", id);
     if (!keep) this.tutoDone("tower");
   };
-  P.updateTowerLive = function (t) {
+  P.updateTowerLive = function (t, view) {
     const sel = this.sel;
     if (!sel || !sel.xpTxt) return;
+    // Boutons : disponibilité et raison du refus (or, expérience), sans reconstruire le panneau.
+    const v = view || this.towerView(t);
+    let changed = false;
+    if (sel.upBtn) {
+      const r = v.upReason || "";
+      if (sel.upBtn.dataset.reason !== r || sel.upBtn.getAttribute("aria-disabled") === null) {
+        sel.upBtn.dataset.reason = r;
+        sel.upBtn.setAttribute("aria-disabled", r ? "true" : "false");
+        sel.upBtn.classList.toggle("pt-pulse-s", !r);
+        if (sel.upReason) sel.upReason.textContent = r;
+        changed = true;
+      }
+    }
+    if (sel.specBtns && v.specs)
+      for (const b of sel.specBtns) {
+        const o = v.specs.find((x) => x.spec === b.dataset.spec);
+        const r = (o && o.reason) || "";
+        if (b.dataset.reason !== r || b.getAttribute("aria-disabled") === null) {
+          b.dataset.reason = r;
+          b.setAttribute("aria-disabled", r ? "true" : "false");
+          b.classList.toggle("off", !!r);
+          b._price.classList.toggle("off", !!r);
+          b._reason.textContent = r;
+          changed = true;
+        }
+      }
+    if (changed && !view) this.placeSel(true);
+    if (v.sell !== null && v.sell !== undefined) {
+      const st = "+" + v.sell;
+      if (sel.sellTxt.textContent !== st) sel.sellTxt.textContent = st;
+    }
     const D = this.D();
     const lv = t.level || 1;
     const need = t.xpNext !== undefined ? t.xpNext : D.XP ? D.XP[lv] : 0;
@@ -1456,9 +1541,11 @@
   };
   P.doSell = function (id, btn) {
     const sel = this.sel;
+    if (!sel) return;
     // Deux temps : le premier toucher arme le bouton, le second (dans les 2,5 s) vend.
-    if (!sel || !sel.sellArm || this.t - sel.sellArm > 2.5) {
-      sel.sellArm = this.t;
+    const now = performance.now();
+    if (!sel || !sel.sellArm || now - sel.sellArm > 2500) {
+      sel.sellArm = now;
       btn.classList.add("armed");
       btn.querySelector(".pt-sell-l").textContent = "Confirmer ?";
       setTimeout(() => {
@@ -1478,7 +1565,6 @@
   /* ------------------------------------------------------------------ événements de la simulation */
   P.events = function (list) {
     if (!list || !list.length || this.mode !== "game" || !this.game) return;
-    const D = this.D();
     for (const e of list) {
       switch (e.type) {
         case "newEnemy":
@@ -1709,10 +1795,11 @@
     const w = s.wave || {};
     const n = index || w.index || 1;
     const last = w.total && n >= w.total;
+    // Boss : d'après l'aperçu de cette vague (il n'est peut-être pas encore entré sur la carte).
     let boss = null;
-    const cur = s.enemies || [];
-    const b = cur.find((e) => e.boss);
-    if (b) boss = (D.BOSS_NAMES && D.BOSS_NAMES[b.type]) || "Le chef";
+    const nw = this.nextInfo && this.nextInfo.index === n ? this.nextInfo : null;
+    const bg = (nw && nw.groups.find((g) => g.boss)) || (s.enemies || []).find((e) => e.boss);
+    if (bg) boss = (D.BOSS_NAMES && D.BOSS_NAMES[bg.type]) || "Le chef";
     const el = h("div", { class: "pt-wbanner" + (last ? " last" : "") }, h("small", {}, last ? "Dernière vague" : "Vague"), h("b", { class: "pt-num" }, `${n}` + (w.total ? ` / ${w.total}` : "")), boss ? h("span", { class: "pt-wbanner-boss" }, ico("boss"), "Boss : " + boss) : null);
     this.bannerLayer.append(el);
     setTimeout(() => el.remove(), 2600);
@@ -1727,6 +1814,10 @@
     }
   };
   P.toast = function (text, kind) {
+    this.toastSeen = this.toastSeen || new Map();
+    const t0 = this.toastSeen.get(text);
+    if (t0 !== undefined && this.t - t0 < 1.5) return;
+    this.toastSeen.set(text, this.t);
     const el = h("div", { class: "pt-toast " + (kind || "info") }, ico(kind === "bad" ? "warning" : kind === "good" ? "check" : "info"), h("span", {}, text));
     this.toastLayer.append(el);
     while (this.toastLayer.children.length > 3) this.toastLayer.firstChild.remove();
@@ -1766,7 +1857,20 @@
   };
 
   /* ------------------------------------------------------------------ clavier */
+  /** Étiquettes des raccourcis des sorts selon la disposition réelle du clavier (A Z E en AZERTY). */
+  P.keyLabels = function () {
+    const kb = navigator.keyboard;
+    if (!kb || typeof kb.getLayoutMap !== "function") return;
+    kb.getLayoutMap()
+      .then((map) => {
+        const lab = { cut: map.get("KeyQ"), frenzy: map.get("KeyW"), meteor: map.get("KeyE") };
+        for (const k of SPELLS) if (lab[k]) KEYS[k] = lab[k].toUpperCase();
+        for (const k of SPELLS) this.spellBtn[k].querySelector("kbd").textContent = KEYS[k];
+      })
+      .catch(() => {});
+  };
   P.bindKeys = function () {
+    this.keyLabels();
     window.addEventListener("keydown", (e) => {
       if (e.target && /INPUT|TEXTAREA|SELECT/.test(e.target.tagName)) return;
       const code = e.code,
@@ -1895,8 +1999,12 @@
     const ins = this.insets();
     let p = null;
     if (at) p = at.x !== undefined ? this.v("worldToScreen", at.x, at.y) : this.v("worldToScreen", at.i + 0.5, at.j + 0.5);
-    const w = el.offsetWidth,
-      hh = el.offsetHeight;
+    if (!t.w || !t.placed) {
+      t.w = el.offsetWidth;
+      t.h = el.offsetHeight;
+    }
+    const w = t.w,
+      hh = t.h;
     if (!p) {
       el.style.transform = `translate(${Math.round((W - w) / 2)}px, ${ins.top + 12}px)`;
       return;
@@ -1915,6 +2023,8 @@
   P.tutoFrame = function (dt) {
     const t = this.tuto;
     if (!t || !t.el) return;
+    const hide = !!this.sel || !!this.modal;
+    if (t.el.hidden !== hide) t.el.hidden = hide;
     t.t += dt;
     this.placeTuto();
     if (t.life && t.t > t.life) this.tutoDone(t.step);

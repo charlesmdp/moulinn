@@ -1176,6 +1176,12 @@ kbd {
 }
 
 /* ── Menus ancrés : construction, case boisée, tour ────────────────────── */
+.pt-sel,
+.pt-modal,
+.pt-mcard-in {
+  touch-action: pan-y;
+  overscroll-behavior: contain;
+}
 .pt-sel {
   position: absolute;
   left: 0;
@@ -1239,10 +1245,10 @@ kbd {
   left: calc(8px + var(--safe-l));
   right: calc(8px + var(--safe-r));
   top: auto;
-  bottom: calc(var(--pt-bottom) + 12px);
+  bottom: calc(var(--pt-bottom) + 30px);
   width: auto;
   max-width: none;
-  max-height: calc(100% - var(--pt-top) - var(--pt-bottom) - 30px);
+  max-height: calc(100% - var(--pt-top) - var(--pt-bottom) - 44px);
   overflow: auto;
   transform: none;
   animation: pt-sheet 0.22s ease-out;
@@ -1258,6 +1264,16 @@ kbd {
   display: flex;
   flex-direction: column;
   gap: 10px;
+  max-height: calc(100vh - var(--pt-top) - var(--pt-bottom) - 44px);
+  overflow: auto;
+  overscroll-behavior: contain;
+  touch-action: pan-y;
+  scrollbar-width: thin;
+}
+.pt-sel.pt-sheet .pt-sel-in,
+.pt[data-layout="landscape"] .pt-sel-in {
+  max-height: none;
+  overflow: visible;
 }
 .pt-sel-h {
   display: flex;
@@ -1407,6 +1423,9 @@ kbd {
 }
 .pt-cut {
   justify-content: space-between;
+}
+.pt-reason:empty {
+  display: none;
 }
 .pt-reason {
   color: var(--bad-2);
@@ -1607,8 +1626,8 @@ kbd {
   transform: translateY(-2px);
 }
 .pt-speccard .pt-tp {
-  width: 64px;
-  height: 64px;
+  width: 58px;
+  height: 58px;
 }
 .pt-speccard-n {
   font-family: var(--f-title);
@@ -1627,8 +1646,8 @@ kbd {
 }
 .pt-spec-l {
   position: absolute;
-  left: -8px;
-  top: -10px;
+  left: 5px;
+  top: 5px;
   width: 26px;
   height: 26px;
   display: grid;
@@ -2096,6 +2115,20 @@ kbd {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+.pt-shead-logo {
+  display: inline-grid;
+  width: 46px;
+  height: 46px;
+  flex: none;
+  filter: drop-shadow(0 2px 0 rgba(40, 20, 5, 0.35));
+}
+.pt-shead-logo > svg {
+  width: 100%;
+  height: 100%;
+}
+.pt[data-layout="portrait"] .pt-shead-logo {
+  display: none;
 }
 .pt-shead-x {
   display: flex;
@@ -2848,9 +2881,18 @@ kbd {
   right: -5px;
 }
 .pt[data-layout="portrait"] .pt-call {
-  min-height: 34px;
-  padding: 2px 7px;
+  min-height: 40px;
+  padding: 2px 8px;
   font-size: 14px;
+}
+.pt[data-layout="portrait"] .pt-next {
+  height: 46px;
+}
+.pt[data-layout="portrait"] .pt-sel .pt-x,
+.pt[data-layout="landscape"] .pt-sel .pt-x,
+.pt-touch .pt-sel .pt-x {
+  width: 42px;
+  height: 42px;
 }
 .pt[data-layout="portrait"] .pt-call-l {
   display: none;
@@ -3148,7 +3190,7 @@ kbd {
   line-height: 14px;
 }
 .pt[data-layout="landscape"] .pt-call {
-  min-height: 32px;
+  min-height: 40px;
   padding: 2px 6px;
   font-size: 13px;
 }
@@ -3300,8 +3342,6 @@ kbd {
 .pt[data-layout="landscape"] .pt-sel .pt-x {
   top: 6px;
   right: 6px;
-  width: 32px;
-  height: 32px;
 }
 .pt[data-layout="landscape"] .pt-sel .pt-arrow {
   display: none;
