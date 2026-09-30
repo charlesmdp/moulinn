@@ -355,20 +355,23 @@ ordre) :
 
 | Emplacement | Rôle |
 | --- | --- |
-| `core/` | Socle commun (espace de noms, unités, couleurs, matières) |
-| `sim/` | Simulation sans rendu : équilibrage (`00-config.js`), niveaux, trajets, vagues, talents, partie, progression |
-| `models/` | Modèles 3D procéduraux : tours, pièges, socles, coffres, bâtiments, améliorations du moulin |
-| `fx/` | Effets feu, glace et eau, zones, objets d'effets |
-| `actors/` | Voleurs de dessin animé sur un squelette procédural léger (six types et leurs élites) et leurs états visibles |
-| `render/` | Terrain, eau et décor des niveaux, cases de construction et forêts à couper, entités, caméra |
-| `ui/` | Interface, pictogrammes, portraits des voleurs, écrans (menu, talents, résultats) |
-| `main.js` | Application : rendu, boucle de jeu, niveaux, sauvegardes |
-| `index.html`, `boot.js`, `jeu.css` | Page, chargement et styles |
-| `vendor/` | Chargeurs three.js (GLTFLoader, SkeletonUtils, BufferGeometryUtils) |
-| `dev/` | Pages d'essai des modèles, personnages et effets (non publiées) |
+| `core/` | Socle commun (espace de noms, couleurs, matières, hasard reproductible) |
+| `sim/` | Simulation sans rendu : données (`00-data.js` : tours, ennemis, sorts, compétences), les quinze cartes (`10-maps.js`), chemins et champs de distance, vagues, partie (gemmes, IA, tours, capacités), progression |
+| `models/` | Modèles 3D procéduraux : tours sanglier, cygne et berger-dragon (niveaux 1 à 7), gemmes, moulin-repaire, menhirs, entrées, forêts à couper, décor et petits éléments de sol |
+| `fx/` | Effets : projectiles et impacts des tours, sorts, zones, éclats |
+| `actors/` | Les onze ennemis (et leurs champions et boss) sur un squelette procédural léger, montures (quad, vache, canard) et états visibles |
+| `render/` | Carte peinte, relief, eau, décor, caméra fixe vue du dessus, liaison de l'état de la partie à la scène 3D |
+| `ui/` | Interface (titre, missions, compétences, encyclopédie, HUD, menus), icônes, logo, portraits des tours et des ennemis |
+| `main.js` | Application : relie simulation, carte, interface et progression ; boucle d'animation |
+| `index.html`, `boot.js`, `jeu.css`, `fonts/` | Page, chargement, styles et police des titres (Lilita One, SIL OFL) |
+| `vendor/` | BufferGeometryUtils de three.js |
+| `CONCEPTION.md` | Conception du jeu et contrats entre ses parties |
+| `dev/` | Pages d'essai des tours, ennemis, décor, carte et interface (non publiées) |
 
-`npm test` rejoue la simulation : règles des tours, pièges, sorts, trésors,
-sauvegardes, talents, et un joueur automatique qui doit gagner chaque niveau.
+`npm test` rejoue la simulation : cartes, vagues, terrains, construction et
+niveaux des tours, sorts, gemmes (vol, chute, reprise par les autres ennemis),
+capacités des onze ennemis, compétences, progression, et un robot joueur qui
+doit gagner les quinze missions.
 
 Après une modification :
 
