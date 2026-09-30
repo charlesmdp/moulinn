@@ -10,6 +10,16 @@
 //                               //   preview(i, j, family|null), target(spell|null, x, y) }
 //   ui.mapTap(hit) ; ui.mapHover(hit)      // hit = { i, j, x, y, screenX, screenY } | null
 //   ui.events(list) ; ui.frame(dt) ; ui.insets() → { top, bottom, left, right } ; ui.onResize()
+//   ui.mode ("title" | "map" | "skills" | "bestiary" | "game") ; ui.busy (fiche ouverte) ;
+//   ui.covered (écran opaque : la scène 3D derrière n'a pas besoin d'être dessinée)
+//
+// Côté simulation : vagues numérotées à partir de 0 (state.wave.index vaut -1 avant la première),
+// towerInfo(id).next / .specs { A, B } avec leur check { ok, reason }, state.spells[k] = { cost,
+// unlocked, ready, active, left }. Les événements win / lose portent ev.record (résultat déjà
+// enregistré par l'intégrateur : { firstWin, points, unlocked, best }) ; l'interface ne l'enregistre
+// pas. newEnemy : la fiche ne s'ouvre que pour un type absent de progress.seen, puis markSeen + save.
+// Derrière l'écran titre, une scène 3D (canvas dans [data-stage]) reste visible : option showcase,
+// sinon détection automatique ; sans scène, l'écran titre dessine son propre ciel.
 //
 // Trois mises en page (attribut data-layout) : « desk » (ordinateur : bandeau haut + bandeau bas),
 // « portrait » (téléphone debout : bandeaux haut et bas plus hauts, menus en feuille au bas de
@@ -22,6 +32,8 @@
   const NB = " "; // espace fine insécable (typographie française)
 
   /* ------------------------------------------------------------------ outils */
+  // Typographie française : pas de retour à la ligne avant « : » ni à l'intérieur des guillemets.
+  const fr = (t) => (t.indexOf(" :") < 0 && t.indexOf("« ") < 0 && t.indexOf(" »") < 0 ? t : t.replace(/ :/g, "\u00a0:").replace(/« /g, "«\u00a0").replace(/ »/g, "\u00a0»"));
   const h = (tag, attrs, ...kids) => {
     const el = document.createElement(tag);
     if (attrs)
@@ -34,7 +46,7 @@
         else if (k.startsWith("on")) el.addEventListener(k.slice(2), v);
         else el.setAttribute(k, v === true ? "" : v);
       }
-    for (const kid of kids.flat(Infinity)) if (kid !== null && kid !== undefined && kid !== false) el.append(kid.nodeType ? kid : document.createTextNode(String(kid)));
+    for (const kid of kids.flat(Infinity)) if (kid !== null && kid !== undefined && kid !== false) el.append(kid.nodeType ? kid : document.createTextNode(fr(String(kid))));
     return el;
   };
   const icons = () => PTMT.icons || { get: () => "" };
@@ -63,7 +75,7 @@
     swim: () => ["swim", "Nageur", "coupe par l'eau"],
   };
   const speedWord = (v) => (v < 0.8 ? "lent" : v > 1.25 ? "rapide" : "normal");
-  const TERRAIN = { grass: "Herbe", rock: "Roche", water: "Eau", high: "Butte", road: "Chemin", bridge: "Pont", decor: "Talus" };
+  const TERRAIN = { grass: "Herbe", rock: "Roche", water: "Eau", high: "Butte", road: "Chemin", bridge: "Pont", decor: "Talus", thicket: "Fourré" };
 
   /* ------------------------------------------------------------------ l'interface */
   function UI(o) {
@@ -233,6 +245,13 @@
     this.el.dataset.mode = mode;
     this.hud.hidden = mode !== "game";
     this._insets = null;
+    this.el.classList.toggle("pt-vitrine", this.hasStage());
+  };
+  /** Une scène 3D est-elle affichée derrière l'interface (vitrine de l'écran titre) ? */
+  P.hasStage = function () {
+    if (this.o.showcase !== undefined) return !!this.o.showcase;
+    const doc = this.host.ownerDocument || document;
+    return !!doc.querySelector("[data-stage] canvas");
   };
   P.setScreen = function (el) {
     this.screens.textContent = "";
@@ -337,6 +356,9 @@
     };
     const world = h("div", { class: "pt-wm" + (portrait ? " pt-wm-v" : ""), html: this.worldSvg(portrait, n) });
     const medals = [];
+    // Mission que la dernière victoire vient d'ouvrir : médaillon qui se déverrouille sous les yeux.
+    const fresh = this.justUnlocked || 0;
+    this.justUnlocked = 0;
     for (let k = 1; k <= n; k++) {
       const L = (p.levels && p.levels[k]) || null;
       const locked = k > unlocked;
@@ -347,7 +369,7 @@
       const med = h(
         "button",
         {
-          class: "pt-medal" + (locked ? " locked" : "") + (L && L.won ? " won" : "") + (L && L.brilliant ? " brilliant" : "") + (k === focus ? " sel" : "") + (!locked && !(L && L.won) ? " next" : ""),
+          class: "pt-medal" + (locked ? " locked" : "") + (L && L.won ? " won" : "") + (L && L.brilliant ? " brilliant" : "") + (k === focus ? " sel" : "") + (!locked && !(L && L.won) ? " next" : "") + (k === fresh && !locked ? " fresh" : ""),
           style: `left:${(u * 100).toFixed(2)}%;top:${(v * 100).toFixed(2)}%`,
           title: locked ? "Mission verrouillée" : m.name,
           "aria-label": `Mission ${k} : ${m.name}`,
@@ -389,7 +411,7 @@
       { class: "pt-card pt-mcard-in" + (quiet ? "" : " pt-pop-in") },
       h("div", { class: "pt-mcard-num" }, h("small", {}, "Mission"), h("b", { class: "pt-num" }, String(k))),
       h("h2", { class: "pt-mcard-t" }, m.name),
-      m.ct ? h("div", { class: "pt-mcard-ct" }, "D'après « ", m.ct, " »") : null,
+      m.ct && !/^(mission\b|\d+$)/i.test(m.ct) ? h("div", { class: "pt-mcard-ct" }, "D'après « ", m.ct, " »") : null,
       h(
         "div",
         { class: "pt-facts" },
@@ -565,7 +587,8 @@
     const can = pr ? call(pr, "canRaise", p, sk.id) || { ok: false } : { ok: false };
     const pips = h("div", { class: "pt-pips", "aria-label": `Rang ${rank} sur ${sk.max}` }, Array.from({ length: sk.max }, (_, i) => h("i", { class: i < rank ? "on" : "" })));
     const plus = h("button", { class: "pt-btn pt-sq pt-go pt-plus" + (can.ok ? " pt-pulse-s" : ""), "aria-disabled": can.ok ? "false" : "true", title: can.ok ? "Ajouter un rang" : can.reason || "", "aria-label": "Ajouter un rang", onclick: (e) => this.raiseSkill(sk.id, e.currentTarget) }, ico("plus"));
-    const minus = h("button", { class: "pt-btn pt-sq pt-wood pt-minus", "aria-disabled": rank > 0 ? "false" : "true", title: "Retirer un rang", "aria-label": "Retirer un rang", onclick: (e) => this.lowerSkill(sk.id, e.currentTarget) }, ico("minus"));
+    const low = rank > 0 ? (pr && typeof pr.canLower === "function" ? pr.canLower(p, sk.id) : { ok: true }) || { ok: false } : { ok: false };
+    const minus = h("button", { class: "pt-btn pt-sq pt-wood pt-minus", "aria-disabled": low.ok ? "false" : "true", title: low.ok ? "Retirer un rang" : low.reason || "Retirer un rang", "aria-label": "Retirer un rang", onclick: (e) => this.lowerSkill(sk.id, e.currentTarget) }, ico("minus"));
     return h(
       "div",
       { class: "pt-skill" + (locked ? " locked" : "") + (rank >= sk.max ? " max" : "") + (rank > 0 ? " has" : "") },
@@ -587,7 +610,7 @@
     const can = call(pr, "canRaise", p, id) || { ok: false };
     if (!can.ok) return this.refuse(btn, can.reason || "Impossible pour l'instant");
     const r = call(pr, "raise", p, id);
-    if (r && r.ok === false) return this.refuse(btn, r.reason || "Impossible");
+    if (r === false || (r && r.ok === false)) return this.refuse(btn, (r && r.reason) || "Impossible pour l'instant");
     this.saveP(p);
     this.showSkills(this.skillTab);
   };
@@ -596,8 +619,10 @@
     if (!pr) return;
     const p = this.loadP();
     if (!((p.skills && p.skills[id]) > 0)) return this.refuse(btn, "Aucun rang à retirer");
+    const can = typeof pr.canLower === "function" ? pr.canLower(p, id) : null;
+    if (can && !can.ok) return this.refuse(btn, can.reason || "Une autre compétence en dépend");
     const r = call(pr, "lower", p, id);
-    if (r && r.ok === false) return this.refuse(btn, r.reason || "Une autre compétence en dépend");
+    if (r === false || (r && r.ok === false)) return this.refuse(btn, (r && r.reason) || "D'autres compétences de la branche en dépendent");
     this.saveP(p);
     this.showSkills(this.skillTab);
   };
@@ -655,7 +680,7 @@
         h("h3", {}, e.name),
         e.ct ? h("small", { class: "pt-muted" }, "Rôle : ", e.ct) : null,
         h("div", { class: "pt-facts" }, h("span", { class: "pt-fact", title: "Points de vie" }, ico("heal"), nf(e.hp) + " PV"), h("span", { class: "pt-fact", title: f1(e.speed) + " case/s" }, ico("haste"), cap(speedWord(e.speed))), h("span", { class: "pt-fact", title: "Prime" }, ico("gold"), "+" + e.gold)),
-        ab ? h("div", { class: "pt-ability" }, ico(ab[0]), h("b", {}, ab[1]), h("span", {}, " : " + ab[2])) : null,
+        ab ? h("div", { class: "pt-ability" }, ico(ab[0]), h("span", {}, h("b", {}, ab[1]), " : " + ab[2])) : null,
         h("p", {}, e.blurb || ""),
         D.BOSS_NAMES && D.BOSS_NAMES[type] ? h("small", { class: "pt-boss-name" }, ico("boss"), "Boss : ", D.BOSS_NAMES[type]) : null,
       ),
@@ -727,18 +752,23 @@
     this.flyEl.textContent = "";
     this.marksEl.textContent = "";
     this.overShown = false;
+    this.record = null;
     this.nextT = 0;
     const s = game.state;
     this.level = s.level || 1;
     const p = this.loadP();
-    this.wasWon = !!(p.levels && p.levels[this.level] && p.levels[this.level].won);
+    const L0 = (p.levels && p.levels[this.level]) || null;
+    this.wasWon = !!(L0 && L0.won);
+    this.prevBest = L0 && L0.won ? L0.bestGems || 0 : 0;
     const m = this.maps()[this.level] || {};
     this.mapInfo = m;
     this.nextInfo = null;
-    // Durée de la Frénésie (anneau du bouton) : donnée de la simulation si elle existe, sinon règles + compétence.
+    // Durée de la Frénésie (anneau du bouton) : effets des compétences de la partie, sinon règles + compétence.
+    // L'événement frenzy { on, t } la précise au lancement du sort.
     const D = this.D();
-    const fz = s.spells && s.spells.frenzy;
-    this.frenzyDur = (fz && (fz.duration || fz.t)) || ((D.SPELLS && D.SPELLS.frenzy && D.SPELLS.frenzy.t) || 5) + 0.5 * ((p.skills && p.skills.frenzyLong) || 0);
+    const mods = game.mods || {};
+    const perLong = (D.SKILL && D.SKILL.frenzyLong && D.SKILL.frenzyLong.per) || 0.5;
+    this.frenzyDur = mods.frenzyTime || ((D.SPELLS && D.SPELLS.frenzy && D.SPELLS.frenzy.t) || 5) + perLong * ((p.skills && p.skills.frenzyLong) || 0);
     this.missionEl.textContent = "";
     this.missionEl.append(h("span", { class: "pt-mission-n pt-num" }, String(this.level)), h("span", { class: "pt-mission-t" }, s.map && s.map.name ? s.map.name : m.name || "Mission " + this.level));
     // Pastilles de gemmes
@@ -814,10 +844,11 @@
         });
       });
     }
-    // Vague
+    // Vague (index à partir de 0, -1 avant la première : on affiche le nombre de vagues lancées)
     const w = s.wave || {};
-    this.put("wave", (w.index || 0) + "/" + (w.total || 0), () => {
-      this.waveNum.textContent = String(Math.max(0, Math.min(w.total || 0, w.index || 0)));
+    const cur = clamp((typeof w.index === "number" ? w.index : -1) + 1, 0, w.total || 0);
+    this.put("wave", cur + "/" + (w.total || 0), () => {
+      this.waveNum.textContent = String(cur);
       this.waveTot.textContent = String(w.total || "?");
       this.nextT = 0;
     });
@@ -871,15 +902,16 @@
 
   /** Aperçu de la prochaine vague (portraits × nombres, entrées, compte à rebours, bonus d'appel). */
   P.updateNext = function (s) {
-    const nw = call(this.game, "nextWave");
+    const nw = s.over ? null : call(this.game, "nextWave");
     const D = this.D();
     const w = s.wave || {};
     if (nw && nw.groups) this.nextInfo = nw;
-    if (!nw || !nw.groups || (w.total && nw.index > w.total)) {
-      this.put("nextkey", "none", () => {
+    if (!nw || !nw.groups || (w.total && nw.index >= w.total)) {
+      const end = s.over ? (s.over.win ? "win" : "lose") : "";
+      this.put("nextkey", "none" + end, () => {
         this.marksEl.textContent = "";
         this.nextEl.classList.add("done");
-        this.nextTitle.textContent = w.total && w.index >= w.total ? "Dernière vague !" : "";
+        this.nextTitle.textContent = end === "win" ? "Victoire !" : end === "lose" ? "Défaite" : w.total && w.index + 1 >= w.total ? "Dernière vague !" : "";
         this.nextFoes.textContent = "";
         this.nextGates.textContent = "";
         this.nextTime.textContent = "";
@@ -896,7 +928,7 @@
       const max = this.layout === "landscape" ? 3 : this.layout === "portrait" ? 4 : 5;
       for (const g of groups.slice(0, max)) {
         const E = (D.ENEMIES && D.ENEMIES[g.type]) || {};
-        const nm = g.boss ? (D.BOSS_NAMES && D.BOSS_NAMES[g.type]) || "Boss" : (g.champion ? "Champion : " : "") + (E.name || g.type);
+        const nm = g.boss ? g.name || (D.BOSS_NAMES && D.BOSS_NAMES[g.type]) || "Boss" : (g.champion ? "Champion : " : "") + (E.name || g.type);
         this.nextFoes.append(h("span", { class: "pt-foe" + (g.boss ? " boss" : g.champion ? " champ" : ""), title: nm + " × " + g.count }, this.enemyPortrait(g.type, g.champion, g.boss), h("b", { class: "pt-num" }, "×" + g.count)));
       }
       if (groups.length > max) this.nextFoes.append(h("span", { class: "pt-foe more" }, "+" + (groups.length - max)));
@@ -908,9 +940,9 @@
       this.buildMarks(nw);
     });
     const cd = Math.max(0, Math.ceil(nw.countdown || 0));
-    const bonus = Math.max(0, Math.round((nw.countdown || 0) * (((D.economy || {}).earlyCallGoldPerSecond) || 1)));
-    this.put("nextcd", cd + ":" + bonus, () => {
-      this.nextTitle.textContent = "Vague " + nw.index;
+    const bonus = Math.max(0, Math.floor((nw.countdown || 0) * (((D.economy || {}).earlyCallGoldPerSecond) || 1)));
+    this.put("nextcd", cd + ":" + bonus + ":" + nw.index, () => {
+      this.nextTitle.textContent = "Vague " + (nw.index + 1);
       if (cd > 0) this.nextTitle.append(h("span", { class: "pt-next-dans" }, " dans"));
       this.nextTime.textContent = cd > 0 ? cd + NB + "s" : "";
       this.callBonus.textContent = String(bonus);
@@ -965,10 +997,11 @@
     const D = this.D();
     const def = (D.SPELLS && D.SPELLS[k]) || { cost: 0, name: k };
     const allowed = this.mapInfo && Array.isArray(this.mapInfo.spells) ? this.mapInfo.spells.includes(k) : !!sp;
-    const locked = !sp || !allowed || sp.locked;
+    const locked = !sp || !allowed || sp.locked || sp.unlocked === false;
     const cost = sp && sp.cost !== undefined ? sp.cost : def.cost;
     const afford = s.mana >= cost;
-    const active = sp && sp.active ? (typeof sp.active === "number" ? sp.active : 1) : 0;
+    // Frénésie en cours : secondes restantes (left), sinon valeur numérique d'active, sinon plein.
+    const active = sp && sp.active ? (typeof sp.left === "number" && sp.left > 0 ? sp.left : typeof sp.active === "number" ? sp.active : this.frenzyDur || 1) : 0;
     const ready = !locked && afford && sp.ready !== false;
     const state = locked ? "locked" : active ? "active" : this.aim === k ? "aim" : ready ? "ready" : "low";
     this.put("sp" + k, state + ":" + cost, () => {
@@ -1024,7 +1057,7 @@
     if (!this.game) return;
     const s = this.game.state;
     const nw = call(this.game, "nextWave");
-    if (!nw || (s.wave && s.wave.total && nw.index > s.wave.total)) return this.refuse(this.callBtn, "Plus aucune vague à appeler");
+    if (!nw || (s.wave && s.wave.total && nw.index >= s.wave.total)) return this.refuse(this.callBtn, "Plus aucune vague à appeler");
     const res = call(this.game, "callWave");
     if (this.act(res, this.callBtn)) {
       this.bump(this.callBtn, "good");
@@ -1102,9 +1135,17 @@
   };
 
   /* ------------------------------------------------------------------ carte : toucher et survol */
+  /** Complète un point touché : case (i, j) d'après la position (x, y) si la vue ne la donne pas. */
+  const cellOf = (hit) => {
+    if (!hit) return null;
+    if (hit.i === undefined && typeof hit.x === "number") return Object.assign({}, hit, { i: Math.floor(hit.x), j: Math.floor(hit.y) });
+    if (hit.x === undefined && typeof hit.i === "number") return Object.assign({}, hit, { x: hit.i + 0.5, y: hit.j + 0.5 });
+    return hit;
+  };
   P.mapTap = function (hit) {
     if (this.mode !== "game" || !this.game || this.modal) return;
     this.hideTip();
+    hit = cellOf(hit);
     if (this.aim) {
       if (!hit) return this.cancelAim();
       return this.castAt(this.aim, hit);
@@ -1117,12 +1158,13 @@
       return this.openTower(info.towerId, hit.i, hit.j);
     }
     if (same) return this.closeSel();
-    if (info.forest) return this.openForest(hit.i, hit.j, info);
+    if (info.forest && info.cuttable !== false) return this.openForest(hit.i, hit.j, info);
     if (info.buildable && info.buildable.length) return this.openBuild(hit.i, hit.j, info);
     this.closeSel();
   };
   P.mapHover = function (hit) {
     if (this.mode !== "game" || !this.game) return;
+    hit = cellOf(hit);
     if (this.aim) {
       if (!hit) return this.v("target", this.aim, -99, -99);
       return this.aim === "cut" ? this.v("target", "cut", hit.i + 0.5, hit.j + 0.5) : this.v("target", this.aim, hit.x, hit.y);
@@ -1184,7 +1226,7 @@
     const W = window.innerWidth,
       H = window.innerHeight;
     const ins = this.insets();
-    const pad = 14;
+    const pad = this.layout === "landscape" ? 6 : 14;
     const cell = this.cellPx();
     let x, y, side;
     if (sel.kind === "tower") {
@@ -1259,8 +1301,9 @@
     const fams = info.buildable.filter((f) => D.FAMILIES && D.FAMILIES[f]);
     const TP = PTMT.towerPortraits;
     const perks = [];
-    if (info.high) perks.push(h("span", { class: "pt-perk" }, ico("high"), "Butte : +30" + NB + "% portée, +10" + NB + "% dégâts"));
-    if (info.mana) perks.push(h("span", { class: "pt-perk" }, ico("menhir"), "Menhir : +0,4 mana/s"));
+    const hi = D.high || { range: 0.3, damage: 0.1 };
+    if (info.high) perks.push(h("span", { class: "pt-perk" }, ico("high"), "Butte : +" + pc(hi.range) + " portée, +" + pc(hi.damage) + " dégâts"));
+    if (info.mana) perks.push(h("span", { class: "pt-perk" }, ico("menhir"), "Menhir : +" + f1((D.mana && D.mana.perManaTower) || 0.4) + " mana/s"));
     const opts = fams.map((f) => {
       const F = D.FAMILIES[f];
       const cost = this.buildCost(f, info);
@@ -1300,7 +1343,8 @@
   P.openForest = function (i, j, info) {
     const D = this.D();
     const s = this.game.state;
-    const cost = (s.spells && s.spells.cut && s.spells.cut.cost) || (D.SPELLS && D.SPELLS.cut && D.SPELLS.cut.cost) || 30;
+    const sc = s.spells && s.spells.cut;
+    const cost = info.cutCost !== undefined ? info.cutCost : sc && sc.cost !== undefined ? sc.cost : (D.SPELLS && D.SPELLS.cut && D.SPELLS.cut.cost) || 30;
     const under = { grass: "l'herbe (sanglier)", rock: "la roche (berger)", water: "l'eau (cygne)", high: "une butte (les trois)" }[info.terrain] || "une case constructible";
     this.cutBtn = h("button", { class: "pt-btn pt-go pt-cut", onclick: (e) => this.doCut(i, j, e.currentTarget) }, ico("cut"), h("span", {}, "Couper"), h("span", { class: "pt-price mana" }, ico("mana"), h("b", { class: "pt-num" }, String(cost))));
     this.cutReason = h("small", { class: "pt-reason" });
@@ -1323,7 +1367,7 @@
     const s = this.game.state;
     const sp = s.spells && s.spells.cut;
     const allowed = this.mapInfo && Array.isArray(this.mapInfo.spells) ? this.mapInfo.spells.includes("cut") : !!sp;
-    const cost = (sp && sp.cost) || this.sel.cost;
+    const cost = sp && sp.cost !== undefined ? sp.cost : this.sel.cost;
     const reason = !sp || !allowed ? "Le sort Couper n'est pas disponible ici" : s.mana < cost ? `Il manque ${Math.ceil(cost - s.mana)} mana` : "";
     this.cutBtn.setAttribute("aria-disabled", reason ? "true" : "false");
     this.cutReason.textContent = reason;
@@ -1341,46 +1385,53 @@
   P.towerKey = function (t) {
     return t.level + ":" + (t.spec || "");
   };
-  /** Vue normalisée d'une tour (towerInfo de la simulation, complétée par les données). */
+  /** Vue normalisée d'une tour : towerInfo de la simulation (next, specs { A, B }, check), complétée par les données. */
   P.towerView = function (t) {
     const D = this.D();
     const info = call(this.game, "towerInfo", t.id) || {};
     const s = this.game.state;
-    const lv = t.level || 1;
-    const stats = info.stats || D.towerLevel(t.family, lv, t.spec) || {};
-    const xpNext = info.xpNext !== undefined ? info.xpNext : t.xpNext !== undefined ? t.xpNext : D.XP ? D.XP[lv] : null;
-    const xp = info.xp !== undefined ? info.xp : t.xp || 0;
-    const v = { t, info, stats, xp, xpNext, level: lv, spec: t.spec || null, family: t.family, name: info.name || stats.name || "", max: lv >= 7 };
-    v.sell = info.sellValue !== undefined ? info.sellValue : info.sell !== undefined ? info.sell : null;
+    const lv = info.level || t.level || 1;
+    const spec = info.spec !== undefined ? info.spec : t.spec || null;
+    const stats = info.stats || D.towerLevel(t.family, lv, spec) || {};
+    const xpNext = info.xpNext !== undefined ? info.xpNext : lv < 7 && D.XP ? D.XP[lv] : null;
+    const xp = Math.floor(info.xp !== undefined ? info.xp : t.xp || 0);
+    const kills = info.kills !== undefined ? info.kills : t.kills || 0;
+    const v = { t, info, stats, xp, xpNext, kills, level: lv, spec, family: t.family, name: info.name || stats.name || "", max: lv >= 7 };
+    v.sell = info.sell !== undefined ? info.sell : info.sellValue !== undefined ? info.sellValue : null;
     if (v.sell === null) {
       // Repli : somme des prix payés × part rendue à la revente.
       let spent = 0;
       for (let l = 1; l <= lv; l++) {
-        const L = D.towerLevel(t.family, l, l >= 4 ? t.spec : null);
+        const L = D.towerLevel(t.family, l, l >= 4 ? spec : null);
         spent += (L && L.cost) || 0;
       }
-      v.sell = Math.round(spent * ((D.economy && D.economy.sellRatio) || 0.6));
+      v.sell = Math.floor(spent * ((D.economy && D.economy.sellRatio) || 0.6));
     }
-    const reasonFor = (cost, needXp) => {
-      if (needXp !== null && needXp !== undefined && xp < needXp) return `Il faut ${needXp} d'expérience`;
+    // Raison lisible d'un refus : la simulation décide (check), l'interface précise ce qui manque.
+    const why = (check, cost) => {
+      const needXp = xpNext !== null && xpNext !== undefined && xp < xpNext;
+      if (check && check.ok) return "";
+      if (check ? check.xp : needXp) return needXp ? `Il manque ${xpNext - xp} points d'expérience` : check.reason || "Expérience insuffisante";
       if (cost !== null && cost !== undefined && s.gold < cost) return `Il manque ${Math.ceil(cost - s.gold)} or`;
-      return "";
+      return check ? check.reason || "Impossible pour l'instant" : "";
     };
     if (lv === 3) {
-      const src = info.specs || info.choices || ["A", "B"].map((k) => ({ spec: k }));
-      v.specs = src.map((o) => {
+      const raw = info.specs || info.choices || null;
+      const list = !raw ? ["A", "B"].map((k) => ({ spec: k })) : Array.isArray(raw) ? raw : ["A", "B"].filter((k) => raw[k]).map((k) => Object.assign({ spec: k }, raw[k]));
+      v.specs = list.map((o) => {
         const k = o.spec || o.key || o.id;
         const F = D.FAMILIES[t.family].specs[k];
         const L = D.towerLevel(t.family, 4, k) || {};
-        const cost = o.cost !== undefined ? o.cost : L.cost;
-        const reason = o.reason !== undefined ? o.reason || "" : o.ok === false ? o.reason || "Impossible" : reasonFor(cost, xpNext);
-        return { spec: k, name: o.name || F.name, blurb: o.blurb || F.blurb, cost, stats: o.stats || L, reason };
+        const cost = o.cost !== undefined && o.cost !== null ? o.cost : L.cost;
+        const check = o.check || (o.ok !== undefined ? o : null);
+        return { spec: k, name: o.name || F.name, blurb: o.blurb || F.blurb, cost, stats: o.stats || L, reason: why(check, cost) };
       });
     } else if (!v.max) {
-      v.next = info.next || D.towerLevel(t.family, lv + 1, t.spec) || null;
-      v.cost = info.upgradeCost !== undefined ? info.upgradeCost : info.cost !== undefined ? info.cost : v.next ? v.next.cost : null;
-      const can = info.canUpgrade;
-      v.upReason = can && typeof can === "object" ? (can.ok ? "" : can.reason || "Impossible") : info.reason !== undefined ? info.reason || "" : reasonFor(v.cost, xpNext);
+      const nx = info.next || null;
+      v.next = (nx && nx.stats) || D.towerLevel(t.family, lv + 1, spec) || null;
+      v.nextName = (nx && nx.name) || (v.next && v.next.name) || "";
+      v.cost = nx && nx.cost !== undefined && nx.cost !== null ? nx.cost : v.next ? v.next.cost : null;
+      v.upReason = why(nx && nx.check, v.cost);
       v.canUp = !v.upReason;
     }
     return v;
@@ -1453,7 +1504,7 @@
       }
       actions.append(row);
     } else if (!v.max) {
-      const nextName = v.next && v.next.name && v.next.name !== v.name ? v.next.name : "Niveau " + (v.level + 1);
+      const nextName = v.nextName && v.nextName !== v.name ? v.nextName : "Niveau " + (v.level + 1);
       actions.append(
         h(
           "button",
@@ -1520,17 +1571,17 @@
       const st = "+" + v.sell;
       if (sel.sellTxt.textContent !== st) sel.sellTxt.textContent = st;
     }
-    const D = this.D();
-    const lv = t.level || 1;
-    const need = t.xpNext !== undefined ? t.xpNext : D.XP ? D.XP[lv] : 0;
-    const xp = Math.floor(t.xp || 0);
+    const lv = v.level || t.level || 1;
+    const need = v.xpNext || 0;
+    const xp = v.xp;
     const txt = lv >= 7 ? "maximum" : xp + NB + "/" + NB + need;
     if (sel.xpTxt.textContent !== txt) {
       sel.xpTxt.textContent = txt;
       sel.xpFill.style.transform = `scaleX(${lv >= 7 ? 1 : clamp(need ? xp / need : 1, 0, 1).toFixed(3)})`;
       sel.xpFill.parentNode.classList.toggle("full", lv < 7 && xp >= need);
     }
-    const k = t.kills ? t.kills + " ennemi" + (t.kills > 1 ? "s" : "") + " vaincu" + (t.kills > 1 ? "s" : "") : "";
+    const kn = v.kills || 0;
+    const k = kn ? kn + " ennemi" + (kn > 1 ? "s" : "") + " vaincu" + (kn > 1 ? "s" : "") : "";
     if (sel.kills.textContent !== k) sel.kills.textContent = k;
   };
   P.doUpgrade = function (id, spec, btn, reason) {
@@ -1564,17 +1615,40 @@
   };
 
   /* ------------------------------------------------------------------ événements de la simulation */
+  /**
+   * Nature d'un événement et type d'ennemi concerné. La simulation fabrique ses événements par
+   * Object.assign({ type: nom }, données) : quand les données portent un type d'ennemi (spawn, kill,
+   * newEnemy, bossArrives), celui-ci remplace le nom. On reconnaît alors l'événement à ses champs.
+   * Un champ enemyType (ou enemy) est aussi accepté, si la simulation le fournit un jour.
+   */
+  P.evKind = function (e) {
+    const D = this.D();
+    const t = e.type;
+    if (!(D.ENEMIES && D.ENEMIES[t])) return { kind: t, enemy: e.enemyType || e.enemy || null };
+    let kind = "unknown";
+    if (e.entrance !== undefined) kind = "spawn";
+    else if (e.gold !== undefined && e.x !== undefined) kind = "kill";
+    else if (e.name !== undefined && e.enemyId !== undefined) kind = "bossArrives";
+    else if (e.enemyId === undefined) kind = "newEnemy";
+    return { kind, enemy: t };
+  };
   P.events = function (list) {
     if (!list || !list.length || this.mode !== "game" || !this.game) return;
     for (const e of list) {
-      switch (e.type) {
+      const { kind, enemy } = this.evKind(e);
+      switch (kind) {
         case "newEnemy":
-          // Le champ « type » de l'événement vaut déjà "newEnemy" : le type d'ennemi arrive dans enemy (ou enemyType, kind).
-          this.queueModal(() => this.newEnemyCard(e.enemy || e.enemyType || e.kind));
+          this.newEnemy(enemy);
           break;
         case "waveStart":
           this.waveBanner(e.index);
           this.tutoDone("wave");
+          break;
+        case "bossArrives":
+          this.bossBanner(e.name, enemy);
+          break;
+        case "earlyBonus":
+          if (e.gold) this.toast("Vague appelée en avance : +" + e.gold + " or", "gold");
           break;
         case "kill":
           if (e.gold) this.fly(e.x, e.y, "+" + e.gold, "gold");
@@ -1589,26 +1663,47 @@
           this.tutoStep("drop", e);
           break;
         case "escape":
+          // Un ennemi sorti sans gemme ne coûte rien : seul un porteur fait perdre une gemme.
+          if (e.gemId === null || e.gemId === undefined) break;
           this.toast("Une gemme est perdue…", "bad");
           this.bump(this.gemsEl, "bad");
           break;
         case "gemReturn":
           this.toast("Une gemme est revenue au moulin", "good");
           break;
+        case "secretOpen":
+          this.toast("Un passage secret s'est ouvert !", "bad");
+          break;
         case "cut":
           if (this.sel && this.sel.kind === "forest" && this.sel.i === e.i && this.sel.j === e.j) this.closeSel();
+          if (e.gold) this.fly(e.i + 0.5, e.j + 0.5, "+" + e.gold, "gold");
+          break;
+        case "frenzy":
+          if (e.on && e.t) this.frenzyDur = e.t;
           break;
         case "meteorImpact":
           this.bump(this.spellBtn.meteor, "good");
           break;
-        case "barrierBreak":
-        case "smoke":
-          break;
         case "win":
         case "lose":
+          // Résultat déjà enregistré par l'intégrateur : { firstWin, points, unlocked, best }.
+          if (e.record) this.record = e.record;
           break;
       }
     }
+  };
+  /** Premier ennemi d'un type dans la partie : fiche seulement s'il n'a jamais été rencontré. */
+  P.newEnemy = function (type) {
+    if (!type) return;
+    const pr = this.prog();
+    if (pr) {
+      const p = this.loadP();
+      if (p.seen && p.seen[type]) return;
+      call(pr, "markSeen", p, type);
+      if (p.seen) p.seen[type] = true;
+      this.saveP(p);
+    }
+    this.queueModal(() => this.newEnemyCard(type));
   };
 
   /* ------------------------------------------------------------------ fiches (modales) */
@@ -1656,12 +1751,6 @@
     const D = this.D();
     const E = (D.ENEMIES && D.ENEMIES[type]) || {};
     const d = Object.assign({}, E, call(this.game, "describeEnemy", type) || {});
-    const pr = this.prog();
-    if (pr) {
-      const p = this.loadP();
-      call(pr, "markSeen", p, type);
-      this.saveP(p);
-    }
     const abi = E.ability && ABILITY[E.ability.kind] ? ABILITY[E.ability.kind](E.ability) : null;
     const abText = typeof d.ability === "string" ? d.ability : abi ? abi[1] + " : " + abi[2] : "Aucune capacité spéciale";
     const card = h(
@@ -1674,7 +1763,7 @@
       h("div", { class: "pt-facts" }, h("span", { class: "pt-fact" }, ico("heal"), nf(d.hp || E.hp || 0) + " PV"), h("span", { class: "pt-fact" }, ico("haste"), cap(speedWord(d.speed || E.speed || 1)) + " (" + f1(d.speed || E.speed || 1) + " case/s)"), E.gold ? h("span", { class: "pt-fact" }, ico("gold"), "+" + E.gold) : null),
       h("div", { class: "pt-ability" }, ico(abi ? abi[0] : "info"), h("span", {}, abText)),
       E.blurb ? h("p", { class: "pt-newe-b" }, E.blurb) : null,
-      h("small", { class: "pt-muted" }, "Les champions ont une couronne dorée : trois fois et demie plus de PV."),
+      h("small", { class: "pt-muted" }, "Les champions portent une couronne dorée : " + f1((D.champion && D.champion.hp) || 3.5) + " fois plus de PV."),
       h("button", { class: "pt-btn pt-go pt-big", "data-focus": "", onclick: () => this.closeModal() }, ico("check"), "Compris" + NB + "!"),
     );
     this.openModal(card, { cls: "pt-m-newe", enter: () => this.closeModal() });
@@ -1693,7 +1782,7 @@
       "div",
       { class: "pt-card pt-pausecard pt-pop-in" },
       h("div", { class: "pt-ribbon" }, h("span", {}, "Pause")),
-      h("div", { class: "pt-pause-m" }, h("b", {}, (s.map && s.map.name) || (this.mapInfo && this.mapInfo.name) || ""), h("small", {}, `Mission ${this.level} · vague ${Math.max(1, w.index || 1)} sur ${w.total || "?"}`)),
+      h("div", { class: "pt-pause-m" }, h("b", {}, (s.map && s.map.name) || (this.mapInfo && this.mapInfo.name) || ""), h("small", {}, `Mission ${this.level} · ` + (typeof w.index === "number" && w.index >= 0 ? `vague ${w.index + 1} sur ${w.total || "?"}` : "avant la première vague"))),
       h(
         "div",
         { class: "pt-col" },
@@ -1723,45 +1812,62 @@
     this.closeModal(true);
     if (typeof this.hooks.restartLevel === "function") this.hooks.restartLevel();
   };
-  P.quit = function () {
+  P.quit = function (to) {
     this.closeModal(true);
     const lv = this.level;
+    // Mission tout juste ouverte : son médaillon s'anime quand la carte est vraiment à l'écran.
+    const fresh = this.justUnlocked || 0;
     if (typeof this.hooks.quitLevel === "function") this.hooks.quitLevel();
-    if (this.mode === "game") this.showMap(lv);
+    if (this.mode === "game" || (to && this.mode !== "map")) this.showMap(fresh || lv);
+    if (to === "skills") {
+      this.justUnlocked = fresh;
+      this.showSkills();
+    }
   };
-  /** Victoire ou défaite (enregistre le résultat dans la progression, sans conflit si l'intégrateur le fait aussi). */
+  /**
+   * Victoire ou défaite. Le résultat est déjà enregistré par l'intégrateur : l'événement win / lose
+   * porte record = { firstWin, points, unlocked, best } ; sans lui, simple affichage (rien n'est écrit).
+   */
   P.showResult = function (over) {
     if (!this.game) return;
     const D = this.D();
-    const lv = this.level;
-    const first = over.win && !this.wasWon;
-    const pr = this.prog();
-    if (pr && over.win) {
-      const p = this.loadP();
-      p.levels = p.levels || {};
-      const L = p.levels[lv] || (p.levels[lv] = { won: false, bestGems: 0, gemsTotal: over.gemsTotal, brilliant: false });
-      L.won = true;
-      L.bestGems = Math.max(L.bestGems || 0, over.gemsLeft || 0);
-      L.gemsTotal = over.gemsTotal || L.gemsTotal;
-      L.brilliant = !!(L.brilliant || over.brilliant);
-      p.unlocked = Math.max(p.unlocked || 1, Math.min(this.missionCount(), lv + 1));
-      this.saveP(p);
-      this.wasWon = true;
-    }
+    const rec = this.record || null;
+    const first = rec ? !!rec.firstWin : over.win && !this.wasWon;
+    const pts = rec ? rec.points || 0 : first ? D.pointsPerLevel || 3 : 0;
+    const opened = rec && rec.unlocked ? rec.unlocked : 0;
+    if (over.win) this.wasWon = true;
+    if (opened) this.justUnlocked = opened;
     const total = over.gemsTotal || (this.game.state.gems || []).length || 5;
     const gems = this.game.state.gems || [];
-    const row = h("div", { class: "pt-gemrow big" }, Array.from({ length: total }, (_, i) => h("span", { class: "pt-rgem", style: `--i:${i}` }, ico(icons().gem(gems[i] ? gems[i].color : i % 6, i < (over.gemsLeft || 0) ? "lair" : "lost")))));
+    const left = over.gemsLeft || 0;
+    const row = h("div", { class: "pt-gemrow big" }, Array.from({ length: total }, (_, i) => h("span", { class: "pt-rgem", style: `--i:${i}` }, ico(icons().gem(gems[i] ? gems[i].color : i % 6, i < left ? "lair" : "lost")))));
     let card;
     if (over.win) {
-      const pts = over.points !== undefined ? over.points : D.pointsPerLevel || 3;
+      const best = rec && rec.best;
+      // Mission rejouée : nouveau record, ou rappel du record à battre.
+      const better = !first && this.prevBest !== undefined && left > this.prevBest;
+      const record = better
+        ? h("div", { class: "pt-newbest" }, ico("trophy"), "Nouveau record !")
+        : best && !first && best.bestGems > left
+          ? h("small", { class: "pt-muted" }, `Ton record reste ${best.bestGems} gemme${best.bestGems > 1 ? "s" : ""} sur ${best.gemsTotal || total}.`)
+          : null;
+      const nextMap = opened ? this.maps()[opened] : null;
       card = h(
         "div",
         { class: "pt-card pt-result win pt-pop-in" },
-        h("div", { class: "pt-ribbon gold" }, h("span", {}, "Victoire" + NB + "!")),
-        over.brilliant ? h("div", { class: "pt-brilliant big" }, h("span", { class: "pt-crown", html: icons().get("crown") }), h("b", {}, "Brillant" + NB + "!"), h("small", {}, "Aucune gemme perdue")) : null,
-        h("p", { class: "pt-result-t" }, `${over.gemsLeft} gemme${over.gemsLeft > 1 ? "s" : ""} sauvée${over.gemsLeft > 1 ? "s" : ""} sur ${total}`),
+        h("div", { class: "pt-ribbon gold" }, h("span", {}, "Victoire !")),
+        over.brilliant ? h("div", { class: "pt-brilliant big" }, h("span", { class: "pt-crown", html: icons().get("crown") }), h("b", {}, "Brillant !"), h("small", {}, "Aucune gemme perdue")) : null,
+        h("p", { class: "pt-result-t" }, `${left} gemme${left > 1 ? "s" : ""} sauvée${left > 1 ? "s" : ""} sur ${total}`),
         row,
-        first ? h("div", { class: "pt-reward" }, ico("skillPoint"), h("b", {}, "+" + pts + " points de compétence")) : h("small", { class: "pt-muted" }, "Mission déjà gagnée : pas de nouveaux points, mais ton record est gardé."),
+        h(
+          "div",
+          { class: "pt-gains" },
+          pts > 0
+            ? h("button", { class: "pt-reward", title: "Placer les points de compétence", onclick: () => this.quit("skills") }, ico("skillPoint"), h("span", { class: "pt-reward-t" }, h("b", {}, "+" + pts + " points de compétence"), h("small", {}, this.mobile ? "Touche pour les placer" : "Clique pour les placer")), h("span", { class: "pt-reward-go", html: icons().get("back") }))
+            : h("small", { class: "pt-muted" }, "Mission déjà gagnée : pas de nouveaux points."),
+          record,
+          opened ? h("div", { class: "pt-unlock" }, ico("map"), h("span", { class: "pt-unlock-t" }, h("b", {}, "Nouvelle mission !"), h("small", {}, opened + " · " + ((nextMap && nextMap.name) || "Mission " + opened)))) : null,
+        ),
         h(
           "div",
           { class: "pt-row" },
@@ -1789,21 +1895,41 @@
   };
 
   /* ------------------------------------------------------------------ bannières, messages, textes volants */
+  /** Bannière de début de vague (index à partir de 0, comme l'événement waveStart). */
   P.waveBanner = function (index) {
     const g = this.game;
     const s = g.state;
     const D = this.D();
     const w = s.wave || {};
-    const n = index || w.index || 1;
+    const k = typeof index === "number" ? index : typeof w.index === "number" ? w.index : 0;
+    const n = k + 1;
     const last = w.total && n >= w.total;
     // Boss : d'après l'aperçu de cette vague (il n'est peut-être pas encore entré sur la carte).
     let boss = null;
-    const nw = this.nextInfo && this.nextInfo.index === n ? this.nextInfo : null;
-    const bg = (nw && nw.groups.find((g) => g.boss)) || (s.enemies || []).find((e) => e.boss);
-    if (bg) boss = (D.BOSS_NAMES && D.BOSS_NAMES[bg.type]) || "Le chef";
+    const nw = this.nextInfo && this.nextInfo.index === k ? this.nextInfo : null;
+    const bg = (nw && nw.groups.find((x) => x.boss)) || (s.enemies || []).find((e) => e.boss);
+    if (bg) boss = bg.name || (D.BOSS_NAMES && D.BOSS_NAMES[bg.type]) || "Le chef";
     const el = h("div", { class: "pt-wbanner" + (last ? " last" : "") }, h("small", {}, last ? "Dernière vague" : "Vague"), h("b", { class: "pt-num" }, `${n}` + (w.total ? ` / ${w.total}` : "")), boss ? h("span", { class: "pt-wbanner-boss" }, ico("boss"), "Boss : " + boss) : null);
     this.bannerLayer.append(el);
+    this.bannerUntil = performance.now() + 2600;
     setTimeout(() => el.remove(), 2600);
+  };
+  /** Entrée du boss sur la carte (événement bossArrives), après la bannière de vague si elle est encore là. */
+  P.bossBanner = function (name, type) {
+    const D = this.D();
+    const nm = name || (D.BOSS_NAMES && D.BOSS_NAMES[type]) || "Le chef";
+    const g = this.game;
+    const show = () => {
+      if (this.game !== g || !g) return;
+      const el = h("div", { class: "pt-wbanner pt-bbanner" }, h("small", {}, "Le boss arrive !"), h("div", { class: "pt-bbanner-n" }, type ? this.enemyPortrait(type, false, true, "big") : ico("boss"), h("b", {}, nm)));
+      this.bannerLayer.append(el);
+      setTimeout(() => el.remove(), 2600);
+    };
+    const now = performance.now();
+    const wait = Math.max(0, (this.bannerUntil || 0) - now);
+    this.bannerUntil = now + wait + 2600;
+    if (wait > 0) setTimeout(show, wait);
+    else show();
   };
   P.pausedBanner = function (on) {
     if (on && !this.pauseEl && this.mode === "game") {
@@ -1819,7 +1945,7 @@
     const t0 = this.toastSeen.get(text);
     if (t0 !== undefined && this.t - t0 < 1.5) return;
     this.toastSeen.set(text, this.t);
-    const el = h("div", { class: "pt-toast " + (kind || "info") }, ico(kind === "bad" ? "warning" : kind === "good" ? "check" : "info"), h("span", {}, text));
+    const el = h("div", { class: "pt-toast " + (kind || "info") }, ico(kind === "bad" ? "warning" : kind === "good" ? "check" : kind === "gold" ? "coins" : "info"), h("span", {}, text));
     this.toastLayer.append(el);
     while (this.toastLayer.children.length > 3) this.toastLayer.firstChild.remove();
     setTimeout(() => {
@@ -1913,8 +2039,9 @@
   };
 
   /* ------------------------------------------------------------------ tutoriel (mission 1) */
-  // Étapes : construire un sanglier sur l'herbe → les ennemis emportent les gemmes → une gemme tombée
-  // peut être reprise → couper la forêt. Bulles ancrées sur la carte (ou sur le HUD), sans bloquer.
+  // Étapes : construire un sanglier sur l'herbe → appeler la vague (bonus d'or) → couper la forêt →
+  // les ennemis emportent les gemmes → une gemme tombée peut être reprise. Bulles ancrées sur la carte
+  // ou sur un bouton du HUD, sans bloquer la partie.
   P.tutoStart = function () {
     const s = this.game.state;
     const grid = (s.map && s.map.grid) || (this.mapInfo && this.mapInfo.grid) || null;
@@ -1957,7 +2084,7 @@
   };
   P.tutoStep = function (step, ev) {
     const t = this.tuto;
-    if (!t || t.done[step]) return;
+    if (!t || t.done[step] || (t.step === step && t.el)) return;
     if (t.el) t.el.remove();
     t.el = null;
     t.step = step;
@@ -1977,10 +2104,16 @@
       at = ev ? { x: ev.x, y: ev.y } : null;
       text = "Gemme tombée ! Les autres ennemis vont la chercher : défends-la, elle revient si personne ne la prend.";
       life = 6;
+    } else if (step === "call") {
+      at = { el: this.callBtn };
+      text = "Prêt ? Appelle la vague sans attendre : chaque seconde d'avance rapporte de l'or.";
+      life = 12;
     } else if (step === "cut") {
       at = this.tutoTile("frwh");
       if (!at) return;
-      text = "Case boisée : touche-la puis « Couper » (30 mana) pour y construire.";
+      const sc = this.game.state.spells && this.game.state.spells.cut;
+      const cost = sc && sc.cost !== undefined ? sc.cost : (this.D().SPELLS || {}).cut ? this.D().SPELLS.cut.cost : 30;
+      text = "Case boisée : touche-la puis « Couper » (" + cost + " mana) pour y construire.";
       life = 9;
     }
     if (!text) return;
@@ -1999,13 +2132,29 @@
     const W = window.innerWidth;
     const ins = this.insets();
     let p = null;
-    if (at) p = at.x !== undefined ? this.v("worldToScreen", at.x, at.y) : this.v("worldToScreen", at.i + 0.5, at.j + 0.5);
     if (!t.w || !t.placed) {
       t.w = el.offsetWidth;
       t.h = el.offsetHeight;
     }
     const w = t.w,
       hh = t.h;
+    if (at && at.el) {
+      // Bouton du HUD : la bulle se place dessous (ou dessus s'il est en bas de l'écran).
+      const r = at.el.getBoundingClientRect();
+      if (!r.width) return;
+      const H = window.innerHeight;
+      const below = r.bottom + hh + 16 < H - ins.bottom || r.top < H / 2;
+      const x = clamp(r.left + r.width / 2 - w / 2, 8, W - w - 8);
+      const y = below ? r.bottom + 14 : r.top - hh - 14;
+      const tr = `translate(${Math.round(x)}px, ${Math.round(y)}px)`;
+      if (tr === t.placed) return;
+      t.placed = tr;
+      el.dataset.side = below ? "b" : "t";
+      el.style.setProperty("--ax", clamp(r.left + r.width / 2 - x, 16, w - 16).toFixed(0) + "px");
+      el.style.transform = tr;
+      return;
+    }
+    if (at) p = at.x !== undefined ? this.v("worldToScreen", at.x, at.y) : this.v("worldToScreen", at.i + 0.5, at.j + 0.5);
     if (!p) {
       el.style.transform = `translate(${Math.round((W - w) / 2)}px, ${ins.top + 12}px)`;
       return;
@@ -2033,13 +2182,20 @@
   P.tutoDone = function (step) {
     const t = this.tuto;
     if (!t) return;
-    if (step === "tower" || step === "wave" || step === "call") return;
+    if (step === "tower") return;
+    if (step === "wave") step = "call"; // la vague est partie (appelée ou à la fin du compte à rebours)
+    if (t.done[step]) return;
     t.done[step] = true;
     if (t.step === step && t.el) {
       t.el.remove();
       t.el = null;
     }
-    if (step === "build") setTimeout(() => this.tuto && !this.tuto.done.cut && this.tutoStep("cut"), 1500);
+    const later = (next, ms) => setTimeout(() => this.tuto === t && !t.done[next] && !(t.el && t.step !== next) && this.tutoStep(next), ms);
+    if (step === "build") {
+      const w = this.game && this.game.state.wave;
+      if (w && typeof w.index === "number" && w.index < 0 && !t.done.call) later("call", 900);
+      else later("cut", 1500);
+    } else if (step === "call") later("cut", 2500);
   };
 
   /* ------------------------------------------------------------------ publication */
@@ -2065,6 +2221,10 @@
         },
         get busy() {
           return !!ui.modal;
+        },
+        /** Écran opaque par-dessus la scène 3D (compétences, encyclopédie) : son rendu peut s'arrêter. */
+        get covered() {
+          return ui.mode === "skills" || ui.mode === "bestiary" || (ui.mode === "map" && !ui.hasStage());
         },
         el: ui.el,
         _ui: ui,
