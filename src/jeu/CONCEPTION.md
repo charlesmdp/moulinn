@@ -187,7 +187,7 @@ game.describeEnemy(type)       // { name, role, hp, speed, ability } pour les fi
 }
 ```
 
-Événements (`type` + champs) : `spawn {enemyId}`, `attack {towerId, targetId}` (début de l'élan de la
+Événements (`type` + champs ; le type d'ennemi s'appelle toujours `enemyType`) : `spawn {enemyId, enemyType}`, `attack {towerId, targetId}` (début de l'élan de la
 tour), `shot {towerId, projectileId}`, `impact {projectileId, kind, x, y, r, crit}`, `fizzle {projectileId}`
 (cible disparue), `hit {enemyId, dmg,
 crit, evaded, absorbed, x, y, kind}`, `kill {enemyId, gold, towerId, x, y}`, `steal {enemyId, gemId}`
@@ -196,7 +196,7 @@ crit, evaded, absorbed, x, y, kind}`, `kill {enemyId, gold, towerId, x, y}`, `st
 `cast {spell, x, y}`, `meteorImpact {x, y, r}`, `cut {i, j}`, `heal {fromId, toId, amount}`,
 `smoke {enemyId}`, `haste {enemyId}`, `barrierBreak {enemyId}`, `disarm {enemyId}`, `fear {enemyId}`,
 `freeze {enemyId}`, `stun {enemyId}`, `immune {enemyId}`, `lasso {enemyId, gemId}`, `barrierUp {enemyId}`,
-`corpseBomb {x, y, r}`, `frenzy {on}`, `waveStart {index}`, `newEnemy {type}`, `bossArrives {enemyId, name}`,
+`corpseBomb {x, y, r}`, `frenzy {on}`, `waveStart {index}`, `newEnemy {enemyType}`, `bossArrives {enemyId, enemyType, name}`,
 `secretOpen`, `earlyBonus {gold}`, `win`, `lose`.
 
 Angles : `dir` (ennemis) et `aim` (tours) sont des angles « monde » : 0 = vers +y (+Z), π/2 = vers +x

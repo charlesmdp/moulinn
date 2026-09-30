@@ -123,7 +123,8 @@
 
     /* ------------------------------------------------------------ outils */
     emit(type, data) {
-      const e = Object.assign({ type }, data);
+      // Le nom de l'événement passe en dernier : un champ « type » des données ne peut pas l'écraser.
+      const e = Object.assign({}, data, { type });
       this.events.push(e);
       return e;
     }
@@ -570,12 +571,12 @@
       if (ab.kind === "barrier") e.barrier = e.barrierMax = (sp.champion ? D.champion.barrier : ab.value) * (sp.boss ? 1.5 : 1);
       if (ab.kind === "heal" || ab.kind === "haste") e.t.ability = ab.every * (0.4 + 0.3 * this.rnd());
       s.enemies.push(e);
-      this.emit("spawn", { enemyId: e.id, type: e.type, champion: e.champion, boss: e.boss, entrance: ent.id });
+      this.emit("spawn", { enemyId: e.id, enemyType: e.type, champion: e.champion, boss: e.boss, entrance: ent.id });
       if (!this.seen.has(e.type)) {
         this.seen.add(e.type);
-        this.emit("newEnemy", { type: e.type });
+        this.emit("newEnemy", { enemyType: e.type });
       }
-      if (e.boss) this.emit("bossArrives", { enemyId: e.id, type: e.type, name: e.name });
+      if (e.boss) this.emit("bossArrives", { enemyId: e.id, enemyType: e.type, name: e.name });
     }
     /** Champ vers le but de l'ennemi (gemme choisie, repaire ou sortie) ; choisit la meilleure gemme. */
     chooseGoal(e) {
@@ -929,7 +930,7 @@
         tower.kills++;
         tower.xp += e.xp * this.mods.xp;
       }
-      this.emit("kill", { enemyId: e.id, type: e.type, gold: e.gold, towerId: tower ? tower.id : null, x: e.x, y: e.y, carrying: e.carrying, kind: src && src.kind });
+      this.emit("kill", { enemyId: e.id, enemyType: e.type, gold: e.gold, towerId: tower ? tower.id : null, x: e.x, y: e.y, carrying: e.carrying, kind: src && src.kind });
       if (e.carrying) this.dropGem(e);
       // Explosion du cadavre (rayonnement du dragon bleu)
       if (e.t.rad > 0 && e.t.radSrc) {
