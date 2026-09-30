@@ -260,20 +260,33 @@
       for (const sx of [-1, 1])
         R.add(
           G.tube(
-            "tusk:" + P.tusk + ":" + (P.tuskCurl || 1),
+            "tusk:" + P.tusk + ":" + (P.tuskCurl || 1) + ":" + k + ":" + (P.tuskW || 1),
             [
               [0, 0, 0],
               [0.03, 0.25, 0.25],
-              [0.1, 0.62, 0.42],
+              [0.1 + 0.08 * ((P.tuskCurl || 1) - 1), 0.62, 0.42],
               [0.2 * (P.tuskCurl || 1), 0.95, 0.3],
             ].map(([x, y, z]) => [x * tl * 2.2, y * tl * 1.1, z * tl]),
-            (t) => (0.036 + (1 - t) * 0.032) * (P.tuskW || 1) * k + 0.004,
-            6,
-            4,
+            // effilée jusqu'à une pointe
+            (t) => (0.012 + (1 - t) * 0.058) * (P.tuskW || 1) * k + 0.003,
+            5,
+            5,
           ),
           B("head"),
           { p: [sx * hr * 0.36, hc[1] - hr * 0.42, sz + hr * 0.05], s: [sx, 1, 1], c: C.tusk, cls: CLS.glossy, ol: true },
         );
+      // Bagues d'or sur les défenses (vieux mâle légendaire).
+      if (P.tuskRing) {
+        const tr = (0.012 + 0.74 * 0.058) * (P.tuskW || 1) * k + 0.003;
+        for (const sx of [-1, 1])
+          R.add(G.torus(tr * 1.08, tr * 0.26, 4, 10), B("head"), {
+            p: [sx * (hr * 0.36 + 0.066 * tl), hc[1] - hr * 0.42 + 0.27 * tl, sz + hr * 0.05 + 0.24 * tl],
+            r: [-0.84, 0, 0],
+            c: P.tuskRing,
+            cls: CLS.gold,
+            ol: true,
+          });
+      }
     }
     // Oreilles (os propres : petits mouvements).
     const ek = P.ear || 1;
@@ -306,6 +319,7 @@
       browW: P.browW,
       browT: P.browT,
       lash: P.lash,
+      glowIris: P.glowIris,
     });
     // Queue et petite touffe.
     if (!lite) {
@@ -389,22 +403,26 @@
   const YOUNG = { k: 1.2, hr: 0.38, fur: "#c8682c", back: "#8a4220", belly: "#f0b27a", pat: PAT.fur, eyeR: 0.11, iris: "#2e1a10", crest: 6, crestH: 0.8, tusk: 0.13, snoutFur: "#d07a48", brow: "#5a2a14", browT: 0.022, slant: 0.14, lid: -0.62, backDark: true };
   const ADULT = { k: 1.42, hr: 0.41, fur: "#5e4a3c", back: "#2e2420", belly: "#8e7866", pat: PAT.fur, eyeR: 0.1, iris: "#2a1810", crest: 11, crestH: 1.25, tusk: 0.21, snoutFur: "#735e50", snout: "#e89a8a", brow: "#1a1410", browT: 0.024, slant: 0.26, lid: -0.5, backDark: true };
   const HUNTER = { k: 1.55, hr: 0.44, fur: "#6e4e3a", back: "#34261e", belly: "#a07e62", pat: PAT.fur, eyeR: 0.095, iris: "#2a1810", crest: 12, crestH: 1.35, tusk: 0.3, tuskCurl: 1.3, snoutFur: "#7e604e", snout: "#e89a8a", brow: "#1a1410", browT: 0.026, slant: 0.42, lid: -0.34, bandana: C.red, scar: true, crouch: 1, backDark: true };
+  // Grand Solitaire : vieux mâle charbonneux à crinière et crête d'argent, yeux d'ambre ardents,
+  // défenses baguées d'or (de face comme d'en haut : un sanglier, pas un rhinocéros blanc).
   const SOLITAIRE = {
     k: 2.1,
     hr: 0.56,
-    fur: "#c2c3bd",
-    back: "#74767a",
-    belly: "#ecebe4",
+    fur: "#57514b",
+    back: "#2c2826",
+    belly: "#8e867c",
     pat: PAT.fur,
     eyeR: 0.11,
-    iris: "#2a1810",
+    iris: "#ffb42a",
+    glowIris: true,
     crest: 15,
     crestH: 1.55,
-    crestC: "#f2f0ea",
-    tusk: 0.46,
-    tuskCurl: 1.7,
-    tuskW: 1.4,
-    snoutFur: "#a4a4a0",
+    crestC: "#eeebe4",
+    tusk: 0.27,
+    tuskCurl: 1.8,
+    tuskW: 1.2,
+    tuskRing: C.gold,
+    snoutFur: "#6c645d",
     snout: "#d8968a",
     brow: "#ffffff",
     browT: 0.04,
@@ -444,7 +462,7 @@
     const deco = level >= 4 ? level - 3 : 0; // 1..3 pour le chasseur
     return {
       key: "boar:" + lv,
-      release: level >= 4 ? 0.13 : 0.17,
+      release: 0.12, // = élan de la simulation (sanglier)
       dur: 0.62,
       ring: r + 0.12,
       footprint: INFO[lv].footprint,
@@ -552,7 +570,7 @@
     const P = SOW;
     return {
       key: "boar:B" + level,
-      release: 0.3,
+      release: 0.192, // = élan de la simulation (grosse châtaigne : 0,12 × 1,6)
       dur: 0.95,
       ring: r + 0.12,
       footprint: INFO["B" + level].footprint,
@@ -656,7 +674,7 @@
     const PIG = Object.assign({}, PIGLET, { k: 0.62, hr: 0.25, eyeR: 0.085, lite: true });
     return {
       key: "boar:B7",
-      release: 0.34,
+      release: 0.192, // = élan de la simulation (grosse châtaigne : 0,12 × 1,6)
       dur: 1.05,
       ring: r + 0.12,
       footprint: INFO.B7.footprint,

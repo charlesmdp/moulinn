@@ -58,6 +58,8 @@
   function start() {
     const PTMT = globalThis.PTMT, M = PTMT.models, K = M.kit, DATA = PTMT.sim && PTMT.sim.DATA;
     const TILE = 3.6;
+    // ?mobile : qualité téléphone (lueurs dans la passe opaque, sans ombres ni rides : 1 appel de dessin par tour).
+    if (q.has("mobile") && M.ctConfig) M.ctConfig({ mobile: true });
     const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: "high-performance" });
     renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
     renderer.setSize(innerWidth, innerHeight);
@@ -67,6 +69,14 @@
     renderer.shadowMap.enabled = true;
     renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     document.body.appendChild(renderer.domElement);
+    // Appels de la passe d'ombre : renderer.info.render.calls est remis à zéro juste après elle, on les compte à part.
+    let shadowCalls = 0;
+    const smRender = renderer.shadowMap.render;
+    renderer.shadowMap.render = function (lights, sc, cam) {
+      const c0 = renderer.info.render.calls;
+      smRender.call(this, lights, sc, cam);
+      shadowCalls = renderer.info.render.calls - c0;
+    };
 
     const scene = new THREE.Scene();
     scene.background = PTMT.color("#a9cbe3");
@@ -114,21 +124,35 @@
     };
     const TERRAIN = { boar: "grass", swan: "water", dog: "rock" };
     const TOP = { road: 0, grass: 0.45, rock: 0.45, water: -0.25, high: 1.3 };
-    /** Une case (i, j) de terrain à la position (x, z) ; renvoie la hauteur du dessus. */
+    // Cases factices regroupées par matière puis fusionnées (flushTiles) : quelques appels de dessin pour
+    // tout le terrain, afin que les comptes de la galerie reflètent surtout les tours.
+    let TILES = {};
+    function bucket(key, geo) { (TILES[key] = TILES[key] || []).push(geo); }
+    /** Une case de terrain à la position (x, z) ; renvoie la hauteur du dessus. */
     function tile(parent, kind, x, z, base) {
       base = base === undefined ? -0.6 : base;
       const top = TOP[kind];
       if (kind === "water") {
-        const bed = new THREE.Mesh(new THREE.BoxGeometry(TILE, 0.1, TILE), MAT.bed);
-        bed.position.set(x, -0.9, z); bed.receiveShadow = true; parent.add(bed);
-        const w = new THREE.Mesh(new THREE.PlaneGeometry(TILE, TILE), MAT.water);
-        w.rotation.x = -Math.PI / 2; w.position.set(x, top, z); w.receiveShadow = true; parent.add(w);
+        bucket("bed", new THREE.BoxGeometry(TILE, 0.1, TILE).translate(x, -0.9, z));
+        bucket("water", new THREE.PlaneGeometry(TILE, TILE).rotateX(-Math.PI / 2).translate(x, top, z));
         return top;
       }
       const h = top - base;
-      const m = new THREE.Mesh(new THREE.BoxGeometry(TILE, h, TILE), [MAT.cliff, MAT.cliff, MAT[kind === "high" ? "grass" : kind], MAT.cliff, MAT.cliff, MAT.cliff]);
-      m.position.set(x, base + h / 2, z); m.receiveShadow = true; m.castShadow = kind !== "road"; parent.add(m);
+      bucket(kind === "road" ? "cliffFlat" : "cliff", new THREE.BoxGeometry(TILE, h, TILE).translate(x, base + h / 2, z));
+      bucket(kind === "high" ? "grass" : kind, new THREE.PlaneGeometry(TILE, TILE).rotateX(-Math.PI / 2).translate(x, top + 0.004, z));
       return top;
+    }
+    function flushTiles(parent) {
+      const U = THREE.BufferGeometryUtils;
+      for (const [key, list] of Object.entries(TILES)) {
+        const geo = U ? U.mergeBufferGeometries(list.map((g) => (g.index ? g.toNonIndexed() : g))) : list[0];
+        const m = new THREE.Mesh(geo, MAT[key === "cliffFlat" ? "cliff" : key]);
+        m.receiveShadow = true;
+        m.castShadow = key === "cliff";
+        m.name = "terrain:" + key;
+        parent.add(m);
+      }
+      TILES = {};
     }
 
     // Ennemi factice (échelle : ≈ 2,2 m) qui marche le long d'un chemin.
@@ -232,16 +256,16 @@
     /** Petit plateau façon jeu : chemin en S, herbe, eau, roche, butte ; tours de tous niveaux. */
     function buildBoard() {
       const map = [
-        "....~~~~^^^^",
-        ".b.~~s~^^d^.",
-        "######~######",
-        "..b.#.~~.^^#",
-        ".b..#~s~^d^#",
-        "....#~~~^^^#",
-        "#####..######",
+        ".b..~~~~.^d^",
+        "....~s~~.^^^",
+        "############",
+        "..b.~~~~~.^#",
+        ".b..~~s~.^d#",
+        "....~~~~.^^#",
+        "############",
       ];
       const W = 12, H = map.length;
-      const towers = { "1,1": ["boar", 3, null], "5,1": ["swan", 2, null], "9,1": ["dog", 5, "A"], "2,3": ["boar", 7, "B"], "1,4": ["boar", 5, "A"], "6,4": ["swan", 6, "B"], "9,4": ["dog", 7, "B"] };
+      const towers = { "1,0": ["boar", 3, null], "5,1": ["swan", 5, "A"], "10,0": ["dog", 7, "A"], "2,3": ["boar", 7, "B"], "1,4": ["boar", 5, "A"], "6,4": ["swan", 7, "B"], "10,4": ["dog", 5, "B"] };
       const path = [];
       for (let j = 0; j < H; j++) for (let i = 0; i < W; i++) {
         let ch = map[j][i] || ".";
@@ -251,15 +275,48 @@
         const tw = towers[i + "," + j];
         if (tw) place(tw[0], tw[1], tw[2], x, z, y, { terrain: kind });
       }
-      // Chemin parcouru par les cibles (rangée 2 puis colonne 4, rangée 6, colonne 11).
+      // Chemin parcouru par les cibles : rangée 2 vers la droite, colonne 11, rangée 6 vers la gauche.
       const P = (i, j) => [(i - W / 2 + 0.5) * TILE, (j - H / 2 + 0.5) * TILE];
-      const route = [P(-1, 2), P(4, 2), P(4, 6), P(11, 6), P(11, 3), P(12, 2)];
+      const route = [P(-1, 2), P(11, 2), P(11, 6), P(-1, 6)];
       for (let i = 0; i < 5; i++) {
         const d = dummy(["#c8433a", "#3a7ad8", "#e0b020", "#7a4ab8", "#3aa860"][i]);
         root.add(d);
         walkers.push({ obj: d, route, s: i * 7, speed: 1.3 + i * 0.1, y: 0 });
       }
       return { center: [0, 0, 0], width: W * TILE + 2 };
+    }
+    /**
+     * Partie type : plateau 16 × 9, chemin en lacets et n tours variées (?n=30 par défaut, jusqu'à 60),
+     * pour mesurer les appels de dessin réels (G.calls()).
+     */
+    function buildGame() {
+      const n = Math.max(1, Math.min(60, +(q.get("n") || 30)));
+      const W = 16, H = 9;
+      const P = (i, j) => [(i - W / 2 + 0.5) * TILE, (j - H / 2 + 0.5) * TILE];
+      const isPath = (i, j) => j === 1 || j === 4 || j === 7 || (i === 15 && j > 1 && j < 4) || (i === 0 && j > 4 && j < 7);
+      // Les 33 variantes (3 familles × 11 niveaux) dans un ordre mélangé fixe, répétées au besoin.
+      const all = [];
+      for (const f of ["boar", "swan", "dog"]) for (const [lv, sp] of LEVELS) all.push([f, lv, sp]);
+      let seed = 7;
+      const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
+      for (let i = all.length - 1; i > 0; i--) { const k = Math.floor(rnd() * (i + 1)); const t = all[i]; all[i] = all[k]; all[k] = t; }
+      const cols = n <= 30 ? [1, 4, 7, 10, 13] : [1, 2, 4, 5, 7, 8, 10, 11, 13, 14];
+      const at = {};
+      let k = 0;
+      for (const j of [0, 2, 3, 5, 6, 8]) for (const i of cols) if (k < n) at[i + "," + j] = all[k++ % all.length];
+      for (let j = 0; j < H; j++) for (let i = 0; i < W; i++) {
+        const [x, z] = P(i, j), tw = at[i + "," + j];
+        const kind = isPath(i, j) ? "road" : tw ? TERRAIN[tw[0]] : "grass";
+        const y = tile(root, kind, x, z);
+        if (tw) place(tw[0], tw[1], tw[2], x, z, y, { terrain: kind });
+      }
+      const route = [P(-1, 1), P(15, 1), P(15, 4), P(0, 4), P(0, 7), P(16, 7)];
+      for (let i = 0; i < 6; i++) {
+        const d = dummy(["#c8433a", "#3a7ad8", "#e0b020", "#7a4ab8", "#3aa860", "#e07a30"][i]);
+        root.add(d);
+        walkers.push({ obj: d, route, s: i * 11, speed: 1.4 + i * 0.1, y: 0 });
+      }
+      return { center: [0, 0, 0.3], width: W * TILE + 2 };
     }
     /** Laboratoire des projectiles : chaque sorte tirée en boucle entre deux poteaux. */
     const PROJ = ["chestnut", "bigChestnut", "waterJet", "iceShard", "darkWater", "fireball", "dragonFire", "blueFire"];
@@ -285,6 +342,7 @@
       dog: { name: "Bergers", build: () => buildFamily("dog") },
       tout: { name: "Toutes", build: buildAll },
       jeu: { name: "Plateau", build: buildBoard },
+      partie: { name: "Partie (30 tours)", build: buildGame },
       tirs: { name: "Projectiles", build: buildLab },
       solo: { name: "Solo", build: buildSolo },
     };
@@ -328,6 +386,7 @@
       clearSection();
       current = k;
       layout = SECTIONS[k].build();
+      flushTiles(root);
       for (const b of sectionsEl.children) b.setAttribute("aria-pressed", String(b.dataset.section === k));
       applyView();
       applyToggles();
@@ -558,7 +617,7 @@
       frames++;
       if (frames % 20 === 0) {
         const r = renderer.info.render;
-        statsEl.textContent = `${SECTIONS[current].name} · ${r.calls} appels · ${r.triangles.toLocaleString("fr-FR")} triangles · vue ${view.mode}${view.mode === "jeu" ? " · " + Math.round(view.px) + " px/case" : ""}`;
+        statsEl.textContent = `${SECTIONS[current].name} · ${items.length} tours · ${r.calls} appels (+${shadowCalls} ombre) · ${r.triangles.toLocaleString("fr-FR")} triangles · vue ${view.mode}${view.mode === "jeu" ? " · " + Math.round(view.px) + " px/case" : ""}`;
       }
     }
 
@@ -574,6 +633,27 @@
       /** Gèle le temps (le rendu continue) ; advance(s) avance alors la scène à pas de 1/60 s. */
       freeze(b) { state.frozen = b !== false; },
       burst(kind, x, y, z, o) { if (fxOK) PTMT.fx.burst(kind, new THREE.Vector3(x, y, z), o || {}); },
+      /** Appels de dessin des seules tours (le reste de la scène masqué le temps d'un rendu). */
+      towerCalls() {
+        const towers = new Set(items.map((it) => it.api.object));
+        const hidden = [];
+        for (const c of root.children) if (!towers.has(c) && c.visible) { c.visible = false; hidden.push(c); }
+        const fxRoot = scene.getObjectByName("ptmt:fx");
+        if (fxRoot) fxRoot.visible = false;
+        renderer.render(scene, camera);
+        const r = { calls: renderer.info.render.calls, shadow: shadowCalls, triangles: renderer.info.render.triangles, towers: items.length, shadowCasters: items.filter((it) => it.api.object.children[0].castShadow).length };
+        for (const c of hidden) c.visible = true;
+        if (fxRoot) fxRoot.visible = true;
+        return r;
+      },
+      /** Comptes réels d'une image : scène entière puis tours seules (passe principale et passe d'ombre). */
+      calls() {
+        renderer.render(scene, camera);
+        const all = { calls: renderer.info.render.calls, shadow: shadowCalls, triangles: renderer.info.render.triangles };
+        const towers = this.towerCalls();
+        const n = Math.max(1, towers.towers);
+        return { all, towers, perTower: +(towers.calls / n).toFixed(2), perTowerShadow: +(towers.shadow / n).toFixed(2) };
+      },
       advance(s) { for (let t = 0; t < s - 1e-6; t += 1 / 60) step(Math.min(1 / 60, s - t)); draw(); },
       fire(filter) { for (const it of items) if (!filter || filter(it)) fire(it); },
       attack(filter) { for (const it of items) if (!filter || filter(it)) it.api.attack(); },

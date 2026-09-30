@@ -1602,11 +1602,13 @@
   // Une seule matière « dessin animé » sert à toutes les tours : couleurs de sommets franches, motifs
   // calculés dans le shader (rayures de marcassin, robe merle, écailles, plumes, bois, paille, granit)
   // et liseré sombre (coque retournée, gonflée à l'écran : épaisseur constante en pixels, écartée des
-  // ombres). Les lueurs additives (flammes, runes, braises vives) forment un second groupe du même
-  // maillage. Soit un appel de dessin par tour (deux avec des lueurs), plus l'ombre.
+  // ombres). Les lueurs additives (flammes, runes, braises vives) forment un second maillage qui partage
+  // le squelette et les tampons de la géométrie, sans ombre portée. Soit un appel de dessin par tour
+  // (deux avec des lueurs, trois pour un cygne et ses rides), plus un seul pour l'ombre ; en qualité
+  // téléphone (ctConfig({ mobile: true })) : un seul appel, sans ombre.
   //
   //   K.ctTemplate(clé, (R) => { R.bone(nom, parent, [x, y, z]); R.add(géo, os, opt); R.glow(géo, os, opt); … })
-  //   K.ctInstance(gabarit) → { mesh, bones, bone: { nom: Bone } }
+  //   K.ctInstance(gabarit) → { mesh, glow (maillage des lueurs ou null), bones, bone: { nom: Bone } }
   //   K.defCt(famille, { variant(niveau, spé, opts) → variante, info(niveau, spé) })
   //   PTMT.models.ctTower(famille, niveau, spé, opts) ; PTMT.models.ctTowerInfo(famille, niveau, spé)
 
@@ -1920,7 +1922,7 @@
       this.items.push({ geo, bone: bone || "root", o: o || {}, glow: false });
       return this;
     }
-    /** Pièce lumineuse additive (second groupe du maillage, sans contour ni ombre). */
+    /** Pièce lumineuse additive (maillage des lueurs, sans contour ni ombre). */
     glow(geo, bone, o) {
       this.items.push({ geo, bone: bone || "root", o: o || {}, glow: true });
       return this;
@@ -1932,10 +1934,24 @@
     }
   }
 
+  /**
+   * Réglages des tours. mobile : les lueurs passent dans la passe opaque (matière commune, classe « glow »),
+   * sans ombre portée ni rides d'eau → un seul appel de dessin par tour. À régler avant de créer les tours.
+   */
+  const CFG = (K.ctCfg = { mobile: false });
+  PTMT.models.ctConfig = function (o) {
+    o = o || {};
+    if (o.mobile !== undefined) CFG.mobile = !!o.mobile;
+    if (o.outline !== undefined) K.setOutline(o.outline);
+    return Object.assign({ outline: TOON.outline.value.w > 0 }, CFG);
+  };
+
   const ctCache = new Map();
   const _hv = new THREE.Vector3();
-  /** Gabarit (géométrie fusionnée, os de repos, méta-données) construit une fois par clé. */
+  /** Gabarit (géométrie fusionnée, os de repos, méta-données) construit une fois par clé (et par qualité). */
   K.ctTemplate = function (key, author) {
+    const lite = CFG.mobile;
+    if (lite) key += ":mobile";
     let tpl = ctCache.get(key);
     if (tpl) return tpl;
     const R = new CtRig(key);
@@ -1949,6 +1965,7 @@
     R.items.forEach((it, idx) => {
       const bi = R.bi[it.bone];
       if (bi === undefined) throw new Error("PTMT tours : os inconnu " + it.bone + " (" + key + ")");
+      if (lite && it.o.lite === false) return; // halos et cônes translucides : omis en qualité téléphone
       const w = R.bones[bi].w;
       const g = bakeItem(it.geo, it.o, idx, seed);
       if (w[0] || w[1] || w[2]) g.translate(w[0], w[1], w[2]);
@@ -1956,6 +1973,11 @@
       const tris = g.attributes.position.count / 3;
       const bk = it.bone.split(":")[0];
       byBone[bk] = (byBone[bk] || 0) + tris;
+      if (it.glow && lite) {
+        // Téléphone : lueur opaque lumineuse dans la matière commune (pas de second appel de dessin).
+        opaque.push({ g, bi, pat: PAT.plain, cls: CLS.glow });
+        return;
+      }
       if (it.glow) {
         glows.push(e);
         return;
@@ -2029,18 +2051,28 @@
     geo.setAttribute("skinIndex", new THREE.BufferAttribute(SI, 4));
     geo.setAttribute("skinWeight", new THREE.BufferAttribute(SW, 4));
     const glowCount = nv - opaqueCount;
-    if (glowCount > 0) {
-      geo.addGroup(0, opaqueCount, 0);
-      geo.addGroup(opaqueCount, glowCount, 1);
-    }
     geo.computeBoundingBox();
     geo.computeBoundingSphere();
-    geo.boundingSphere.radius *= 1.35;
+    // marge pour les os animés (saut, élan, ailes)
+    geo.boundingSphere.radius = geo.boundingSphere.radius * 1.35 + 0.5;
     geo.name = "ptmt:ct:" + key;
+    // Avec des lueurs : deux vues de la même géométrie (mêmes tampons sur la carte graphique), le corps
+    // (seul à porter une ombre) et les lueurs → la passe d'ombre ne coûte qu'un appel par tour.
+    let geoGlow = null;
+    if (glowCount > 0) {
+      geoGlow = new THREE.BufferGeometry();
+      for (const name of Object.keys(geo.attributes)) geoGlow.setAttribute(name, geo.attributes[name]);
+      geoGlow.setDrawRange(opaqueCount, glowCount);
+      geoGlow.boundingBox = geo.boundingBox;
+      geoGlow.boundingSphere = geo.boundingSphere;
+      geoGlow.name = geo.name + ":glow";
+      geo.setDrawRange(0, opaqueCount);
+    }
     const inverses = R.bones.map((b) => new THREE.Matrix4().makeTranslation(-b.w[0], -b.w[1], -b.w[2]));
     tpl = {
       key,
       geo,
+      geoGlow,
       bones: R.bones.map((b) => ({ name: b.name, parent: b.parent, p: b.p })),
       inverses,
       glow: glowCount > 0,
@@ -2109,16 +2141,23 @@
       bones.push(b);
       bone[d.name] = b;
     }
-    const mesh = new THREE.SkinnedMesh(tpl.geo, tpl.glow ? [toonMat(), glowMat()] : toonMat());
+    const mesh = new THREE.SkinnedMesh(tpl.geo, toonMat());
     mesh.name = "ptmt:ct";
     mesh.add(bones[0]);
     mesh.bind(new THREE.Skeleton(bones, tpl.inverses), IDENT);
     mesh.customDepthMaterial = toonDepthMat();
-    mesh.castShadow = true;
+    mesh.castShadow = !CFG.mobile;
     mesh.receiveShadow = true;
-    mesh.frustumCulled = false;
     mesh.onBeforeRender = toonBeforeRender;
-    return { mesh, bones, bone };
+    let glow = null;
+    if (tpl.geoGlow) {
+      // lueurs : même squelette (mis à jour une fois par image), sans ombre
+      glow = new THREE.SkinnedMesh(tpl.geoGlow, glowMat());
+      glow.name = "ptmt:ct:glow";
+      glow.bind(mesh.skeleton, IDENT);
+      mesh.add(glow);
+    }
+    return { mesh, glow, bones, bone };
   };
 
   /* ---- yeux de dessin animé (dans un gabarit) ---- */
@@ -2376,15 +2415,18 @@
       aim(yaw) {
         st.yawT = yaw;
       },
-      /** Déclenche l'attaque ; renvoie le délai (s) avant le départ du projectile. */
+      /**
+       * Déclenche l'attaque (à l'événement « attack » de la simulation, au début de l'élan) ; renvoie le délai (s)
+       * avant le départ du projectile. L'élan dure ce délai en temps réel (même en frénésie) : la détente de
+       * l'animation tombe pile quand la simulation crée le projectile.
+       */
       attack() {
-        const F = 1 + 0.8 * st.fr;
         st.ae = 0;
         st.shots++;
         st.sinceAtk = 0;
         st.fid = 0;
         if (v.onAttack) v.onAttack(st, B);
-        return R0 / F;
+        return R0;
       },
       update(dt, time) {
         if (!(dt > 0)) dt = 0;
@@ -2397,9 +2439,9 @@
         const sdt = dt * F;
         st.dt = sdt;
         st.t += sdt;
-        // Attaque : élan (w) jusqu'au départ du projectile, puis détente (s) qui retombe.
+        // Attaque : élan (w) jusqu'au départ du projectile (temps réel), puis détente (s) qui retombe (accélérée en frénésie).
         if (st.ae >= 0) {
-          st.ae += sdt;
+          st.ae += st.ae < R0 ? Math.min(dt, R0 - st.ae + 1e-4) : sdt;
           const e = st.ae;
           if (e < R0) {
             st.w = smooth(0, R0, e);

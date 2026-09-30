@@ -55,7 +55,7 @@
   /** Collerette de poils : tore de rayon 1 dont le boudin gonfle et dégonfle (touffes), plus épais vers le bas. */
   function ruffGeo() {
     return PTMT.geo("dog:ruff", () => {
-      const g = new THREE.TorusGeometry(1, 0.42, 5, 12);
+      const g = new THREE.TorusGeometry(1, 0.48, 5, 14);
       const p = g.attributes.position;
       for (let i = 0; i < p.count; i++) {
         const x = p.getX(i),
@@ -64,7 +64,8 @@
         const u = Math.atan2(y, x);
         const cx = Math.cos(u),
           cy = Math.sin(u);
-        const k = 1 + 0.3 * Math.sin(u * 6) - 0.15 * cy;
+        // cosinus : les anneaux de sommets tombent sur les crêtes et les creux (un sinus s'y annulerait)
+        const k = 1 + 0.32 * Math.cos(u * 7) - 0.15 * cy;
         p.setXYZ(i, cx + (x - cx) * k, cy + (y - cy) * k, z * k);
       }
       g.computeVertexNormals();
@@ -415,7 +416,7 @@
     if (P.radiant) {
       R.bone("ray", "head", [-hr * 0.42, hc[1] + hr * 0.3, hc[2] + hr * 0.95]);
       R.glow(G.sphere(P.eyeR * k * 1.3, 8, 6), "ray", { c: "#6fb8ff" });
-      R.glow(G.cone(P.eyeR * k * 1.6, 0.9 * k, 8, true), "ray", { p: [0, 0, 0.45 * k], r: [-Math.PI / 2, 0, 0], c: "#3f78d8" });
+      R.glow(G.cone(P.eyeR * k * 1.6, 0.9 * k, 8, true), "ray", { p: [0, 0, 0.45 * k], r: [-Math.PI / 2, 0, 0], c: "#3f78d8", lite: false });
     }
     R.sway("earL", "z", 0, 0.07, 1.8, 0);
     R.sway("earR", "z", 0, 0.07, 2.1, 1.6);
@@ -518,7 +519,7 @@
     const h = big ? 0.95 : 0.5 + Math.min(level, 4) * 0.03;
     return {
       key: "dog:" + lv,
-      release: level >= 4 ? 0.26 : 0.22,
+      release: 0.22, // = élan de la simulation (berger)
       dur: 0.85,
       ring: r + 0.2,
       footprint: INFO[lv].footprint,

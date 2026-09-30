@@ -376,7 +376,7 @@
     R.add(G.cone(0.058 * bl, 0.26 * bl, 7), "jaw", { p: [0, -0.005, 0.12 * bl], r: [Math.PI / 2, 0, 0], s: [0.95, 1, 0.4], c: P.beakD, cls: CLS.glossy, ol: false });
     // Crachat d'eau (lueur additive au bec, visible à la détente).
     R.bone("spit", "head", [0, -hr * 0.12, hr * 1.02 + 0.32 * bl]);
-    R.glow(G.cone(0.12 * bl, 0.5 * bl, 8, true), "spit", { p: [0, 0, 0.22 * bl], r: [-Math.PI / 2, 0, 0], c: P.spit || "#7fe8ff" });
+    R.glow(G.cone(0.12 * bl, 0.5 * bl, 8, true), "spit", { p: [0, 0, 0.22 * bl], r: [-Math.PI / 2, 0, 0], c: P.spit || "#7fe8ff", lite: false });
     R.glow(G.sphere(0.1 * bl, 8, 6), "spit", { c: P.spit || "#bff6ff" });
     // Yeux.
     K.ctEyes(R, "head", {
@@ -481,7 +481,7 @@
     const flagColor = spec === "A" ? "#58b8f0" : spec === "B" ? "#7a3ac8" : "#2f7ad0";
     return {
       key: "swan:" + lv + (pond ? ":mare" : ""),
-      release: 0.22,
+      release: 0.18, // = élan de la simulation (cygne)
       dur: 0.7,
       ring: r + 0.3,
       footprint: INFO[lv].footprint,
@@ -515,7 +515,7 @@
             const a = (i / n) * TAU;
             const rr = (big ? 1.25 : 0.95) * (1 + (i % 2) * 0.12);
             R.glow(G.oct(0.07), "orbit", { p: [Math.sin(a) * rr, (i % 3) * 0.18 - 0.1, Math.cos(a) * rr], c: i % 2 ? C.mana : "#a8d8ff" });
-            R.glow(G.sphere(0.13, 6, 5), "orbit", { p: [Math.sin(a) * rr, (i % 3) * 0.18 - 0.1, Math.cos(a) * rr], c: "#2a4a9a" });
+            R.glow(G.sphere(0.13, 6, 5), "orbit", { p: [Math.sin(a) * rr, (i % 3) * 0.18 - 0.1, Math.cos(a) * rr], c: "#2a4a9a", lite: false });
           }
         }
         // Anneau de runes violettes (enchanteur).
@@ -542,8 +542,8 @@
         // Souffle froid (cygne des glaces) : buée additive au bec.
         if (spec === "A") {
           R.bone("breath", "head", [0, -0.05 * P.k, 0.5 * P.k]);
-          R.glow(G.sphere(0.1 * P.k, 8, 6), "breath", { c: "#6fb8e0" });
-          R.glow(G.sphere(0.07 * P.k, 8, 6), "breath", { p: [0.03, 0.04, 0.12 * P.k], c: "#9fd8f0" });
+          R.glow(G.sphere(0.1 * P.k, 8, 6), "breath", { c: "#6fb8e0", lite: false });
+          R.glow(G.sphere(0.07 * P.k, 8, 6), "breath", { p: [0.03, 0.04, 0.12 * P.k], c: "#9fd8f0", lite: false });
         }
       },
       pose(st, B) {
@@ -565,6 +565,7 @@
       },
       muzzle: ["spit", [0, 0, 0.05]],
       extras(root) {
+        if (K.ctCfg && K.ctCfg.mobile) return null; // téléphone : pas de rides (un appel de dessin de moins)
         const rip = ripples(root, big ? 1.28 : r * 1.02);
         if (pond) rip.position.y = 0.15;
         return null;
