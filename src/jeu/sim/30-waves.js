@@ -98,7 +98,10 @@
         }
         groups = parts;
       }
-      const hpMul = (cfg ? cfg.hp : level === 3 ? 1.05 : 1) * (1 + (level <= 3 ? 0.02 : 0.025) * w + (level <= 3 ? 0 : 0.0006 * w * w));
+      // PV : le multiplicateur de la mission monte sur les dix premières vagues (début de partie jouable
+      // avec peu de tours), puis chaque vague ajoute un peu, de plus en plus vite.
+      const levelHp = cfg ? 1 + (cfg.hp - 1) * Math.min(1, 0.35 + w / 14) : level === 3 ? 1.05 : 1;
+      const hpMul = levelHp * (1 + (level <= 3 ? 0.02 : 0.025) * w + (level <= 3 ? 0 : 0.0006 * w * w));
       const spawns = [];
       const byEntrance = new Map();
       for (const g of groups) {

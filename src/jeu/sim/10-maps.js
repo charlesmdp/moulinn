@@ -5,7 +5,7 @@
 // (les trois), cases boisées « f r w h » (à dégager avec Couper), chemin « # », pont « = »,
 // entrées « E » au bord, repaire « L » (le tas de gemmes devant le moulin), décor « X », passage
 // secret « s » (fourré infranchissable qui s'ouvre en chemin à la vague secretWave).
-// mill : cases X couvertes par le moulin ; mana : cases à menhir (puits de mana) ; decor : type
+// mill : les six cases X (3 × 2) couvertes par le moulin, derrière le repaire ; mana : cases à menhir (puits de mana) ; decor : type
 // de décor imposé pour certaines cases X (sinon selon le biome).
 //
 // Les missions suivent celles de Cursed Treasure (champ ct) : même progression de difficulté et
@@ -25,8 +25,9 @@
   // Décor des cases X hors moulin, selon le biome de la carte.
   S.DECOR_BY_BIOME = { bocage: "talus", rocheux: "boulders", marais: "pond_rocks", village: "house" };
 
+
   add({
-    id: 1, name: "Le chemin du moulin", ct: "Basics", difficulty: "tutoriel", waves: 5, gold: 160, biome: "bocage", mana: [], mill: [[18, 10], [19, 10], [18, 11], [19, 11]],
+    id: 1, name: "Le chemin du moulin", ct: "Basics", difficulty: "tutoriel", waves: 5, gold: 160, biome: "bocage", mana: [], mill: [[18, 10], [19, 10], [18, 11], [19, 11], [18, 12], [19, 12]],
     grid: [
       "..ffff.......ff.....",
       "E################...",
@@ -45,7 +46,7 @@
   });
 
   add({
-    id: 2, name: "Le Gué", ct: "Mission 2", difficulty: "facile", waves: 10, gold: 150, biome: "bocage", mana: [[17, 1]], mill: [[0, 10], [1, 10], [0, 11], [1, 11]],
+    id: 2, name: "Le Gué", ct: "Mission 2", difficulty: "facile", waves: 10, gold: 150, biome: "bocage", mana: [[17, 1]], mill: [[0, 10], [1, 10], [0, 11], [1, 11], [0, 12], [1, 12]],
     grid: [
       ".....~~.......E.....",
       "..f..~~.......#..^^.",
@@ -64,7 +65,7 @@
   });
 
   add({
-    id: 3, name: "Les Deux Prés", ct: "Mission 3", difficulty: "facile", waves: 15, gold: 180, biome: "bocage", mana: [[2, 1]], mill: [[13, 11], [14, 11], [13, 12], [14, 12]],
+    id: 3, name: "Les Deux Prés", ct: "Mission 3", difficulty: "facile", waves: 15, gold: 180, biome: "bocage", mana: [[2, 1]], mill: [[13, 10], [14, 10], [13, 11], [14, 11], [13, 12], [14, 12]],
     grid: [
       "ff......fE....ff....",
       "f.^^.....#....ff..X.",
@@ -76,14 +77,14 @@
       "..#......^^......f..",
       "..#..~~..^^..H...f..",
       "..#..~~.............",
-      "..###########.......",
+      "..###########XX.....",
       "ff..........LXX.....",
       "fff........XXXX.....",
     ],
   });
 
   add({
-    id: 4, name: "La Croix", ct: "The Cross", difficulty: "facile", waves: 20, gold: 220, biome: "bocage", mana: [[3, 1], [16, 4]], mill: [[2, 10], [3, 10], [2, 11], [3, 11]], decor: {"6,2": "calvaire"},
+    id: 4, name: "La Croix", ct: "The Cross", difficulty: "facile", waves: 20, gold: 220, biome: "bocage", mana: [[3, 1], [16, 4]], mill: [[2, 9], [3, 9], [2, 10], [3, 10], [2, 11], [3, 11]], decor: {"6,2": "calvaire"},
     grid: [
       "..^^.....E....ff....",
       "..^^.....#....ff..~~",
@@ -94,7 +95,7 @@
       "........#HH########E",
       "..~~....####....^^..",
       "..~~......######.^^.",
-      ".....H.........#....",
+      "..XX.H.........#....",
       "XXXXL###########..ff",
       "XXXX.....ff.....ff..",
       "ff.......ff.......ff",
@@ -102,7 +103,7 @@
   });
 
   add({
-    id: 5, name: "Le Hallier", ct: "The Thicket", difficulty: "facile", waves: 20, gold: 240, biome: "bocage", mana: [[16, 4]], mill: [[17, 9], [18, 9], [17, 10], [18, 10]],
+    id: 5, name: "Le Hallier", ct: "The Thicket", difficulty: "facile", waves: 20, gold: 240, biome: "bocage", mana: [[16, 4]], mill: [[17, 9], [18, 9], [17, 10], [18, 10], [17, 11], [18, 11]],
     grid: [
       "ffffwwffffffffffffff",
       "ff..~~.ffffrrfff..ff",
@@ -115,13 +116,13 @@
       "fw.#..ff..rr..^^..ff",
       "ww.#......~~..^^.XXf",
       "fh.#############LXXf",
-      "fff.....fff....fXXff",
+      "fff.....fff....ffXXf",
       "ffffffffffffffffffff",
     ],
   });
 
   add({
-    id: 6, name: "Le Vieux Fort", ct: "The Fortress", difficulty: "normal", waves: 20, gold: 260, biome: "rocheux", mana: [[4, 1], [16, 1]], mill: [[10, 5], [11, 5], [10, 6], [11, 6]],
+    id: 6, name: "Le Vieux Fort", ct: "The Fortress", difficulty: "normal", waves: 20, gold: 260, biome: "rocheux", mana: [[4, 1], [16, 1]], mill: [[10, 5], [11, 5], [10, 6], [11, 6], [10, 7], [11, 7]],
     grid: [
       "^^^HH^^^^ffff^^HH^^^",
       "^^^HH^^^......^^^^^.",
@@ -140,7 +141,7 @@
   });
 
   add({
-    id: 7, name: "Les Yeux du serpent", ct: "Snake Eyes", difficulty: "normal", waves: 20, gold: 260, biome: "bocage", mana: [[7, 5], [7, 7]], mill: [[18, 5], [19, 5], [18, 6], [19, 6]],
+    id: 7, name: "Les Yeux du serpent", ct: "Snake Eyes", difficulty: "normal", waves: 20, gold: 260, biome: "bocage", mana: [[7, 5], [7, 7]], mill: [[18, 5], [19, 5], [18, 6], [19, 6], [18, 7], [19, 7]],
     grid: [
       "ff....^^.......ff...",
       "E#####..^^......ff..",
@@ -159,7 +160,7 @@
   });
 
   add({
-    id: 8, name: "Le Labyrinthe de talus", ct: "The Maze", difficulty: "normal", waves: 30, gold: 300, biome: "bocage", mana: [[12, 0], [8, 6]], mill: [[0, 10], [1, 10], [0, 11], [1, 11]],
+    id: 8, name: "Le Labyrinthe de talus", ct: "The Maze", difficulty: "normal", waves: 30, gold: 300, biome: "bocage", mana: [[12, 0], [8, 6]], mill: [[0, 9], [1, 9], [0, 10], [1, 10], [0, 11], [1, 11]],
     grid: [
       "..ff....XX....^^..ff",
       "E#################..",
@@ -170,7 +171,7 @@
       "..#..XX.H.^^..XX..ff",
       "..################..",
       "..~~..XX..ff..XX.#..",
-      "..~~..XX.....^^..#..",
+      "XX~~..XX.....^^..#..",
       "XXL###############..",
       "XXX..ff......^^..ff.",
       "..ff..........^^....",
@@ -178,7 +179,7 @@
   });
 
   add({
-    id: 9, name: "Le Carrefour", ct: "Crossroads", difficulty: "normal", waves: 30, gold: 300, biome: "marais", mana: [[2, 7], [17, 7]], mill: [[11, 11], [12, 11], [11, 12], [12, 12]],
+    id: 9, name: "Le Carrefour", ct: "Crossroads", difficulty: "normal", waves: 30, gold: 300, biome: "marais", mana: [[2, 7], [17, 7]], mill: [[9, 11], [10, 11], [11, 11], [9, 12], [10, 12], [11, 12]],
     grid: [
       "..ff......E....ff...",
       "..^^......#.....^^..",
@@ -189,18 +190,18 @@
       "..ff..#~~~~~~~#..ff.",
       "..^^..#~~ww~~~#..^^.",
       "..^^..#~~~~~~~#..^^.",
-      "......#~~~~~~~#.....",
-      "..ff..#########..ff.",
-      "ff........LXX.....ff",
-      "ff.........XX......f",
+      "......#########.....",
+      "..ff......L......ff.",
+      "ff.......XXX......ff",
+      "ff.......XXX.......f",
     ],
   });
 
   add({
-    id: 10, name: "L'Allée des chênes", ct: "Avenue", difficulty: "normal", waves: 30, gold: 320, biome: "bocage", mana: [[3, 0], [6, 9]], mill: [[0, 2], [1, 2], [0, 3], [1, 3]],
+    id: 10, name: "L'Allée des chênes", ct: "Avenue", difficulty: "normal", waves: 30, gold: 320, biome: "bocage", mana: [[3, 0], [6, 9]], mill: [[0, 1], [1, 1], [0, 2], [1, 2], [0, 3], [1, 3]],
     grid: [
       "..^^^.....ff....~~..",
-      "..^^^.....ff....~~..",
+      "XX^^^.....ff....~~..",
       "XXL#############....",
       "XX...........H.#....",
       "..~~..........f#..^^",
@@ -216,7 +217,7 @@
   });
 
   add({
-    id: 11, name: "L'Hydre du marais", ct: "Hydra", difficulty: "difficile", waves: 40, gold: 350, biome: "marais", mana: [[5, 5], [13, 5]], mill: [[0, 10], [1, 10], [0, 11], [1, 11]],
+    id: 11, name: "L'Hydre du marais", ct: "Hydra", difficulty: "difficile", waves: 40, gold: 350, biome: "marais", mana: [[5, 5], [13, 5]], mill: [[0, 9], [1, 9], [0, 10], [1, 10], [0, 11], [1, 11]],
     grid: [
       "ww.E.~~..E..~~.E.ww.",
       "w..#.~~..#..~~.#..w.",
@@ -227,7 +228,7 @@
       "....w^^..#..^^.~~...",
       "..H......#.......~~.",
       "~~.......##########E",
-      "~~..^^...#....~~....",
+      "XX..^^...#....~~....",
       "XXL#######....~~.^^.",
       "XX..~~.ww.....~~....",
       "..~~~~....ww........",
@@ -235,7 +236,7 @@
   });
 
   add({
-    id: 12, name: "La Percée", ct: "Break Through", difficulty: "difficile", waves: 40, gold: 350, biome: "rocheux", mana: [[2, 4], [17, 4]], mill: [[10, 11], [11, 11], [10, 12], [11, 12]],
+    id: 12, name: "La Percée", ct: "Break Through", difficulty: "difficile", waves: 40, gold: 350, biome: "rocheux", mana: [[2, 4], [17, 4]], mill: [[10, 10], [11, 10], [10, 11], [11, 11], [10, 12], [11, 12]],
     grid: [
       "r^^......ff......^^r",
       "rr^......ff......^rr",
@@ -247,23 +248,23 @@
       "..^^.....#.....^^...",
       "..^^..H..#..H..^^...",
       ".......hh#hh........",
-      "..ff.....#.....ff...",
+      "..ff.....#XX...ff...",
       "..ff.....LXX...ff...",
       "..........XX........",
     ],
   });
 
   add({
-    id: 13, name: "Le Manoir du Roi", ct: "Halls of the King", difficulty: "difficile", waves: 40, gold: 380, biome: "village", mana: [[6, 0], [18, 7]], mill: [[12, 4], [13, 4], [12, 5], [13, 5]],
+    id: 13, name: "Le Manoir du Roi", ct: "Halls of the King", difficulty: "difficile", waves: 40, gold: 380, biome: "village", mana: [[6, 0], [18, 7]], mill: [[13, 5], [14, 5], [13, 6], [14, 6], [13, 7], [14, 7]],
     grid: [
       "..XX..^^....ff..XE..",
       "..XX..^^.........#..",
       "...........H...###..",
       ".XX.....########.XX.",
       ".XX.....#.XXXX.#.XX.",
-      "........#.XXXX.#....",
-      "..^^....####LX.#....",
-      "..^^......XXXX.#.~~.",
+      "........#.XXXXX#....",
+      "..^^....####LXX#....",
+      "..^^......XXXXX#.~~.",
       ".XX..H.......H.#.~~.",
       ".XX..###########....",
       ".....#....ff....XX..",
@@ -273,10 +274,10 @@
   });
 
   add({
-    id: 14, name: "Le Passage secret", ct: "The Secret Passage", difficulty: "difficile", waves: 50, gold: 400, biome: "bocage", mana: [[2, 1], [19, 5]], secretWave: 25, mill: [[16, 0], [17, 0], [16, 1], [17, 1]],
+    id: 14, name: "Le Passage secret", ct: "The Secret Passage", difficulty: "difficile", waves: 50, gold: 400, biome: "bocage", mana: [[2, 1], [19, 5]], secretWave: 25, mill: [[15, 0], [16, 0], [17, 0], [15, 1], [16, 1], [17, 1]],
     grid: [
-      "..^^..ff....ff..XX..",
-      "..^^..ff....ff..XX..",
+      "..^^..ff....ff.XXX..",
+      "..^^..ff....ff.XXX..",
       "......~~....H...L...",
       "..H...~~........#...",
       "..ff............#.^^",
@@ -292,16 +293,16 @@
   });
 
   add({
-    id: 15, name: "La Bataille du Moulin", ct: "Battle City", difficulty: "difficile", waves: 50, gold: 450, biome: "village", mana: [[4, 1], [16, 1]], mill: [[10, 6], [11, 6], [10, 7], [11, 7]],
+    id: 15, name: "La Bataille du Moulin", ct: "Battle City", difficulty: "difficile", waves: 50, gold: 450, biome: "village", mana: [[4, 1], [16, 1]], mill: [[9, 6], [10, 6], [11, 6], [9, 7], [10, 7], [11, 7]],
     grid: [
       "XX..^^..H.....^^..XX",
       "XX..^^..........^^XX",
       "..ff..XX....XX..ff..",
       "...##############...",
       "...#..XX..#..XX.#...",
-      "...#..^^.~L..^^.#...",
-      "~~~=~~~~~~XX~~~~=~~~",
-      "~~~=~~~~~~XX~~~~=~~~",
+      "...#..^^~~L..^^.#...",
+      "~~~=~~~~~XXX~~~~=~~~",
+      "~~~=~~~~~XXX~~~~=~~~",
       "...#..H..XX..H..#...",
       "...##############...",
       "ff.#.........#..#.ff",
