@@ -516,6 +516,11 @@
         fx.emitR(R.dust, v1.x, pos.y + 0.08, v1.z, -an.fwd.x * 0.5, 0.3, -an.fwd.z * 0.5);
       }
     }
+    // le sonneur joue en marchant : de temps en temps une note s'échappe du biniou
+    if (a.type === "sonneur" && react !== "die" && w.disarm < 0.5 && w.frozen < 0.5 && every(a, "ambientNote", 1.1, dt)) {
+      const c = NOTE_COLS[(a.id + Math.floor(t)) % NOTE_COLS.length];
+      fx.emit({ x: pos.x + an.right.x * 0.35 * es, y: pos.y + dh * 0.62, z: pos.z + an.right.z * 0.35 * es, vx: (rnd() - 0.5) * 0.5, vy: 0.9, vz: (rnd() - 0.5) * 0.5, life: 1.0, s0: 0.3 * es, s1: 0.4 * es, cell: rnd() < 0.5 ? MY.note : MY.notes, r: c[0], g: c[1], b: c[2], a: 1, a1: 0, rot: (rnd() - 0.5) * 0.6, curve: 2, fadeOut: 0.6 });
+    }
     // gemme portée : paillettes
     if (s.carrying && w.carry > 0.5 && react !== "die") {
       if (every(a, "sparkle", 0.18, dt) && (ensure(a), true)) fx.emitR(R.gemSparkle, an.gem.x + (rnd() - 0.5) * 0.6, an.gem.y + (rnd() - 0.4) * 0.6, an.gem.z + (rnd() - 0.5) * 0.6, 0, 0.3, 0);

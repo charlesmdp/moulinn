@@ -116,7 +116,7 @@
      * opt : { color, mat (classe), part (motif), pal (2e couleur du motif, indice de palette), pos, rot,
      *         scale, quat, order, matrix, bone, weights(x,y,z) → [[os, poids], ...],
      *         colors (garder l'attribut color de la géométrie, linéaire), grad [hexHaut, hexBas, y0, y1],
-     *         outline (true/false ; automatique selon la taille sinon), jitter, seed, bend(v) }
+     *         outline (true/false ; automatique selon la taille sinon), invert (face intérieure), jitter, seed }
      */
     add(geometry, opt) {
       opt = opt || {};
@@ -159,7 +159,6 @@
         _v.set(pos.getX(i), pos.getY(i), pos.getZ(i));
         if (jit) _v.set(_v.x + jit[i * 3], _v.y + jit[i * 3 + 1], _v.z + jit[i * 3 + 2]);
         _v.applyMatrix4(_m);
-        if (opt.bend) opt.bend(_v);
         P[i * 3] = _v.x; P[i * 3 + 1] = _v.y; P[i * 3 + 2] = _v.z;
         cx += _v.x; cy += _v.y; cz += _v.z;
         if (nor) _v2.set(nor.getX(i), nor.getY(i), nor.getZ(i)).applyMatrix3(_n3).normalize();
@@ -167,7 +166,7 @@
         N[i * 3] = _v2.x; N[i * 3 + 1] = _v2.y; N[i * 3 + 2] = _v2.z;
       }
       let flip = _m.determinant() < 0;
-      if (jit || !nor || opt.bend) computeNormals(P, N, idx, flip);
+      if (jit || !nor) computeNormals(P, N, idx, flip);
       // face intérieure (doublure, dedans d'une couronne) : normales et enroulement inversés
       if (opt.invert) {
         for (let i = 0; i < N.length; i++) N[i] = -N[i];
@@ -740,7 +739,6 @@
       this.mountT = {};
       this.face = { open: 1, wide: 1, tilt: 0, up: 0, mouth: 0, grin: 1, lookX: 0, lookY: 0, tx: 0, ty: 0, lookT: 0, blinkT: 2, blink: 0, dizzy: 0 };
       this.target = new THREE.Vector3();
-      this._reach = { x: 0, z: 0, len: 0 };
       const hp = tpl.spec.p;
       this._handOffL = [0.015, -hp.handR * 0.72, 0.02];
       this._handOffR = [-0.015, -hp.handR * 0.72, 0.02];
@@ -1326,17 +1324,6 @@
       b.quaternion.copy(_q).multiply(_q2);
     }
 
-    /** Décale un accessoire tenu en main, le décalage (ox, oy, oz) étant exprimé dans le repère du buste. */
-    holdOffset(name, side, ox, oy, oz) {
-      const b = this.B["p_" + name];
-      if (!b) return;
-      const r = this.rest["p_" + name];
-      if (!ox && !oy && !oz) { b.position.copy(r); return; }
-      const bones = this.bones;
-      _q.copy(bones[side ? BI.arm_r : BI.arm_l].quaternion).multiply(bones[side ? BI.fore_r : BI.fore_l].quaternion).multiply(bones[side ? BI.hand_r : BI.hand_l].quaternion).invert();
-      _v.set(ox, oy, oz).applyQuaternion(_q);
-      b.position.copy(r).add(_v);
-    }
     /** Centre de la moufle (side 0 gauche, 1 droite) dans le repère de l'os du buste (unités de liaison). */
     handInBody(side, out) {
       const hand = this.bones[side ? BI.hand_r : BI.hand_l];
@@ -1370,20 +1357,6 @@
       b.quaternion.setFromUnitVectors(_UP, _v);
       b.scale.set(1, len, 1);
     }
-    /** Vecteur horizontal (repère du personnage, m avant échelle) vers la cible de l'événement, borné. */
-    reachTo(maxLen, defLen) {
-      const r = this._reach;
-      if (!this.hasTarget || !this.object.parent) { r.x = 0; r.z = defLen; r.len = defLen; return r; }
-      this.object.updateMatrixWorld();
-      _v.copy(this.target);
-      this.object.worldToLocal(_v);
-      _v.divideScalar(this.scale);
-      const len = Math.hypot(_v.x, _v.z) || 1e-3;
-      const k = Math.min(1, maxLen / len);
-      r.x = _v.x * k; r.z = _v.z * k; r.len = len * k;
-      return r;
-    }
-
     _writeData(speed) {
       const e = this.dataBone.matrixWorld.elements, w = this.w;
       e[0] = Math.max(w.flash, this.react === "hit" ? Math.max(0, 1 - this.reactT / REACT.hit) * 0.8 : 0); e[1] = w.wet; e[2] = w.frozen; e[3] = w.burn;

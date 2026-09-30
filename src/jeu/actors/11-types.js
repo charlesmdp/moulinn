@@ -159,7 +159,8 @@
         const v = j / rows, w = w0 + (w1 - w0) * v;
         for (let i = 0; i <= cols; i++) {
           const u = i / cols - 0.5;
-          pos.push(u * w, -v * len, -curve * (1 - 4 * u * u) - flare * v * v);
+          // bombée vers l'arrière, évasée vers le bas, avec des plis qui s'ouvrent en descendant
+          pos.push(u * w, -v * len, -curve * (1 - 4 * u * u) - flare * v * v - 0.05 * v * Math.cos(u * Math.PI * 6));
         }
       }
       for (let j = 0; j < rows; j++) for (let i = 0; i < cols; i++) {
@@ -403,7 +404,7 @@
       name: "cape", parent: "body", pos: [0, o.top, o.z],
       build(k, s) {
         const p = s.p, top = o.top, z = o.z;
-        const g = sheetGeo("cape" + o.w0 + "," + o.w1 + "," + o.len, o.w0, o.w1, o.len, 0.18, 0.28, 5, 4);
+        const g = sheetGeo("cape" + o.w0 + "," + o.w1 + "," + o.len, o.w0, o.w1, o.len, 0.18, 0.28, 6, 4);
         const weights = (x, y) => {
           const v = clamp((top - y) / 0.35, 0, 1);
           return [["body", 1 - v], ["p_cape", v]];
