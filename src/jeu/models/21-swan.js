@@ -333,37 +333,37 @@
       G.tube(
         "swan:neckA",
         [
-          [0, -0.14, -0.04],
-          [0, 0.08, 0.06],
-          [0, 0.26, 0.04],
-          [0, 0.4, -0.02],
+          [0, -0.12, -0.06],
+          [0, 0.1, 0.09],
+          [0, 0.3, 0.05],
+          [0, 0.46, -0.07],
         ],
-        [0.13, 0.1],
+        [0.12, 0.09],
         8,
         7,
       ),
       "neck1",
       { s: [nr, nl, nl], c: P.neck || P.body, cls: plum, ol: true },
     );
-    R.add(G.sphere(0.1 * nr, 8, 6), "neck1", { p: [0, 0.4 * nl, -0.02 * nl], c: P.neck || P.body, cls: plum, ol: false });
-    R.bone("neck2", "neck1", [0, 0.4 * nl, -0.02 * nl]);
+    R.add(G.sphere(0.1 * nr, 8, 6), "neck1", { p: [0, 0.46 * nl, -0.07 * nl], c: P.neck || P.body, cls: plum, ol: false });
+    R.bone("neck2", "neck1", [0, 0.46 * nl, -0.07 * nl]);
     R.add(
       G.tube(
         "swan:neckB",
         [
           [0, 0, 0],
-          [0, 0.13, 0.01],
-          [0, 0.24, 0.08],
-          [0, 0.3, 0.24],
+          [0, 0.15, -0.02],
+          [0, 0.29, 0.05],
+          [0, 0.35, 0.22],
         ],
-        [0.1, 0.085],
+        [0.09, 0.08],
         8,
         7,
       ),
       "neck2",
       { s: [nr, nl, nl], c: P.neck || P.body, cls: plum, ol: true },
     );
-    R.bone("head", "neck2", [0, 0.3 * nl, 0.24 * nl]);
+    R.bone("head", "neck2", [0, 0.35 * nl, 0.22 * nl]);
     const hr = P.hr * k;
     R.add(G.sphere(hr, 12, 8), "head", { p: [0, hr * 0.15, hr * 0.3], s: [0.9, 0.95, 1.12], c: P.head || P.body, cls: plum, pat: PAT.feather, uv: [4, 3], ol: true });
     // Bec : masque noir, bouton, mandibule supérieure (orange), mandibule inférieure articulée.
@@ -448,25 +448,26 @@
 
   /* ---------------------------------------------------------------- réglages */
   const CYGNET = { k: 0.9, body: "#a9a9b2", belly: "#d4d4da", head: "#bdbdc6", neck: "#b2b2ba", wing: "#9a9aa4", wingTip: "#7e7e88", tail: "#9a9aa4", hr: 0.26, neckL: 0.72, neckR: 1.1, beak: "#5a5a62", beakD: "#3e3e46", knob: 0, eyeR: 0.11, iris: "#2a1a10", lid: -0.7, slant: 0.05, fluff: 8, wingK: 0.75, beakL: 0.85 };
-  const WHITE = { k: 1.0, body: C.white, belly: "#e2e8f0", wing: C.white, wingTip: C.shade, hr: 0.22, beak: C.beak, beakD: C.beakD, beakTip: "#ffb05a", beakL: 1.15, knob: 1, mask: C.black, eyeR: 0.085, iris: "#2a1a10", lid: -0.45, slant: 0.3, brow: C.black, browT: 0.018 };
+  const WHITE = { k: 1.0, body: C.white, belly: "#e2e8f0", wing: C.white, wingTip: C.shade, hr: 0.21, neckL: 1.22, beak: C.beak, beakD: C.beakD, beakTip: "#ffb05a", beakL: 1.15, knob: 1, mask: C.black, eyeR: 0.085, iris: "#2a1a10", lid: -0.45, slant: 0.3, brow: C.black, browT: 0.018 };
   const MAJESTIC = Object.assign({}, WHITE, { k: 1.18, hr: 0.21, knob: 1.35, wings: "arch", wingK: 1.2, eyeR: 0.08, slant: 0.36, lid: -0.35 });
-  const ICE = { k: 1.28, body: "#e6f6ff", belly: "#bfe4fb", head: "#f4fbff", neck: "#e8f7ff", wing: "#c8ecff", wingTip: "#6ab2ec", tail: "#9fd4f8", hr: 0.21, beak: "#bfe3f4", beakD: "#7fb6d8", beakTip: "#e8f8ff", beakL: 1.1, knob: 1, mask: "#2a4a78", eyeR: 0.078, iris: "#2f7fd8", lid: -0.4, slant: 0.34, brow: "#2a4a78", browT: 0.018, wings: "arch", wingK: 1.18, frost: true, cls: CLS.satin, spit: "#dff8ff" };
+  const ICE = { k: 1.28, body: "#e6f6ff", belly: "#bfe4fb", head: "#f4fbff", neck: "#e8f7ff", wing: "#c8ecff", wingTip: "#6ab2ec", tail: "#9fd4f8", hr: 0.21, neckL: 1.15, beak: "#bfe3f4", beakD: "#7fb6d8", beakTip: "#e8f8ff", beakL: 1.1, knob: 1, mask: "#2a4a78", eyeR: 0.078, iris: "#2f7fd8", lid: -0.4, slant: 0.34, brow: "#2a4a78", browT: 0.018, wings: "arch", wingK: 1.18, frost: true, cls: CLS.satin, spit: "#dff8ff" };
   const ROYAL = Object.assign({}, ICE, { k: 1.55, hr: 0.2, wings: "spread", wingK: 1.25, crystalWings: true, crown: true, eyeR: 0.074 });
-  const BLACK = { k: 1.28, body: C.night, belly: "#2a2536", head: "#23202e", neck: "#221e2c", wing: "#2a2438", wingTip: "#4a3a6e", tail: "#2a2438", hr: 0.21, beak: C.red, beakD: "#a81e1a", beakTip: "#ff5a4a", beakL: 1.1, band: "#f4f0ea", knob: 0, eyeR: 0.08, iris: "#e0302a", lid: -0.38, slant: 0.38, brow: "#0e0c12", browT: 0.02, wings: "arch", wingK: 1.15, cls: CLS.irid, crest: "#2a2438", spit: "#b98cff" };
+  const BLACK = { k: 1.28, body: C.night, belly: "#2a2536", head: "#23202e", neck: "#221e2c", wing: "#2a2438", wingTip: "#4a3a6e", tail: "#2a2438", hr: 0.21, neckL: 1.15, beak: C.red, beakD: "#a81e1a", beakTip: "#ff5a4a", beakL: 1.1, band: "#f4f0ea", knob: 0, eyeR: 0.08, iris: "#e0302a", lid: -0.38, slant: 0.38, brow: "#0e0c12", browT: 0.02, wings: "arch", wingK: 1.15, cls: CLS.irid, crest: "#2a2438", spit: "#b98cff" };
   const ENCHANTER = Object.assign({}, BLACK, { k: 1.55, wings: "spread", wingK: 1.3, eyeR: 0.072, glowIris: true, iris: "#ff5a8a" });
 
+  // Hauteur réelle du sommet (m, mesurée sur les gabarits, nid sur l'eau) et rayon d'emprise (m).
   const INFO = {
-    1: { height: 1.7, footprint: 1.45 },
-    2: { height: 2.2, footprint: 1.5 },
-    3: { height: 2.6, footprint: 1.55 },
-    A4: { height: 3.0, footprint: 1.6 },
-    A5: { height: 3.1, footprint: 1.6 },
-    A6: { height: 3.25, footprint: 1.6 },
-    A7: { height: 4.2, footprint: 1.7 },
-    B4: { height: 3.0, footprint: 1.6 },
-    B5: { height: 3.1, footprint: 1.6 },
-    B6: { height: 3.25, footprint: 1.6 },
-    B7: { height: 4.3, footprint: 1.7 },
+    1: { height: 1.71, footprint: 1.31 },
+    2: { height: 1.91, footprint: 1.37 },
+    3: { height: 2.12, footprint: 1.43 },
+    A4: { height: 2.79, footprint: 1.49 },
+    A5: { height: 2.96, footprint: 1.49 },
+    A6: { height: 3.13, footprint: 1.49 },
+    A7: { height: 4.05, footprint: 1.58 },
+    B4: { height: 2.79, footprint: 1.49 },
+    B5: { height: 2.96, footprint: 1.49 },
+    B6: { height: 3.13, footprint: 1.49 },
+    B7: { height: 4.05, footprint: 1.58 },
   };
 
   function variant(level, spec, opts) {
@@ -483,7 +484,6 @@
       release: 0.22,
       dur: 0.7,
       ring: r + 0.3,
-      height: INFO[lv].height + (pond ? 0.14 : 0),
       footprint: INFO[lv].footprint,
       turn: 5.5,
       jumpH: 0.4,
@@ -504,7 +504,7 @@
           crystals: spec === "A" ? { n: big ? 9 : 1 + deco * 2, c: C.ice, cls: CLS.ice, k: big ? 1.5 : 1 } : spec === "B" && (deco >= 2 || big) ? { n: big ? 6 : deco * 2 - 1, c: C.mana, cls: CLS.glow, k: big ? 1.2 : 0.9 } : null,
           frozen: spec === "A" && (deco >= 3 || big),
           runes: spec === "B" && (deco >= 3 || big) ? C.rune : null,
-          flag: { h: big ? 3.2 : level >= 4 ? 1.95 + deco * 0.12 : 1.3 + level * 0.12, color: flagColor, trim: level >= 4 ? "#ffffff" : "#ffd23a", stars: level >= 4 ? (big ? 3 : deco) : level, len: big ? 0.9 : 0.62, tall: big ? 0.56 : 0.4, tail: level >= 4 ? "swallow" : "point" },
+          flag: { h: big ? 3.7 : level >= 4 ? 2.3 + deco * 0.16 : 1.2 + level * 0.2, color: flagColor, trim: level >= 4 ? "#ffffff" : "#ffd23a", stars: level >= 4 ? (big ? 3 : deco) : level, len: big ? 0.9 : 0.62, tall: big ? 0.56 : 0.4, tail: level >= 4 ? "swallow" : "point" },
         });
         swan(R, P, h * 0.32);
         // Étincelles de mana qui tournent autour du cygne noir (os « orbit »).
@@ -574,8 +574,11 @@
 
   K.defCt("swan", {
     variant,
-    info(level, spec) {
-      return INFO[spec ? spec + level : String(level)] || null;
+    info(level, spec, opts) {
+      const i = INFO[spec ? spec + level : String(level)];
+      if (!i) return null;
+      // Hors de l'eau, le nid flotte dans une mare surélevée de 0,14 m.
+      return opts && opts.terrain && opts.terrain !== "water" ? { height: Math.round((i.height + 0.14) * 100) / 100, footprint: i.footprint + 0.3 } : i;
     },
   });
 })();

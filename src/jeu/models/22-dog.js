@@ -27,8 +27,8 @@
   const { TAU, clamp, bump, easeInOut, smooth } = K.math;
 
   const C = {
-    granite: "#7c766f",
-    graniteD: "#5c5854",
+    granite: "#6e675f",
+    graniteD: "#4f4a45",
     grassDry: "#c8b060",
     grassDryD: "#9a8440",
     blue: "#8f9db2", // merle bleu (gris-bleu)
@@ -52,6 +52,26 @@
     crystal: "#bfe8ff",
   };
 
+  /** Collerette de poils : tore de rayon 1 dont le boudin gonfle et dégonfle (touffes), plus épais vers le bas. */
+  function ruffGeo() {
+    return PTMT.geo("dog:ruff", () => {
+      const g = new THREE.TorusGeometry(1, 0.42, 5, 12);
+      const p = g.attributes.position;
+      for (let i = 0; i < p.count; i++) {
+        const x = p.getX(i),
+          y = p.getY(i),
+          z = p.getZ(i);
+        const u = Math.atan2(y, x);
+        const cx = Math.cos(u),
+          cy = Math.sin(u);
+        const k = 1 + 0.3 * Math.sin(u * 6) - 0.15 * cy;
+        p.setXYZ(i, cx + (x - cx) * k, cy + (y - cy) * k, z * k);
+      }
+      g.computeVertexNormals();
+      return g;
+    });
+  }
+
   /* ---------------------------------------------------------------- éperon de granit */
   /**
    * o = { r, h (hauteur du plateau), seed, spire (hauteur du pic arrière), blue (braises bleues), flag, big }
@@ -64,7 +84,7 @@
     const rnd = PTMT.rng(o.seed || 5);
     // Dalle principale (plateau un peu bombé) et gros blocs autour.
     R.add(G.rock(1, 1, 0.14, (o.seed || 5) + 1), "root", { p: [0, h * 0.5, 0], s: [r * 0.95, h * 0.62, r * 0.9], c: C.granite, pat, flat: true, ol: true });
-    R.add(G.cyl(r * 0.78, r * 0.86, 0.12, 8), "root", { p: [0, h - 0.04, 0], c: "#8e877e", pat, flat: true, ol: false });
+    R.add(G.cyl(r * 0.78, r * 0.86, 0.12, 8), "root", { p: [0, h - 0.04, 0], c: "#7a7168", pat, flat: true, ol: false });
     const n = o.big ? 6 : 4;
     for (let i = 0; i < n; i++) {
       const a = (i / n) * TAU + 0.5 + rnd() * 0.4;
@@ -126,8 +146,8 @@
             [0, 0.8, 0.32],
           ],
           [0.2, 0.14],
+          6,
           8,
-          9,
         ),
         "neck",
         { s: [k, neckL, neckL], c: coat, pat: coatPat, uv: [2, 6], ol: true },
@@ -148,13 +168,15 @@
       R.add(G.capsule(lr, Math.max(0.01, L * 0.5), 5, 1), nm, { p: [0, -L * 0.3, 0], c: coat, pat: coatPat, ol: true });
       R.add(G.capsule(lr * 0.9, Math.max(0.01, L * 0.35), 5, 1), nm, { p: [0, -L * 0.72, 0.01 * k], c: C.copper, pat: PAT.fur, ol: false });
       R.add(G.sphere(lr * 1.25, 6, 4), nm, { p: [0, -legTop + lr * 0.9, lr * 0.4], s: [1, 0.75, 1.25], c: P.claws ? coat : C.white, pat: PAT.fur, ol: false });
-      if (P.claws) for (let c = -1; c <= 1; c++) R.add(G.cone(lr * 0.28, lr * 0.8, 4), nm, { p: [c * lr * 0.45, -legTop + lr * 0.7, lr * 1.55], r: [Math.PI / 2 + 0.3, 0, 0], c: C.claw, cls: CLS.glossy, ol: false });
+      if (P.claws) for (const c of [-0.6, 0.6]) R.add(G.cone(lr * 0.3, lr * 0.85, 4), nm, { p: [c * lr * 0.45, -legTop + lr * 0.7, lr * 1.55], r: [Math.PI / 2 + 0.3, 0, 0], c: C.claw, cls: CLS.glossy, ol: false });
     }
     // Corps (pôles avant/arrière), poitrail blanc, collerette blanche.
     R.add(G.sphere(1, 12, 8), "body", { r: [Math.PI / 2, 0, 0], s: [rx, rz, ry], c: coat, pat: coatPat, uv: [8, 6], ol: true });
-    R.add(G.sphere(ry * 0.72, 8, 6), "body", { p: [0, -ry * 0.12, rz * 0.62], s: [1, 1, 0.8], c: C.white, pat: PAT.fur, ol: false });
+    R.add(G.sphere(ry * 0.72, 7, 5), "body", { p: [0, -ry * 0.12, rz * 0.62], s: [1, 1, 0.8], c: C.white, pat: PAT.fur, ol: false });
     const neckAt = neckL ? [0, ry * 0.42, rz * 0.6] : [0, ry * 0.5, rz * 0.6];
-    R.add(G.torus(Math.max(hr * 0.62, rx * 0.8), hr * 0.3, 5, 10), "body", { p: neckAt, r: [Math.PI / 2 - 0.55, 0, 0], s: [1, 1, 0.8], c: C.white, pat: PAT.fur, j: 0.12, ol: true });
+    // Collerette : anneau de poils festonné (tore bosselé) autour du cou.
+    const cr = Math.max(hr * 0.64, rx * 0.8);
+    R.add(ruffGeo(), "body", { p: neckAt, r: [Math.PI / 2 - 0.55, 0, 0], s: [cr, cr, cr * 0.85], c: C.white, pat: PAT.fur, ol: true });
     // Taches cuivrées sur les flancs.
     for (const sx of [-1, 1]) R.add(G.sphere(ry * 0.35, 5, 3), "body", { p: [sx * rx * 0.86, -ry * 0.25, rz * 0.2], s: [0.4, 0.8, 1.2], c: C.copper, pat: PAT.fur, ol: false });
     // Piques dorsales (dragons).
@@ -280,8 +302,8 @@
         // Repliées : envergure vers l'arrière le long du flanc ; déployées : vers le côté, membrane
         // inclinée vers le ciel (lisible de haut quelle que soit l'orientation).
         const ry0 = spread ? (sx > 0 ? 0.25 : Math.PI - 0.25) : sx > 0 ? Math.PI / 2 - 0.25 : Math.PI / 2 + 0.25;
-        const roll = spread ? 0.4 : 0.45;
-        const tilt = spread ? -0.8 * sx : 0.6 * sx;
+        const roll = spread ? 0.4 : 0.28;
+        const tilt = spread ? -0.8 * sx : 0.85 * sx;
         const sc = [wk * (spread ? 0.78 : 0.72), wk * (spread ? 0.74 : 0.72), 1];
         const wc = P.wingC || C.wingR;
         R.add(G.extrude("dog:wing", mem, 0.035, 0), nm, { r: [tilt, ry0, roll], ro: "YXZ", s: sc, g: [P.wingL || wc, P.wingD || wc, -0.12, 0.4], cls: CLS.satin, ol: true });
@@ -295,8 +317,8 @@
               [1.1, 0.42, 0],
             ],
             [0.06, 0.03],
-            7,
-            5,
+            6,
+            4,
           ),
           nm,
           { r: [tilt, ry0, roll], ro: "YXZ", s: sc, c: coat, pat: coatPat, ol: true },
@@ -471,18 +493,19 @@
   const RED7 = Object.assign({}, RED, { k: 1.95, hr: 0.29, wings: "spread", wingK: 1.25, horns: 1.1, spikes: 9, spikeK: 1.3, idleFire: 0.9, rings: true, tailK: 1.15 });
   const BLUE7 = Object.assign({}, BLUE, { k: 1.95, hr: 0.29, wings: "spread", wingK: 1.25, horns: 1.1, crystalHorns: true, spikes: 9, spikeK: 1.3, idleFire: 0.9, tailK: 1.15, spikeC: "#8fd0ff" });
 
+  // Hauteur réelle du sommet (m, mesurée sur les gabarits) et rayon d'emprise au sol (m).
   const INFO = {
-    1: { height: 1.8, footprint: 1.4 },
-    2: { height: 2.15, footprint: 1.45 },
-    3: { height: 2.6, footprint: 1.5 },
-    A4: { height: 3.05, footprint: 1.55 },
-    A5: { height: 3.2, footprint: 1.55 },
-    A6: { height: 3.4, footprint: 1.55 },
-    A7: { height: 4.4, footprint: 1.65 },
-    B4: { height: 3.05, footprint: 1.55 },
-    B5: { height: 3.2, footprint: 1.55 },
-    B6: { height: 3.4, footprint: 1.55 },
-    B7: { height: 4.4, footprint: 1.65 },
+    1: { height: 1.91, footprint: 1.42 },
+    2: { height: 2.16, footprint: 1.46 },
+    3: { height: 2.4, footprint: 1.5 },
+    A4: { height: 2.98, footprint: 1.54 },
+    A5: { height: 3.2, footprint: 1.54 },
+    A6: { height: 3.42, footprint: 1.54 },
+    A7: { height: 4.32, footprint: 1.65 },
+    B4: { height: 2.98, footprint: 1.54 },
+    B5: { height: 3.2, footprint: 1.54 },
+    B6: { height: 3.42, footprint: 1.54 },
+    B7: { height: 4.73, footprint: 1.65 },
   };
 
   function variant(level, spec) {
@@ -498,7 +521,6 @@
       release: level >= 4 ? 0.26 : 0.22,
       dur: 0.85,
       ring: r + 0.2,
-      height: INFO[lv].height,
       footprint: INFO[lv].footprint,
       turn: level >= 4 ? 4.5 : 6,
       jumpH: big ? 0.3 : 0.5,
@@ -511,7 +533,7 @@
           blue: spec === "B",
           big,
           flag: {
-            h: big ? 2.6 : level >= 4 ? 1.55 + deco * 0.12 : 1.1 + level * 0.1,
+            h: big ? 2.9 : level >= 4 ? 1.9 + deco * 0.16 : 1.0 + level * 0.18,
             color: spec === "A" ? "#d8321e" : spec === "B" ? "#2f5fd0" : "#e08a20",
             trim: level >= 4 ? C.gold : "#ffffff",
             stars: level >= 4 ? (big ? 3 : deco) : level,
@@ -532,8 +554,8 @@
             R.add(G.cyl(0.16, 0.08, 0.16, 7), "root", { p: [x, 0.62, z], c: "#3a3438", cls: CLS.metal, ol: true });
             R.add(G.cyl(0.035, 0.05, 0.55, 5), "root", { p: [x, 0.3, z], c: "#3a3438", cls: CLS.metal, ol: false });
             R.bone("brazier" + i, "root", [x, 0.7, z]);
-            R.glow(G.flame(0.14, 0.42, 6, 5), "brazier" + i, { c: fire[0] });
-            R.glow(G.flame(0.08, 0.28, 5, 4), "brazier" + i, { c: fire[1] });
+            R.glow(G.flame(0.14, 0.42, 5, 4), "brazier" + i, { c: fire[0] });
+            R.glow(G.flame(0.08, 0.28, 4, 3), "brazier" + i, { c: fire[1] });
           }
         }
         // Aura de flammes bleues au pied du grand dragon bleu.

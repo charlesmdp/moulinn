@@ -82,7 +82,7 @@
       G.lathe(
         "bauge:" + r + ":" + h,
         MOUND.map(([u, v]) => [Math.max(0.001, u * r), v * h]),
-        22,
+        18,
       ),
       "root",
       { pat: PAT.stone, gp: [C.earthD, C.earth, 0, h], ol: true },
@@ -143,7 +143,7 @@
         const y = moundY(rho, r, h) - 0.08;
         const hh = H * (0.82 + rnd() * 0.3);
         const tilt = (rnd() - 0.5) * 0.12;
-        R.add(G.cyl(0.065, 0.075, hh, 6), "root", { p: [x, y + hh / 2, z], r: [tilt, 0, (rnd() - 0.5) * 0.12], c: i % 2 ? C.stake : C.stakeD, pat: PAT.wood, uv: [0.5, 1.5], ol: true });
+        R.add(G.cyl(0.065, 0.075, hh, 6), "root", { p: [x, y + hh / 2, z], r: [tilt, 0, (rnd() - 0.5) * 0.12], c: i % 2 ? C.stake : C.stakeD, pat: PAT.wood, uv: [0.5, 1.5], ol: false });
         R.add(G.cone(0.065, 0.17, 6), "root", { p: [x, y + hh + 0.085, z], r: [tilt, 0, 0], c: "#c9a070", pat: PAT.wood, ol: false });
         if (o.ribbons && i % 2 === 0) R.add(G.box(0.18, 0.06, 0.04), "root", { p: [x, y + hh * 0.72, z], r: [0, a, 0.3], c: o.ribbons, cls: CLS.satin, ol: false });
         pts.push([x, y + hh * 0.5, z]);
@@ -164,9 +164,9 @@
       const x = px + Math.sin(a) * d,
         z = pz + Math.cos(a) * d;
       const y = py + 0.05 + (0.32 - d) * 0.35;
-      R.add(G.nut(0.085), "root", { p: [x, y, z], r: [0.5 + (i % 3) * 0.4, a, 0.3 * (i % 2)], c: i % 3 ? C.nut : "#8e4e26", cls: CLS.glossy, ol: i < 3 });
+      R.add(G.nut(0.085), "root", { p: [x, y, z], r: [0.5 + (i % 3) * 0.4, a, 0.3 * (i % 2)], c: i % 3 ? C.nut : "#8e4e26", cls: CLS.glossy, ol: false });
     }
-    for (let i = 0; i < Math.ceil(pile / 3); i++) {
+    for (let i = 0; i < Math.ceil(pile / 4); i++) {
       const a = 0.7 + i * 2.2;
       R.add(G.husk(0.06), "root", { p: [px + Math.sin(a) * 0.3, py + 0.08, pz + Math.cos(a) * 0.3], r: [i, i * 2, 0], c: i % 2 ? C.husk : C.huskD, flat: true, ol: false });
     }
@@ -207,11 +207,11 @@
       ["legBR", -1, -1],
     ]) {
       R.bone(B(nm), B("yaw"), [sx * rx * 0.5, legTop, sz * rz * 0.52]);
-      R.add(G.capsule(lr, Math.max(0.01, legTop - lr * 2 - 0.02), 6, 2), B(nm), { p: [0, -legTop / 2 + 0.03, 0], c: P.back, pat: PAT.fur, ol: !lite });
-      R.add(G.cyl(lr * 0.95, lr * 1.12, 0.07 * k, 6), B(nm), { p: [0, -legTop + 0.035 * k, 0.015 * k], c: C.hoof, cls: CLS.glossy, ol: false });
+      R.add(G.capsule(lr, Math.max(0.01, legTop - lr * 2 - 0.02), 5, 1), B(nm), { p: [0, -legTop / 2 + 0.03, 0], c: P.back, pat: PAT.fur, ol: !lite });
+      R.add(G.cyl(lr * 0.95, lr * 1.12, 0.07 * k, 5), B(nm), { p: [0, -legTop + 0.035 * k, 0.015 * k], c: C.hoof, cls: CLS.glossy, ol: false });
     }
     // Corps : ellipsoïde dont les pôles sont à l'avant et à l'arrière (rayures le long du corps).
-    R.add(G.sphere(1, lite ? 12 : 16, lite ? 8 : 10), B("body"), {
+    R.add(G.sphere(1, lite ? 10 : 12, lite ? 7 : 8), B("body"), {
       r: [Math.PI / 2, 0, 0],
       s: [rx, rz, ry],
       gp: [P.belly, P.fur, -ry * 0.7, ry * 0.4],
@@ -244,13 +244,13 @@
     }
     // Tête (relevée vers la caméra au repos).
     const hc = [0, hr * 0.32, hr * 0.5];
-    R.add(G.sphere(hr, lite ? 12 : 16, lite ? 9 : 11), B("head"), { p: hc, s: [1.02, 0.94, 1], c: P.fur, pat: PAT.fur, gp: [P.belly, P.fur, hc[1] - hr * 0.8, hc[1] + hr * 0.1], ol: true });
+    R.add(G.sphere(hr, lite ? 10 : 12, lite ? 7 : 8), B("head"), { p: hc, s: [1.02, 0.94, 1], c: P.fur, pat: PAT.fur, gp: [P.belly, P.fur, hc[1] - hr * 0.8, hc[1] + hr * 0.1], ol: true });
     // Groin.
     const sl = P.snoutL || 1;
     const sz = hc[2] + hr * 0.84;
-    R.add(G.cyl(hr * 0.42, hr * 0.5, hr * 0.62 * sl, lite ? 8 : 12), B("head"), { p: [0, hc[1] - hr * 0.24, sz], r: [Math.PI / 2 - 0.1, 0, 0], c: P.snoutFur || P.fur, pat: PAT.fur, ol: true });
+    R.add(G.cyl(hr * 0.42, hr * 0.5, hr * 0.62 * sl, lite ? 8 : 10), B("head"), { p: [0, hc[1] - hr * 0.24, sz], r: [Math.PI / 2 - 0.1, 0, 0], c: P.snoutFur || P.fur, pat: PAT.fur, ol: true });
     const nz = sz + hr * 0.31 * sl;
-    R.add(G.cyl(hr * 0.46, hr * 0.46, hr * 0.13, lite ? 10 : 14), B("head"), { p: [0, hc[1] - hr * 0.2, nz], r: [Math.PI / 2 - 0.1, 0, 0], c: P.snout || C.snout, cls: CLS.satin, ol: true });
+    R.add(G.cyl(hr * 0.46, hr * 0.46, hr * 0.13, lite ? 9 : 12), B("head"), { p: [0, hc[1] - hr * 0.2, nz], r: [Math.PI / 2 - 0.1, 0, 0], c: P.snout || C.snout, cls: CLS.satin, ol: true });
     for (const sx of [-1, 1]) R.add(G.sphere(hr * 0.1, 6, 4), B("head"), { p: [sx * hr * 0.17, hc[1] - hr * 0.2, nz + hr * 0.07], s: [1, 1.35, 0.5], c: C.nostril, ol: false });
     // Bouche (petit sourire sous le groin).
     R.add(G.torus(hr * 0.22, hr * 0.04, 3, 8, Math.PI), B("head"), { p: [0, hc[1] - hr * 0.62, sz - hr * 0.02], r: [-0.3, 0, Math.PI], c: "#3a1a18", ol: false });
@@ -268,8 +268,8 @@
               [0.2 * (P.tuskCurl || 1), 0.95, 0.3],
             ].map(([x, y, z]) => [x * tl * 2.2, y * tl * 1.1, z * tl]),
             (t) => (0.036 + (1 - t) * 0.032) * (P.tuskW || 1) * k + 0.004,
-            7,
-            5,
+            6,
+            4,
           ),
           B("head"),
           { p: [sx * hr * 0.36, hc[1] - hr * 0.42, sz + hr * 0.05], s: [sx, 1, 1], c: C.tusk, cls: CLS.glossy, ol: true },
@@ -283,8 +283,14 @@
       R.add(G.cone(hr * 0.36 * ek, hr * 0.8 * ek, 5), B(nm), { p: [0, hr * 0.26 * ek, 0], r: [0.1, 0, -sx * 0.62], s: [1, 1, 0.5], c: P.back, pat: PAT.fur, ol: true });
       if (!lite) R.add(G.cone(hr * 0.2 * ek, hr * 0.48 * ek, 4), B(nm), { p: [sx * hr * 0.02, hr * 0.2 * ek, hr * 0.1], r: [0.1, 0, -sx * 0.62], s: [1, 1, 0.4], c: "#f0a8a8", ol: false });
     }
-    // Yeux (en haut et à l'avant de la tête : visibles du ciel).
-    K.ctEyes(R, B("head"), {
+    // Yeux (en haut et à l'avant de la tête : visibles du ciel). Figurants allégés : yeux fixes.
+    if (lite) {
+      const ec = [0, hc[1] + hr * 0.46, hc[2] + hr * 0.74];
+      for (const sx of [-1, 1]) {
+        R.add(G.sphere(P.eyeR, 7, 5), B("head"), { p: [ec[0] + sx * hr * 0.47, ec[1], ec[2]], c: "#fbfaf2", pat: PAT.eyeW, cls: CLS.glossy, ol: true });
+        R.add(G.sphere(P.eyeR * 0.62, 6, 4), B("head"), { p: [ec[0] + sx * hr * 0.47, ec[1] + P.eyeR * 0.3, ec[2] + P.eyeR * 0.62], s: [1, 1.1, 0.5], c: "#1a120c", cls: CLS.glossy, ol: false });
+      }
+    } else K.ctEyes(R, B("head"), {
       name: pre + "eyes",
       p: [0, hc[1] + hr * 0.46, hc[2] + hr * 0.74],
       gap: hr * 0.47,
@@ -332,7 +338,7 @@
     // Bandeau de chasseur : cercle qui épouse le crâne (plan incliné vers l'arrière, passe au-dessus
     // des yeux), nœud derrière la tête et deux pans qui flottent.
     if (P.bandana) {
-      R.add(G.torus(hr * 0.87, hr * 0.1, 5, 20), B("head"), { p: [0, hc[1] + hr * 0.46, hc[2] - hr * 0.25], r: [Math.PI / 2 - 0.5, 0, 0], c: P.bandana, cls: CLS.satin, ol: true });
+      R.add(G.torus(hr * 0.87, hr * 0.1, 4, 14), B("head"), { p: [0, hc[1] + hr * 0.46, hc[2] - hr * 0.25], r: [Math.PI / 2 - 0.5, 0, 0], c: P.bandana, cls: CLS.satin, ol: true });
       R.bone(B("knot"), B("head"), [0, hc[1] + hr * 0.2, hc[2] - hr * 0.98]);
       R.add(G.sphere(hr * 0.17, 7, 5), B("knot"), { c: P.bandana, cls: CLS.satin, ol: true });
       for (const sx of [-1, 1])
@@ -413,18 +419,19 @@
   };
   const SOW = { k: 1.45, hr: 0.42, fur: "#96694a", back: "#5e4230", belly: "#e0bc94", pat: PAT.fur, eyeR: 0.11, iris: "#3b2414", crest: 4, crestH: 0.6, tusk: 0, snoutFur: "#a67552", lash: "#120c0a", slant: -0.05, lid: -0.66, body: [0.4, 0.49, 0.34] };
 
+  // Hauteur réelle du sommet (m, mesurée sur les gabarits) et rayon d'emprise au sol (m) : ctTowerInfo sans construire.
   const INFO = {
-    1: { height: 1.85, footprint: 1.4 },
-    2: { height: 2.15, footprint: 1.45 },
-    3: { height: 2.55, footprint: 1.5 },
-    A4: { height: 3.0, footprint: 1.55 },
-    A5: { height: 3.1, footprint: 1.55 },
-    A6: { height: 3.3, footprint: 1.55 },
-    A7: { height: 4.3, footprint: 1.6 },
-    B4: { height: 3.0, footprint: 1.55 },
-    B5: { height: 3.15, footprint: 1.55 },
-    B6: { height: 3.35, footprint: 1.55 },
-    B7: { height: 4.4, footprint: 1.6 },
+    1: { height: 1.81, footprint: 1.42 },
+    2: { height: 2.02, footprint: 1.46 },
+    3: { height: 2.23, footprint: 1.5 },
+    A4: { height: 2.9, footprint: 1.54 },
+    A5: { height: 3.07, footprint: 1.54 },
+    A6: { height: 3.24, footprint: 1.54 },
+    A7: { height: 4.2, footprint: 1.68 },
+    B4: { height: 2.86, footprint: 1.56 },
+    B5: { height: 3.02, footprint: 1.56 },
+    B6: { height: 3.18, footprint: 1.56 },
+    B7: { height: 4.11, footprint: 1.7 },
   };
 
   /* ---------------------------------------------------------------- niveaux 1 à 3, chasseur, Grand Solitaire */
@@ -440,7 +447,6 @@
       release: level >= 4 ? 0.13 : 0.17,
       dur: 0.62,
       ring: r + 0.12,
-      height: INFO[lv].height,
       footprint: INFO[lv].footprint,
       turn: level >= 4 ? 8.5 : 6.5,
       jumpH: big ? 0.35 : 0.5,
@@ -449,15 +455,15 @@
           r,
           h,
           seed: 3 + level,
-          stakes: big ? 15 : 3 + level * 2 - (level >= 4 ? 3 : 0),
+          stakes: big ? 15 : Math.min(9, 3 + level * 2 - (level >= 4 ? 3 : 0)),
           stakeH: big ? 1.25 : 0.6 + level * 0.05,
           arc: big ? [0.62, TAU - 0.62] : [1.95 - level * 0.08, TAU - 1.95 + level * 0.08],
-          pile: big ? 6 : 1 + level,
+          pile: big ? 6 : Math.min(5, 1 + level),
           twigs: 2,
           tufts: big ? 10 : 8,
           ribbons: deco >= 2 || big ? C.red : null,
           flag: {
-            h: big ? 3.3 : level >= 4 ? 2.0 + deco * 0.12 : 1.35 + level * 0.12,
+            h: big ? 3.8 : level >= 4 ? 2.4 + deco * 0.16 : 1.3 + level * 0.2,
             color: level >= 4 ? C.red : "#2f7ad0",
             trim: level >= 4 ? C.gold : "#ffffff",
             stars: level >= 4 ? (big ? 3 : deco) : level,
@@ -473,13 +479,13 @@
             z = -r * 0.5,
             y = moundY(Math.hypot(x, z), r, h);
           R.add(G.cyl(0.05, 0.05, 1.0, 5), "root", { p: [x, y + 0.5, z], c: C.stakeD, pat: PAT.wood, ol: true });
-          R.add(G.cyl(0.32, 0.32, 0.1, 12), "root", { p: [x, y + 0.95, z + 0.05], r: [Math.PI / 2 - 0.25, 0, 0], c: C.straw, pat: PAT.straw, ol: true });
+          R.add(G.cyl(0.32, 0.32, 0.1, 10), "root", { p: [x, y + 0.95, z + 0.05], r: [Math.PI / 2 - 0.25, 0, 0], c: C.straw, pat: PAT.straw, ol: true });
           for (const [rr, cc] of [
             [0.24, C.red],
             [0.15, "#ffffff"],
             [0.07, C.red],
           ])
-            R.add(G.cyl(rr, rr, 0.02, 12), "root", { p: [x, y + 0.95 + 0.012, z + 0.1 + (0.24 - rr) * 0.1], r: [Math.PI / 2 - 0.25, 0, 0], c: cc, cls: CLS.satin, ol: false });
+            R.add(G.cyl(rr, rr, 0.02, 9), "root", { p: [x, y + 0.95 + 0.012, z + 0.1 + (0.24 - rr) * 0.1], r: [Math.PI / 2 - 0.25, 0, 0], c: cc, cls: CLS.satin, ol: false });
           R.add(G.husk(0.05), "root", { p: [x, y + 0.97, z + 0.14], c: C.huskD, flat: true, ol: false });
         }
         if (deco >= 3 || big) {
@@ -506,7 +512,7 @@
             );
             R.add(G.cone(0.018, 0.16, 4), "root", { p: [x + sx * 0.14, y + 1.38, z], r: [0, 0, -sx * 0.9], c: "#efe2c2", ol: false });
           }
-          R.add(G.sphere(0.13, 8, 6), "root", { p: [x, y + 1.2, z + 0.04], s: [0.9, 0.8, 1.1], c: "#f2ead8", ol: true });
+          R.add(G.sphere(0.13, 7, 5), "root", { p: [x, y + 1.2, z + 0.04], s: [0.9, 0.8, 1.1], c: "#f2ead8", ol: true });
           for (const sx of [-1, 1]) R.add(G.sphere(0.035, 5, 4), "root", { p: [x + sx * 0.05, y + 1.23, z + 0.15], c: "#1a1410", ol: false });
         }
         // Bauge fortifiée du Grand Solitaire : torches à l'entrée.
@@ -549,7 +555,6 @@
       release: 0.3,
       dur: 0.95,
       ring: r + 0.12,
-      height: INFO["B" + level].height,
       footprint: INFO["B" + level].footprint,
       turn: 5,
       author(R) {
@@ -560,7 +565,7 @@
           stakes: 5,
           stakeH: 0.72,
           pile: 4 + deco,
-          flag: { h: 1.9 + deco * 0.12, color: "#e0a020", trim: C.redD, stars: deco, len: 0.66, tall: 0.42, tail: "swallow" },
+          flag: { h: 2.35 + deco * 0.16, color: "#e0a020", trim: C.redD, stars: deco, len: 0.66, tall: 0.42, tail: "swallow" },
         });
         boar(R, P, { at: [0, h - 0.04, 0] });
         const k = P.k;
@@ -587,7 +592,7 @@
         // Panier de munitions (5+) et petit fanion sur le bâti (6).
         if (deco >= 2) {
           R.add(G.cyl(0.14 * k, 0.1 * k, 0.2 * k, 8, true), "body", { p: [0.44 * k, 0.08 * k, -0.1 * k], c: C.straw, pat: PAT.straw, ol: true });
-          for (let i = 0; i < 3; i++) R.add(G.husk(0.05 * k), "body", { p: [0.44 * k + (i - 1) * 0.07 * k, 0.18 * k, -0.1 * k + (i % 2) * 0.05 * k], c: C.husk, flat: true, ol: false });
+          for (let i = 0; i < 3; i++) R.add(G.nut(0.055 * k), "body", { p: [0.44 * k + (i - 1) * 0.07 * k, 0.17 * k, -0.1 * k + (i % 2) * 0.05 * k], r: [0.4, i, 0], c: C.nut, cls: CLS.glossy, ol: false });
         }
         if (deco >= 3) {
           R.add(G.cyl(0.012 * k, 0.012 * k, 0.5 * k, 4), "body", { p: [-0.2 * k, top + 0.62 * k, -0.2 * k], c: C.stakeD, ol: false });
@@ -654,7 +659,6 @@
       release: 0.34,
       dur: 1.05,
       ring: r + 0.12,
-      height: INFO.B7.height,
       footprint: INFO.B7.footprint,
       turn: 3.5,
       jumpH: 0.3,
@@ -666,7 +670,7 @@
           stakes: 0,
           pile: 7,
           tufts: 10,
-          flag: { h: 3.4, color: "#e0a020", trim: C.redD, stars: 3, len: 0.95, tall: 0.6, tail: "swallow", p: [-r * 0.72, 0.1, -r * 0.55] },
+          flag: { h: 3.9, color: "#e0a020", trim: C.redD, stars: 3, len: 0.95, tall: 0.6, tail: "swallow", p: [-r * 0.72, 0.1, -r * 0.55] },
         });
         R.bone("yaw", "root", [0, h - 0.02, 0]);
         // Plateau de bois et roues.

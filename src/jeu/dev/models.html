@@ -314,6 +314,7 @@
       items.length = 0;
       for (const s of shots) s.p.release();
       shots.length = 0;
+      pending.length = 0;
       for (const l of labs) if (l.h) l.h.release();
       labs.length = 0;
       walkers.length = 0;
@@ -375,12 +376,19 @@
       for (const w of walkers) { const d = w.obj.position.distanceToSquared(_a); if (d < bd) { bd = d; best = w; } }
       return best;
     }
+    const pending = []; // départs différés (délai renvoyé par attack(), en temps de la scène)
     function fire(it) {
       const delay = it.api.attack();
       const d = DATA && DATA.towerLevel(it.family, it.lv, it.sp);
       const kind = d ? d.shot : "fireball";
-      const target = nearestWalker(it);
-      setTimeout(() => launch(it, kind, d, target), delay * 1000);
+      pending.push({ it, kind, d, target: nearestWalker(it), t: delay });
+    }
+    function stepPending(dt) {
+      for (let i = pending.length - 1; i >= 0; i--) {
+        const q = pending[i];
+        q.t -= dt;
+        if (q.t <= 0) { pending.splice(i, 1); launch(q.it, q.kind, q.d, q.target); }
+      }
     }
     function launch(it, kind, d, target) {
       if (!items.includes(it) || !fxOK) return;
@@ -505,7 +513,13 @@
     }
     function frame() {
       requestAnimationFrame(frame);
-      const dt = fixedDt || Math.min(0.1, clock.getDelta()) * speed;
+      const real = Math.min(0.1, clock.getDelta());
+      const dt = state.frozen ? 0 : fixedDt || real * speed;
+      step(dt);
+      draw();
+    }
+    /** Avance la scène de dt secondes (tours, cibles, tirs, effets). */
+    function step(dt) {
       state.time += dt;
       const time = state.time;
       stepWalkers(dt);
@@ -527,7 +541,10 @@
         }
         it.api.update(dt, time);
       }
+      stepPending(dt);
       if (fxOK) { stepShots(dt); stepLabs(dt); PTMT.fx.update(dt, time); }
+    }
+    function draw() {
       updateCamera();
       renderer.render(scene, camera);
       if (state.labels) for (const l of labels) {
@@ -554,6 +571,10 @@
       },
       info() { return Object.assign({}, renderer.info.render, { programs: renderer.info.programs.length, geometries: renderer.info.memory.geometries, textures: renderer.info.memory.textures }); },
       set(k, v) { state[k] = v; applyToggles(); },
+      /** Gèle le temps (le rendu continue) ; advance(s) avance alors la scène à pas de 1/60 s. */
+      freeze(b) { state.frozen = b !== false; },
+      burst(kind, x, y, z, o) { if (fxOK) PTMT.fx.burst(kind, new THREE.Vector3(x, y, z), o || {}); },
+      advance(s) { for (let t = 0; t < s - 1e-6; t += 1 / 60) step(Math.min(1 / 60, s - t)); draw(); },
       fire(filter) { for (const it of items) if (!filter || filter(it)) fire(it); },
       attack(filter) { for (const it of items) if (!filter || filter(it)) it.api.attack(); },
       aim(yaw) { state.track = false; state.sweep = false; for (const it of items) it.api.aim(yaw); },

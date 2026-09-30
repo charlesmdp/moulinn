@@ -1635,13 +1635,13 @@
   G.nut = (r) =>
     gc(`nut${r}`, () => {
       const pts = [];
-      for (let i = 0; i <= 8; i++) {
-        const t = i / 8;
+      for (let i = 0; i <= 5; i++) {
+        const t = i / 5;
         const a = t * Math.PI;
         const rr = Math.sin(a) * r * (1 - 0.35 * t * t);
         pts.push(new THREE.Vector2(Math.max(1e-4, rr), -Math.cos(a) * r * 0.85 + t * t * r * 0.35));
       }
-      return new THREE.LatheGeometry(pts, 10);
+      return new THREE.LatheGeometry(pts, 7);
     });
 
   /** Motifs (aMat.x) et classes de matière (aMat.y) de la matière des tours. */
@@ -2509,9 +2509,9 @@
           FX.burst("levelUp", _wp, { height });
         }
       },
-      /** Statistiques (triangles, os, lueurs) du gabarit. */
+      /** Statistiques du gabarit : triangles (dont coque et lueurs), os, sommet réel des pièces solides. */
       stats() {
-        return tpl.stats;
+        return Object.assign({ top: tpl.meta.top }, tpl.stats);
       },
       dispose() {
         if (root.parent) root.parent.remove(root);
@@ -2530,13 +2530,13 @@
     return ctShell(family, level, spec, def.variant(level, spec, opts || {}));
   };
   /** Hauteur (m) et rayon d'emprise (m) d'une tour, sans la construire quand la famille les connaît. */
-  PTMT.models.ctTowerInfo = function (family, level, spec) {
+  PTMT.models.ctTowerInfo = function (family, level, spec, opts) {
     const def = CT[family];
     if (!def) return null;
     [level, spec] = normLevel(level, spec);
-    const known = def.info && def.info(level, spec);
+    const known = def.info && def.info(level, spec, opts || {});
     if (known) return known;
-    const v = def.variant(level, spec, {});
+    const v = def.variant(level, spec, opts || {});
     const tpl = K.ctTemplate(v.key, v.author);
     return { height: v.height || tpl.meta.top, footprint: v.footprint || 1.5 };
   };
