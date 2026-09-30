@@ -35,8 +35,10 @@
     E: { terrain: "road", walk: true, entrance: true },
     L: { terrain: "road", walk: true, lair: true },
     X: { terrain: "decor" },
+    // Passage secret : fourré infranchissable (ni constructible ni coupable) qui devient un chemin à la vague secretWave.
+    s: { terrain: "thicket", secret: true, opensTo: "#" },
   };
-  D.TERRAIN_NAMES = { grass: "Herbe", rock: "Roche", water: "Eau", high: "Butte", road: "Chemin", bridge: "Pont", decor: "Talus" };
+  D.TERRAIN_NAMES = { grass: "Herbe", rock: "Roche", water: "Eau", high: "Butte", road: "Chemin", bridge: "Pont", decor: "Talus", thicket: "Fourré" };
   D.high = { range: 0.3, damage: 0.1 };
 
   /* ------------------------------------------------------------------ économie */
