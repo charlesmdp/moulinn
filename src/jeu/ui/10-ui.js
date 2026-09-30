@@ -383,13 +383,13 @@
     const diff = m.difficulty || "";
     const best = L && L.won
       ? h("div", { class: "pt-mcard-best" }, h("span", {}, "Meilleur résultat"), h("div", { class: "pt-gemrow" }, Array.from({ length: L.gemsTotal || m.gems || 5 }, (_, i) => ico(icons().gem(i % 6, i < (L.bestGems || 0) ? "lair" : "lost")))), L.brilliant ? h("span", { class: "pt-brilliant" }, ico("crown"), "Brillant") : null)
-      : h("div", { class: "pt-mcard-best pt-muted" }, "Pas encore gagnée : défends toutes les gemmes pour décrocher la couronne « Brillant ».");
+      : h("div", { class: "pt-mcard-best pt-muted" }, "Pas encore gagnée : défends toutes les gemmes pour décrocher la couronne « Brillant ».");
     const card = h(
       "div",
       { class: "pt-card pt-mcard-in" + (quiet ? "" : " pt-pop-in") },
       h("div", { class: "pt-mcard-num" }, h("small", {}, "Mission"), h("b", { class: "pt-num" }, String(k))),
       h("h2", { class: "pt-mcard-t" }, m.name),
-      m.ct ? h("div", { class: "pt-mcard-ct" }, "D'après « ", m.ct, " »") : null,
+      m.ct ? h("div", { class: "pt-mcard-ct" }, "D'après « ", m.ct, " »") : null,
       h(
         "div",
         { class: "pt-facts" },
@@ -809,7 +809,7 @@
           const el = this.gemEls[i];
           el.dataset.w = g.where;
           el.innerHTML = icons().gem(g.color, g.where);
-          el.title = { lair: "Au moulin", ground: "Tombée au sol : reprends-la !", carried: "Emportée par un ennemi", lost: "Perdue" }[g.where] || "";
+          el.title = { lair: "Au moulin", ground: "Tombée au sol : reprends-la !", carried: "Emportée par un ennemi", lost: "Perdue" }[g.where] || "";
           if (old !== undefined) this.bump(el, g.where === "lair" ? "good" : "bad");
         });
       });
@@ -879,7 +879,7 @@
       this.put("nextkey", "none", () => {
         this.marksEl.textContent = "";
         this.nextEl.classList.add("done");
-        this.nextTitle.textContent = w.total && w.index >= w.total ? "Dernière vague !" : "";
+        this.nextTitle.textContent = w.total && w.index >= w.total ? "Dernière vague !" : "";
         this.nextFoes.textContent = "";
         this.nextGates.textContent = "";
         this.nextTime.textContent = "";
@@ -910,7 +910,8 @@
     const cd = Math.max(0, Math.ceil(nw.countdown || 0));
     const bonus = Math.max(0, Math.round((nw.countdown || 0) * (((D.economy || {}).earlyCallGoldPerSecond) || 1)));
     this.put("nextcd", cd + ":" + bonus, () => {
-      this.nextTitle.textContent = "Vague " + nw.index + (cd > 0 ? " dans" : "");
+      this.nextTitle.textContent = "Vague " + nw.index;
+      if (cd > 0) this.nextTitle.append(h("span", { class: "pt-next-dans" }, " dans"));
       this.nextTime.textContent = cd > 0 ? cd + NB + "s" : "";
       this.callBonus.textContent = String(bonus);
       this.callBtn.classList.toggle("pt-hot", cd > 0 && cd <= 5);
@@ -1466,7 +1467,7 @@
     } else actions.append(h("div", { class: "pt-maxed" }, ico("crown"), "Évolution finale"));
     const sellTxt = h("b", { class: "pt-num" }, v.sell !== null ? "+" + v.sell : "");
     const armed = keep && this.sel && this.sel.kind === "tower" && this.sel.id === id && this.sel.sellArm && performance.now() - this.sel.sellArm <= 2500;
-    const sell = h("button", { class: "pt-btn pt-red pt-sell" + (armed ? " armed" : ""), title: "Revendre la tour", onclick: (e) => this.doSell(t.id, e.currentTarget) }, ico("sell"), h("span", { class: "pt-sell-l" }, armed ? "Confirmer ?" : "Vendre"), h("span", { class: "pt-price" }, ico("gold"), sellTxt));
+    const sell = h("button", { class: "pt-btn pt-red pt-sell" + (armed ? " armed" : ""), title: "Revendre la tour", onclick: (e) => this.doSell(t.id, e.currentTarget) }, ico("sell"), h("span", { class: "pt-sell-l" }, armed ? "Confirmer ?" : "Vendre"), h("span", { class: "pt-price" }, ico("gold"), sellTxt));
     const body = h("div", { class: "pt-sel-in pt-tw", style: `--acc:${accent}` }, head, xp, stats, actions, h("div", { class: "pt-tw-f" }, sell));
     const prevSell = keep && this.sel && this.sel.kind === "tower" && this.sel.id === id ? this.sel.sellArm : 0;
     this.openSel({ kind: "tower", id, i: t.i !== undefined ? t.i : i, j: t.j !== undefined ? t.j : j }, body, "pt-tower" + (v.specs ? " wide" : ""));
@@ -1547,7 +1548,7 @@
     if (!sel || !sel.sellArm || now - sel.sellArm > 2500) {
       sel.sellArm = now;
       btn.classList.add("armed");
-      btn.querySelector(".pt-sell-l").textContent = "Confirmer ?";
+      btn.querySelector(".pt-sell-l").textContent = "Confirmer ?";
       setTimeout(() => {
         if (this.sel === sel && btn.isConnected) {
           btn.classList.remove("armed");
@@ -1579,12 +1580,12 @@
           if (e.gold) this.fly(e.x, e.y, "+" + e.gold, "gold");
           break;
         case "steal":
-          this.toast("Une gemme a été volée au moulin !", "bad");
+          this.toast("Une gemme a été volée au moulin !", "bad");
           this.bump(this.gemsEl, "bad");
           this.tutoStep("steal");
           break;
         case "drop":
-          this.fly(e.x, e.y, "Gemme tombée !", "gem");
+          this.fly(e.x, e.y, "Gemme tombée !", "gem");
           this.tutoStep("drop", e);
           break;
         case "escape":
@@ -1970,16 +1971,16 @@
     } else if (step === "steal") {
       const L = this.game.state.map && this.game.state.map.lair;
       at = L ? { i: L.i, j: L.j } : null;
-      text = "Les ennemis viennent voler tes gemmes au moulin et repartent avec. Arrête-les avant la sortie !";
+      text = "Les ennemis viennent voler tes gemmes au moulin et repartent avec. Arrête-les avant la sortie !";
       life = 7;
     } else if (step === "drop") {
       at = ev ? { x: ev.x, y: ev.y } : null;
-      text = "Gemme tombée ! Les autres ennemis vont la chercher : défends-la, elle revient si personne ne la prend.";
+      text = "Gemme tombée ! Les autres ennemis vont la chercher : défends-la, elle revient si personne ne la prend.";
       life = 6;
     } else if (step === "cut") {
       at = this.tutoTile("frwh");
       if (!at) return;
-      text = "Case boisée : touche-la puis « Couper » (30 mana) pour y construire.";
+      text = "Case boisée : touche-la puis « Couper » (30 mana) pour y construire.";
       life = 9;
     }
     if (!text) return;
