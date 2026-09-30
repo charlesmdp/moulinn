@@ -217,7 +217,8 @@
       if (app.view && app.shown) app.view.sync(app.shown.state, events, dt, app.clock.time);
       if (game) app.ui.events(events);
       if (app.ui.frame) app.ui.frame(dt);
-      if (app.view) app.view.render();
+      // Écrans opaques (compétences, encyclopédie) : inutile de dessiner la carte en dessous.
+      if (app.view && !app.ui.covered) app.view.render();
       failures = 0;
     } catch (e) {
       if (failures++ < 3) console.error("[Pas touche à mes trésors]", e);
