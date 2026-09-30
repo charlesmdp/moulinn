@@ -1,6 +1,6 @@
 // « Pas touche à mes trésors » — kit de modélisation procédurale partagé.
 //
-// Tout ce qui sert aux modèles (tours, pièges, socles, coffres, bâtiments, pièces du moulin) :
+// Tout ce qui sert aux modèles (tours, décor, bâtiments) :
 //  - maths d'animation (ressorts amortis, lissages, angles) sans allocation par image ;
 //  - petites textures dessinées au chargement sur des canvas (moellons, briques, planches,
 //    ardoises, lave, eau, tourbillon, runes, filet, braises, pièces d'or…), aucune ressource externe ;
@@ -10,8 +10,10 @@
 //  - K.part(clé) : assemble des pièces transformées puis les fusionne par matière (résultat mis en
 //    cache par clé : deux tours identiques partagent leurs géométries) ;
 //  - K.face(...) : des yeux expressifs (paupières boudeuses, sourcils, pupilles qui regardent, clignements) ;
-//  - les effets communs (halo au sol, anneau de sélection, aura de Frénésie, onde d'évolution) ;
-//  - la coque commune des tours et le registre PTMT.models.tower(famille, palier, branche).
+//  - les effets communs (halo au sol, anneau de sélection, aura de Frénésie) ;
+//  - les tours v3 : gabarits articulés (UN maillage animé par os pour toute une tour, matière « dessin
+//    animé » à liseré sombre, yeux, fanion), la coque commune et le registre
+//    PTMT.models.ctTower(famille, niveau, spécialisation) / ctTowerInfo (familles : 20-boar, 21-swan, 22-dog).
 (function () {
   "use strict";
   const PTMT = globalThis.PTMT;
@@ -1580,10 +1582,10 @@
     return { group: grp, ring, band };
   };
   /** Flamme (goutte) avec dégradé jaune → rouge : géométrie centrée à la base. */
-  G.flame = (r, h, seg) =>
-    gc(`flame${r},${h},${seg}`, () => {
+  G.flame = (r, h, seg, prof) =>
+    gc(`flame${r},${h},${seg},${prof || 8}`, () => {
       const pts = [];
-      const n = 8;
+      const n = prof || 8;
       for (let i = 0; i <= n; i++) {
         const t = i / n;
         const rr = r * Math.sin(Math.PI * Math.pow(t, 0.72)) * (1 - t * 0.15);
@@ -1592,224 +1594,950 @@
       return new THREE.LatheGeometry(pts, seg || 10);
     });
 
-  /* ------------------------------------------------------------------ coque des tours */
-  const FAMILY = {
-    fire: { glow: "#ff7a1f", halo: "#ff5a14", burst: "#ffb347", haloR: 1.35 },
-    ice: { glow: "#8ff0ff", halo: "#4fcfff", burst: "#bff6ff", haloR: 1.3 },
-    water: { glow: "#43f2df", halo: "#1fc2d8", burst: "#8ffff0", haloR: 1.35 },
-  };
-  K.FAMILY = FAMILY;
-  const TOWERS = (K.towers = {});
-  /** Enregistre une variante : def = { build(ctx) → { pose(st, dt, time) }, windup (s), fireDur (s), ringR, haloR }. */
-  K.defTower = (key, def) => {
-    TOWERS[key] = def;
-  };
-  let towerSeed = 1;
 
-  function towerShell(key, family, tier, branch, def) {
-    const fam = FAMILY[family];
+  /* ------------------------------------------------------------------ tours v3 : créatures articulées */
+  // Chaque tour (sanglier, cygne, berger-dragon) est UN SkinnedMesh : socle, corps, tête, yeux et
+  // accessoires sont fusionnés dans une géométrie partagée par toutes les tours identiques, chaque
+  // sommet suivant un seul os (pièces rigides). Les os sont de simples Object3D animés à la main.
+  // Une seule matière « dessin animé » sert à toutes les tours : couleurs de sommets franches, motifs
+  // calculés dans le shader (rayures de marcassin, robe merle, écailles, plumes, bois, paille, granit)
+  // et liseré sombre (coque retournée, gonflée à l'écran : épaisseur constante en pixels, écartée des
+  // ombres). Les lueurs additives (flammes, runes, braises vives) forment un second groupe du même
+  // maillage. Soit un appel de dessin par tour (deux avec des lueurs), plus l'ombre.
+  //
+  //   K.ctTemplate(clé, (R) => { R.bone(nom, parent, [x, y, z]); R.add(géo, os, opt); R.glow(géo, os, opt); … })
+  //   K.ctInstance(gabarit) → { mesh, bones, bone: { nom: Bone } }
+  //   K.defCt(famille, { variant(niveau, spé, opts) → variante, info(niveau, spé) })
+  //   PTMT.models.ctTower(famille, niveau, spé, opts) ; PTMT.models.ctTowerInfo(famille, niveau, spé)
+
+  /** Bogue de châtaigne : boule hérissée de piquants (icosaèdre dont les milieux d'arêtes sont tirés vers l'extérieur). */
+  G.husk = (r, spike) =>
+    gc(`husk${r},${spike}`, () => {
+      const g = new THREE.IcosahedronGeometry(1, 1);
+      const p = g.attributes.position;
+      const orig = new Set();
+      const base = new THREE.IcosahedronGeometry(1, 0).attributes.position;
+      for (let i = 0; i < base.count; i++) orig.add(Math.round(base.getX(i) * 1000) + "," + Math.round(base.getY(i) * 1000) + "," + Math.round(base.getZ(i) * 1000));
+      const k = spike || 1.85;
+      for (let i = 0; i < p.count; i++) {
+        const x = p.getX(i),
+          y = p.getY(i),
+          z = p.getZ(i);
+        const l = Math.sqrt(x * x + y * y + z * z);
+        const isOrig = orig.has(Math.round((x / l) * 1000) + "," + Math.round((y / l) * 1000) + "," + Math.round((z / l) * 1000));
+        const f = (isOrig ? 0.7 : k) * r;
+        p.setXYZ(i, (x / l) * f, (y / l) * f, (z / l) * f);
+      }
+      g.computeVertexNormals();
+      return g;
+    });
+  /** Châtaigne : goutte aplatie, pointe en haut (+Y). */
+  G.nut = (r) =>
+    gc(`nut${r}`, () => {
+      const pts = [];
+      for (let i = 0; i <= 8; i++) {
+        const t = i / 8;
+        const a = t * Math.PI;
+        const rr = Math.sin(a) * r * (1 - 0.35 * t * t);
+        pts.push(new THREE.Vector2(Math.max(1e-4, rr), -Math.cos(a) * r * 0.85 + t * t * r * 0.35));
+      }
+      return new THREE.LatheGeometry(pts, 10);
+    });
+
+  /** Motifs (aMat.x) et classes de matière (aMat.y) de la matière des tours. */
+  const PAT = (K.PAT = { plain: 0, fur: 1, stripes: 2, merle: 3, scales: 4, eyeW: 5, iris: 6, feather: 7, wood: 8, straw: 9, stone: 10, ember: 11, emberBlue: 12, hull: 30, glow: 31 });
+  const CLS = (K.CLS = { matte: 0, satin: 1, glossy: 2, metal: 3, glow: 4, heat: 5, gold: 6, ice: 7, wet: 8, irid: 9 });
+  /** Uniformes partagés : horloge des lueurs, résolution du tampon (x, y), rapport de pixels (z), contour actif (w). */
+  const TOON = (K.toon = { time: { value: 0 }, outline: { value: new THREE.Vector4(1280, 800, 1, 1) } });
+
+  const TV_PARS = /* glsl */ `
+    attribute vec2 aMat;
+    varying vec2 vMat;
+    varying vec3 vRest;
+    varying vec2 vPUv;
+    uniform vec4 uOutline;
+  `;
+  const TV_BEGIN = /* glsl */ `
+    vMat = aMat;
+    vRest = position;
+    vPUv = uv;
+  `;
+  const TV_HULL = /* glsl */ `
+    if (aMat.x > 29.5) {
+      // coque : poussée vers l'extérieur à l'écran (1,2 à 2,8 px selon le zoom)
+      float oW = max(gl_Position.w, 0.001);
+      float oPx = clamp(0.05 * projectionMatrix[1][1] * uOutline.y * 0.5 / oW / max(uOutline.z, 0.5), 1.2, 2.8) * uOutline.z * uOutline.w;
+      vec3 oN = normalize(transformedNormal);
+      gl_Position.xy += oN.xy * oPx * 2.0 / uOutline.xy * oW;
+    }
+  `;
+  const TF_PARS = /* glsl */ `
+    varying vec2 vMat;
+    varying vec3 vRest;
+    varying vec2 vPUv;
+    uniform float uTime;
+    float tHash3(vec3 p){ p = fract(p * 0.1031); p += dot(p, p.zyx + 31.32); return fract((p.x + p.y) * p.z); }
+    float tNoise3(vec3 p){ vec3 i = floor(p), f = fract(p); vec3 u = f * f * (3.0 - 2.0 * f);
+      float a = mix(mix(tHash3(i), tHash3(i + vec3(1.0,0.0,0.0)), u.x), mix(tHash3(i + vec3(0.0,1.0,0.0)), tHash3(i + vec3(1.0,1.0,0.0)), u.x), u.y);
+      float b = mix(mix(tHash3(i + vec3(0.0,0.0,1.0)), tHash3(i + vec3(1.0,0.0,1.0)), u.x), mix(tHash3(i + vec3(0.0,1.0,1.0)), tHash3(i + vec3(1.0,1.0,1.0)), u.x), u.y);
+      return mix(a, b, u.z); }
+    float tHash2(vec2 p){ p = fract(p * vec2(123.34, 456.21)); p += dot(p, p + 45.32); return fract(p.x * p.y); }
+    float tNoise2(vec2 p){ vec2 i = floor(p), f = fract(p); vec2 u = f * f * (3.0 - 2.0 * f);
+      return mix(mix(tHash2(i), tHash2(i + vec2(1.0, 0.0)), u.x), mix(tHash2(i + vec2(0.0, 1.0)), tHash2(i + vec2(1.0, 1.0)), u.x), u.y); }
+  `;
+  const TF_COLOR = /* glsl */ `
+    #include <color_fragment>
+    float tPat = floor(vMat.x + 0.5);
+    float tCls = floor(vMat.y + 0.5);
+    float tHull = step(29.5, tPat);
+    vec3 tAlb = diffuseColor.rgb;
+    float tCrack = 0.0;
+    if (tPat > 10.5 && tPat < 12.5) {
+      // granit fissuré de braises : lignes de niveau d'un bruit 3D = veines qui suivent la roche
+      float n = tNoise3(vRest * 1.25 + 3.7) * 0.72 + tNoise3(vRest * 3.6) * 0.28;
+      tCrack = 1.0 - smoothstep(0.008, 0.028, abs(n - 0.5));
+      tCrack *= smoothstep(0.35, 0.6, tNoise3(vRest * 0.9 - 2.3));
+      float g = tNoise3(vRest * 2.6) * 0.5 + tNoise3(vRest * 7.0) * 0.3 + tNoise3(vRest * 21.0) * 0.2;
+      tAlb *= 0.78 + 0.42 * g;
+      tAlb *= 1.0 - 0.4 * step(0.83, tNoise3(vRest * 31.0));
+      tAlb = mix(tAlb, tAlb * 0.25, tCrack);
+    }
+    if (tPat > 0.5 && tPat < 1.5) {
+      // poil : touffes plus sombres et plus claires
+      float n = tNoise3(vRest * 9.0) * 0.6 + tNoise3(vRest * 23.0) * 0.4;
+      tAlb *= 0.84 + 0.3 * n;
+    } else if (tPat > 1.5 && tPat < 2.5) {
+      // rayures de marcassin : bandes crème le long du corps (u = tour autour de l'axe du corps)
+      float d = abs(fract(vPUv.x) - 0.5);
+      float st = 1.0 - smoothstep(0.1, 0.17, d);
+      tAlb = mix(tAlb, vec3(0.83, 0.62, 0.33), st * 0.9);
+      tAlb *= 0.9 + 0.2 * tNoise3(vRest * 12.0);
+    } else if (tPat > 2.5 && tPat < 4.5) {
+      // robe merle : marbrures sombres irrégulières (+ écailles pour les dragons)
+      float n = tNoise3(vRest * 3.3 + 7.3) * 0.62 + tNoise3(vRest * 7.9 - 2.1) * 0.38;
+      float m = smoothstep(0.585, 0.625, n);
+      tAlb *= 0.88 + 0.26 * tNoise3(vRest * 5.3 + 1.7);
+      tAlb = mix(tAlb, tAlb * 0.13, m);
+      if (tPat > 3.5) {
+        vec2 q = vPUv;
+        q.x += 0.5 * mod(floor(q.y), 2.0);
+        vec2 f = fract(q) - vec2(0.5, 0.15);
+        float e = smoothstep(0.34, 0.5, length(f * vec2(1.0, 1.25)));
+        tAlb *= mix(1.1, 0.66, e);
+      }
+    } else if (tPat > 6.5 && tPat < 7.5) {
+      // plumes : festons en rangs décalés
+      vec2 q = vPUv;
+      q.x += 0.5 * mod(floor(q.y), 2.0);
+      vec2 f = fract(q) - vec2(0.5, 1.0);
+      float e = smoothstep(0.55, 0.72, length(f * vec2(1.0, 0.8)));
+      tAlb *= mix(1.04, 0.8, e);
+    } else if (tPat > 7.5 && tPat < 8.5) {
+      // bois : veines le long de v, planches marquées
+      float g = tNoise2(vec2(vPUv.x * 4.0, vPUv.y * 34.0)) * 0.55 + tNoise2(vec2(vPUv.x * 11.0, vPUv.y * 90.0)) * 0.45;
+      tAlb *= 0.78 + 0.34 * g;
+      tAlb *= 1.0 - 0.35 * (1.0 - smoothstep(0.0, 0.05, abs(fract(vPUv.x * 3.0) - 0.5) - 0.44));
+    } else if (tPat > 8.5 && tPat < 9.5) {
+      // paille, roseaux, brindilles : fibres fines
+      float g = tNoise2(vec2(vPUv.x * 70.0, vPUv.y * 5.0)) * 0.7 + tNoise2(vec2(vPUv.x * 160.0, vPUv.y * 9.0)) * 0.3;
+      tAlb *= 0.7 + 0.5 * g;
+    } else if (tPat > 9.5 && tPat < 10.5) {
+      // pierre, terre : grain, taches claires et sombres
+      float n = tNoise3(vRest * 2.6) * 0.5 + tNoise3(vRest * 7.0) * 0.3 + tNoise3(vRest * 21.0) * 0.2;
+      tAlb *= 0.74 + 0.5 * n;
+      tAlb *= 1.0 - 0.45 * step(0.83, tNoise3(vRest * 31.0));
+    }
+    diffuseColor.rgb = tAlb;
+  `;
+  const TF_ROUGH = /* glsl */ `
+    roughnessFactor = tCls < 0.5 ? 0.86 : (tCls < 1.5 ? 0.55 : (tCls < 2.5 ? 0.3 : (tCls < 3.5 ? 0.34 : (tCls < 6.5 ? 0.4 : (tCls < 7.5 ? 0.12 : (tCls < 8.5 ? 0.18 : 0.24))))));
+    if (tPat > 5.5 && tPat < 6.5) roughnessFactor = 0.16;
+  `;
+  const TF_METAL = /* glsl */ `
+    metalnessFactor = (tCls > 2.5 && tCls < 3.5) ? 0.5 : ((tCls > 5.5 && tCls < 6.5) ? 0.35 : 0.0);
+  `;
+  const TF_EMIS = /* glsl */ `
+    {
+      vec3 tV = isOrthographic ? vec3(0.0, 0.0, 1.0) : normalize(vViewPosition);
+      float tFres = pow(1.0 - clamp(abs(dot(normalize(vNormal), tV)), 0.0, 1.0), 2.5);
+      // teintes franches même côté ombre (éclairage de dessin animé) + fin liseré clair
+      totalEmissiveRadiance += diffuseColor.rgb * 0.18 + vec3(1.0, 0.97, 0.9) * tFres * 0.09;
+      if (tPat > 4.5 && tPat < 5.5) totalEmissiveRadiance += diffuseColor.rgb * 0.34;
+      if (tCls > 3.5 && tCls < 4.5) totalEmissiveRadiance += diffuseColor.rgb * 1.5;
+      if (tCls > 4.5 && tCls < 5.5) totalEmissiveRadiance += diffuseColor.rgb * (1.0 + 1.1 * (0.5 + 0.5 * sin(uTime * 2.3 + dot(vRest, vec3(2.3, 1.7, 1.9)))));
+      if (tCls > 5.5 && tCls < 6.5) totalEmissiveRadiance += vec3(1.0, 0.62, 0.12) * (0.16 + 1.1 * tFres);
+      if (tCls > 6.5 && tCls < 7.5) totalEmissiveRadiance += vec3(0.45, 0.8, 1.0) * (0.08 + 0.95 * tFres) + diffuseColor.rgb * 0.22;
+      if (tCls > 8.5 && tCls < 9.5) totalEmissiveRadiance += vec3(0.5, 0.28, 1.0) * (0.04 + 1.3 * tFres) + vec3(0.1, 0.35, 1.0) * pow(tFres, 4.0) * 0.8;
+      if (tCrack > 0.0) {
+        float pulse = 0.75 + 0.25 * sin(uTime * 2.1 + dot(vRest, vec3(1.3, 2.1, 1.7)));
+        vec3 emb = tPat < 11.5 ? vec3(1.0, 0.36, 0.04) : vec3(0.18, 0.55, 1.0);
+        totalEmissiveRadiance += emb * tCrack * 2.6 * pulse;
+      }
+    }
+  `;
+  const TF_OUT = /* glsl */ `
+    if (tHull > 0.5) gl_FragColor.rgb = vec3(0.035, 0.028, 0.045);
+    #include <tonemapping_fragment>
+  `;
+
+  /** Matière commune de toutes les tours (os, couleurs de sommets, motifs, contour). */
+  function toonMat() {
+    return PTMT.mat("kit:ctToon", () => {
+      const m = new THREE.MeshStandardMaterial({ vertexColors: true, skinning: true, roughness: 0.8, metalness: 0 });
+      m.onBeforeCompile = (sh) => {
+        sh.uniforms.uTime = TOON.time;
+        sh.uniforms.uOutline = TOON.outline;
+        sh.vertexShader = sh.vertexShader
+          .replace("#include <common>", "#include <common>\n" + TV_PARS)
+          .replace("#include <begin_vertex>", "#include <begin_vertex>\n" + TV_BEGIN)
+          .replace("#include <project_vertex>", "#include <project_vertex>\n" + TV_HULL);
+        sh.fragmentShader = sh.fragmentShader
+          .replace("#include <common>", "#include <common>\n" + TF_PARS)
+          .replace("#include <color_fragment>", TF_COLOR)
+          .replace("#include <roughnessmap_fragment>", "#include <roughnessmap_fragment>\n" + TF_ROUGH)
+          .replace("#include <metalnessmap_fragment>", "#include <metalnessmap_fragment>\n" + TF_METAL)
+          .replace("#include <emissivemap_fragment>", "#include <emissivemap_fragment>\n" + TF_EMIS)
+          .replace("#include <tonemapping_fragment>", TF_OUT);
+      };
+      m.customProgramCacheKey = () => "ptmt-ct-toon-v1";
+      return m;
+    });
+  }
+  /** Ombre portée : la coque de contour et les lueurs sont écartées. */
+  function toonDepthMat() {
+    return PTMT.mat("kit:ctDepth", () => {
+      const m = new THREE.MeshDepthMaterial({ depthPacking: THREE.RGBADepthPacking, skinning: true });
+      m.onBeforeCompile = (sh) => {
+        sh.vertexShader = sh.vertexShader
+          .replace("#include <common>", "#include <common>\nattribute vec2 aMat;")
+          .replace("#include <project_vertex>", "#include <project_vertex>\nif (aMat.x > 29.5) gl_Position = vec4(0.0, 0.0, 2.0, 1.0);");
+      };
+      m.customProgramCacheKey = () => "ptmt-ct-depth-v1";
+      return m;
+    });
+  }
+  /** Lueurs additives (flammes, runes, yeux ardents) : fondu doux sur les bords, léger scintillement. */
+  function glowMat() {
+    return PTMT.mat("kit:ctGlow", () => {
+      const m = new THREE.ShaderMaterial({
+        uniforms: { uTime: TOON.time },
+        vertexShader: /* glsl */ `
+          #include <common>
+          #include <skinning_pars_vertex>
+          varying vec3 vCol;
+          varying float vEdge;
+          varying vec3 vRest;
+          void main() {
+            #include <beginnormal_vertex>
+            #include <skinbase_vertex>
+            #include <skinnormal_vertex>
+            #include <defaultnormal_vertex>
+            #include <begin_vertex>
+            #include <skinning_vertex>
+            #include <project_vertex>
+            vec3 n = normalize(transformedNormal);
+            vec3 vd = isOrthographic ? vec3(0.0, 0.0, 1.0) : normalize(-mvPosition.xyz);
+            vEdge = abs(dot(n, vd));
+            vCol = color;
+            vRest = position;
+          }`,
+        fragmentShader: /* glsl */ `
+          uniform float uTime;
+          varying vec3 vCol;
+          varying float vEdge;
+          varying vec3 vRest;
+          void main() {
+            float k = 0.2 + 0.8 * pow(vEdge, 1.4);
+            float fl = 0.82 + 0.18 * sin(uTime * 13.0 + vRest.y * 9.0 + vRest.x * 5.0);
+            gl_FragColor = vec4(vCol * k * fl, 1.0);
+            #include <tonemapping_fragment>
+            #include <encodings_fragment>
+          }`,
+        skinning: true,
+        vertexColors: true,
+        transparent: true,
+        depthWrite: false,
+        blending: THREE.AdditiveBlending,
+      });
+      m.name = "ptmt:ct:glow";
+      return m;
+    });
+  }
+  K.toonMat = toonMat;
+  K.glowMat = glowMat;
+
+  /** Résolution du tampon de dessin pour l'épaisseur du contour (une fois par image). */
+  const _res = new THREE.Vector2();
+  let _resFrame = -1;
+  function toonBeforeRender(renderer) {
+    const f = renderer.info.render.frame;
+    if (f === _resFrame) return;
+    _resFrame = f;
+    renderer.getDrawingBufferSize(_res);
+    const o = TOON.outline.value;
+    o.x = _res.x;
+    o.y = _res.y;
+    o.z = renderer.getPixelRatio();
+  }
+  /** Active ou coupe le liseré des tours (réglage de qualité). */
+  K.setOutline = (on) => {
+    TOON.outline.value.w = on ? 1 : 0;
+  };
+
+  /* ---- gabarits articulés ---- */
+  class CtRig {
+    constructor(key) {
+      this.key = key;
+      this.bones = [{ name: "root", parent: -1, p: [0, 0, 0], w: [0, 0, 0] }];
+      this.bi = { root: 0 };
+      this.items = [];
+      this.meta = { eyes: [], sway: [] };
+    }
+    /** Os (position de repos relative à l'os parent ; la racine « root » est à l'origine). */
+    bone(name, parent, p) {
+      const pi = this.bi[parent || "root"];
+      if (pi === undefined) throw new Error("PTMT tours : os parent inconnu " + parent);
+      const w = this.bones[pi].w;
+      p = p || [0, 0, 0];
+      this.bi[name] = this.bones.length;
+      this.bones.push({ name, parent: pi, p: p.slice(), w: [w[0] + p[0], w[1] + p[1], w[2] + p[2]] });
+      return this;
+    }
+    /** Position de repos d'un os dans le repère du modèle. */
+    at(name) {
+      const i = this.bi[name];
+      if (i === undefined) throw new Error("PTMT tours : os inconnu " + name);
+      return this.bones[i].w;
+    }
+    has(name) {
+      return this.bi[name] !== undefined;
+    }
+    /**
+     * Pièce opaque liée à un os ; o.p est relatif à l'os. Options de K.part (p, r, s, c, g, gp, j, vj, flat,
+     * uv…) + pat (motif K.PAT), cls (classe K.CLS), ol (contour : true / false / automatique selon la taille).
+     */
+    add(geo, bone, o) {
+      this.items.push({ geo, bone: bone || "root", o: o || {}, glow: false });
+      return this;
+    }
+    /** Pièce lumineuse additive (second groupe du maillage, sans contour ni ombre). */
+    glow(geo, bone, o) {
+      this.items.push({ geo, bone: bone || "root", o: o || {}, glow: true });
+      return this;
+    }
+    /** Balancement automatique d'un os (fanion, queue, oreilles…) : rotation[ax] = base + amp·sin(f·t + ph). */
+    sway(bone, ax, base, amp, f, ph) {
+      this.meta.sway.push({ bone, ax, base: base || 0, amp, f, ph: ph || 0 });
+      return this;
+    }
+  }
+
+  const ctCache = new Map();
+  const _hv = new THREE.Vector3();
+  /** Gabarit (géométrie fusionnée, os de repos, méta-données) construit une fois par clé. */
+  K.ctTemplate = function (key, author) {
+    let tpl = ctCache.get(key);
+    if (tpl) return tpl;
+    const R = new CtRig(key);
+    author(R);
+    const seed = strSeed(key);
+    const opaque = [];
+    const glows = [];
+    let top = 0;
+    let hullTris = 0;
+    const byBone = {};
+    R.items.forEach((it, idx) => {
+      const bi = R.bi[it.bone];
+      if (bi === undefined) throw new Error("PTMT tours : os inconnu " + it.bone + " (" + key + ")");
+      const w = R.bones[bi].w;
+      const g = bakeItem(it.geo, it.o, idx, seed);
+      if (w[0] || w[1] || w[2]) g.translate(w[0], w[1], w[2]);
+      const e = { g, bi, pat: it.glow ? PAT.glow : it.o.pat || 0, cls: it.o.cls || 0 };
+      const tris = g.attributes.position.count / 3;
+      const bk = it.bone.split(":")[0];
+      byBone[bk] = (byBone[bk] || 0) + tris;
+      if (it.glow) {
+        glows.push(e);
+        return;
+      }
+      opaque.push(e);
+      const pa = g.attributes.position.array;
+      let cx = 0,
+        cy = 0,
+        cz = 0;
+      const n = pa.length / 3;
+      for (let i = 0; i < n; i++) {
+        cx += pa[i * 3];
+        cy += pa[i * 3 + 1];
+        cz += pa[i * 3 + 2];
+        if (!it.o.noTop && pa[i * 3 + 1] > top) top = pa[i * 3 + 1];
+      }
+      let ol = it.o.ol;
+      if (ol === undefined) {
+        cx /= n;
+        cy /= n;
+        cz /= n;
+        let rr = 0;
+        for (let i = 0; i < n; i++) {
+          _hv.set(pa[i * 3] - cx, pa[i * 3 + 1] - cy, pa[i * 3 + 2] - cz);
+          rr = Math.max(rr, _hv.lengthSq());
+        }
+        ol = Math.sqrt(rr) >= 0.1;
+      }
+      if (ol) {
+        const h = hullOf(g);
+        hullTris += h.attributes.position.count / 3;
+        byBone[bk] += h.attributes.position.count / 3;
+        opaque.push({ g: h, bi, pat: PAT.hull, cls: 0 });
+      }
+    });
+    const list = opaque.concat(glows);
+    let nv = 0;
+    for (const e of list) nv += e.g.attributes.position.count;
+    const P = new Float32Array(nv * 3),
+      N = new Float32Array(nv * 3),
+      U = new Float32Array(nv * 2),
+      Cl = new Float32Array(nv * 3),
+      M = new Float32Array(nv * 2),
+      SI = new Uint16Array(nv * 4),
+      SW = new Float32Array(nv * 4);
+    let o = 0,
+      opaqueCount = 0;
+    for (const e of list) {
+      const g = e.g,
+        c = g.attributes.position.count;
+      P.set(g.attributes.position.array, o * 3);
+      N.set(g.attributes.normal.array, o * 3);
+      U.set(g.attributes.uv.array, o * 2);
+      if (g.attributes.color) Cl.set(g.attributes.color.array, o * 3);
+      for (let i = 0; i < c; i++) {
+        M[(o + i) * 2] = e.pat;
+        M[(o + i) * 2 + 1] = e.cls;
+        SI[(o + i) * 4] = e.bi;
+        SW[(o + i) * 4] = 1;
+      }
+      o += c;
+      if (e.pat !== PAT.glow) opaqueCount = o;
+      g.dispose();
+    }
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute("position", new THREE.BufferAttribute(P, 3));
+    geo.setAttribute("normal", new THREE.BufferAttribute(N, 3));
+    geo.setAttribute("uv", new THREE.BufferAttribute(U, 2));
+    geo.setAttribute("color", new THREE.BufferAttribute(Cl, 3));
+    geo.setAttribute("aMat", new THREE.BufferAttribute(M, 2));
+    geo.setAttribute("skinIndex", new THREE.BufferAttribute(SI, 4));
+    geo.setAttribute("skinWeight", new THREE.BufferAttribute(SW, 4));
+    const glowCount = nv - opaqueCount;
+    if (glowCount > 0) {
+      geo.addGroup(0, opaqueCount, 0);
+      geo.addGroup(opaqueCount, glowCount, 1);
+    }
+    geo.computeBoundingBox();
+    geo.computeBoundingSphere();
+    geo.boundingSphere.radius *= 1.35;
+    geo.name = "ptmt:ct:" + key;
+    const inverses = R.bones.map((b) => new THREE.Matrix4().makeTranslation(-b.w[0], -b.w[1], -b.w[2]));
+    tpl = {
+      key,
+      geo,
+      bones: R.bones.map((b) => ({ name: b.name, parent: b.parent, p: b.p })),
+      inverses,
+      glow: glowCount > 0,
+      meta: Object.assign(R.meta, { top: Math.round(top * 100) / 100 }),
+      stats: { triangles: nv / 3, hull: hullTris, glow: glowCount / 3, bones: R.bones.length, byBone },
+    };
+    ctCache.set(key, tpl);
+    return tpl;
+  };
+  /** Coque de contour : copie aux normales lissées (sans fente aux arêtes) et à l'ordre des sommets inversé. */
+  function hullOf(g) {
+    const pa = g.attributes.position.array;
+    const n = pa.length / 3;
+    const map = new Map();
+    const keys = new Array(n);
+    const acc = [];
+    const na = g.attributes.normal.array;
+    for (let i = 0; i < n; i++) {
+      const k = Math.round(pa[i * 3] * 2000) + "," + Math.round(pa[i * 3 + 1] * 2000) + "," + Math.round(pa[i * 3 + 2] * 2000);
+      keys[i] = k;
+      let a = map.get(k);
+      if (a === undefined) {
+        a = acc.length;
+        map.set(k, a);
+        acc.push(0, 0, 0);
+      }
+      acc[a] += na[i * 3];
+      acc[a + 1] += na[i * 3 + 1];
+      acc[a + 2] += na[i * 3 + 2];
+    }
+    const P = new Float32Array(n * 3),
+      N = new Float32Array(n * 3);
+    for (let t = 0; t < n; t += 3) {
+      // ordre inversé : 0, 2, 1
+      const src = [t, t + 2, t + 1];
+      for (let k = 0; k < 3; k++) {
+        const s = src[k],
+          d = t + k,
+          a = map.get(keys[s]);
+        P[d * 3] = pa[s * 3];
+        P[d * 3 + 1] = pa[s * 3 + 1];
+        P[d * 3 + 2] = pa[s * 3 + 2];
+        const l = Math.hypot(acc[a], acc[a + 1], acc[a + 2]) || 1;
+        N[d * 3] = acc[a] / l;
+        N[d * 3 + 1] = acc[a + 1] / l;
+        N[d * 3 + 2] = acc[a + 2] / l;
+      }
+    }
+    const h = new THREE.BufferGeometry();
+    h.setAttribute("position", new THREE.BufferAttribute(P, 3));
+    h.setAttribute("normal", new THREE.BufferAttribute(N, 3));
+    h.setAttribute("uv", new THREE.BufferAttribute(new Float32Array(n * 2), 2));
+    return h;
+  }
+  const IDENT = new THREE.Matrix4();
+  /** Instance d'un gabarit : os neufs, géométrie et matières partagées. */
+  K.ctInstance = function (tpl) {
+    const bones = [];
+    const bone = {};
+    for (const d of tpl.bones) {
+      const b = new THREE.Bone();
+      b.name = d.name;
+      b.position.set(d.p[0], d.p[1], d.p[2]);
+      b.userData.rest = b.position.clone();
+      if (d.parent >= 0) bones[d.parent].add(b);
+      bones.push(b);
+      bone[d.name] = b;
+    }
+    const mesh = new THREE.SkinnedMesh(tpl.geo, tpl.glow ? [toonMat(), glowMat()] : toonMat());
+    mesh.name = "ptmt:ct";
+    mesh.add(bones[0]);
+    mesh.bind(new THREE.Skeleton(bones, tpl.inverses), IDENT);
+    mesh.customDepthMaterial = toonDepthMat();
+    mesh.castShadow = true;
+    mesh.receiveShadow = true;
+    mesh.frustumCulled = false;
+    mesh.onBeforeRender = toonBeforeRender;
+    return { mesh, bones, bone };
+  };
+
+  /* ---- yeux de dessin animé (dans un gabarit) ---- */
+  /**
+   * Paire d'yeux (ou œil unique) sous l'os « bone » : os « <nom>:lids » (paupières, pivotent autour de X),
+   * « <nom>:pup » (pupilles, glissent en X/Y) et « <nom>:brow » (sourcils).
+   * o = { name, p:[x,y,z] (milieu des yeux, relatif à l'os), gap, r (rayon), skin (paupières), lash,
+   *       iris (couleur ou [droite, gauche]), pupil (taille relative de l'iris), dot (pupille noire, relatif),
+   *       slant (rad, coin intérieur vers le bas = fâché), rest (paupière au repos : 0 mi-clos, négatif ouvert),
+   *       up (rad : le regard se relève vers la caméra, qui voit la scène d'en haut),
+   *       brow (couleur | null), browW, browT, browY, browTilt, white, single, glowIris }
+   */
+  K.ctEyes = function (R, bone, o) {
+    const nm = o.name || "eyes";
+    const r = o.r,
+      gap = o.gap || 0;
+    const sides = o.single ? [0] : [-1, 1];
+    const c = o.p;
+    const up = o.up || 0;
+    const cu = Math.cos(up),
+      su = Math.sin(up);
+    // Point (x, y, z) du repère de l'œil (+Z = regard) tourné de « up » vers le haut.
+    const T = (x, y, z) => [x, y * cu + z * su, -y * su + z * cu];
+    R.bone(nm + ":lids", bone, c);
+    R.bone(nm + ":pup", bone, c);
+    R.bone(nm + ":brow", bone, c);
+    const iris = Array.isArray(o.iris) ? o.iris : [o.iris || "#3a2414", o.iris || "#3a2414"];
+    const slant = o.slant === undefined ? 0.3 : o.slant;
+    const pr = r * (o.pupil || 0.62);
+    // Découpage selon la taille : un œil de 8 cm ne fait que quelques pixels vu du ciel.
+    const hi = r >= 0.14;
+    const ws = hi ? 12 : 8,
+      hs = hi ? 8 : 6;
+    sides.forEach((sx, i) => {
+      R.add(G.sphere(r, ws, hs), nm + ":lids", { p: [sx * gap, 0, 0], c: o.white || "#fbfaf2", pat: PAT.eyeW, cls: CLS.glossy, ol: true });
+      R.add(G.sphere(pr, hi ? 10 : 8, hi ? 6 : 4), nm + ":pup", { p: T(sx * gap, 0, r * 0.8), r: [-up, 0, 0], s: [1, 1.08, 0.46], c: iris[i], pat: PAT.iris, cls: o.glowIris ? CLS.glow : CLS.glossy, ol: false });
+      if (o.dot !== 0) R.add(G.sphere(pr * (o.dot || 0.55), hi ? 8 : 6, 4), nm + ":pup", { p: T(sx * gap, 0, r * 0.87), r: [-up, 0, 0], s: [1, 1.1, 0.4], c: "#0c0a0d", pat: PAT.iris, cls: CLS.glossy, ol: false });
+      R.add(G.sphere(pr * 0.3, 4, 3), nm + ":pup", { p: T(sx * gap + pr * 0.34, pr * 0.42, r * 0.97), c: "#ffffff", cls: CLS.glow, ol: false });
+      R.add(G.sphere(r * 1.1, hi ? 10 : 8, 2, 0, Math.PI / 2), nm + ":lids", {
+        p: [sx * gap, 0, 0],
+        r: [0, 0, (sx || 1) * slant],
+        g: [o.lash || "#1b1512", o.skin || "#7a6a5a", r * 0.02, r * 0.32],
+        ol: false,
+      });
+      if (o.brow) {
+        const bw = o.browW || r * 1.3,
+          bt = o.browT || r * 0.28;
+        const tilt = o.browTilt === undefined ? slant * 1.1 : o.browTilt;
+        R.add(G.capsule(bt, bw, 4, 1), nm + ":brow", { p: T(sx * gap, r * (o.browY || 1.28), r * 0.5), r: [-up, 0, Math.PI / 2 + (sx || 1) * tilt], ro: "XZY", c: o.brow, cls: CLS.satin, ol: false });
+      }
+    });
+    R.meta.eyes.push({ lids: nm + ":lids", pup: nm + ":pup", brow: nm + ":brow", rest: (o.rest === undefined ? -0.35 : o.rest) - up, off: r * 0.26, r, cu, su });
+  };
+  function eyeCtl(lids, pup, brow, d, rng) {
+    const st = { open: 0, openT: 0, blinkT: 0, next: 1 + rng() * 3, sac: 0, lx: 0, ly: 0, fx: null, fy: 0, px: 0, py: 0 };
+    const p0 = pup.userData.rest,
+      b0 = brow.userData.rest;
+    return {
+      look(x, y) {
+        st.fx = x;
+        st.fy = y || 0;
+      },
+      setOpen(v) {
+        st.openT = v;
+      },
+      blink() {
+        st.blinkT = 0.14;
+      },
+      update(dt) {
+        st.next -= dt;
+        if (st.next <= 0) {
+          st.blinkT = 0.14;
+          st.next = 1.8 + rng() * 4.2;
+        }
+        let bl = 0;
+        if (st.blinkT > 0) {
+          st.blinkT -= dt;
+          bl = bump(1 - st.blinkT / 0.14);
+        }
+        st.open = damp(st.open, st.openT, 12, dt);
+        const op = st.open;
+        let ang = d.rest - (op > 0 ? op * 0.9 : op * 0.62);
+        ang = lerp(ang, 1.5, bl);
+        lids.rotation.x = ang;
+        st.sac -= dt;
+        if (st.sac <= 0) {
+          st.lx = (rng() - 0.5) * 1.5;
+          st.ly = (rng() - 0.5) * 0.8;
+          st.sac = 0.6 + rng() * 2.2;
+        }
+        const tx = st.fx === null ? st.lx : st.fx,
+          ty = st.fx === null ? st.ly : st.fy;
+        st.px = damp(st.px, tx, 16, dt);
+        st.py = damp(st.py, ty, 16, dt);
+        const oy = clamp(st.py, -1, 1) * d.off;
+        pup.position.set(p0.x + clamp(st.px, -1, 1) * d.off, p0.y + oy * d.cu, p0.z - oy * d.su);
+        brow.position.set(b0.x, b0.y + op * d.r * 0.22 * d.cu, b0.z - op * d.r * 0.22 * d.su);
+      },
+    };
+  }
+
+  /* ---- fanion (niveau lisible de haut) ---- */
+  /**
+   * Mât planté + drapeau en deux panneaux qui flottent + étoiles d'or.
+   * o = { bone (parent, "root" par défaut), p:[x,y,z] (pied du mât, relatif à l'os), h (hauteur), color,
+   *       trim (bordure), stars (0..3), len, tall, name, dir (orientation du drapeau, rad), tail ("swallow"|"point") }
+   */
+  K.ctPennant = function (R, o) {
+    const bone = o.bone || "root";
+    const [x, y, z] = o.p;
+    const h = o.h || 1.6,
+      L = o.len || 0.62,
+      T = o.tall || 0.4,
+      nm = o.name || "flag";
+    R.add(G.cyl(0.032, 0.045, h, 6), bone, { p: [x, y + h / 2, z], c: o.pole || "#6d4a2a", pat: PAT.wood, uv: [0.3, 2], ol: true });
+    R.add(G.sphere(0.075, 8, 5), bone, { p: [x, y + h + 0.04, z], c: "#ffcf3a", cls: CLS.gold, ol: true });
+    const fy = y + h - T / 2 - 0.05;
+    R.bone(nm, bone, [x, fy, z]);
+    R.bone(nm + "2", nm, [L * 0.5, 0, 0]);
+    const d = 0.03;
+    const half = L * 0.5;
+    const s1 = [
+      [0, -T / 2],
+      [half + 0.01, -T / 2],
+      [half + 0.01, T / 2],
+      [0, T / 2],
+    ];
+    const s2 =
+      o.tail === "point"
+        ? [
+            [-0.01, -T / 2],
+            [half, -0.02],
+            [half, 0.02],
+            [-0.01, T / 2],
+          ]
+        : [
+            [-0.01, -T / 2],
+            [half, -T / 2 - 0.04],
+            [half - 0.14, 0],
+            [half, T / 2 + 0.04],
+            [-0.01, T / 2],
+          ];
+    const key = "flag:" + L + ":" + T + ":" + (o.tail || "s");
+    R.add(G.extrude(key + ":1", s1, d, 0), nm, { c: o.color || "#c8322a", cls: CLS.satin, ol: true });
+    R.add(G.extrude(key + ":2", s2, d, 0), nm + "2", { c: o.color || "#c8322a", cls: CLS.satin, ol: true });
+    if (o.trim) {
+      R.add(G.box(half + 0.02, 0.05, d + 0.012), nm, { p: [half / 2, T / 2 - 0.025, 0], c: o.trim, cls: CLS.satin, ol: false });
+      R.add(G.box(half + 0.02, 0.05, d + 0.012), nm, { p: [half / 2, -T / 2 + 0.025, 0], c: o.trim, cls: CLS.satin, ol: false });
+    }
+    const n = o.stars || 0;
+    const sr = Math.min(0.12, T * 0.3);
+    for (let i = 0; i < n; i++) {
+      // étoiles réparties sur la longueur, sur les deux faces
+      const u = n === 1 ? 0.3 : 0.14 + (i / (n - 1)) * 0.46;
+      const sx = u * L;
+      const onFirst = sx < half - 0.02;
+      const b = onFirst ? nm : nm + "2";
+      const lx = onFirst ? sx : sx - half;
+      const yy = n === 3 && i === 1 ? 0.03 : 0;
+      for (const sz of [-1, 1])
+        R.add(G.star(5, sr, sr * 0.45, 0.022), b, { p: [lx, yy, sz * (d / 2 + 0.008)], c: "#ffd23a", cls: CLS.gold, ol: false });
+    }
+    const dir = o.dir || 0;
+    R.sway(nm, "y", dir, 0.22, 2.3, 0);
+    R.sway(nm + "2", "y", 0, 0.38, 2.3, -1.1);
+    R.sway(nm, "z", 0, 0.04, 3.1, 0.4);
+  };
+
+  /* ---- coque commune des tours v3 ---- */
+  const CT = (K.ct = {});
+  /**
+   * Enregistre une famille. def = {
+   *   variant(niveau, spé, opts) → { key, author(R), pose(st, B, dt), muzzle: [os, [x, y, z]], release (s),
+   *     dur (s), ring (rayon de l'anneau de sélection), height, footprint, turn (rad/s), extras(root, inst, st) },
+   *   info(niveau, spé) → { height, footprint } (sans construire) }
+   */
+  K.defCt = (family, def) => {
+    CT[family] = def;
+  };
+  let ctSeed = 1;
+  const _wp = new THREE.Vector3();
+  const normLevel = (level, spec) => {
+    level = clamp(level | 0 || 1, 1, 7);
+    return [level, level >= 4 ? (spec === "B" ? "B" : "A") : null];
+  };
+
+  function ctShell(family, level, spec, v) {
+    const tpl = K.ctTemplate(v.key, v.author);
+    const inst = K.ctInstance(tpl);
+    const B = inst.bone;
     const root = new THREE.Group();
-    root.name = "ptmt-tower-" + key;
-    const popNode = K.node(root, 0, 0, 0, "pop");
-    const yawNode = K.node(popNode, 0, 0, 0, "yaw");
-    const seed = towerSeed++;
-    const rng = PTMT.rng(seed * 7919 + 17);
+    root.name = "ptmt-tour-" + v.key;
+    root.add(inst.mesh);
+    const rng = PTMT.rng(ctSeed++ * 7919 + 31);
+    const D = PTMT.sim && PTMT.sim.DATA;
+    const data = D && D.towerLevel ? D.towerLevel(family, level, spec) : null;
+    const rate = data && data.rate ? data.rate : 1;
+    const R0 = v.release || 0.2;
+    const D0 = Math.max(R0 + 0.18, Math.min(v.dur || 0.8, 0.95 / rate));
+    const muzzle = new THREE.Object3D();
+    muzzle.name = "bouche";
+    muzzle.position.fromArray(v.muzzle[1]);
+    B[v.muzzle[0]].add(muzzle);
+    const eyes = tpl.meta.eyes.map((d) => eyeCtl(B[d.lids], B[d.pup], B[d.brow], d, rng));
+    const sway = tpl.meta.sway;
+    const ringR = v.ring || 1.5;
+    const height = v.height || tpl.meta.top;
+    let sel = null,
+      aura = null;
+    const yawRest = B.yaw ? B.yaw.userData.rest : null;
     const st = {
-      t: rng() * 10,
-      phase: rng() * TAU,
+      t: rng() * 20,
+      dt: 0,
+      time: 0,
+      rng,
       yaw: 0,
       yawT: 0,
+      turn: 0,
+      ae: -1,
       w: 0,
-      winding: false,
-      windHold: 0,
-      fire: 0,
-      pulse: 0,
-      flash: 0,
-      recoil: new Spring(320, 17),
-      pop: new Spring(170, 8.5, 1),
-      frenzy: 0,
-      frenzyOn: false,
+      s: 0,
+      a: 0,
+      shots: 0,
+      fr: 0,
+      frOn: false,
       sel: 0,
       selOn: false,
-      fireCount: 0,
-      pulseCount: 0,
-      sinceFire: 9,
-      sinceUp: 9,
-      fidget: 0,
-      nextFidget: 3 + rng() * 5,
-      rng,
+      cj: 9,
+      jump: 0,
+      squash: 0,
+      fid: 0,
+      fidK: 0,
+      nextFid: 2.5 + rng() * 4,
+      sinceAtk: 9,
+      eyeOpen: 0,
+      look: null,
+      lookY: 0,
+      level,
+      spec,
+      release: R0,
+      dur: D0,
+      phase: rng() * TAU,
     };
-    const owned = [];
-    const faces = [];
-    const muzzles = [];
-    const ctx = {
-      key,
-      family,
-      tier,
-      branch,
-      root: popNode,
-      yaw: yawNode,
-      st,
-      rng,
-      fam,
-      /** Matière propre à l'instance (lueurs animées) ; libérée par dispose(). */
-      inst(name) {
-        const m = K.mat(name).clone();
-        owned.push(m);
-        return m;
-      },
-      face(parent, o) {
-        const f = K.face(parent, o);
-        faces.push(f);
-        return f;
-      },
-      muzzle(parent, x, y, z) {
-        const m = new THREE.Object3D();
-        m.position.set(x, y, z);
-        parent.add(m);
-        muzzles.push(m);
-        return m;
-      },
-    };
-    const rig = def.build(ctx);
-    // Hauteur (une fois par variante).
-    if (def._height === undefined) def._height = Math.round(K.solidTop(popNode) * 100) / 100;
-    const halo = FX.halo(fam.halo, def.haloR || fam.haloR);
-    root.add(halo);
-    const ringR = def.ringR || 1.45;
-    const sel = FX.selRing(ringR);
-    root.add(sel);
-    const aura = FX.aura(ringR * 0.95, Math.max(1.2, def._height * 0.8));
-    root.add(aura.group);
-    // Onde d'évolution (matière propre : fondu).
-    const burstMat = K.mat("sel").clone();
-    owned.push(burstMat);
-    burstMat.color.copy(col(fam.burst));
-    const bp = K.part("burst");
-    bp.add(G.ring(0.7, 1.0, 32, 10), "sel", {});
-    const burst = bp.build({ mats: { sel: burstMat } });
-    burst.position.y = 0.08;
-    burst.visible = false;
-    root.add(burst);
-    if (!muzzles.length) ctx.muzzle(yawNode, 0, def._height * 0.8, 0.5);
-
+    const extra = v.extras ? v.extras(root, inst, st) : null;
     const api = {
       object: root,
-      height: def._height,
+      height,
+      footprint: v.footprint || 1.5,
+      muzzle,
       family,
-      tier,
-      branch,
+      level,
+      spec,
+      bones: B,
+      /** yaw monde (0 = vers +Z) : la bête pivote en douceur, le socle reste fixe. */
       aim(yaw) {
         st.yawT = yaw;
       },
+      /** Déclenche l'attaque ; renvoie le délai (s) avant le départ du projectile. */
+      attack() {
+        const F = 1 + 0.8 * st.fr;
+        st.ae = 0;
+        st.shots++;
+        st.sinceAtk = 0;
+        st.fid = 0;
+        if (v.onAttack) v.onAttack(st, B);
+        return R0 / F;
+      },
       update(dt, time) {
+        if (!(dt > 0)) dt = 0;
         if (dt > 0.1) dt = 0.1;
-        if (dt < 0) dt = 0;
+        TOON.time.value = time;
         K.tick(time);
-        st.frenzy = damp(st.frenzy, st.frenzyOn ? 1 : 0, 5, dt);
-        const ts = 1 + st.frenzy * 0.9;
-        st.t += dt * ts;
-        st.yaw = angleTo(st.yaw, st.yawT, (6 + st.frenzy * 3) * dt);
-        yawNode.rotation.y = st.yaw;
-        if (st.winding) {
-          st.w = Math.min(1, st.w + (dt * ts) / (def.windup || 0.3));
-          st.windHold += dt;
-          if (st.windHold > 1.8) st.winding = false;
-        } else st.w = Math.max(0, st.w - dt * 5);
-        st.fire = Math.max(0, st.fire - dt / (def.fireDur || 0.7));
-        st.pulse = Math.max(0, st.pulse - dt / (def.pulseDur || 0.3));
-        st.flash *= Math.exp(-6 * dt);
-        st.sinceFire += dt;
-        st.sinceUp += dt;
-        st.recoil.step(dt);
-        st.pop.step(dt);
-        // Petite manie d'inactivité (grogne, tressaute) de temps en temps.
-        st.nextFidget -= dt;
-        if (st.nextFidget <= 0) {
-          st.fidget = 1;
-          st.nextFidget = 4 + rng() * 6;
+        st.time = time;
+        st.fr = damp(st.fr, st.frOn ? 1 : 0, 6, dt);
+        const F = 1 + 0.8 * st.fr;
+        const sdt = dt * F;
+        st.dt = sdt;
+        st.t += sdt;
+        // Attaque : élan (w) jusqu'au départ du projectile, puis détente (s) qui retombe.
+        if (st.ae >= 0) {
+          st.ae += sdt;
+          const e = st.ae;
+          if (e < R0) {
+            st.w = smooth(0, R0, e);
+            st.s = 0;
+          } else {
+            st.w = 1 - smooth(R0, R0 + 0.09, e);
+            const k = (e - R0) / (D0 - R0);
+            st.s = k < 0.16 ? k / 0.16 : 1 - smooth(0.16, 1, k);
+          }
+          st.a = Math.min(1, e / D0);
+          if (e >= D0) {
+            st.ae = -1;
+            st.w = st.s = st.a = 0;
+          }
         }
-        st.fidget = Math.max(0, st.fidget - dt / 0.9);
-        const p = st.pop.x;
-        popNode.scale.set(1 + (1 - p) * 0.55, p, 1 + (1 - p) * 0.55);
-        rig.pose(st, dt, time);
-        for (let i = 0; i < faces.length; i++) faces[i].update(dt * ts);
-        const hs = (def.haloR || fam.haloR) * (1 + st.w * 0.18 + st.flash * 0.3 + st.frenzy * 0.1 + Math.sin(st.t * 2.1) * 0.03);
-        halo.scale.set(hs, 1, hs);
+        st.sinceAtk += dt;
+        // Visée lissée.
+        const prev = st.yaw;
+        st.yaw = angleTo(st.yaw, st.yawT, (v.turn || 6.5) * (1 + 0.6 * st.fr) * dt);
+        st.turn = dt > 0 ? damp(st.turn, (st.yaw - prev) / dt, 10, dt) : st.turn;
+        // Célébration : saut, écrasement à l'atterrissage.
+        st.jump = 0;
+        st.squash = 0;
+        if (st.cj < 1.2) {
+          st.cj += dt;
+          const k = st.cj / 0.55;
+          if (k < 1) {
+            st.jump = 4 * (v.jumpH || 0.5) * k * (1 - k);
+            st.squash = k < 0.12 ? (0.12 - k) * 6 : -Math.sin(k * Math.PI) * 0.25;
+          } else {
+            const q = (st.cj - 0.55) / 0.5;
+            st.squash = q < 1 ? Math.sin(q * Math.PI * 2) * Math.exp(-q * 3) * 0.9 : 0;
+          }
+        }
+        if (B.yaw) {
+          B.yaw.rotation.y = st.yaw;
+          B.yaw.position.y = yawRest.y + st.jump;
+          const q = st.squash;
+          B.yaw.scale.set(1 + q * 0.14, 1 - q * 0.2, 1 + q * 0.14);
+        }
+        // Manies d'inactivité (grogne, s'ébroue, se lèche…).
+        if (st.sinceAtk > 2.2 && st.ae < 0) {
+          st.nextFid -= dt;
+          if (st.nextFid <= 0) {
+            st.fid = 1;
+            st.fidK = (rng() * 3) | 0;
+            st.nextFid = 3.5 + rng() * 6;
+          }
+        }
+        st.fid = Math.max(0, st.fid - dt / (v.fidDur || 1.3));
+        // Balancements secondaires.
+        for (let i = 0; i < sway.length; i++) {
+          const s = sway[i];
+          B[s.bone].rotation[s.ax] = s.base + s.amp * Math.sin(st.t * s.f + s.ph + st.phase);
+        }
+        st.eyeOpen = 0;
+        st.look = null;
+        st.lookY = 0;
+        v.pose(st, B, dt);
+        for (let i = 0; i < eyes.length; i++) {
+          const e = eyes[i];
+          e.setOpen(st.eyeOpen);
+          e.look(st.look, st.lookY);
+          e.update(sdt);
+        }
+        // Anneau de sélection et aura de Frénésie (créés à la demande).
         st.sel = damp(st.sel, st.selOn ? 1 : 0, 10, dt);
-        sel.visible = st.sel > 0.02;
-        if (sel.visible) {
-          const s = ringR * (0.94 + 0.06 * st.sel + Math.sin(time * 4) * 0.015);
-          sel.scale.set(s, 1, s);
-          sel.rotation.y = time * 0.35;
+        if (st.selOn && !sel) {
+          sel = K.fx.selRing(ringR);
+          root.add(sel);
         }
-        aura.group.visible = st.frenzy > 0.03;
-        if (aura.group.visible) {
-          aura.ring.rotation.y = -time * 2.4;
-          const s = ringR * 0.95 * (0.7 + 0.3 * st.frenzy);
-          aura.group.scale.set(s, st.frenzy, s);
+        if (sel) {
+          sel.visible = st.sel > 0.02;
+          if (sel.visible) {
+            const s = ringR * (0.94 + 0.06 * st.sel + Math.sin(time * 4) * 0.015);
+            sel.scale.set(s, 1, s);
+            sel.rotation.y = time * 0.35;
+          }
         }
-        if (st.sinceUp < 0.8) {
-          burst.visible = true;
-          const k = st.sinceUp / 0.8;
-          const s = 0.5 + easeOut(k) * 2.6;
-          burst.scale.set(s, 1, s);
-          burstMat.opacity = 1 - k;
-        } else burst.visible = false;
-      },
-      trigger(kind) {
-        switch (kind) {
-          case "windup":
-            st.winding = true;
-            st.windHold = 0;
-            break;
-          case "fire":
-            st.winding = false;
-            st.fire = 1;
-            st.flash = 1;
-            st.fireCount++;
-            st.sinceFire = 0;
-            st.recoil.kick(-(def.recoil || 3.2));
-            break;
-          case "pulse":
-            st.pulse = 1;
-            st.flash = Math.max(st.flash, 0.65);
-            st.pulseCount++;
-            st.recoil.kick(-(def.recoil || 3.2) * 0.35);
-            break;
-          case "upgrade":
-            st.pop.set(0.45, 0);
-            st.sinceUp = 0;
-            st.flash = 1;
-            break;
+        if (st.frOn && !aura) {
+          aura = K.fx.aura(ringR * 0.95, Math.max(1.4, height * 0.75));
+          root.add(aura.group);
         }
-        if (rig.trigger) rig.trigger(kind, st);
-      },
-      muzzle(i, out) {
-        const m = muzzles[i] || muzzles[0];
-        return m.getWorldPosition(out);
+        if (aura) {
+          aura.group.visible = st.fr > 0.03;
+          if (aura.group.visible) {
+            aura.ring.rotation.y = -time * 2.4;
+            const s = ringR * 0.95 * (0.7 + 0.3 * st.fr);
+            aura.group.scale.set(s, st.fr, s);
+          }
+        }
+        if (extra && extra.update) extra.update(st, dt, time);
       },
       setSelected(b) {
         st.selOn = !!b;
       },
       setFrenzy(b) {
-        st.frenzyOn = !!b;
+        st.frOn = !!b;
+      },
+      /** Montée de niveau : saut, écrasement et colonne d'étincelles (si les effets sont prêts). */
+      celebrate(o) {
+        st.cj = 0;
+        if (o && o.fx === false) return;
+        const FX = PTMT.fx;
+        if (FX && FX._ && FX._.S && FX.burst) {
+          root.getWorldPosition(_wp);
+          FX.burst("levelUp", _wp, { height });
+        }
+      },
+      /** Statistiques (triangles, os, lueurs) du gabarit. */
+      stats() {
+        return tpl.stats;
       },
       dispose() {
         if (root.parent) root.parent.remove(root);
-        for (const m of owned) m.dispose();
-        owned.length = 0;
+        inst.mesh.skeleton.dispose();
+        if (extra && extra.dispose) extra.dispose();
       },
     };
     return api;
   }
 
-  PTMT.models.tower = function (family, tier, branch) {
-    tier = clamp(tier | 0 || 1, 1, 3);
-    const b = tier === 1 ? null : branch === "B" ? "B" : "A";
-    const key = family + tier + (b || "");
-    const def = TOWERS[key];
-    if (!def) throw new Error("PTMT : tour inconnue " + key);
-    return towerShell(key, family, tier, b, def);
+  /** Tour v3 : famille "boar" | "swan" | "dog", niveau 1..7, spécialisation null (1-3) | "A" | "B" (4-7). */
+  PTMT.models.ctTower = function (family, level, spec, opts) {
+    const def = CT[family];
+    if (!def) throw new Error("PTMT : famille de tour inconnue " + family);
+    [level, spec] = normLevel(level, spec);
+    return ctShell(family, level, spec, def.variant(level, spec, opts || {}));
+  };
+  /** Hauteur (m) et rayon d'emprise (m) d'une tour, sans la construire quand la famille les connaît. */
+  PTMT.models.ctTowerInfo = function (family, level, spec) {
+    const def = CT[family];
+    if (!def) return null;
+    [level, spec] = normLevel(level, spec);
+    const known = def.info && def.info(level, spec);
+    if (known) return known;
+    const v = def.variant(level, spec, {});
+    const tpl = K.ctTemplate(v.key, v.author);
+    return { height: v.height || tpl.meta.top, footprint: v.footprint || 1.5 };
   };
 })();

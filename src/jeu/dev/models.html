@@ -3,29 +3,28 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<title>Pas touche à mes trésors · galerie des modèles</title>
+<title>Pas touche à mes trésors · galerie des tours</title>
 <style>
   html, body { margin: 0; height: 100%; overflow: hidden; background: #9dbbdc; font: 13px/1.3 system-ui, -apple-system, "Segoe UI", sans-serif; color: #1d2a1a; }
   canvas { display: block; touch-action: none; }
-  #ui { position: fixed; left: 8px; top: 8px; max-width: min(560px, calc(100vw - 16px)); display: flex; flex-direction: column; gap: 6px; z-index: 5; }
+  #ui { position: fixed; left: 8px; top: 8px; max-width: min(620px, calc(100vw - 16px)); display: flex; flex-direction: column; gap: 5px; z-index: 5; }
   #ui .row { display: flex; flex-wrap: wrap; gap: 4px; align-items: center; }
   #ui button { font: inherit; border: 0; border-radius: 9px; padding: 5px 9px; background: #fff7e6; color: #3b2a14; box-shadow: 0 2px 0 #c9a86a, 0 3px 8px rgba(0,0,0,.18); cursor: pointer; }
   #ui button[aria-pressed="true"] { background: #7fae4b; color: #fff; box-shadow: 0 2px 0 #4f7a26, 0 3px 8px rgba(0,0,0,.2); }
   #ui .title { font-weight: 700; color: #fff; text-shadow: 0 1px 3px rgba(0,0,0,.55); margin-right: 6px; }
   #ui.hidden .row:not(:first-child) { display: none; }
   #stats { position: fixed; right: 8px; bottom: 8px; color: #fff; text-shadow: 0 1px 2px #000; font: 11px/1.35 ui-monospace, monospace; text-align: right; white-space: pre; pointer-events: none; }
-  .lbl { position: fixed; left: 0; top: 0; transform: translate(-50%, -100%); color: #fff; text-shadow: 0 1px 2px rgba(0,0,0,.85), 0 0 6px rgba(0,0,0,.4); font-weight: 650; font-size: 11px; white-space: nowrap; pointer-events: none; will-change: transform; }
-  .lbl small { display: block; font-weight: 500; opacity: .85; text-align: center; }
+  .lbl { position: fixed; left: 0; top: 0; transform: translate(-50%, -100%); color: #fff; text-shadow: 0 1px 2px rgba(0,0,0,.85), 0 0 6px rgba(0,0,0,.4); font-weight: 650; font-size: 11px; white-space: nowrap; pointer-events: none; will-change: transform; text-align: center; }
+  .lbl small { display: block; font-weight: 500; opacity: .85; }
   body.nolabels .lbl { display: none; }
 </style>
 </head>
 <body>
 <div id="ui">
-  <div class="row"><span class="title">Pas touche à mes trésors · modèles</span><button data-k="h" title="Masquer/afficher (H)">☰</button></div>
+  <div class="row"><span class="title">Pas touche à mes trésors · tours</span><button data-k="h" title="Masquer/afficher (H)">☰</button></div>
   <div class="row" id="sections"></div>
-  <div class="row"><button data-k="w">Élan (W)</button><button data-k="f">Tir (F)</button><button data-k="p">Pulsation (P)</button><button data-k="u">Évolution (U)</button><button data-k="n">Palier suivant (N)</button><button data-k="a" data-toggle="auto">Attaque auto (A)</button></div>
-  <div class="row"><button data-k="s" data-toggle="sel">Sélection (S)</button><button data-k="z" data-toggle="frenzy">Frénésie (Z)</button><button data-k="y" data-toggle="sweep">Visée tournante (Y)</button><button data-k="t">Déclencher pièges (T)</button><button data-k="r" data-toggle="unready">Pièges en recharge (R)</button></div>
-  <div class="row"><button data-k="o">Ouvrir coffres (O)</button><button data-k="k">Stock (K)</button><button data-k="l" data-toggle="alarm">Alarme (L)</button><button data-k="c">États des socles (C)</button><button data-k="v">Vue (V)</button><button data-k="b" data-toggle="labels">Étiquettes (B)</button></div>
+  <div class="row"><button data-k="f">Tir (F)</button><button data-k="p">Projectiles (P)</button><button data-k="a" data-toggle="auto">Tir auto (A)</button><button data-k="y" data-toggle="sweep">Visée tournante (Y)</button><button data-k="t" data-toggle="track">Suivre les cibles (T)</button></div>
+  <div class="row"><button data-k="z" data-toggle="frenzy">Frénésie (Z)</button><button data-k="s" data-toggle="sel">Sélection (S)</button><button data-k="u">Montée de niveau (U)</button><button data-k="n">Niveau suivant (N)</button><button data-k="v">Vue (V)</button><button data-k="b" data-toggle="labels">Étiquettes (B)</button></div>
 </div>
 <div id="stats"></div>
 <script>
@@ -34,16 +33,18 @@
   const q = new URLSearchParams(location.search);
   const files = [
     "../../static/assets/engine-0.40e246fcf208.js",
+    "../vendor/BufferGeometryUtils.js",
     "../core/00-ptmt.js",
+    "../sim/00-data.js",
     "../models/10-kit.js",
-    "../models/20-towers-fire.js",
-    "../models/21-towers-ice.js",
-    "../models/22-towers-water.js",
-    "../models/30-traps.js",
-    "../models/31-sockets.js",
-    "../models/40-chests.js",
-    "../models/50-buildings.js",
-    "../models/60-mill-upgrades.js",
+    "../models/20-boar.js",
+    "../models/21-swan.js",
+    "../models/22-dog.js",
+    "../fx/05-kit.js",
+    "../fx/10-fx.js",
+    "../fx/11-areas.js",
+    "../fx/12-props.js",
+    "../fx/13-shots.js",
   ];
   (function load(i) {
     if (i >= files.length) return start();
@@ -55,147 +56,105 @@
   })(0);
 
   function start() {
-    const PTMT = globalThis.PTMT, M = PTMT.models, K = M.kit;
+    const PTMT = globalThis.PTMT, M = PTMT.models, K = M.kit, DATA = PTMT.sim && PTMT.sim.DATA;
+    const TILE = 3.6;
     const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: "high-performance" });
     renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
     renderer.setSize(innerWidth, innerHeight);
     renderer.outputEncoding = THREE.sRGBEncoding;
     renderer.toneMapping = THREE.ACESFilmicToneMapping;
-    renderer.toneMappingExposure = 1.05;
+    renderer.toneMappingExposure = 0.95;
     renderer.shadowMap.enabled = true;
     renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     document.body.appendChild(renderer.domElement);
 
     const scene = new THREE.Scene();
-    scene.background = PTMT.color("#a8c8ea");
-    scene.fog = new THREE.Fog(PTMT.color("#b8d2ec"), 90, 260);
-    const camera = new THREE.PerspectiveCamera(40, innerWidth / innerHeight, 0.1, 600);
-    const hemi = new THREE.HemisphereLight(0xbcd6ff, 0x5b6b3a, 0.85);
+    scene.background = PTMT.color("#a9cbe3");
+    const hemi = new THREE.HemisphereLight(PTMT.color("#cfe3ff"), PTMT.color("#5b6b3a"), 0.62);
     scene.add(hemi);
-    const sun = new THREE.DirectionalLight(0xfff2e2, 2.1);
+    const sun = new THREE.DirectionalLight(PTMT.color("#fff1d6"), 1.75);
     sun.castShadow = true;
     sun.shadow.mapSize.set(2048, 2048);
-    sun.shadow.bias = -0.00016;
-    sun.shadow.normalBias = 0.035;
-    sun.shadow.radius = 3;
+    sun.shadow.bias = -0.0004;
+    sun.shadow.normalBias = 0.04;
     scene.add(sun, sun.target);
-    // Environnement de reflets (même principe que la scène du moulin : dégradé ciel / sol).
-    if (q.get("env") !== "0") {
-      const W = 256, H = 128, px = new Uint8Array(W * H * 4);
-      for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
-        const r = y / (H - 1), s = Math.min(1, Math.abs(r - 0.5) * 2);
-        const a = r < 0.5 ? [194, 210, 210] : [124, 139, 112], b = r < 0.5 ? [128, 165, 185] : [70, 84, 62];
-        for (let k = 0; k < 3; k++) px[(y * W + x) * 4 + k] = a[k] * (1 - s) + b[k] * s;
-        px[(y * W + x) * 4 + 3] = 255;
-      }
-      const et = new THREE.DataTexture(px, W, H, THREE.RGBAFormat);
-      et.encoding = THREE.sRGBEncoding; et.mapping = THREE.EquirectangularReflectionMapping; et.needsUpdate = true;
-      const pm = new THREE.PMREMGenerator(renderer);
-      scene.environment = pm.fromEquirectangular(et).texture;
-      pm.dispose();
-    }
 
-    // Sol herbeux (texture de la galerie uniquement).
-    const gcv = document.createElement("canvas");
-    gcv.width = gcv.height = 256;
-    const gg = gcv.getContext("2d");
-    const img = gg.createImageData(256, 256);
+    // Cases de terrain factices (herbe, eau, roche, chemin) : repères d'échelle.
+    function canvasTex(draw, rep) {
+      const c = document.createElement("canvas"); c.width = c.height = 256;
+      draw(c.getContext("2d"));
+      const t = new THREE.CanvasTexture(c); t.encoding = THREE.sRGBEncoding; t.wrapS = t.wrapT = THREE.RepeatWrapping; t.anisotropy = 4;
+      if (rep) t.repeat.set(rep, rep);
+      return t;
+    }
     const nz = K.noise;
-    for (let y = 0; y < 256; y++) for (let x = 0; x < 256; x++) {
-      const n = nz.fbm(x / 256, y / 256, 4, 3, 4), h = nz.hash2(x, y, 7);
-      const i = (y * 256 + x) * 4;
-      img.data[i] = 58 + n * 34 + h * 14; img.data[i + 1] = 88 + n * 40 + h * 18; img.data[i + 2] = 34 + n * 14; img.data[i + 3] = 255;
+    function noisy(g, base, amp, seed) {
+      const img = g.createImageData(256, 256);
+      for (let y = 0; y < 256; y++) for (let x = 0; x < 256; x++) {
+        const n = nz.fbm(x / 256, y / 256, 4, seed, 4), h = nz.hash2(x, y, seed + 3);
+        const i = (y * 256 + x) * 4;
+        for (let k = 0; k < 3; k++) img.data[i + k] = Math.max(0, Math.min(255, base[k] + (n - 0.5) * amp[k] + (h - 0.5) * amp[k] * 0.4));
+        img.data[i + 3] = 255;
+      }
+      g.putImageData(img, 0, 0);
     }
-    gg.putImageData(img, 0, 0);
-    const gtex = new THREE.CanvasTexture(gcv);
-    gtex.encoding = THREE.sRGBEncoding; gtex.wrapS = gtex.wrapT = THREE.RepeatWrapping; gtex.repeat.set(90, 90); gtex.anisotropy = 8;
-    const ground = new THREE.Mesh(new THREE.PlaneGeometry(500, 500), new THREE.MeshStandardMaterial({ map: gtex, roughness: 0.95 }));
-    ground.rotation.x = -Math.PI / 2;
-    ground.receiveShadow = true;
-    scene.add(ground);
+    const TEX = {
+      grass: canvasTex((g) => noisy(g, [96, 150, 58], [60, 70, 40], 3)),
+      road: canvasTex((g) => noisy(g, [196, 164, 112], [50, 44, 36], 5)),
+      rock: canvasTex((g) => { noisy(g, [132, 124, 118], [60, 56, 54], 9); g.strokeStyle = "#ff8a2a"; g.lineWidth = 2; for (let i = 0; i < 7; i++) { g.beginPath(); let x = Math.random() * 256, y = Math.random() * 256; g.moveTo(x, y); for (let k = 0; k < 5; k++) { x += (Math.random() - 0.5) * 50; y += (Math.random() - 0.5) * 50; g.lineTo(x, y); } g.stroke(); } }),
+      water: canvasTex((g) => noisy(g, [46, 132, 170], [30, 40, 40], 13)),
+    };
+    const MAT = {
+      grass: new THREE.MeshStandardMaterial({ map: TEX.grass, roughness: 0.95 }),
+      road: new THREE.MeshStandardMaterial({ map: TEX.road, roughness: 0.95 }),
+      rock: new THREE.MeshStandardMaterial({ map: TEX.rock, roughness: 0.9 }),
+      water: new THREE.MeshStandardMaterial({ map: TEX.water, roughness: 0.12, metalness: 0.1, transparent: true, opacity: 0.88 }),
+      bed: new THREE.MeshStandardMaterial({ color: PTMT.color("#4a5a3a"), roughness: 1 }),
+      cliff: new THREE.MeshStandardMaterial({ color: PTMT.color("#8a7458"), roughness: 1 }),
+    };
+    const TERRAIN = { boar: "grass", swan: "water", dog: "rock" };
+    const TOP = { road: 0, grass: 0.45, rock: 0.45, water: -0.25, high: 1.3 };
+    /** Une case (i, j) de terrain à la position (x, z) ; renvoie la hauteur du dessus. */
+    function tile(parent, kind, x, z, base) {
+      base = base === undefined ? -0.6 : base;
+      const top = TOP[kind];
+      if (kind === "water") {
+        const bed = new THREE.Mesh(new THREE.BoxGeometry(TILE, 0.1, TILE), MAT.bed);
+        bed.position.set(x, -0.9, z); bed.receiveShadow = true; parent.add(bed);
+        const w = new THREE.Mesh(new THREE.PlaneGeometry(TILE, TILE), MAT.water);
+        w.rotation.x = -Math.PI / 2; w.position.set(x, top, z); w.receiveShadow = true; parent.add(w);
+        return top;
+      }
+      const h = top - base;
+      const m = new THREE.Mesh(new THREE.BoxGeometry(TILE, h, TILE), [MAT.cliff, MAT.cliff, MAT[kind === "high" ? "grass" : kind], MAT.cliff, MAT.cliff, MAT.cliff]);
+      m.position.set(x, base + h / 2, z); m.receiveShadow = true; m.castShadow = kind !== "road"; parent.add(m);
+      return top;
+    }
 
-    // Silhouette de référence : un voleur chibi (≈ 2,2 m, grosse tête de 0,85 m).
-    function mannequin() {
+    // Ennemi factice (échelle : ≈ 2,2 m) qui marche le long d'un chemin.
+    function dummy(color) {
       const g = new THREE.Group();
-      const m = new THREE.MeshStandardMaterial({ color: PTMT.color("#c9c2b5"), roughness: 0.8 });
-      const body = new THREE.Mesh(new THREE.CylinderGeometry(0.28, 0.33, 1.05, 14), m); body.position.y = 0.53; body.castShadow = true;
-      const head = new THREE.Mesh(new THREE.SphereGeometry(0.43, 16, 12), m); head.position.y = 1.56; head.castShadow = true;
-      const mask = new THREE.Mesh(new THREE.BoxGeometry(0.7, 0.14, 0.16), new THREE.MeshStandardMaterial({ color: 0x151515 })); mask.position.set(0, 1.62, 0.34);
-      g.add(body, head, mask);
+      const m = new THREE.MeshStandardMaterial({ color: PTMT.color(color || "#c9c2b5"), roughness: 0.7 });
+      const body = new THREE.Mesh(new THREE.CylinderGeometry(0.3, 0.36, 1.1, 12), m); body.position.y = 0.6; body.castShadow = true;
+      const head = new THREE.Mesh(new THREE.SphereGeometry(0.45, 14, 10), new THREE.MeshStandardMaterial({ color: PTMT.color("#f0c8a0"), roughness: 0.7 })); head.position.y = 1.6; head.castShadow = true;
+      const hat = new THREE.Mesh(new THREE.CylinderGeometry(0.32, 0.5, 0.25, 12), m); hat.position.y = 1.95;
+      g.add(body, head, hat);
       return g;
     }
 
-    const items = [];
+    const items = []; // tours
+    const walkers = []; // cibles
+    const shots = []; // projectiles en vol
     const labels = [];
-    let sectionGroup = null;
-    const state = { auto: false, sel: false, frenzy: false, sweep: false, unready: false, alarm: false, labels: q.get("labels") !== "0", open: 0, stock: 3, sockState: 0, time: 0 };
-    const SOCK = ["idle", "hover", "valid", "invalid"];
-    const view = { mode: q.get("view") || "aerial", yaw: +(q.get("yaw") || 0), pitch: 50, dist: 35, target: new THREE.Vector3() };
-
-    const FAM = { fire: "Feu", ice: "Glace", water: "Eau" };
-    const TNAME = {
-      fire1: "Brasier grognon", fire2A: "Souffle infernal", fire3A: "Dragon de la fournaise", fire2B: "Crache-lave", fire3B: "Volcan furieux",
-      ice1: "Obélisque givré", ice2A: "Crypte du gel", ice3A: "Trône du zéro absolu", ice2B: "Souffleur de blizzard", ice3B: "Tempête polaire",
-      water1: "Cygne grincheux", water2A: "Bélier hydraulique", water3A: "Canon tsunami", water2B: "Fontaine siphon", water3B: "Maelström glouton",
-    };
-    const VAR = [[1, null, "I"], [2, "A", "II-A"], [3, "A", "III-A"], [2, "B", "II-B"], [3, "B", "III-B"]];
-    const EVO = [[1, null], [2, "A"], [3, "A"], [1, null], [2, "B"], [3, "B"]];
-
-    /** ?solo=tower:fire:2:A | trap:net:3 | socket:ice | chest:3 | building:crypte | mill:atelier:3 */
-    function buildSolo() {
-      const a = (q.get("solo") || "").split(":");
-      let api = null, label = a.join(" ");
-      if (a[0] === "tower") api = M.tower(a[1], +a[2], a[3] || null);
-      else if (a[0] === "trap") api = M.trap(a[1], +a[2]);
-      else if (a[0] === "socket") { api = M.socket(a[1]); api.setState(a[2] || "idle"); }
-      else if (a[0] === "chest") { api = M.chest(+a[1]); api.setStock(3, 3); }
-      else if (a[0] === "building") { const b = M.building(a[1]); api = { object: b.object, height: b.height, update: b.update, dispose: b.dispose }; }
-      else if (a[0] === "mill") { const u = M.millUpgrade(a[1], +a[2], a[1] === "roue" ? { spin: 0.6 } : undefined); api = { object: u.object, height: u.height, update: u.update, dispose: u.dispose }; if (a[1] === "roue") u.object.position.y = 1.75; }
-      if (!api) return;
-      const it = place(api, 0, 0, label, null, { kind: a[0], key: a.slice(1).join("") });
-      if (a[0] === "mill" && a[1] === "roue") it.api.object.position.y = 1.75;
-      const h = Math.max(1, api.height || 2);
-      return { center: [0, h * 0.45, 0], dist: 4 + h * 2.2, close: { center: [0, h * 0.5, 0], dist: 2.6 + h * 1.7, pitch: 14 } };
-    }
-    const SECTIONS = {
-      solo: { name: "Solo", build: buildSolo },
-      tours: { name: "Tours", build: buildTowers },
-      pieges: { name: "Pièges", build: buildTraps },
-      socles: { name: "Socles", build: buildSockets },
-      coffres: { name: "Coffres", build: buildChests },
-      batiments: { name: "Bâtiments", build: buildBuildings },
-      moulin: { name: "Moulin", build: buildMill },
-      tout: { name: "Tout", build: buildAll },
-    };
-    /** Toutes les sections côte à côte (vue d'ensemble). */
-    function buildAll() {
-      const root = sectionGroup;
-      const parts = [
-        [buildTowers, 0, 0],
-        [buildTraps, 34, -6],
-        [buildSockets, 34, 9],
-        [buildChests, 55, 0],
-        [buildBuildings, 6, -30],
-        [buildMill, 58, -30],
-      ];
-      for (const [f, x, z] of parts) {
-        const g = new THREE.Group();
-        g.position.set(x, 0, z);
-        root.add(g);
-        sectionGroup = g;
-        f();
-        sectionGroup = root;
-      }
-      return { center: [26, 0, -12], dist: 95, shadow: 75, close: { center: [26, 1, -4], dist: 50, pitch: 34 } };
-    }
-    const sectionsEl = document.getElementById("sections");
-    for (const [k, s] of Object.entries(SECTIONS)) {
-      if (k === "solo") continue;
-      const b = document.createElement("button");
-      b.textContent = s.name;
-      b.dataset.section = k;
-      b.onclick = () => showSection(k);
-      sectionsEl.appendChild(b);
+    let root = null;
+    const state = { auto: q.get("auto") === "1", sel: false, frenzy: false, sweep: false, track: true, labels: q.get("labels") !== "0", time: 0 };
+    const view = { mode: q.get("view") || "jeu", yaw: +(q.get("yaw") || 0), pitch: +(q.get("pitch") || 60), px: +(q.get("px") || 46), dist: 30, target: new THREE.Vector3() };
+    const FAMS = { boar: "Sanglier", swan: "Cygne", dog: "Berger" };
+    const LEVELS = [[1, null], [2, null], [3, null], [4, "A"], [5, "A"], [6, "A"], [7, "A"], [4, "B"], [5, "B"], [6, "B"], [7, "B"]];
+    const EVO = [[1, null], [2, null], [3, null], [4, "A"], [5, "A"], [6, "A"], [7, "A"], [1, null], [2, null], [3, null], [4, "B"], [5, "B"], [6, "B"], [7, "B"]];
+    function levelName(f, lv, sp) {
+      const d = DATA && DATA.towerLevel(f, lv, sp);
+      return d ? d.name : f + " " + lv + (sp || "");
     }
 
     function addLabel(obj, text, sub, y) {
@@ -204,248 +163,288 @@
       el.innerHTML = text + (sub ? "<small>" + sub + "</small>" : "");
       document.body.appendChild(el);
       labels.push({ el, obj, y });
+      return labels[labels.length - 1];
     }
-    function place(api, x, z, label, sub, extra) {
-      api.object.position.set(x, 0, z);
-      sectionGroup.add(api.object);
-      const it = Object.assign({ api, label, x, z }, extra || {});
+    function place(family, lv, sp, x, z, y, extra) {
+      const api = M.ctTower(family, lv, sp, { terrain: extra && extra.terrain });
+      api.object.position.set(x, y, z);
+      root.add(api.object);
+      const it = Object.assign({ api, family, lv, sp, x, z, y, cd: Math.random() * 1.5 }, extra || {});
+      it.label = addLabel(api.object, levelName(family, lv, sp), (sp ? sp : "") + lv + " · " + api.height.toFixed(2) + " m", api.height + 0.45);
       items.push(it);
-      addLabel(api.object, label, sub, (api.height || 2) + 0.5);
       return it;
     }
-    function ref(x, z) {
-      const m = mannequin();
-      m.position.set(x, 0, z);
-      sectionGroup.add(m);
-      addLabel(m, "voleur", "2,2 m", 2.4);
+    function rebuild(it, lv, sp) {
+      const pos = it.api.object.position.clone();
+      it.api.dispose();
+      it.api = M.ctTower(it.family, lv, sp, { terrain: it.terrain });
+      it.api.object.position.copy(pos);
+      root.add(it.api.object);
+      it.lv = lv; it.sp = sp;
+      it.label.obj = it.api.object; it.label.y = it.api.height + 0.45;
+      it.label.el.innerHTML = levelName(it.family, lv, sp) + "<small>" + (sp || "") + lv + " · " + it.api.height.toFixed(2) + " m</small>";
+      it.api.setSelected(state.sel); it.api.setFrenzy(state.frenzy);
+      it.api.celebrate();
     }
 
-    function buildTowers() {
-      const fams = ["fire", "ice", "water"];
-      if (!M.tower) return;
-      fams.forEach((f, row) => {
-        VAR.forEach(([tier, br, nm], c) => {
-          const key = f + tier + (br || "");
-          if (!K.towers[key]) return;
-          const api = M.tower(f, tier, br);
-          place(api, (c - 2) * 5.2, (row - 1) * 5.6, FAM[f] + " " + nm, TNAME[key], { kind: "tower", key, tier, br, fam: f });
+    /** Section d'une famille : grille 4 × 3 (1-3 + évolution, A4-A7, B4-B7) le long d'un chemin avec des cibles. */
+    function buildFamily(f) {
+      const kind = TERRAIN[f];
+      const cols = [-1.5, -0.5, 0.5, 1.5].map((c) => c * (TILE + 0.9));
+      const rows = [-2 * (TILE + 0.9), -(TILE + 0.9), 0];
+      const layout = [
+        [[1, null], [2, null], [3, null], "evo"],
+        [[4, "A"], [5, "A"], [6, "A"], [7, "A"]],
+        [[4, "B"], [5, "B"], [6, "B"], [7, "B"]],
+      ];
+      layout.forEach((row, r) => row.forEach((cell, c) => {
+        const x = cols[c], z = rows[r];
+        const y = tile(root, kind, x, z) - (kind === "water" ? 0 : 0);
+        if (cell === "evo") { const it = place(f, 1, null, x, z, y, { evo: 0, terrain: kind }); it.label.el.innerHTML = "Évolution<small>N : niveau suivant</small>"; }
+        else place(f, cell[0], cell[1], x, z, y, { terrain: kind });
+      }));
+      // Chemin et cibles devant la grille.
+      for (let i = -3; i <= 3; i++) tile(root, "road", i * TILE, TILE * 1.4, -0.6);
+      for (let i = 0; i < 3; i++) walkers.push(makeWalker(-11 + i * 7.5, TILE * 1.4, 0, 1.4 + i * 0.2, ["#c8433a", "#3a7ad8", "#e0b020"][i]));
+      return { center: [0, 0.8, -1.5], width: 34 };
+    }
+    function makeWalker(x, z, y, speed, color) {
+      const d = dummy(color);
+      d.position.set(x, y, z);
+      root.add(d);
+      return { obj: d, x0: -12, x1: 12, speed, y, z, phase: Math.random() * 6 };
+    }
+    /** Toutes les familles côte à côte. */
+    function buildAll() {
+      const fams = ["boar", "swan", "dog"];
+      fams.forEach((f, r) => {
+        LEVELS.forEach(([lv, sp], c) => {
+          const x = (c - 5) * (TILE + 0.4), z = (r - 1) * (TILE + 1.6);
+          const y = tile(root, TERRAIN[f], x, z);
+          place(f, lv, sp, x, z, y, { terrain: TERRAIN[f] });
         });
       });
-      // Démonstration d'évolution (touche N).
-      fams.forEach((f, i) => {
-        if (!K.towers[f + "1"]) return;
-        const api = M.tower(f, 1, null);
-        place(api, 16.5, (i - 1) * 5.6, "Évolution " + FAM[f], "N : palier suivant", { kind: "tower", evo: 0, fam: f });
-      });
-      ref(-14.5, 0);
-      return { center: [0.8, 0, 0.5], dist: 36, close: { center: [0, 1.2, 0.8], dist: 17, pitch: 23 } };
+      for (let i = -6; i <= 6; i++) tile(root, "road", i * TILE, 2 * (TILE + 1.6) - 0.6, -0.6);
+      for (let i = 0; i < 4; i++) walkers.push(makeWalker(-20 + i * 11, 2 * (TILE + 1.6) - 0.6, 0, 1.6, ["#c8433a", "#3a7ad8", "#e0b020", "#7a4ab8"][i]));
+      walkers.forEach((w) => { w.x0 = -22; w.x1 = 22; });
+      return { center: [0, 0.8, 1], width: 48 };
     }
-    function buildTraps() {
-      if (!M.trap) return;
-      ["net", "spring", "lure"].forEach((kind, row) => {
-        for (let t = 1; t <= 3; t++) {
-          const api = M.trap(kind, t);
-          place(api, (t - 2) * 3.2, (row - 1) * 3.2, { net: "Filet", spring: "Ressort farceur", lure: "Faux coffre" }[kind] + " " + t, null, { kind: "trap", trap: kind });
-        }
-      });
-      ref(-6.2, 0);
-      return { center: [0, 0, 0], dist: 17, close: { center: [0, 0.6, 1.5], dist: 9, pitch: 26 } };
-    }
-    function buildSockets() {
-      if (!M.socket) return;
-      ["fire", "ice", "water"].forEach((kind, row) => {
-        SOCK.forEach((s, c) => {
-          const api = M.socket(kind);
-          api.setState(s);
-          place(api, (c - 1.5) * 3.2, (row - 1) * 3.2, FAM[kind], s, { kind: "socket", sock: c });
-        });
-      });
-      ref(-7.5, 0);
-      return { center: [0, 0, 0], dist: 17, close: { center: [0, 0.3, 2], dist: 9, pitch: 30 } };
-    }
-    function buildChests() {
-      if (!M.chest) return;
-      const names = ["Coffre de bois", "Coffre à trois serrures", "Coffre hurleur"];
-      for (let t = 1; t <= 3; t++) {
-        const a = M.chest(t);
-        a.setStock(3, 3);
-        place(a, (t - 2) * 3.4, -1.8, names[t - 1], "stock 3/3", { kind: "chest", tier: t, row: 0 });
-        const b = M.chest(t);
-        b.setStock(1, 3);
-        b.setOpenProgress(0.75);
-        if (t === 3) b.alarm(true);
-        place(b, (t - 2) * 3.4, 1.8, names[t - 1], t === 3 ? "ouvert + alarme" : "ouvert, stock 1/3", { kind: "chest", tier: t, row: 1 });
+    /** Petit plateau façon jeu : chemin en S, herbe, eau, roche, butte ; tours de tous niveaux. */
+    function buildBoard() {
+      const map = [
+        "....~~~~^^^^",
+        ".b.~~s~^^d^.",
+        "######~######",
+        "..b.#.~~.^^#",
+        ".b..#~s~^d^#",
+        "....#~~~^^^#",
+        "#####..######",
+      ];
+      const W = 12, H = map.length;
+      const towers = { "1,1": ["boar", 3, null], "5,1": ["swan", 2, null], "9,1": ["dog", 5, "A"], "2,3": ["boar", 7, "B"], "1,4": ["boar", 5, "A"], "6,4": ["swan", 6, "B"], "9,4": ["dog", 7, "B"] };
+      const path = [];
+      for (let j = 0; j < H; j++) for (let i = 0; i < W; i++) {
+        let ch = map[j][i] || ".";
+        const x = (i - W / 2 + 0.5) * TILE, z = (j - H / 2 + 0.5) * TILE;
+        let kind = ch === "#" ? "road" : ch === "~" || ch === "s" ? "water" : ch === "^" || ch === "d" ? "rock" : "grass";
+        const y = tile(root, kind, x, z);
+        const tw = towers[i + "," + j];
+        if (tw) place(tw[0], tw[1], tw[2], x, z, y, { terrain: kind });
       }
-      ref(-6, 0);
-      return { center: [0, 0, 0], dist: 15, close: { center: [0, 0.6, 1], dist: 8, pitch: 26 } };
+      // Chemin parcouru par les cibles (rangée 2 puis colonne 4, rangée 6, colonne 11).
+      const P = (i, j) => [(i - W / 2 + 0.5) * TILE, (j - H / 2 + 0.5) * TILE];
+      const route = [P(-1, 2), P(4, 2), P(4, 6), P(11, 6), P(11, 3), P(12, 2)];
+      for (let i = 0; i < 5; i++) {
+        const d = dummy(["#c8433a", "#3a7ad8", "#e0b020", "#7a4ab8", "#3aa860"][i]);
+        root.add(d);
+        walkers.push({ obj: d, route, s: i * 7, speed: 1.3 + i * 0.1, y: 0 });
+      }
+      return { center: [0, 0, 0], width: W * TILE + 2 };
     }
-    function buildBuildings() {
-      if (!M.building) return;
-      const kinds = [["grange", "Grange"], ["cabane", "Cabane du sorcier"], ["pilotis", "Entrepôt sur pilotis"], ["sanctuaire", "Sanctuaire de l'île"], ["crypte", "Crypte"]];
-      kinds.forEach(([k, n], i) => {
-        const b = M.building(k);
-        const x = (i % 3 - 1) * 13, z = i < 3 ? -7 : 7;
-        const api = { object: b.object, height: 7, update: b.update, dispose: b.dispose, info: b };
-        place(api, i < 3 ? x : x + 6.5, z, n, null, { kind: "building" });
-        // Marqueurs : porte (vert) et emplacement du coffre (or).
-        const dm = new THREE.Mesh(new THREE.ConeGeometry(0.25, 0.6, 8), new THREE.MeshBasicMaterial({ color: 0x33ff66 }));
-        dm.position.set(b.door.x, 0.3, b.door.z);
-        dm.rotation.x = Math.PI;
-        b.object.add(dm);
-        const cm = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.05, 0.5), new THREE.MeshBasicMaterial({ color: 0xffcc33 }));
-        cm.position.set(b.chestSlot.x, b.chestSlot.y + 0.03, b.chestSlot.z);
-        b.object.add(cm);
-        if (M.chest) {
-          const c = M.chest(1 + (i % 3));
-          c.setStock(2, 3);
-          c.object.position.set(b.chestSlot.x, b.chestSlot.y, b.chestSlot.z);
-          c.object.rotation.y = b.door.yaw;
-          b.object.add(c.object);
-          items.push({ api: c, kind: "chest", tier: 1 + (i % 3), row: 0, attached: true });
-        }
-        // Emprise (ligne au sol).
-        const pts = b.footprint.map(([x, z]) => new THREE.Vector3(x, 0.06, z));
-        pts.push(pts[0].clone());
-        const line = new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts), new THREE.LineBasicMaterial({ color: 0xff3355 }));
-        b.object.add(line);
+    /** Laboratoire des projectiles : chaque sorte tirée en boucle entre deux poteaux. */
+    const PROJ = ["chestnut", "bigChestnut", "waterJet", "iceShard", "darkWater", "fireball", "dragonFire", "blueFire"];
+    const SPLASH = { chestnut: 0, bigChestnut: 1.0, waterJet: 0.55, iceShard: 0.6, darkWater: 0.7, fireball: 0, dragonFire: 0.9, blueFire: 0 };
+    function buildLab() {
+      PROJ.forEach((kind, i) => {
+        const z = (i - 3.5) * 3.2;
+        for (let k = -2; k <= 2; k++) tile(root, k === 2 ? "road" : "grass", k * TILE, z, -0.6);
+        const post = new THREE.Mesh(new THREE.CylinderGeometry(0.2, 0.25, 1.6, 8), MAT.cliff); post.position.set(-7.2, 0.45 + 0.8, z); post.castShadow = true; root.add(post);
+        const d = dummy(["#c8433a", "#3a7ad8", "#e0b020", "#7a4ab8", "#3aa860", "#c8433a", "#3a7ad8", "#e0b020"][i]);
+        d.position.set(7.2, 0, z); root.add(d);
+        const el = addLabel(post, kind, null, 2.2);
+        labs.push({ kind, from: new THREE.Vector3(-7.2, 2.1, z), to: new THREE.Vector3(7.2, 1.1, z), t: i * 0.13, period: kind === "bigChestnut" ? 1.9 : 1.2, h: null });
+        void el;
       });
-      ref(-2, 0);
-      return { center: [0, 0, 0], dist: 44, close: { center: [-13, 1.5, -5], dist: 18, pitch: 24 } };
+      return { center: [0, 0, 0], width: 24 };
     }
-    function buildMill() {
-      if (!M.millUpgrade) return;
-      const rows = [["meule", "Meule"], ["roue", "Roue à mana"], ["atelier", "Atelier"]];
-      rows.forEach(([k, n], row) => {
-        for (let lv = 0; lv <= 3; lv++) {
-          const u = M.millUpgrade(k, lv);
-          const x = (lv - 1.5) * (k === "atelier" ? 8 : 6);
-          const z = [-10, 0, 10][row];
-          const api = { object: u.object, height: k === "roue" ? 3.6 : 3.2, update: u.update, dispose: u.dispose };
-          if (k === "roue") {
-            // Roue de démonstration (galerie) : rayon 1,5 m, largeur 1,1 m, axe X.
-            const holder = new THREE.Group();
-            holder.position.set(x, 1.75, z);
-            const wheel = new THREE.Group();
-            const wm = new THREE.MeshStandardMaterial({ color: PTMT.color("#6e4b2d"), roughness: 0.85 });
-            for (const sx of [-0.52, 0.52]) {
-              const rim = new THREE.Mesh(new THREE.TorusGeometry(1.45, 0.06, 6, 40), wm);
-              rim.rotation.y = Math.PI / 2; rim.position.x = sx; rim.castShadow = true; wheel.add(rim);
-            }
-            for (let i = 0; i < 16; i++) {
-              const a = (i / 16) * Math.PI * 2;
-              const pad = new THREE.Mesh(new THREE.BoxGeometry(1.1, 0.34, 0.05), wm);
-              pad.position.set(0, Math.cos(a) * 1.38, Math.sin(a) * 1.38); pad.rotation.x = a; pad.castShadow = true; wheel.add(pad);
-            }
-            for (let i = 0; i < 4; i++)
-              for (const sx of [-0.5, 0.5]) {
-                const sp = new THREE.Mesh(new THREE.BoxGeometry(0.1, 2.8, 0.1), wm);
-                sp.position.x = sx; sp.rotation.x = (i / 4) * Math.PI; wheel.add(sp);
-              }
-            const axle = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.12, 1.6, 12), wm); axle.rotation.z = Math.PI / 2; wheel.add(axle);
-            wheel.add(u.object);
-            holder.add(wheel);
-            sectionGroup.add(holder);
-            const it = { api: { object: holder, height: 3.3, update: (dt, t) => { wheel.rotation.x -= dt * 0.6; u.update(dt, t); }, dispose: u.dispose }, kind: "mill", label: n + " " + lv };
-            items.push(it);
-            addLabel(holder, n + " " + lv, null, 2.2);
-          } else place(api, x, z, n + " " + lv, null, { kind: "mill" });
-        }
-      });
-      return { center: [0, 0, 0], dist: 40, close: { center: [0, 1, -10], dist: 16, pitch: 24 } };
+    const labs = [];
+
+    const SECTIONS = {
+      boar: { name: "Sangliers", build: () => buildFamily("boar") },
+      swan: { name: "Cygnes", build: () => buildFamily("swan") },
+      dog: { name: "Bergers", build: () => buildFamily("dog") },
+      tout: { name: "Toutes", build: buildAll },
+      jeu: { name: "Plateau", build: buildBoard },
+      tirs: { name: "Projectiles", build: buildLab },
+      solo: { name: "Solo", build: buildSolo },
+    };
+    /** ?section=solo&solo=boar:7:A[:terrain] */
+    function buildSolo() {
+      const a = (q.get("solo") || "boar:1").split(":");
+      const f = a[0], lv = +a[1] || 1, sp = a[2] || null, kind = a[3] || TERRAIN[f];
+      const y = tile(root, kind, 0, 0);
+      place(f, lv, sp === "-" ? null : sp, 0, 0, y, { terrain: kind });
+      for (let i = -1; i <= 1; i++) if (i) tile(root, kind, i * TILE, 0);
+      for (let i = -1; i <= 1; i++) tile(root, "road", i * TILE, TILE, -0.6);
+      walkers.push(makeWalker(-6, TILE, 0, 1.2, "#c8433a"));
+      walkers[0].x0 = -6; walkers[0].x1 = 6;
+      return { center: [0, 1, 0], width: 3 * TILE };
+    }
+    const sectionsEl = document.getElementById("sections");
+    for (const [k, s] of Object.entries(SECTIONS)) {
+      if (k === "solo") continue;
+      const b = document.createElement("button");
+      b.textContent = s.name; b.dataset.section = k; b.onclick = () => showSection(k);
+      sectionsEl.appendChild(b);
     }
 
-    let layout = null;
-    let current = null;
+    let layout = null, current = null;
     function clearSection() {
-      for (const it of items) if (it.api.dispose && !it.attached) it.api.dispose();
+      for (const it of items) it.api.dispose();
       items.length = 0;
+      for (const s of shots) s.p.release();
+      shots.length = 0;
+      for (const l of labs) if (l.h) l.h.release();
+      labs.length = 0;
+      walkers.length = 0;
       for (const l of labels) l.el.remove();
       labels.length = 0;
-      if (sectionGroup) scene.remove(sectionGroup);
-      sectionGroup = new THREE.Group();
-      scene.add(sectionGroup);
+      if (root) scene.remove(root);
+      root = new THREE.Group();
+      scene.add(root);
     }
     function showSection(k) {
       clearSection();
       current = k;
-      layout = SECTIONS[k].build() || { center: [0, 0, 0], dist: 30 };
+      layout = SECTIONS[k].build();
       for (const b of sectionsEl.children) b.setAttribute("aria-pressed", String(b.dataset.section === k));
       applyView();
       applyToggles();
     }
+
+    // Caméras : « jeu » = orthographique inclinée (≈ 60°, px par case réglable), « proche » = perspective.
+    const persp = new THREE.PerspectiveCamera(35, innerWidth / innerHeight, 0.1, 600);
+    const ortho = new THREE.OrthographicCamera(-10, 10, 10, -10, 0.1, 600);
+    let camera = ortho;
     function applyView() {
       const L = layout;
-      if (view.mode === "close" && L.close) {
-        view.target.set(L.close.center[0], L.close.center[1], L.close.center[2]);
-        view.dist = +(q.get("dist") || L.close.dist);
-        view.pitch = +(q.get("pitch") || L.close.pitch || 22);
-      } else {
-        view.target.set(L.center[0], L.center[1], L.center[2]);
-        view.dist = +(q.get("dist") || (view.mode === "aerial" && !L.shadow ? 35 : L.dist));
-        view.pitch = +(q.get("pitch") || 50);
-      }
+      view.target.set(L.center[0], L.center[1], L.center[2]);
       if (q.get("tx") || q.get("tz")) view.target.set(+(q.get("tx") || 0), +(q.get("ty") || 0), +(q.get("tz") || 0));
-      // Ombres cadrées sur la section.
-      const s = L.shadow || 40;
-      sun.position.set(view.target.x - 30, 55, view.target.z + 38);
+      view.dist = +(q.get("dist") || Math.max(8, L.width * 1.1));
+      if (!q.get("px") && view.mode === "jeu") view.px = Math.min(80, Math.max(30, innerWidth / (L.width / TILE)));
+      const s = Math.max(20, L.width * 0.8);
+      sun.position.set(view.target.x - 30, 55, view.target.z + 25);
       sun.target.position.copy(view.target);
       const c = sun.shadow.camera;
-      c.left = -s; c.right = s; c.top = s; c.bottom = -s; c.near = 1; c.far = 260;
+      c.left = -s; c.right = s; c.top = s; c.bottom = -s; c.near = 1; c.far = 200;
       c.updateProjectionMatrix();
     }
     function updateCamera() {
       const p = THREE.MathUtils.degToRad(view.pitch), y = THREE.MathUtils.degToRad(view.yaw);
-      camera.position.set(view.target.x + Math.sin(y) * Math.cos(p) * view.dist, view.target.y + Math.sin(p) * view.dist, view.target.z + Math.cos(y) * Math.cos(p) * view.dist);
+      camera = view.mode === "jeu" ? ortho : persp;
+      const d = view.mode === "jeu" ? 120 : view.dist;
+      camera.position.set(view.target.x + Math.sin(y) * Math.cos(p) * d, view.target.y + Math.sin(p) * d, view.target.z + Math.cos(y) * Math.cos(p) * d);
       camera.lookAt(view.target);
+      if (view.mode === "jeu") {
+        const w = (innerWidth / view.px) * TILE, h = w * innerHeight / innerWidth;
+        ortho.left = -w / 2; ortho.right = w / 2; ortho.top = h / 2; ortho.bottom = -h / 2; ortho.near = 1; ortho.far = 400;
+        ortho.updateProjectionMatrix();
+      } else { persp.aspect = innerWidth / innerHeight; persp.updateProjectionMatrix(); }
+    }
+
+    // Fx.
+    const fxOK = !!(PTMT.fx && PTMT.fx.init);
+    if (fxOK) PTMT.fx.init(scene, ortho, renderer, { mobile: q.has("mobile") });
+    const hasKind = (k) => fxOK && PTMT.fx._ && PTMT.fx._.KINDS && PTMT.fx._.KINDS[k];
+
+    // Tirs : la tour attaque, le projectile part de la bouche après le délai renvoyé, vole jusqu'à la cible.
+    const _a = new THREE.Vector3(), _b = new THREE.Vector3(), _c = new THREE.Vector3();
+    function nearestWalker(it) {
+      let best = null, bd = 1e9;
+      it.api.object.getWorldPosition(_a);
+      for (const w of walkers) { const d = w.obj.position.distanceToSquared(_a); if (d < bd) { bd = d; best = w; } }
+      return best;
+    }
+    function fire(it) {
+      const delay = it.api.attack();
+      const d = DATA && DATA.towerLevel(it.family, it.lv, it.sp);
+      const kind = d ? d.shot : "fireball";
+      const target = nearestWalker(it);
+      setTimeout(() => launch(it, kind, d, target), delay * 1000);
+    }
+    function launch(it, kind, d, target) {
+      if (!items.includes(it) || !fxOK) return;
+      const k = hasKind(kind) ? kind : "fireball";
+      const from = new THREE.Vector3();
+      it.api.muzzle.getWorldPosition(from);
+      const to = target ? target.obj.position.clone().add(new THREE.Vector3(0, 1.1, 0)) : from.clone().add(new THREE.Vector3(Math.sin(it.api.bones.yaw.rotation.y) * 8, -1, Math.cos(it.api.bones.yaw.rotation.y) * 8));
+      const speed = (d ? d.speed : 8) * TILE * 0.55;
+      const dist = from.distanceTo(to);
+      const arc = k === "bigChestnut" ? Math.max(2.5, dist * 0.45) : k === "chestnut" ? dist * 0.08 : 0.2;
+      shots.push({ p: PTMT.fx.projectile(k), kind: k, from, to, t: 0, T: Math.max(0.25, dist / speed), arc, splash: d && d.splash ? d.splash : SPLASH[k] || 0, target });
+    }
+    function stepShots(dt) {
+      for (let i = shots.length - 1; i >= 0; i--) {
+        const s = shots[i];
+        s.t += dt;
+        if (s.target) s.to.copy(s.target.obj.position).y += 1.1;
+        const k = Math.min(1, s.t / s.T);
+        const pos = (k2) => _c.copy(s.from).lerp(s.to, k2).setY(THREE.MathUtils.lerp(s.from.y, s.to.y, k2) + Math.sin(k2 * Math.PI) * s.arc);
+        _a.copy(pos(k));
+        _b.copy(pos(Math.min(1, k + 0.02))).sub(_a);
+        if (_b.lengthSq() < 1e-8) _b.copy(s.to).sub(s.from);
+        s.p.set(_a, _b);
+        if (k >= 1) {
+          s.p.release();
+          shots.splice(i, 1);
+          PTMT.fx.burst(s.kind + "Hit", _a.setY(s.to.y - 1.0), { radius: s.splash, crit: Math.random() < 0.25 });
+        }
+      }
+    }
+    function stepLabs(dt) {
+      for (const l of labs) {
+        l.t += dt;
+        const k = (l.t % l.period) / l.period;
+        if (!l.h || l.k > k) {
+          if (l.h) { l.h.release(); PTMT.fx.burst(l.kind + "Hit", l.to.clone().setY(0.02), { radius: SPLASH[l.kind] || 0, crit: Math.random() < 0.3 }); }
+          l.h = hasKind(l.kind) ? PTMT.fx.projectile(l.kind) : null;
+        }
+        l.k = k;
+        if (!l.h) continue;
+        const arc = l.kind === "bigChestnut" ? 4 : l.kind === "chestnut" ? 1 : 0.4;
+        const pos = (k2) => _c.copy(l.from).lerp(l.to, k2).setY(THREE.MathUtils.lerp(l.from.y, l.to.y, k2) + Math.sin(k2 * Math.PI) * arc);
+        _a.copy(pos(k)); _b.copy(pos(Math.min(1, k + 0.02))).sub(_a);
+        l.h.set(_a, _b);
+      }
     }
 
     // Commandes.
-    function forTowers(f) { for (const it of items) if (it.kind === "tower") f(it); }
-    function fireAll() {
-      forTowers((it) => it.api.trigger("windup"));
-      setTimeout(() => forTowers((it) => it.api.trigger("fire")), 320);
-    }
-    function evolve(it) {
-      it.evo = (it.evo + 1) % EVO.length;
-      const [t, b] = EVO[it.evo];
-      const pos = it.api.object.position.clone();
-      const idx = labels.findIndex((l) => l.obj === it.api.object);
-      it.api.dispose();
-      it.api = M.tower(it.fam, t, b);
-      it.api.object.position.copy(pos);
-      sectionGroup.add(it.api.object);
-      if (idx >= 0) { labels[idx].obj = it.api.object; labels[idx].y = it.api.height + 0.5; labels[idx].el.innerHTML = "Évolution " + FAM[it.fam] + "<small>" + TNAME[it.fam + t + (b || "")] + "</small>"; }
-      it.api.setSelected(state.sel);
-      it.api.setFrenzy(state.frenzy);
-      it.api.trigger("upgrade");
-    }
     function applyToggles() {
-      for (const it of items) {
-        const a = it.api;
-        if (it.kind === "tower") { a.setSelected(state.sel); a.setFrenzy(state.frenzy); }
-        if (it.kind === "trap") { a.setReady(!state.unready); a.setSelected && a.setSelected(state.sel); }
-        if (it.kind === "chest" && it.row === 0 && a.setSelected) a.setSelected(state.sel);
-      }
+      for (const it of items) { it.api.setSelected(state.sel); it.api.setFrenzy(state.frenzy); }
       document.body.classList.toggle("nolabels", !state.labels);
       for (const b of document.querySelectorAll("[data-toggle]")) b.setAttribute("aria-pressed", String(!!state[b.dataset.toggle]));
     }
     const actions = {
-      w: () => forTowers((it) => it.api.trigger("windup")),
-      f: fireAll,
-      p: () => forTowers((it) => it.api.trigger("pulse")),
-      u: () => forTowers((it) => it.api.trigger("upgrade")),
-      n: () => forTowers((it) => { if (it.evo !== undefined) evolve(it); }),
+      f: () => { for (const it of items) it.api.attack(); },
+      p: () => { for (const it of items) fire(it); },
       a: () => { state.auto = !state.auto; },
-      s: () => { state.sel = !state.sel; },
+      y: () => { state.sweep = !state.sweep; if (state.sweep) state.track = false; },
+      t: () => { state.track = !state.track; if (state.track) state.sweep = false; if (!state.track) for (const it of items) it.api.aim(0); },
       z: () => { state.frenzy = !state.frenzy; },
-      y: () => { state.sweep = !state.sweep; if (!state.sweep) forTowers((it) => it.api.aim(0)); },
-      t: () => { for (const it of items) if (it.kind === "trap") it.api.trigger("fire"); },
-      r: () => { state.unready = !state.unready; },
-      o: () => { state.open = state.open > 0.5 ? 0 : 1; },
-      k: () => { state.stock = (state.stock + 3) % 4; for (const it of items) if (it.kind === "chest") it.api.setStock(state.stock, 3); },
-      l: () => { state.alarm = !state.alarm; for (const it of items) if (it.kind === "chest") it.api.alarm(state.alarm); },
-      c: () => { state.sockState = (state.sockState + 1) % 5; for (const it of items) if (it.kind === "socket") it.api.setState(state.sockState === 4 ? SOCK[it.sock] : SOCK[state.sockState]); },
-      v: () => { view.mode = view.mode === "aerial" ? "close" : view.mode === "close" ? "orbit" : "aerial"; applyView(); },
+      s: () => { state.sel = !state.sel; },
+      u: () => { for (const it of items) it.api.celebrate(); },
+      n: () => { for (const it of items) if (it.evo !== undefined) { it.evo = (it.evo + 1) % EVO.length; rebuild(it, EVO[it.evo][0], EVO[it.evo][1]); } },
+      v: () => { view.mode = view.mode === "jeu" ? "proche" : "jeu"; applyView(); },
       b: () => { state.labels = !state.labels; },
       h: () => document.getElementById("ui").classList.toggle("hidden"),
     };
@@ -457,7 +456,7 @@
       if (k >= "1" && k <= String(keys.length)) return showSection(keys[+k - 1]);
       act(k);
     });
-    // Orbite à la souris / au doigt.
+    // Orbite à la souris / au doigt (utile pour inspecter ; le jeu reste en vue fixe).
     let drag = null;
     renderer.domElement.addEventListener("pointerdown", (e) => { drag = { x: e.clientX, y: e.clientY, b: e.button, shift: e.shiftKey }; renderer.domElement.setPointerCapture(e.pointerId); });
     renderer.domElement.addEventListener("pointermove", (e) => {
@@ -465,50 +464,72 @@
       const dx = e.clientX - drag.x, dy = e.clientY - drag.y;
       drag.x = e.clientX; drag.y = e.clientY;
       if (drag.b === 2 || drag.shift) {
-        const y = THREE.MathUtils.degToRad(view.yaw), k = view.dist * 0.0022;
-        view.target.x -= (Math.cos(y) * dx) * k - Math.sin(y) * dy * k;
-        view.target.z -= (-Math.sin(y) * dx) * k - Math.cos(y) * dy * k;
-      } else { view.yaw -= dx * 0.3; view.pitch = Math.max(5, Math.min(88, view.pitch + dy * 0.25)); }
+        const y = THREE.MathUtils.degToRad(view.yaw), k = view.mode === "jeu" ? TILE / view.px : view.dist * 0.0022;
+        view.target.x -= Math.cos(y) * dx * k + Math.sin(y) * dy * k;
+        view.target.z -= -Math.sin(y) * dx * k + Math.cos(y) * dy * k;
+      } else { view.yaw -= dx * 0.3; view.pitch = Math.max(5, Math.min(89, view.pitch + dy * 0.25)); }
     });
     addEventListener("pointerup", () => { drag = null; });
     renderer.domElement.addEventListener("contextmenu", (e) => e.preventDefault());
-    renderer.domElement.addEventListener("wheel", (e) => { view.dist = Math.max(3, Math.min(160, view.dist * Math.exp(e.deltaY * 0.001))); }, { passive: true });
-    addEventListener("resize", () => { renderer.setSize(innerWidth, innerHeight); camera.aspect = innerWidth / innerHeight; camera.updateProjectionMatrix(); });
+    renderer.domElement.addEventListener("wheel", (e) => {
+      if (view.mode === "jeu") view.px = Math.max(12, Math.min(400, view.px * Math.exp(-e.deltaY * 0.001)));
+      else view.dist = Math.max(2, Math.min(160, view.dist * Math.exp(e.deltaY * 0.001)));
+    }, { passive: true });
+    addEventListener("resize", () => { renderer.setSize(innerWidth, innerHeight); });
 
     const statsEl = document.getElementById("stats");
     const clock = new THREE.Clock();
     let frames = 0;
     const v3 = new THREE.Vector3();
     const speed = +(q.get("speed") || 1);
+    const fixedDt = q.get("dt") ? +q.get("dt") : 0;
+    function stepWalkers(dt) {
+      for (const w of walkers) {
+        if (w.route) {
+          w.s += dt * w.speed;
+          let s = w.s, i = 0;
+          const R = w.route;
+          let seg = 0;
+          for (i = 0; i < R.length - 1; i++) { seg = Math.hypot(R[i + 1][0] - R[i][0], R[i + 1][1] - R[i][1]); if (s <= seg) break; s -= seg; }
+          if (i >= R.length - 1) { w.s = 0; continue; }
+          const k = s / seg;
+          w.obj.position.set(THREE.MathUtils.lerp(R[i][0], R[i + 1][0], k), Math.abs(Math.sin(state.time * 8 + w.speed)) * 0.08, THREE.MathUtils.lerp(R[i][1], R[i + 1][1], k));
+          w.obj.rotation.y = Math.atan2(R[i + 1][0] - R[i][0], R[i + 1][1] - R[i][1]);
+        } else {
+          w.obj.position.x += w.speed * dt;
+          if (w.obj.position.x > w.x1) w.obj.position.x = w.x0;
+          w.obj.position.y = w.y + Math.abs(Math.sin(state.time * 8 + w.phase)) * 0.08;
+          w.obj.rotation.y = Math.PI / 2;
+        }
+      }
+    }
     function frame() {
       requestAnimationFrame(frame);
-      const dt = Math.min(0.1, clock.getDelta()) * speed;
+      const dt = fixedDt || Math.min(0.1, clock.getDelta()) * speed;
       state.time += dt;
       const time = state.time;
-      if (state.auto) {
-        for (const it of items) {
-          if (it.kind !== "tower") continue;
-          it.cd = (it.cd === undefined ? Math.random() * 2 : it.cd) - dt;
-          if (it.cd <= 0) {
-            const continuous = it.api.branch === "A" && it.api.tier === 2;
-            if (continuous) { it.api.trigger("pulse"); it.cd = 0.35; it.burst = (it.burst || 0) + 1; if (it.burst > 6) { it.burst = 0; it.cd = 1.6; } }
-            else { it.api.trigger("windup"); it.pending = 0.32; it.cd = 2.2 + Math.random(); }
-          }
-          if (it.pending !== undefined) { it.pending -= dt; if (it.pending <= 0) { it.api.trigger("fire"); it.pending = undefined; } }
-        }
-      }
-      if (state.sweep) forTowers((it) => it.api.aim(Math.sin(time * 0.7 + it.api.object.position.x * 0.2) * 1.6));
+      stepWalkers(dt);
       for (const it of items) {
-        const a = it.api;
-        if (it.kind === "chest" && it.row === 0) {
-          it.op = THREE.MathUtils.lerp(it.op || 0, state.open, 0.08);
-          a.setOpenProgress(it.op);
+        if (state.sweep) it.api.aim(Math.sin(time * 0.7 + it.x * 0.2) * 2.2);
+        else if (state.track && walkers.length) {
+          const w = nearestWalker(it);
+          it.api.object.getWorldPosition(_a);
+          it.api.aim(Math.atan2(w.obj.position.x - _a.x, w.obj.position.z - _a.z));
         }
-        if (a.update) a.update(dt, time);
+        if (state.auto) {
+          it.cd -= dt;
+          if (it.cd <= 0) {
+            const d = DATA && DATA.towerLevel(it.family, it.lv, it.sp);
+            const rate = (d ? d.rate : 1) * (state.frenzy ? 2 : 1);
+            it.cd = 1 / rate;
+            fire(it);
+          }
+        }
+        it.api.update(dt, time);
       }
+      if (fxOK) { stepShots(dt); stepLabs(dt); PTMT.fx.update(dt, time); }
       updateCamera();
       renderer.render(scene, camera);
-      // Étiquettes.
       if (state.labels) for (const l of labels) {
         v3.set(0, l.y, 0);
         l.obj.localToWorld(v3);
@@ -520,44 +541,32 @@
       frames++;
       if (frames % 20 === 0) {
         const r = renderer.info.render;
-        statsEl.textContent = `${SECTIONS[current] ? SECTIONS[current].name : ""} · ${r.calls} appels · ${r.triangles.toLocaleString("fr-FR")} triangles · vue ${view.mode}`;
+        statsEl.textContent = `${SECTIONS[current].name} · ${r.calls} appels · ${r.triangles.toLocaleString("fr-FR")} triangles · vue ${view.mode}${view.mode === "jeu" ? " · " + Math.round(view.px) + " px/case" : ""}`;
       }
     }
 
     // API de test (outil de capture).
     window.G = {
-      THREE, scene, renderer, camera, items, state, view, act, showSection,
+      THREE, scene, renderer, items, state, view, act, showSection, walkers,
+      get camera() { return camera; },
       stats() {
-        return items.map((it) => ({ label: it.label || it.key, tris: K.visibleTriangles(it.api.object), all: K.triangles(it.api.object), meshes: countMeshes(it.api.object), height: it.api.height }));
+        return items.map((it) => Object.assign({ name: it.family + ":" + (it.sp || "") + it.lv, height: it.api.height }, it.api.stats(), { meshes: countMeshes(it.api.object) }));
       },
       info() { return Object.assign({}, renderer.info.render, { programs: renderer.info.programs.length, geometries: renderer.info.memory.geometries, textures: renderer.info.memory.textures }); },
-      /** Détail des triangles visibles par maillage (filtre sur l'étiquette). */
-      breakdown(filter) {
-        const out = {};
-        for (const it of items) {
-          if (!it.label || (filter && it.label.indexOf(filter) < 0)) continue;
-          const rows = [];
-          (function walk(o, path) {
-            if (!o.visible) return;
-            if (o.isMesh) {
-              const g = o.geometry;
-              rows.push(path + "/" + o.name + ":" + (g.index ? g.index.count : g.attributes.position.count) / 3);
-            }
-            o.children.forEach((c, i) => walk(c, path + "." + i));
-          })(it.api.object, "");
-          out[it.label] = rows.join(" ");
-        }
-        return out;
-      },
       set(k, v) { state[k] = v; applyToggles(); },
+      fire(filter) { for (const it of items) if (!filter || filter(it)) fire(it); },
+      attack(filter) { for (const it of items) if (!filter || filter(it)) it.api.attack(); },
+      aim(yaw) { state.track = false; state.sweep = false; for (const it of items) it.api.aim(yaw); },
+      look(tx, ty, tz, px, pitch, yaw) { view.mode = "jeu"; view.target.set(tx, ty, tz); if (px) view.px = px; if (pitch) view.pitch = pitch; if (yaw !== undefined) view.yaw = yaw; },
+      close(tx, ty, tz, dist, pitch, yaw) { view.mode = "proche"; view.target.set(tx, ty, tz); view.dist = dist; if (pitch) view.pitch = pitch; if (yaw !== undefined) view.yaw = yaw; },
     };
-    function countMeshes(o) { let n = 0; o.traverse((c) => { if (c.isMesh || c.isSprite) n++; }); return n; }
+    function countMeshes(o) { let n = 0; o.traverse((c) => { if ((c.isMesh || c.isSprite) && c.visible) n++; }); return n; }
 
-    const sec = q.get("solo") ? "solo" : q.get("section") || "tours";
-    showSection(SECTIONS[sec] ? sec : "tours");
+    const sec = q.get("solo") ? "solo" : q.get("section") || "boar";
+    showSection(SECTIONS[sec] ? sec : "boar");
     if (q.get("sel") === "1") act("s");
     if (q.get("frenzy") === "1") act("z");
-    if (q.get("auto") === "1") act("a");
+    if (q.get("track") === "0") act("t");
     if (q.get("labels") === "0") { state.labels = false; applyToggles(); }
     if (q.get("ui") === "0") document.getElementById("ui").style.display = "none";
     else if (innerWidth < 600) document.getElementById("ui").classList.add("hidden");
