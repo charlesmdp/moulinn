@@ -1,0 +1,661 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<title>Banc d'essai de l'interface</title>
+<link rel="stylesheet" href="../jeu.css">
+<style>
+  /* Police servie depuis src/ (le jeton {{asset:jeu-font}} n'est remplacé qu'au build). */
+  @font-face { font-family: "Lilita One"; src: url("../fonts/lilita-one-latin.woff2") format("woff2"); font-display: swap; }
+  #bench { position: fixed; left: 8px; top: 50%; transform: translateY(-50%); z-index: 100; display: flex; flex-direction: column; gap: 3px; padding: 6px; border-radius: 10px; background: rgba(20, 24, 18, 0.82); font: 11px/1.2 system-ui, sans-serif; pointer-events: auto; }
+  #bench button { font: inherit; border: 0; border-radius: 5px; padding: 3px 6px; background: #3a4431; color: #f4efe1; cursor: pointer; text-align: left; }
+  #bench b { color: #ffd23a; margin-top: 4px; }
+  body.clean #bench { display: none; }
+  /* Galerie (?set=icons|skills|gems|towers|logo) */
+  .gal { position: fixed; inset: 0; overflow: auto; display: flex; flex-wrap: wrap; align-content: flex-start; gap: 6px; padding: 8px; background: #e9dcc0; z-index: 200; font: 13px/1.3 system-ui, sans-serif; }
+  .gal .it { width: 118px; display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 4px; border-radius: 8px; background: #f7ecd2; }
+  .gal .it.dark { background: #3b2a1c; color: #f7ecd2; }
+  .gal .row { display: flex; align-items: flex-end; gap: 4px; }
+  .gal .it svg { display: block; }
+  .gal .s64 svg { width: 64px; height: 64px; }
+  .gal .s32 svg { width: 32px; height: 32px; }
+  .gal .s20 svg { width: 20px; height: 20px; }
+  .gal .nm { font-size: 10px; }
+</style>
+</head>
+<body>
+<div id="ptmt" class="ptmt">
+  <div id="stage" class="ptmt-stage"><canvas id="map" style="position:fixed;inset:0;width:100%;height:100%"></canvas></div>
+  <div class="ptmt-ui" data-ui></div>
+</div>
+<div id="bench"></div>
+<script src="../core/00-ptmt.js"></script>
+<script src="../sim/00-data.js"></script>
+<script src="../ui/05-icons.js"></script>
+<script src="../ui/06-portraits.js"></script>
+<script src="../ui/07-logo.js"></script>
+<script src="../ui/08-tower-portraits.js"></script>
+<script src="../ui/10-ui.js"></script>
+<script>
+// Banc d'essai de l'interface : fausse partie aux formes de sim/50-game.js (vagues à partir de 0,
+// towerInfo next / specs, sorts, événements), fausse progression (API de sim/90-progress.js), boucle
+// comme main.js (résultat enregistré avant ui.events et joint à win / lose), fausse carte 2D (20 × 13
+// cases colorées par terrain, tournée de 90° en portrait) pour tester le toucher, les menus ancrés et
+// le HUD sans le moteur 3D.
+//   ?screen=title|map|skills|bestiary|game  &level=3  &modal=pause|newEnemy|win|winb|lose  &enemy=type
+//   &sel=tower:ID|build:i,j|forest:i,j  &aim=meteor&at=x,y  &paused  &frenzy  &mana=40  &wave=N  &lastwave
+//   &tuto  &fresh  &clean  &vitrine (carte derrière les menus)  &wavebanner  &boss  &toast  &bonus
+//   ?set=icons|skills|gems|towers|logo (galeries des dessins)
+(function () {
+  "use strict";
+  const Q = new URLSearchParams(location.search);
+  const D = PTMT.sim.DATA;
+  if (Q.has("clean")) document.body.classList.add("clean");
+
+  /* ================================================================ galerie des dessins */
+  const set = Q.get("set");
+  if (set) {
+    const I = PTMT.icons;
+    const gal = document.createElement("div");
+    gal.className = "gal";
+    document.body.append(gal);
+    const dark = Q.has("dark");
+    const add = (name, str) => {
+      const it = document.createElement("div");
+      it.className = "it" + (dark ? " dark" : "");
+      it.innerHTML = `<div class="row"><span class="s64">${str}</span><span class="s32">${str}</span><span class="s20">${str}</span></div><span class="nm">${name}</span>`;
+      gal.append(it);
+    };
+    const style = (css) => document.head.insertAdjacentHTML("beforeend", `<style>${css}</style>`);
+    const only = Q.get("only");
+    if (only) {
+      style(".gal .it{width:auto}.gal .s64 svg{width:128px;height:128px}.gal .s32 svg{width:48px;height:48px}.gal .s20 svg{width:24px;height:24px}");
+      for (const n of only.split(",")) add(n, I[n] || I["skill_" + n] || "");
+    } else if (set === "icons") for (const n of I.names) add(n, I[n]);
+    if (set === "skills") { for (const n of I.skillNames) add(n, I["skill_" + n]); for (const b of ["boar", "swan", "dog"]) add("branche " + b, I.branch(b)); }
+    if (set === "gems") for (let c = 0; c < 6; c++) for (const st of ["lair", "ground", "carried", "lost"]) add(c + " " + st, I.gem(c, st));
+    if (set === "logo") {
+      gal.style.background = "linear-gradient(#6fb6e8, #bfe3f5 60%, #7cc26a 60%, #4f9a45)";
+      gal.innerHTML = `<div style="width:min(900px,96vw)">${PTMT.logo.full()}</div><div style="display:flex;gap:10px;align-items:end">${[128, 64, 32, 16].map((s) => `<div style="width:${s}px;height:${s}px">${PTMT.logo.emblem()}</div>`).join("")}</div>`;
+      style(".gal > div > svg, .gal > div > div > svg{width:100%;height:auto;display:block}");
+    }
+    if (set === "towers") {
+      style(".gal .it{width:auto}.gal .s64 svg{width:128px;height:128px}.gal .s32 svg{width:64px;height:64px}.gal .s20 svg{width:36px;height:36px}");
+      if (Q.has("big")) style(".gal .s64 svg{width:240px;height:240px}");
+      const pick = Q.get("keys");
+      for (const k of pick ? pick.split(",") : PTMT.towerPortraits.keys) add(k, PTMT.towerPortraits.get(k.replace(/[A-Z0-9].*$/, ""), /7$/.test(k) ? 7 : /[AB]/.test(k) ? 4 : +k.slice(-1), (k.match(/[AB]/) || [null])[0]));
+    }
+    return;
+  }
+
+  /* ================================================================ missions factices (mêmes noms que sim/10-maps.js) */
+  const NAMES = [
+    ["Le chemin du moulin", "Basics", "tutoriel", 5, 160], ["Le Gué", "Mission 2", "facile", 10, 150], ["Les Deux Prés", "Mission 3", "facile", 15, 180], ["La Croix", "The Cross", "facile", 20, 220],
+    ["Le Hallier", "The Thicket", "facile", 20, 240], ["Le Vieux Fort", "The Fortress", "normal", 20, 260], ["Les Yeux du serpent", "Snake Eyes", "normal", 20, 260], ["Le Labyrinthe de talus", "The Maze", "normal", 30, 300],
+    ["Le Carrefour", "Crossroads", "normal", 30, 300], ["L'Allée des chênes", "Avenue", "normal", 30, 320], ["L'Hydre du marais", "Hydra", "difficile", 40, 350], ["La Percée", "Break Through", "difficile", 40, 350],
+    ["Le Manoir du Roi", "Halls of the King", "difficile", 40, 380], ["Le Passage secret", "The Secret Passage", "difficile", 50, 400], ["La Bataille du Moulin", "Battle City", "difficile", 50, 450],
+  ];
+  const GRID = [
+    "..f.....~~~....^^^^.",
+    "E######.~~w....^r^^.",
+    "......#.~~~..f..^^..",
+    "..ff..#..........H..",
+    "..f...#..........h..",
+    "......#########.....",
+    "..~~..........#..^^.",
+    ".~~w....H.ff..#..^r.",
+    "..~~..........#.....",
+    "....###########.....",
+    "....#...........XXXX",
+    "....############LXXX",
+    "..........ff....XXXX",
+  ];
+  // Comme la simulation : tableau [null, mission 1, …, mission 15].
+  const MAPS = [null];
+  NAMES.forEach(([name, ct, difficulty, waves, gold], k) => {
+    const id = k + 1;
+    MAPS[id] = { id, name, ct, difficulty, waves, gold, gems: 5, biome: "bocage", spells: id === 1 ? ["cut"] : id === 2 ? ["cut", "frenzy"] : ["cut", "frenzy", "meteor"], mana: [[5, 7]], grid: GRID };
+  });
+  PTMT.sim.MAPS = PTMT.sim.MAPS || MAPS;
+
+  /* ================================================================ progression factice (même API que sim/90-progress.js) */
+  let store = {
+    levels: { 1: { won: true, bestGems: 5, gemsTotal: 5, brilliant: true }, 2: { won: true, bestGems: 5, gemsTotal: 5, brilliant: true }, 3: { won: true, bestGems: 4, gemsTotal: 5, brilliant: false }, 4: { won: true, bestGems: 3, gemsTotal: 5, brilliant: false }, 5: { won: true, bestGems: 5, gemsTotal: 5, brilliant: true }, 6: { won: true, bestGems: 2, gemsTotal: 5, brilliant: false } },
+    unlocked: 7,
+    skills: { goldVault: 3, heights: 2, cutStudy: 2, manaStock: 2, manaPool: 1, training: 3, hotGems: 1, meteorStudy: 1 },
+    seen: { fermier: true, quad: true, cowboy: true, vache: true, druide: true, chasseur: true },
+    settings: { quality: "auto", speed: 1 },
+  };
+  if (Q.has("fresh")) store = { levels: {}, unlocked: 1, skills: {}, seen: {}, settings: { quality: "auto", speed: 1 } };
+  const copy = (o) => JSON.parse(JSON.stringify(o));
+  const prog = {
+    load: () => copy(store),
+    save: (p) => (store = copy(p)),
+    pointsTotal: (p) => Object.values(p.levels).filter((l) => l && l.won).length * D.pointsPerLevel,
+    pointsSpent: (p) => Object.values(p.skills || {}).reduce((a, b) => a + b, 0),
+    pointsFree: (p) => Math.max(0, prog.pointsTotal(p) - prog.pointsSpent(p)),
+    branchPoints: (p, b) => D.SKILLS.filter((s) => s.branch === b).reduce((a, s) => a + (p.skills[s.id] || 0), 0),
+    valid(p) {
+      for (const s of D.SKILLS) {
+        const r = p.skills[s.id] || 0;
+        if (r && prog.branchPoints(p, s.branch) - r < s.req) return false;
+      }
+      return true;
+    },
+    canRaise(p, id) {
+      const s = D.SKILL[id];
+      const r = p.skills[id] || 0;
+      if (r >= s.max) return { ok: false, reason: "Rang maximum" };
+      if (prog.pointsFree(p) <= 0) return { ok: false, reason: "Plus de point libre : gagne une mission" };
+      const have = prog.branchPoints(p, s.branch) - r;
+      if (have < s.req) return { ok: false, reason: "Demande " + s.req + " points dans la branche " + D.BRANCHES[s.branch].name + " (" + have + ")" };
+      return { ok: true };
+    },
+    raise(p, id) {
+      if (!prog.canRaise(p, id).ok) return false;
+      p.skills[id] = (p.skills[id] || 0) + 1;
+      return true;
+    },
+    canLower(p, id) {
+      if (!(p.skills[id] > 0)) return { ok: false, reason: "Aucun rang à retirer" };
+      p.skills[id]--;
+      const ok = prog.valid(p);
+      p.skills[id]++;
+      return ok ? { ok: true } : { ok: false, reason: "D'autres compétences de la branche en dépendent" };
+    },
+    lower(p, id) {
+      if (!prog.canLower(p, id).ok) return false;
+      if (!--p.skills[id]) delete p.skills[id];
+      return true;
+    },
+    resetSkills(p) { p.skills = {}; },
+    markSeen(p, type) {
+      if (!D.ENEMIES[type] || p.seen[type]) return false;
+      p.seen[type] = true;
+      return true;
+    },
+    recordResult(p, level, over) {
+      const cur = p.levels[level] || { won: false, bestGems: 0, gemsTotal: 0, brilliant: false };
+      const firstWin = !!over.win && !cur.won;
+      if (over.win) {
+        cur.won = true;
+        cur.bestGems = Math.max(cur.bestGems, over.gemsLeft);
+        cur.gemsTotal = over.gemsTotal;
+        cur.brilliant = cur.brilliant || !!over.brilliant;
+      }
+      p.levels[level] = cur;
+      const before = p.unlocked;
+      if (over.win) p.unlocked = Math.min(15, Math.max(p.unlocked, level + 1));
+      return { firstWin, points: firstWin ? D.pointsPerLevel : 0, unlocked: p.unlocked > before ? p.unlocked : null, best: cur };
+    },
+  };
+  PTMT.progress = PTMT.progress || prog;
+
+  /* ================================================================ partie factice (formes de sim/50-game.js) */
+  // Vagues numérotées à partir de 0 (index -1 avant la première), towerInfo avec next / specs { A, B } et
+  // check, sorts { cost, unlocked, ready, active, left }. Les événements reproduisent la construction de
+  // la simulation (Object.assign({ type: nom }, données)) : pour kill, newEnemy et bossArrives, le champ
+  // type porte le type d'ennemi.
+  function createFakeGame(level) {
+    const map = PTMT.sim.MAPS[level];
+    const grid = map.grid.map((r) => r.split(""));
+    const T = D.TILES;
+    const events = [];
+    const emit = (type, data) => events.push(Object.assign({ type }, data));
+    let nextId = 100;
+    const cost = (f, lv, spec) => (D.towerLevel(f, lv, spec) || {}).cost;
+    const tw = (id, family, lv, spec, i, j, xpFrac, kills) => {
+      let invested = 0;
+      for (let l = 1; l <= lv; l++) invested += cost(family, l, l >= 4 ? spec : null);
+      const xpNeed = lv < 7 ? D.XP[lv] : D.XP[6];
+      return { id, family, level: lv, spec, i, j, x: i + 0.5, y: j + 0.5, xp: Math.round(xpNeed * xpFrac), kills, invested, high: T[grid[j][i]] && !!T[grid[j][i]].high, onMana: map.mana.some(([a, b]) => a === i && b === j) };
+    };
+    const tuto = level === 1 && Q.has("tuto");
+    const state = {
+      level,
+      map: { id: level, name: map.name, ct: map.ct, w: 20, h: 13, grid: map.grid.slice(), entrances: [{ id: 0, i: 0, j: 1 }], lair: { i: 16, j: 11 }, mana: map.mana },
+      time: 0, speed: 1, paused: false, over: null,
+      gold: 245, mana: 52, manaMax: 100,
+      gems: [
+        { id: 1, color: 0, where: "lair", x: 16.5, y: 11.5 }, { id: 2, color: 1, where: "lair", x: 16.5, y: 11.5 }, { id: 3, color: 2, where: "ground", x: 10.4, y: 9.5, returnIn: 25 },
+        { id: 4, color: 3, where: "carried", x: 6.5, y: 4, carrier: 7 }, { id: 5, color: 4, where: "lost" },
+      ],
+      gemCount: { total: 5, lair: 2, ground: 1, carried: 1, lost: 1 },
+      wave: { index: 2, total: map.waves, countdown: 17, running: true },
+      towers: tuto ? [] : [
+        tw(1, "boar", 1, null, 5, 2, 0.4, 3), tw(2, "boar", 3, null, 7, 4, 1.1, 21), tw(3, "boar", 5, "A", 8, 6, 0.55, 44), tw(4, "swan", 2, null, 9, 2, 0.3, 5),
+        tw(5, "swan", 7, "B", 2, 7, 1, 90), tw(6, "dog", 3, null, 17, 6, 0.8, 18), tw(7, "dog", 4, "A", 15, 1, 0.2, 12), tw(8, "dog", 7, "B", 8, 7, 1, 120),
+        tw(9, "boar", 4, "B", 12, 8, 0.6, 30), tw(10, "swan", 4, "A", 2, 6, 0.7, 14), tw(11, "swan", 3, null, 3, 8, 0.9, 16),
+      ],
+      enemies: [
+        { id: 7, type: "quad", x: 6.5, y: 4, hp: 50, hpMax: 70, carrying: 4 }, { id: 8, type: "fermier", x: 9.5, y: 5.5, hp: 30, hpMax: 40 },
+        { id: 9, type: "cowboy", champion: true, x: 12.5, y: 5.5, hp: 300, hpMax: 420 }, { id: 10, type: "druide", x: 14.5, y: 7.5, hp: 100, hpMax: 100 },
+      ],
+      projectiles: [], areas: [],
+      spells: {},
+      frenzy: false, frenzyLeft: 0,
+    };
+    if (tuto) {
+      state.wave = { index: -1, total: map.waves, countdown: 25, running: false };
+      state.gold = 160;
+      state.gems.forEach((g) => (g.where = "lair"));
+      state.enemies = [];
+    }
+    const tile = (i, j) => (grid[j] && grid[j][i]) || "X";
+    const towerAt = (i, j) => state.towers.find((t) => t.i === i && t.j === j);
+    const byId = (id) => state.towers.find((t) => t.id === id);
+    const WAVES = (n) => {
+      if (n >= map.waves - 1) return [{ type: "vache", boss: true, count: 1, name: D.BOSS_NAMES.vache }, { type: "fermier", count: 12 }, { type: "druide", champion: true, count: 2 }];
+      const list = [["fermier", 8], ["quad", 4], ["cowboy", 3], ["vache", 2], ["druide", 3], ["bigoudene", 2], ["chasseur", 4]];
+      const g = [{ type: list[n % list.length][0], count: list[n % list.length][1] + n }, { type: list[(n + 3) % list.length][0], count: 2 + (n % 3) }];
+      if (n % 4 === 3) g.push({ type: list[(n + 1) % list.length][0], champion: true, count: 1 });
+      return g.map((x) => Object.assign({ champion: false, boss: false, name: null }, x));
+    };
+    const refreshSpells = () => {
+      const costs = { cut: 30, frenzy: 60, meteor: 90 };
+      for (const k of Object.keys(costs)) {
+        const cur = state.spells[k] || (state.spells[k] = {});
+        cur.cost = costs[k];
+        cur.unlocked = map.spells.includes(k);
+        cur.ready = cur.unlocked && state.mana >= costs[k] && !state.over;
+        cur.active = k === "frenzy" ? state.frenzy : false;
+        cur.left = k === "frenzy" ? state.frenzyLeft : 0;
+      }
+    };
+    const countGems = () => {
+      const c = { total: state.gems.length, lair: 0, ground: 0, carried: 0, lost: 0 };
+      for (const g of state.gems) c[g.where]++;
+      state.gemCount = c;
+    };
+    const statsFor = (t, lv, spec) => Object.assign({}, D.towerLevel(t.family, lv, spec));
+    const checkUpgrade = (t, spec) => {
+      if (t.level >= 7) return { ok: false, reason: "Niveau maximum" };
+      const sp = t.level >= 4 ? t.spec : spec;
+      if (t.level === 3 && sp !== "A" && sp !== "B") return { ok: false, reason: "Choisis une spécialisation" };
+      const need = D.XP[t.level];
+      if (t.xp < need) return { ok: false, reason: "Expérience insuffisante (" + Math.floor(t.xp) + " / " + need + ")", xp: true };
+      const c = cost(t.family, t.level + 1, sp);
+      if (state.gold < c) return { ok: false, reason: "Pas assez d'or", cost: c };
+      return { ok: true, cost: c };
+    };
+    const startWave = (k) => {
+      state.wave.index = k;
+      state.wave.running = true;
+      state.wave.countdown = k < state.wave.total - 1 ? 24 : 0;
+      emit("waveStart", { index: k, total: state.wave.total });
+      const g = WAVES(k);
+      for (const x of g) {
+        if (!seenHere.has(x.type)) {
+          seenHere.add(x.type);
+          emit(x.type, {}); // newEnemy tel que la simulation l'émet : { type: <type d'ennemi> }
+        }
+        if (x.boss) emit(x.type, { enemyId: nextId++, name: x.name }); // bossArrives
+      }
+    };
+    const seenHere = new Set(state.enemies.map((e) => e.type));
+    refreshSpells();
+    let kt = 0;
+    const game = {
+      state,
+      mods: { frenzyTime: 5 },
+      step(dt) {
+        if (state.paused || state.over) return;
+        dt *= state.speed || 1;
+        state.time += dt;
+        state.mana = Math.min(state.manaMax, state.mana + dt);
+        if (state.frenzy) {
+          state.frenzyLeft = Math.max(0, state.frenzyLeft - dt);
+          if (!state.frenzyLeft) {
+            state.frenzy = false;
+            emit("frenzy", { on: false });
+          }
+        }
+        if (state.wave.index + 1 < state.wave.total) {
+          state.wave.countdown -= dt;
+          if (state.wave.countdown <= 0) startWave(state.wave.index + 1);
+        } else state.wave.countdown = 0;
+        kt += dt;
+        if (kt > 1.3 && state.wave.index >= 0 && state.enemies.length) {
+          kt = 0;
+          const e = state.enemies[Math.floor(Math.random() * state.enemies.length)];
+          const gold = 3 + Math.floor(Math.random() * 6);
+          state.gold += gold;
+          for (const t of state.towers) t.xp = Math.min(D.XP[6] * 1.2, t.xp + 1);
+          emit(e.type, { enemyId: e.id, gold, towerId: 2, x: e.x, y: e.y, carrying: null, kind: "chestnut" }); // kill
+        }
+        for (const e of state.enemies) e.x += Math.sin(state.time * 0.7 + e.id) * dt * 0.3;
+        refreshSpells();
+      },
+      drainEvents() { return events.splice(0); },
+      tileInfo(i, j) {
+        if (i < 0 || j < 0 || i >= 20 || j >= 13) return null;
+        const c = tile(i, j);
+        const t = T[c] || { terrain: "decor" };
+        const tower = towerAt(i, j);
+        const buildable = t.build && !tower ? t.build.slice() : [];
+        return { i, j, char: c, terrain: t.terrain, forest: !!t.forest, cuttable: !!t.cutTo, high: !!t.high, mana: map.mana.some(([a, b]) => a === i && b === j), road: !!t.walk, towerId: tower ? tower.id : null, buildable, costs: Object.fromEntries(buildable.map((f) => [f, cost(f, 1)])), cutCost: 30 };
+      },
+      canBuild(i, j, family) {
+        const info = this.tileInfo(i, j);
+        if (!info) return { ok: false, reason: "Hors de la carte" };
+        if (info.towerId) return { ok: false, reason: "Il y a déjà une tour ici" };
+        if (info.forest) return { ok: false, reason: "Case boisée : utilise d'abord le sort Couper" };
+        if (!info.buildable.includes(family)) return { ok: false, reason: D.FAMILIES[family].name + " : pas sur cette case" };
+        const c = cost(family, 1);
+        if (state.gold < c) return { ok: false, reason: "Pas assez d'or", cost: c };
+        return { ok: true, cost: c };
+      },
+      build(i, j, family) {
+        const chk = this.canBuild(i, j, family);
+        if (!chk.ok) return chk;
+        const t = tw(nextId++, family, 1, null, i, j, 0, 0);
+        state.gold -= chk.cost;
+        state.towers.push(t);
+        emit("build", { towerId: t.id, family, i, j, cost: chk.cost });
+        return { ok: true, towerId: t.id, cost: chk.cost };
+      },
+      towerInfo(id) {
+        const t = byId(id);
+        if (!t) return null;
+        const cur = statsFor(t, t.level, t.spec);
+        const F = D.FAMILIES[t.family];
+        const out = { id, family: t.family, level: t.level, spec: t.spec, name: cur.name, familyName: F.name, specName: t.spec ? F.specs[t.spec].name : null, stats: cur, xp: Math.floor(t.xp), xpNext: t.level < 7 ? D.XP[t.level] : null, kills: t.kills, high: t.high, onMana: t.onMana, sell: Math.floor(t.invested * D.economy.sellRatio), next: null, specs: null };
+        if (t.level === 3) {
+          out.specs = {};
+          for (const sp of ["A", "B"]) out.specs[sp] = { spec: sp, name: F.specs[sp].name, blurb: F.specs[sp].blurb, cost: cost(t.family, 4, sp), stats: statsFor(t, 4, sp), check: checkUpgrade(t, sp) };
+        } else if (t.level < 7) {
+          const st = statsFor(t, t.level + 1, t.spec);
+          out.next = { level: t.level + 1, name: st.name, cost: cost(t.family, t.level + 1, t.spec), stats: st, check: checkUpgrade(t, t.spec) };
+        }
+        return out;
+      },
+      upgradeable() {
+        return state.towers.filter((t) => t.level < 7 && (t.level === 3 ? checkUpgrade(t, "A").ok || checkUpgrade(t, "B").ok : checkUpgrade(t, t.spec).ok)).map((t) => t.id);
+      },
+      upgrade(id, spec) {
+        const t = byId(id);
+        if (!t) return { ok: false, reason: "Tour introuvable" };
+        const chk = checkUpgrade(t, spec);
+        if (!chk.ok) return chk;
+        if (t.level === 3) t.spec = spec;
+        t.level++;
+        t.invested += chk.cost;
+        state.gold -= chk.cost;
+        emit("upgrade", { towerId: id, level: t.level, spec: t.spec, cost: chk.cost });
+        return { ok: true, level: t.level, spec: t.spec, cost: chk.cost };
+      },
+      sell(id) {
+        const t = byId(id);
+        if (!t) return { ok: false, reason: "Tour introuvable" };
+        const gold = Math.floor(t.invested * D.economy.sellRatio);
+        state.gold += gold;
+        state.towers.splice(state.towers.indexOf(t), 1);
+        emit("sell", { towerId: id, gold, i: t.i, j: t.j });
+        return { ok: true, gold };
+      },
+      cast(spell, at) {
+        const sp = state.spells[spell];
+        if (!sp || !sp.unlocked) return { ok: false, reason: "Sort indisponible dans cette mission" };
+        if (state.over) return { ok: false, reason: "Partie terminée" };
+        if (state.mana < sp.cost) return { ok: false, reason: "Pas assez de mana" };
+        if (spell === "cut") {
+          const i = Math.floor(at.x), j = Math.floor(at.y);
+          const c = T[tile(i, j)];
+          if (!c || !c.cutTo) return { ok: false, reason: "Rien à couper ici" };
+          grid[j][i] = c.cutTo;
+          state.map.grid = grid.map((r) => r.join(""));
+          state.mana -= sp.cost;
+          emit("cast", { spell, x: i + 0.5, y: j + 0.5 });
+          emit("cut", { i, j, gold: 0 });
+        } else if (spell === "frenzy") {
+          state.mana -= sp.cost;
+          state.frenzy = true;
+          state.frenzyLeft = this.mods.frenzyTime;
+          emit("cast", { spell });
+          emit("frenzy", { on: true, t: state.frenzyLeft });
+        } else {
+          state.mana -= sp.cost;
+          emit("cast", { spell, x: at.x, y: at.y, r: 1.4, delay: 0.8 });
+          setTimeout(() => emit("meteorImpact", { x: at.x, y: at.y, r: 1.4 }), 800);
+        }
+        refreshSpells();
+        return { ok: true };
+      },
+      callWave() {
+        const w = state.wave;
+        if (w.index + 1 >= w.total) return { ok: false, reason: "Plus de vague à appeler" };
+        const bonus = Math.max(0, Math.floor(w.countdown));
+        state.gold += bonus;
+        startWave(w.index + 1);
+        if (bonus) emit("earlyBonus", { gold: bonus });
+        return { ok: true, bonus };
+      },
+      setSpeed(v) { state.speed = [1, 2, 3].includes(v) ? v : 1; },
+      setPaused(p) { state.paused = !!p; },
+      nextWave() {
+        const k = state.wave.index + 1;
+        if (k >= state.wave.total) return null;
+        return { index: k, total: state.wave.total, countdown: state.wave.countdown, groups: WAVES(k), entrances: [0] };
+      },
+      describeEnemy(type) {
+        const e = D.ENEMIES[type];
+        return e ? { type, name: e.name, role: e.ct, hp: e.hp, speed: e.speed, gold: e.gold, ability: e.ability, blurb: e.blurb } : null;
+      },
+      /** Fin de partie comme checkEnd() de la simulation (le banc la déclenche à la demande). */
+      finish(win, left, brilliant) {
+        if (state.over) return;
+        state.gems.forEach((g, i) => (g.where = i < left ? "lair" : "lost"));
+        countGems();
+        state.over = { win, gemsLeft: left, gemsTotal: state.gems.length, brilliant: !!brilliant, time: state.time, kills: 42 };
+        emit(win ? "win" : "lose", win ? { gemsLeft: left } : {});
+      },
+      _emit: emit,
+    };
+    return game;
+  }
+
+  /* ================================================================ fausse carte 2D (vue) */
+  // ?vitrine : le canvas passe dans un [data-stage] et montre la dernière mission ouverte derrière les
+  // menus, comme main.js avec la scène 3D (l'interface le détecte et rend l'écran titre transparent).
+  const canvas = document.getElementById("map");
+  const stage = document.getElementById("stage");
+  if (Q.has("vitrine")) stage.setAttribute("data-stage", "");
+  const ctx = canvas.getContext("2d");
+  let ui = null, game = null, shown = null;
+  const view = {
+    range: null, prev: null, aim: null, hints: [],
+    cell: 30, ox: 0, oy: 0, rot: false,
+    layout() {
+      const ins = ui ? ui.insets() : { top: 0, bottom: 0, left: 0, right: 0 };
+      const W = innerWidth, H = innerHeight;
+      const rw = W - ins.left - ins.right - 12, rh = H - ins.top - ins.bottom - 12;
+      this.rot = W < H * 0.92;
+      const cols = this.rot ? 13 : 20, rows = this.rot ? 20 : 13;
+      this.cell = Math.max(8, Math.min(rw / cols, rh / rows));
+      this.ox = ins.left + 6 + (rw - cols * this.cell) / 2;
+      this.oy = ins.top + 6 + (rh - rows * this.cell) / 2;
+    },
+    worldToScreen(x, y) {
+      return this.rot ? { x: this.ox + (13 - y) * this.cell, y: this.oy + x * this.cell } : { x: this.ox + x * this.cell, y: this.oy + y * this.cell };
+    },
+    pick(cx, cy) {
+      const u = (cx - this.ox) / this.cell, v = (cy - this.oy) / this.cell;
+      const x = this.rot ? v : u, y = this.rot ? 13 - u : v;
+      if (x < 0 || y < 0 || x >= 20 || y >= 13) return null;
+      return { i: Math.floor(x), j: Math.floor(y), x, y };
+    },
+    showRange(id) { this.range = id; },
+    preview(i, j, family) { this.prev = family ? { i, j, family } : null; },
+    target(spell, x, y) { this.aim = spell ? { spell, x, y } : null; },
+    setUpgradeHints(ids) { this.hints = ids || []; },
+  };
+  const COL = { grass: "#7cc24e", rock: "#9a9fa8", water: "#3f9be8", high: "#a8d86a", road: "#d8b77a", bridge: "#b08a5a", decor: "#6b5a44" };
+  function draw() {
+    const W = innerWidth, H = innerHeight, dpr = Math.min(2, devicePixelRatio || 1);
+    if (canvas.width !== Math.round(W * dpr) || canvas.height !== Math.round(H * dpr)) { canvas.width = Math.round(W * dpr); canvas.height = Math.round(H * dpr); }
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.fillStyle = "#274a2e";
+    ctx.fillRect(0, 0, W, H);
+    const g = game || shown;
+    if (!g) return;
+    view.layout();
+    const s = g.state;
+    const c = view.cell;
+    const grid = s.map.grid;
+    const cellAt = (i, j, fill) => {
+      const a = view.worldToScreen(i, j), b = view.worldToScreen(i + 1, j + 1);
+      const x = Math.min(a.x, b.x), y = Math.min(a.y, b.y);
+      ctx.fillStyle = fill;
+      ctx.fillRect(x, y, c, c);
+      return { x, y };
+    };
+    for (let j = 0; j < 13; j++)
+      for (let i = 0; i < 20; i++) {
+        const ch = grid[j][i];
+        const t = D.TILES[ch] || { terrain: "decor" };
+        const p = cellAt(i, j, t.lair ? "#e8cf94" : COL[t.terrain] || "#555");
+        ctx.strokeStyle = "rgba(0,0,0,.12)";
+        ctx.strokeRect(p.x + 0.5, p.y + 0.5, c - 1, c - 1);
+        if (t.forest) { ctx.fillStyle = "#2f7d44"; ctx.beginPath(); ctx.arc(p.x + c * 0.35, p.y + c * 0.45, c * 0.26, 0, 7); ctx.arc(p.x + c * 0.65, p.y + c * 0.55, c * 0.26, 0, 7); ctx.fill(); }
+        if (t.high) { ctx.strokeStyle = "#5a7a2a"; ctx.lineWidth = 3; ctx.strokeRect(p.x + 3, p.y + 3, c - 6, c - 6); ctx.lineWidth = 1; }
+        if (PTMT.sim.MAPS[s.level].mana.some(([a, b]) => a === i && b === j)) { ctx.fillStyle = "#5fd6ff"; ctx.fillRect(p.x + c * 0.4, p.y + c * 0.2, c * 0.2, c * 0.6); }
+      }
+    const dot = (x, y, r, fill, stroke) => { const p = view.worldToScreen(x, y); ctx.beginPath(); ctx.arc(p.x, p.y, r, 0, 7); ctx.fillStyle = fill; ctx.fill(); if (stroke) { ctx.strokeStyle = stroke; ctx.lineWidth = 2; ctx.stroke(); ctx.lineWidth = 1; } return p; };
+    const FC = { boar: "#8a5a32", swan: "#f4f1e6", dog: "#ef7d2a" };
+    for (const t of s.towers) {
+      const p = dot(t.i + 0.5, t.j + 0.5, c * 0.36, FC[t.family], "#2b1a10");
+      ctx.fillStyle = t.family === "swan" ? "#2b1a10" : "#fff";
+      ctx.font = `bold ${Math.round(c * 0.34)}px system-ui`;
+      ctx.textAlign = "center"; ctx.textBaseline = "middle";
+      ctx.fillText(String(t.level) + (t.spec || ""), p.x, p.y + 1);
+      if (view.hints.includes(t.id)) { ctx.fillStyle = "#ffd23a"; ctx.beginPath(); ctx.moveTo(p.x, p.y - c * 0.62); ctx.lineTo(p.x - c * 0.14, p.y - c * 0.42); ctx.lineTo(p.x + c * 0.14, p.y - c * 0.42); ctx.fill(); }
+    }
+    for (const gm of s.gems) if (gm.where === "ground") dot(gm.x, gm.y, c * 0.18, PTMT.icons.GEM_COLORS[gm.color], "#fff");
+    for (const e of s.enemies) dot(e.x, e.y, c * 0.2, e.champion ? "#ffc93a" : "#d8412f", "#2b1a10");
+    if (view.range !== null) { const t = s.towers.find((x) => x.id === view.range); if (t) { const L = D.towerLevel(t.family, t.level, t.spec); const p = view.worldToScreen(t.i + 0.5, t.j + 0.5); ctx.beginPath(); ctx.arc(p.x, p.y, L.range * c, 0, 7); ctx.fillStyle = "rgba(255,255,255,.18)"; ctx.fill(); ctx.strokeStyle = "rgba(255,255,255,.8)"; ctx.setLineDash([6, 5]); ctx.stroke(); ctx.setLineDash([]); } }
+    if (view.prev) { const L = D.towerLevel(view.prev.family, 1); const p = view.worldToScreen(view.prev.i + 0.5, view.prev.j + 0.5); ctx.beginPath(); ctx.arc(p.x, p.y, L.range * c, 0, 7); ctx.fillStyle = "rgba(255,240,150,.18)"; ctx.fill(); ctx.strokeStyle = "#fff3a0"; ctx.stroke(); cellAt(view.prev.i, view.prev.j, "rgba(255,255,255,.35)"); }
+    if (view.aim && view.aim.x > -50) { const p = view.worldToScreen(view.aim.x, view.aim.y); ctx.beginPath(); ctx.arc(p.x, p.y, (view.aim.spell === "meteor" ? 1.4 : 0.5) * c, 0, 7); ctx.fillStyle = "rgba(255,120,40,.25)"; ctx.fill(); ctx.strokeStyle = "#ffb070"; ctx.lineWidth = 3; ctx.stroke(); ctx.lineWidth = 1; }
+  }
+
+  /* ================================================================ montage (comme main.js) */
+  const showcase = (n) => {
+    game = null;
+    shown = Q.has("vitrine") ? createFakeGame(n) : null;
+  };
+  let level = null;
+  const hooks = {
+    playLevel(n) { startGame(n); },
+    quitLevel() { showcase(level || Math.min(prog.load().unlocked, 15)); ui.showMap(); },
+    restartLevel() { startGame(level || 1); },
+    setQuality(q) { console.log("qualité", q); },
+  };
+  ui = PTMT.ui.create({ root: document.getElementById("ptmt").querySelector("[data-ui]"), mobile: matchMedia("(pointer: coarse)").matches, progress: PTMT.progress, data: D, maps: PTMT.sim.MAPS, hooks });
+  window.benchUI = ui;
+  function startGame(n) {
+    level = n;
+    game = createFakeGame(n);
+    shown = game;
+    game.setSpeed((prog.load().settings || {}).speed || 1);
+    window.benchGame = game;
+    ui.enterLevel(game, view);
+  }
+  showcase(Math.min(prog.load().unlocked, 15));
+  let down = null;
+  canvas.addEventListener("pointerdown", (e) => (down = { x: e.clientX, y: e.clientY }));
+  canvas.addEventListener("pointerup", (e) => {
+    if (!down || !game) return;
+    const moved = Math.hypot(e.clientX - down.x, e.clientY - down.y);
+    down = null;
+    if (moved > 14) return;
+    const r = view.pick(e.clientX, e.clientY);
+    ui.mapTap(r ? Object.assign({ screenX: e.clientX, screenY: e.clientY }, r) : null);
+  });
+  canvas.addEventListener("pointermove", (e) => { if (game && e.pointerType === "mouse") ui.mapHover(view.pick(e.clientX, e.clientY)); });
+  addEventListener("resize", () => ui.onResize());
+  let last = performance.now(), hintClock = 0;
+  function loop(now) {
+    requestAnimationFrame(loop);
+    const dt = Math.min(0.1, (now - last) / 1000);
+    last = now;
+    let events = [];
+    if (game) {
+      game.step(dt);
+      events = game.drainEvents();
+      // Comme main.js : le résultat est enregistré AVANT ui.events, et joint à l'événement.
+      for (const ev of events)
+        if ((ev.type === "win" || ev.type === "lose") && game.state.over && !game.recorded) {
+          game.recorded = true;
+          const p = prog.load();
+          ev.record = prog.recordResult(p, game.state.level, game.state.over);
+          prog.save(p);
+        }
+      if ((hintClock += dt) > 0.25) {
+        hintClock = 0;
+        view.setUpgradeHints(game.upgradeable());
+      }
+      ui.events(events);
+    }
+    ui.frame(dt);
+    draw();
+  }
+  requestAnimationFrame(loop);
+
+  // Panneau du banc d'essai
+  const bench = document.getElementById("bench");
+  const btn = (label, fn) => { const b = document.createElement("button"); b.textContent = label; b.onclick = fn; bench.append(b); };
+  const head = (t) => { const b = document.createElement("b"); b.textContent = t; bench.append(b); };
+  const ev = (type, data) => game && game._emit(type, data || {});
+  head("Écrans");
+  btn("Titre", () => ui.showTitle()); btn("Missions", () => ui.showMap()); btn("Compétences", () => ui.showSkills()); btn("Encyclopédie", () => ui.showBestiary()); btn("Partie (mission 3)", () => startGame(3));
+  head("Événements");
+  btn("Nouvel ennemi", () => ui._ui.queueModal(() => ui._ui.newEnemyCard("bigoudene")));
+  btn("Appeler la vague", () => game && ui._ui.callWave());
+  btn("Boss", () => ev("vache", { enemyId: 999, name: D.BOSS_NAMES.vache }));
+  btn("Vol de gemme", () => { game.state.gems[1].where = "carried"; ev("steal", { enemyId: 8, gemId: 2 }); });
+  btn("Gemme tombée", () => { game.state.gems[1].where = "ground"; game.state.gems[1].x = 9; game.state.gems[1].y = 5.5; ev("drop", { gemId: 2, x: 9, y: 5.5 }); });
+  btn("Gemme perdue", () => { game.state.gems[1].where = "lost"; ev("escape", { enemyId: 8, gemId: 2, x: 0.5, y: 1.5 }); });
+  btn("Or +200", () => { game.state.gold += 200; });
+  btn("Victoire brillante", () => game.finish(true, 5, true));
+  btn("Victoire", () => game.finish(true, 3, false));
+  btn("Défaite", () => game.finish(false, 0, false));
+
+  // État initial selon l'adresse
+  const screen = Q.get("screen") || "title";
+  const lv = +(Q.get("level") || 3);
+  if (screen === "title") ui.showTitle();
+  else if (screen === "map") ui.showMap(Q.get("focus") ? +Q.get("focus") : undefined);
+  else if (screen === "skills") ui.showSkills();
+  else if (screen === "bestiary") ui.showBestiary(Q.get("tab") || "enemies");
+  else if (screen === "game") {
+    if (lv === 1 && Q.has("tuto")) store.levels = {};
+    startGame(lv);
+    if (Q.has("paused")) game.setPaused(true);
+    if (Q.has("frenzy")) { game.state.frenzy = true; game.state.frenzyLeft = 3; }
+    if (Q.get("mana")) game.state.mana = +Q.get("mana");
+    if (Q.get("wave")) { game.state.wave.index = +Q.get("wave") - 1; game.state.wave.countdown = Q.has("lastwave") ? 0 : 17; }
+    const modal = Q.get("modal");
+    setTimeout(() => {
+      const U = ui._ui;
+      if (modal === "pause") U.openPause();
+      else if (modal === "newEnemy") ev(Q.get("enemy") || "bigoudene", {});
+      else if (modal === "win") game.finish(true, 3, false);
+      else if (modal === "winb") game.finish(true, 5, true);
+      else if (modal === "lose") game.finish(false, 0, false);
+      const sel = Q.get("sel");
+      if (sel) {
+        const [k, v] = sel.split(":");
+        if (k === "tower") { const t = game.state.towers.find((x) => x.id === +v); ui.mapTap({ i: t.i, j: t.j, x: t.i + 0.5, y: t.j + 0.5 }); }
+        else { const [i, j] = v.split(",").map(Number); ui.mapTap({ i, j, x: i + 0.5, y: j + 0.5 }); }
+      }
+      if (Q.get("aim")) { U.spellClick(Q.get("aim")); const [x, y] = (Q.get("at") || "10,6").split(",").map(Number); ui.mapHover({ i: Math.floor(x), j: Math.floor(y), x, y }); }
+      if (Q.has("wavebanner")) ev("waveStart", { index: game.state.wave.index, total: game.state.wave.total });
+      if (Q.has("boss")) ev("vache", { enemyId: 999, name: D.BOSS_NAMES.vache });
+      if (Q.has("toast")) ev("steal", { enemyId: 8, gemId: 2 });
+      if (Q.has("bonus")) ev("earlyBonus", { gold: 14 });
+    }, 350);
+  }
+})();
+</script>
+</body>
+</html>
