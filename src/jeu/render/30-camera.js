@@ -1,182 +1,159 @@
-// « Pas touche à mes trésors » — caméra aérienne : déplacement, zoom, rotation facultative,
-// recentrage animé. Souris, tactile (un doigt : glisser ; deux doigts : pincer et tourner) et clavier.
+// « Pas touche à mes trésors » — caméra fixe vue du dessus (PTMT.view, partie « caméra »).
+//
+// Caméra orthographique immobile, inclinée d'environ 58° au-dessus de l'horizon : on voit le
+// dessus des modèles et un peu de leur face avant. Toute la carte (20 × 13 cases, plus une petite
+// marge) est cadrée dans la zone libre entre les bandes de l'interface (insets, en px CSS). En
+// portrait (hauteur > largeur), la caméra passe à l'est de la carte : les colonnes deviennent des
+// lignes et la carte remplit l'écran du téléphone. Aucun déplacement, zoom ni rotation par le
+// joueur (un cadrage rapproché existe pour le banc d'essai seulement : focus).
+//
+// Visée : rayon lancé depuis le pixel et avancé pas à pas contre le relief réel (dessus de l'eau
+// et tabliers des ponts compris), puis affiné par dichotomie ; les tours sont testées avant le sol
+// (cylindres), si bien qu'un clic sur la tête d'une tour haute la désigne.
 (function () {
   "use strict";
   const PTMT = (globalThis.PTMT = globalThis.PTMT || {});
+  if (typeof THREE === "undefined") return;
+  const VIEW = (PTMT.view = PTMT.view || {});
 
-  function CameraRig(camera, dom, opts = {}) {
-    this.camera = camera;
-    this.dom = dom;
-    this.target = new THREE.Vector3(0, 1, 0);
-    this.distance = opts.distance || 78;
-    this.minDistance = 22;
-    this.maxDistance = 150;
-    this.yaw = opts.yaw || 0; // rotation autour de la verticale
-    this.pitch = 0.95; // inclinaison (rad au-dessus de l'horizon)
-    this.bounds = opts.bounds || { x0: -60, x1: 60, z0: -42, z1: 42 };
-    this.anim = null;
-    this.pointers = new Map();
-    this.drag = null;
-    this.keys = new Set();
-    this.onTap = null; // (clientX, clientY, event) → void
-    this.onHover = null;
-    this.enabled = true;
-    this._bind();
-    this.apply();
+  const _v = new THREE.Vector3(), _o = new THREE.Vector3(), _d = new THREE.Vector3();
+
+  function Camera(opts) {
+    this.camera = new THREE.OrthographicCamera(-10, 10, 10, -10, 1, 600);
+    this.camera.name = "Caméra de la carte";
+    this.elev = ((opts && opts.elevation) || 58) * (Math.PI / 180);
+    this.dist = 220;
+    this.az = 0;
+    this.portrait = false;
+    this.w = 1;
+    this.h = 1;
+    this.insets = { top: 0, bottom: 0, left: 0, right: 0 };
+    this.pxPerM = 10;
+    this.focus = null;
+    this.right = new THREE.Vector3(1, 0, 0);
+    this.up = new THREE.Vector3(0, 1, 0);
+    this.forward = new THREE.Vector3(0, -1, 0);
   }
-  const C = CameraRig.prototype;
+  const P = Camera.prototype;
 
-  C._bind = function () {
-    const dom = this.dom;
-    dom.addEventListener("pointerdown", (e) => this.down(e));
-    window.addEventListener("pointermove", (e) => this.move(e));
-    window.addEventListener("pointerup", (e) => this.up(e));
-    window.addEventListener("pointercancel", (e) => this.up(e, true));
-    dom.addEventListener("wheel", (e) => {
-      e.preventDefault();
-      if (!this.enabled) return;
-      this.zoomBy(Math.exp(e.deltaY * 0.0012));
-    }, { passive: false });
-    dom.addEventListener("contextmenu", (e) => e.preventDefault());
-    window.addEventListener("keydown", (e) => {
-      if (e.target && (e.target.tagName === "INPUT" || e.target.tagName === "SELECT")) return;
-      this.keys.add(e.key.toLowerCase());
-    });
-    window.addEventListener("keyup", (e) => this.keys.delete(e.key.toLowerCase()));
-    window.addEventListener("blur", () => this.keys.clear());
-  };
-  C.down = function (e) {
-    if (!this.enabled) return;
-    this.dom.setPointerCapture && this.dom.setPointerCapture(e.pointerId);
-    this.pointers.set(e.pointerId, { x: e.clientX, y: e.clientY, sx: e.clientX, sy: e.clientY, button: e.button, t: performance.now() });
-    this.anim = null;
-    if (this.pointers.size === 2) {
-      const [a, b] = [...this.pointers.values()];
-      this.pinch = { d: Math.hypot(a.x - b.x, a.y - b.y), ang: Math.atan2(b.y - a.y, b.x - a.x), dist: this.distance, yaw: this.yaw };
-      this.drag = null;
-    } else {
-      this.drag = { moved: false, rotate: e.button === 2 || e.shiftKey };
-    }
-  };
-  C.move = function (e) {
-    const p = this.pointers.get(e.pointerId);
-    if (!p) {
-      if (this.onHover && e.target === this.dom) this.onHover(e.clientX, e.clientY);
-      return;
-    }
-    const dx = e.clientX - p.x,
-      dy = e.clientY - p.y;
-    p.x = e.clientX;
-    p.y = e.clientY;
-    if (this.pinch && this.pointers.size >= 2) {
-      const [a, b] = [...this.pointers.values()];
-      const d = Math.hypot(a.x - b.x, a.y - b.y),
-        ang = Math.atan2(b.y - a.y, b.x - a.x);
-      this.distance = Math.max(this.minDistance, Math.min(this.maxDistance, (this.pinch.dist * this.pinch.d) / Math.max(20, d)));
-      this.yaw = this.pinch.yaw - (ang - this.pinch.ang);
-      this.apply();
-      return;
-    }
-    if (!this.drag) return;
-    if (!this.drag.moved && Math.hypot(e.clientX - p.sx, e.clientY - p.sy) > 7) this.drag.moved = true;
-    if (!this.drag.moved) return;
-    if (this.drag.rotate) {
-      this.yaw -= dx * 0.006;
-      this.pitch = Math.max(0.62, Math.min(1.35, this.pitch + dy * 0.004));
-    } else this.panPixels(dx, dy);
-    this.apply();
-  };
-  C.up = function (e, cancel) {
-    const p = this.pointers.get(e.pointerId);
-    if (!p) return;
-    this.pointers.delete(e.pointerId);
-    if (this.pointers.size < 2) this.pinch = null;
-    if (!cancel && this.drag && !this.drag.moved && this.pointers.size === 0 && performance.now() - p.t < 600 && this.onTap) this.onTap(e.clientX, e.clientY, e);
-    if (this.pointers.size === 0) this.drag = null;
-  };
-  C.panPixels = function (dx, dy) {
-    const h = this.dom.clientHeight || 800;
-    const scale = (2 * this.distance * Math.tan((this.camera.fov * Math.PI) / 360)) / h;
-    const c = Math.cos(this.yaw),
-      s = Math.sin(this.yaw);
-    // Axes écran projetés au sol.
-    const rx = c,
-      rz = -s,
-      fx = s,
-      fz = c;
-    this.target.x -= (dx * rx + dy * fx / Math.sin(this.pitch)) * scale;
-    this.target.z -= (dx * rz + dy * fz / Math.sin(this.pitch)) * scale;
-    this.clamp();
-  };
-  C.zoomBy = function (k) {
-    this.distance = Math.max(this.minDistance, Math.min(this.maxDistance, this.distance * k));
-    this.apply();
-  };
-  C.rotateBy = function (a) {
-    this.yaw += a;
-    this.apply();
-  };
-  C.clamp = function () {
-    const b = this.bounds;
-    this.target.x = Math.max(b.x0, Math.min(b.x1, this.target.x));
-    this.target.z = Math.max(b.z0, Math.min(b.z1, this.target.z));
-  };
-  C.apply = function () {
+  /** Cadre la carte dans w × h px moins les bandes insets. Renvoie true si l'orientation a changé. */
+  P.frame = function (w, h, insets) {
+    const K = VIEW._map.K;
+    this.w = Math.max(1, w);
+    this.h = Math.max(1, h);
+    this.insets = Object.assign({ top: 0, bottom: 0, left: 0, right: 0 }, insets || {});
+    const portrait = this.h > this.w * 1.05;
+    const changed = portrait !== this.portrait || this.az === undefined;
+    this.portrait = portrait;
+    this.az = portrait ? Math.PI / 2 : 0;
     const cam = this.camera;
-    const cp = Math.cos(this.pitch),
-      sp = Math.sin(this.pitch);
-    cam.position.set(this.target.x + Math.sin(this.yaw) * cp * this.distance, this.target.y + sp * this.distance, this.target.z + Math.cos(this.yaw) * cp * this.distance);
-    cam.lookAt(this.target);
+    const ce = Math.cos(this.elev), se = Math.sin(this.elev);
+    cam.position.set(Math.sin(this.az) * ce, se, Math.cos(this.az) * ce).multiplyScalar(this.dist);
+    cam.up.set(0, 1, 0);
+    cam.lookAt(0, 0, 0);
     cam.updateMatrixWorld();
-  };
-  /** Recentrage animé sur un point (monde). */
-  C.focusOn = function (point, distance, duration = 0.8) {
-    this.anim = { from: this.target.clone(), to: new THREE.Vector3(point.x, this.target.y, point.z), d0: this.distance, d1: distance || this.distance, t: 0, dur: duration };
-  };
-  C.frame = function (bounds, yaw = 0) {
-    this.bounds = { x0: bounds.x0, x1: bounds.x1, z0: bounds.z0, z1: bounds.z1 };
-    this.target.set((bounds.x0 + bounds.x1) / 2, 1, (bounds.z0 + bounds.z1) / 2);
-    const w = bounds.x1 - bounds.x0,
-      h = bounds.z1 - bounds.z0;
-    const aspect = (this.dom.clientWidth || 1) / (this.dom.clientHeight || 1);
-    const fov = (this.camera.fov * Math.PI) / 180;
-    const needH = (h * 0.62) / Math.tan(fov / 2) / 1.05;
-    const needW = w / 2 / (Math.tan(fov / 2) * aspect);
-    this.yaw = yaw;
-    this.distance = Math.max(this.minDistance, Math.min(this.maxDistance, Math.max(needH, needW) * 0.95));
-    this.apply();
-  };
-  C.update = function (dt) {
-    if (this.anim) {
-      const a = this.anim;
-      a.t += dt;
-      const k = Math.min(1, a.t / a.dur),
-        e = k * k * (3 - 2 * k);
-      this.target.lerpVectors(a.from, a.to, e);
-      this.distance = a.d0 + (a.d1 - a.d0) * e;
-      if (k >= 1) this.anim = null;
-      this.apply();
+    this.right.setFromMatrixColumn(cam.matrixWorld, 0);
+    this.up.setFromMatrixColumn(cam.matrixWorld, 1);
+    cam.getWorldDirection(this.forward);
+    const mapW = K.MW * K.TILE, mapD = K.MH * K.TILE, margin = 0.3 * K.TILE;
+    const extra = 1.8 * ce; // têtes des objets posés au bord du fond
+    const spanX = (portrait ? mapD : mapW) + margin * 2;
+    const spanY = ((portrait ? mapW : mapD) + margin * 2) * se + extra;
+    const ins = this.insets;
+    const aw = Math.max(40, this.w - ins.left - ins.right), ah = Math.max(40, this.h - ins.top - ins.bottom);
+    let s = Math.min(aw / spanX, ah / spanY);
+    const cx = ins.left + aw / 2, cy = ins.top + ah / 2;
+    let xm = (this.w / 2 - cx) / s, ym = (cy - this.h / 2) / s + extra / 2;
+    if (this.focus) {
+      // banc d'essai : cadrage rapproché sur un point de la carte
+      s *= this.focus.zoom;
+      _v.set((this.focus.x - K.MW / 2) * K.TILE, this.focus.h || 0.5, (this.focus.y - K.MH / 2) * K.TILE);
+      xm = _v.dot(this.right);
+      ym = _v.dot(this.up);
     }
-    if (this.keys.size && this.enabled) {
-      const sp = this.distance * 0.9 * dt;
-      let dx = 0,
-        dz = 0;
-      if (this.keys.has("arrowleft") || this.keys.has("q") || this.keys.has("a")) dx -= 1;
-      if (this.keys.has("arrowright") || this.keys.has("d")) dx += 1;
-      if (this.keys.has("arrowup") || this.keys.has("z") || this.keys.has("w")) dz -= 1;
-      if (this.keys.has("arrowdown") || this.keys.has("s")) dz += 1;
-      if (dx || dz) {
-        const c = Math.cos(this.yaw),
-          s = Math.sin(this.yaw);
-        this.target.x += (dx * c + dz * s) * sp;
-        this.target.z += (-dx * s + dz * c) * sp;
-        this.clamp();
-        this.apply();
-      }
-      if (this.keys.has("+") || this.keys.has("=")) this.zoomBy(1 - dt * 1.2);
-      if (this.keys.has("-")) this.zoomBy(1 + dt * 1.2);
-    }
+    this.pxPerM = s;
+    cam.left = xm - this.w / 2 / s;
+    cam.right = xm + this.w / 2 / s;
+    cam.top = ym + this.h / 2 / s;
+    cam.bottom = ym - this.h / 2 / s;
+    cam.near = 1;
+    cam.far = this.dist * 2 + 100;
+    cam.updateProjectionMatrix();
+    return changed;
   };
 
-  PTMT.CameraRig = CameraRig;
+  /** Point monde → pixels CSS relatifs au canvas. */
+  P.project = function (v, out) {
+    _v.copy(v).project(this.camera);
+    out = out || { x: 0, y: 0 };
+    out.x = ((_v.x + 1) / 2) * this.w;
+    out.y = ((1 - _v.y) / 2) * this.h;
+    return out;
+  };
+
+  /**
+   * Rayon depuis un pixel (clientX, clientY) contre le relief. world : monde de la carte ; towers :
+   * [{ id, i, j, x, z, base, top, r }] (monde). Renvoie { i, j, x, y, towerId? } ou null.
+   */
+  P.pick = function (clientX, clientY, rect, world, towers) {
+    const K = VIEW._map.K;
+    const nx = ((clientX - rect.left) / Math.max(1, rect.width)) * 2 - 1;
+    const ny = -((clientY - rect.top) / Math.max(1, rect.height)) * 2 + 1;
+    _o.set(nx, ny, -1).unproject(this.camera);
+    _d.copy(this.forward);
+    const toMapX = (X) => X / K.TILE + K.MW / 2, toMapY = (Z) => Z / K.TILE + K.MH / 2;
+    const surf = (X, Z) => {
+      const x = toMapX(X), y = toMapY(Z);
+      return Math.max(world.groundAt(x, y, false), world.field.charAt(Math.floor(x), Math.floor(y)) === "~" || world.field.charAt(Math.floor(x), Math.floor(y)) === "w" ? K.WATER_Y : -9);
+    };
+    const tTop = (7 - _o.y) / _d.y, tBot = (-1.6 - _o.y) / _d.y;
+    const hs = Math.hypot(_d.x, _d.z) || 1;
+    const dt = 0.12 / hs;
+    let prev = tTop, hit = null;
+    for (let t = tTop; t <= tBot; t += dt) {
+      const X = _o.x + _d.x * t, Y = _o.y + _d.y * t, Z = _o.z + _d.z * t;
+      if (Y <= surf(X, Z)) {
+        let a = prev, b = t;
+        for (let k = 0; k < 7; k++) {
+          const m = (a + b) / 2;
+          if (_o.y + _d.y * m <= surf(_o.x + _d.x * m, _o.z + _d.z * m)) b = m;
+          else a = m;
+        }
+        hit = b;
+        break;
+      }
+      prev = t;
+    }
+    // tours d'abord (cylindres verticaux)
+    let best = hit === null ? Infinity : hit, tower = null;
+    if (towers)
+      for (const tw of towers) {
+        const ox = _o.x - tw.x, oz = _o.z - tw.z;
+        const a = _d.x * _d.x + _d.z * _d.z, b = 2 * (ox * _d.x + oz * _d.z), c = ox * ox + oz * oz - tw.r * tw.r;
+        const disc = b * b - 4 * a * c;
+        if (disc < 0) continue;
+        const sq = Math.sqrt(disc);
+        for (const t of [(-b - sq) / (2 * a), (-b + sq) / (2 * a)]) {
+          const y = _o.y + _d.y * t;
+          if (t < best && y >= tw.base && y <= tw.top) {
+            best = t;
+            tower = tw;
+          }
+        }
+        // couvercle
+        const tc = (tw.top - _o.y) / _d.y;
+        const cx = _o.x + _d.x * tc - tw.x, cz = _o.z + _d.z * tc - tw.z;
+        if (tc < best && cx * cx + cz * cz <= tw.r * tw.r) {
+          best = tc;
+          tower = tw;
+        }
+      }
+    if (tower) return { i: tower.i, j: tower.j, x: tower.i + 0.5, y: tower.j + 0.5, towerId: tower.id };
+    if (hit === null) return null;
+    const x = toMapX(_o.x + _d.x * hit), y = toMapY(_o.z + _d.z * hit);
+    if (x < 0 || y < 0 || x >= K.MW || y >= K.MH) return null;
+    return { i: Math.floor(x), j: Math.floor(y), x, y };
+  };
+
+  VIEW._Camera = Camera;
 })();
