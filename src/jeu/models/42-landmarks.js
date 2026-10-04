@@ -1,4 +1,5 @@
-// « Pas touche à mes trésors » — repères de la carte : menhirs (puits de mana) et entrées.
+// « Pas touche à mes trésors » — repères de la carte : menhirs (puits de mana), entrées, moulin,
+// buttes et barrières.
 //
 //   PTMT.models.menhir()   menhir de granit gravé de spirales bleues qui pulsent, lichens jaunes,
 //                          étincelles de mana qui montent, triskèle lumineux au sol.
@@ -11,14 +12,33 @@
 //     → { object, pulse(on) (la flèche clignote : la prochaine vague entre ici), update(dt, time), dispose() }
 //     Origine = centre de la case E au niveau du chemin ; +Z = vers l'intérieur de la carte ; le poteau
 //     se tient au bord droit du chemin (+X local).
+//
+//   PTMT.models.mill()  le moulin breton (granit, ardoises, roue à aubes qui tourne sous la chute du
+//                       coursier, lanterne, cloche d'alarme, cheminée qui fume) sur ses six cases (3 × 2).
+//     → { object, alarm(bool) (la cloche sonne, la lanterne rougit), update(dt, time), dispose() }
+//     Origine = centre de ses 3 × 2 cases (3 selon X, 2 selon Z) au niveau du chemin, façade (porte,
+//     cloche) vers +Z, c'est-à-dire vers la cachette principale posée devant lui. Ses cases sont au
+//     niveau des plateaux (+0,45) ; deux marches descendent vers la cachette.
+//
+//   PTMT.models.highGround({ seed })  butte : case de 3,6 m surélevée de 1,3 m au milieu d'une route.
+//     → { object, height: 1,3 (dessus, où poser la tour), update(dt, time), dispose() }
+//     Origine = centre de la case au niveau du chemin. Un appel de dessin.
+//
+//   PTMT.models.barrier(width | { width, seed })  entrée fermée (1 à 3 cases de large) : barrière de
+//     bois, haie d'ajoncs côté extérieur, panneau « Route barrée ».
+//     → { object, width, isOpen, open() → Promise (la barrière cède en ≈ 1,6 s : planches qui volent,
+//         haie qui s'écarte, panneau qui bascule ; il reste des débris sur les bords), setOpen(bool)
+//         (sans animation), update(dt, time), dispose() }
+//     Origine = centre de l'entrée (milieu du groupe de cases) au niveau du chemin, largeur selon X
+//     local, +Z = vers l'intérieur de la carte (comme gate). Un appel de dessin (deux pendant la chute).
 (function () {
   "use strict";
   const PTMT = globalThis.PTMT;
   if (!PTMT || typeof THREE === "undefined" || !PTMT.models || !PTMT.models.props) return;
   const K = PTMT.models.kit;
   const P = PTMT.models.props;
-  const { TAU, clamp, damp } = K.math;
-  const { noise3, fbm, hash2, voronoi } = K.noise;
+  const { TAU, clamp, lerp, damp } = K.math;
+  const { noise3, fbm, hash2 } = K.noise;
   const T = P.T;
   const col = K.col;
 
@@ -379,6 +399,847 @@
       dispose() {
         if (root.parent) root.parent.remove(root);
         body.geometry.dispose();
+        fx.material.dispose();
+        fx.mesh.geometry.dispose();
+      },
+    };
+  };
+
+  /* ================================================================== moulin */
+  const C = {
+    granite: "#b3aa97",
+    graniteW: "#c9c0ad",
+    graniteD: "#8e8574",
+    dressed: "#d2c8b2",
+    slate: "#7486a0",
+    slateD: "#4d586c",
+    wood: "#9a7652",
+    woodD: "#5e4430",
+    woodW: "#a88d6c",
+    wet: "#4f3a28",
+    door: "#2f6e8e",
+    doorD: "#1f4f68",
+    shutter: "#3f86a8",
+    iron: "#34302e",
+    bronze: "#c08a3a",
+    grass: "#6fae3e",
+    grassD: "#4a8a2e",
+    earth: "#8a6a48",
+    flowerB: "#4a6cff",
+    flowerP: "#ff5aa8",
+    lantern: "#ffcf6a",
+    window: "#2a3346",
+  };
+  P.MILL_COLORS = C;
+
+  /** Toit à deux pans (faîtage selon X local) : pièces ajoutées à l'accumulateur d'ardoise. */
+  function gableRoof(A, M, L, W, rise, over, y0, cz) {
+    const slope = Math.atan2(rise, W / 2);
+    const run = W / 2 + over;
+    const drop = over * Math.tan(slope);
+    const len = Math.hypot(run, rise + drop);
+    for (const s of [-1, 1]) {
+      A.slate.put(T.boxSeg(L + over * 2, 0.14, len, 10, 1, 5), [0, y0 + (rise - drop) / 2 + 0.07, cz + (s * run) / 2], [s * slope, 0, 0], 1, { c: C.slate, box: 1.1, vj: 0.2, vs: 0.55 }, M);
+    }
+    A.slate.put(T.box(L + over * 2 + 0.06, 0.22, 0.22), [0, y0 + rise + 0.11, cz], [Math.PI / 4, 0, 0], 1, { c: C.slateD, box: 1.1 }, M);
+  }
+  /** Pignon triangulaire de granit (plan YZ local, épaisseur selon X). */
+  function gable(A, M, x, W, rise, y0, cz, th) {
+    A.stone.put(
+      T.extrude("gable" + W + "," + rise + "," + th, [
+        [-W / 2, 0],
+        [W / 2, 0],
+        [0, rise],
+      ], th),
+      [x, y0, cz],
+      [0, Math.PI / 2, 0],
+      1,
+      { c: C.granite, box: 1.6, ao: [0.8, y0, y0 + rise] },
+      M,
+    );
+  }
+
+  // Le moulin est dessiné dans un repère dont l'origine est au pied de sa façade, au milieu (le
+  // repère du « repaire » de la v3), puis recentré : centre de ses 3 × 2 cases, façade vers +Z.
+  const MILL_DZ = 5.4;
+  PTMT.models.mill = function () {
+    const root = new THREE.Group();
+    root.name = "ptmt-mill";
+    const body = new THREE.Group();
+    body.position.z = MILL_DZ;
+    root.add(body);
+    const rnd = P.rng(4242);
+    const M = new THREE.Matrix4();
+    const A = { stone: new P.Acc({ uv: true, seed: 11 }), slate: new P.Acc({ uv: true, seed: 12 }), main: new P.Acc({ seed: 13 }) };
+    const S = A.stone,
+      W = A.main;
+
+    const FL = 0.45; // sol des cases du moulin (herbe des plateaux)
+    const bx0 = -4.6,
+      bx1 = 2.4,
+      bz0 = -7.0,
+      bz1 = -2.4;
+    const BL = bx1 - bx0,
+      BW = bz1 - bz0,
+      bcx = (bx0 + bx1) / 2,
+      bcz = (bz0 + bz1) / 2;
+    // Moulin trapu : vue du dessus inclinée à 60°, le toit ne mord pas sur la cachette devant lui.
+    const EAVE = FL + 2.9,
+      RISE = 2.0;
+    const WH = { x: 3.9, y: FL + 0.5, z: -2.95, r: 1.38, w: 0.6 }; // roue
+
+    /* --- socle : levée de terre herbue bordée de granit, marches vers la cachette (évidée pour la fosse) */
+    const grassO = { c: C.grassD, g: [C.earth, C.grass, -0.2, FL], vj: 0.1 };
+    W.put(T.boxB(7.85, FL + 0.31, 6.75), [-1.425, -0.35, -5.57], 0, 1, grassO);
+    W.put(T.boxB(2.85, FL + 0.31, 5.3), [3.925, -0.35, -6.3], 0, 1, grassO);
+    // Mur de soutènement au bord avant, ouvert devant la porte pour deux marches.
+    S.put(T.boxB(4.08, FL + 0.37, 0.36), [-3.36, -0.35, -1.98], 0, 1, { c: C.graniteD, box: 1.4, vj: 0.08 });
+    S.put(T.boxB(4.68, FL + 0.37, 0.36), [3.06, -0.35, -1.98], 0, 1, { c: C.graniteD, box: 1.4, vj: 0.08 });
+    S.put(T.boxB(1.92, 0.3, 0.22), [-0.3, 0, -2.09], 0, 1, { c: C.dressed, box: 1.2 });
+    S.put(T.boxB(1.92, 0.15, 0.2), [-0.3, 0, -1.89], 0, 1, { c: C.dressed, box: 1.2 });
+    // Pavés devant la porte.
+    for (let i = 0; i < 7; i++) S.put(T.boxB(0.5, 0.06, 0.32), [-1.1 + (i % 4) * 0.52 + (i > 3 ? 0.26 : 0), FL, -2.32 + (i > 3 ? 0.0 : 0.04)], [0, (rnd() - 0.5) * 0.2, 0], 1, { c: C.graniteW, box: 0.8, j: 0.08 });
+
+    /* --- bâtiment : murs de moellons, chaînages clairs, pignons, toit d'ardoise */
+    const wall = (x, z, w, h, d, tint) => S.put(T.boxB(w, h, d), [x, FL, z], 0, 1, { c: tint || C.granite, box: 1.6, ao: [0.7, FL, FL + 1.4], vj: 0.05 });
+    wall(bcx, bz0 + 0.25, BL, EAVE - FL, 0.5);
+    wall(bcx, bz1 - 0.25, BL, EAVE - FL, 0.5);
+    wall(bx0 + 0.25, bcz, 0.5, EAVE - FL, BW - 1);
+    wall(bx1 - 0.25, bcz, 0.5, EAVE - FL, BW - 1);
+    for (const sx of [bx0, bx1])
+      for (const sz of [bz0, bz1]) {
+        const dx = sx === bx0 ? 1 : -1,
+          dz = sz === bz0 ? 1 : -1;
+        for (let i = 0; i < 9; i++) {
+          const long = i % 2 === 0;
+          S.put(T.box(long ? 0.66 : 0.4, 0.34, long ? 0.4 : 0.66), [sx + dx * (long ? 0.31 : 0.18), FL + 0.19 + i * 0.37, sz + dz * (long ? 0.18 : 0.31)], 0, 1.02, { c: C.dressed, box: 1.2, j: 0.05 });
+        }
+      }
+    gable(A, M, bx0 + 0.25, BW, RISE, EAVE, bcz, 0.5);
+    gable(A, M, bx1 - 0.25, BW, RISE, EAVE, bcz, 0.5);
+    gableRoof(A, M, BL, BW, RISE, 0.38, EAVE, bcz);
+    // Cheminée sur le pignon gauche.
+    S.put(T.boxB(0.75, 1.9, 0.9), [bx0 + 0.45, EAVE + RISE - 0.9, bcz - 0.1], 0, 1, { c: C.granite, box: 1.2 });
+    S.put(T.boxB(0.9, 0.14, 1.05), [bx0 + 0.45, EAVE + RISE + 1.0, bcz - 0.1], 0, 1, { c: C.dressed, box: 1.2 });
+    // Lucarne (porte du grenier) au-dessus de la porte, avec sa poutre de levage.
+    const lx = -1.25,
+      lz = bz1 - 0.05;
+    S.put(T.boxB(1.5, 1.35, 1.1), [lx, EAVE - 0.35, lz - 0.45], 0, 1, { c: C.granite, box: 1.4 });
+    S.put(
+      T.extrude("dormerGable", [
+        [-0.75, 0],
+        [0.75, 0],
+        [0, 0.72],
+      ], 1.1),
+      [lx, EAVE + 1.0, lz - 0.45],
+      0,
+      1,
+      { c: C.granite, box: 1.4 },
+      M,
+    );
+    for (const s of [-1, 1]) A.slate.put(T.box(1.18, 0.1, 1.42), [lx + s * 0.4, EAVE + 1.41, lz - 0.52], [0, 0, -s * 0.765], 1, { c: C.slate, box: 1 }, M);
+    W.put(T.boxB(0.95, 0.95, 0.08), [lx, EAVE - 0.2, lz + 0.12], 0, 1, { c: C.woodD });
+    for (let i = 0; i < 4; i++) W.put(T.boxB(0.2, 0.9, 0.04), [lx - 0.33 + i * 0.22, EAVE - 0.18, lz + 0.17], 0, 1, { c: C.wood, j: 0.1 });
+    W.put(T.box(0.16, 0.16, 1.2), [lx, EAVE + 0.95, lz + 0.35], 0, 1, { c: C.woodD });
+    W.put(T.cylB(0.012, 0.012, 1.1, 4), [lx, EAVE - 0.15, lz + 0.9], 0, 1, { c: "#e0cfa0" });
+    // Porte d'entrée : encadrement de granit, vantail bleu breton en planches, ferrures.
+    const dx = -0.3,
+      dw = 1.25,
+      dh = 2.15,
+      dz = bz1;
+    W.put(T.boxB(dw + 0.08, dh, 0.1), [dx, FL, dz + 0.0], 0, 1, { c: "#16110d" });
+    for (const s of [-1, 1]) S.put(T.boxB(0.34, dh + 0.05, 0.3), [dx + s * (dw / 2 + 0.17), FL, dz + 0.05], 0, 1, { c: C.dressed, box: 1.1 });
+    S.put(T.boxB(dw + 1.0, 0.42, 0.34), [dx, FL + dh, dz + 0.06], 0, 1, { c: C.dressed, box: 1.1 });
+    for (let i = 0; i < 5; i++) W.put(T.boxB(dw / 5 - 0.02, dh - 0.06, 0.07), [dx - dw / 2 + dw / 10 + (i * dw) / 5, FL, dz + 0.1], 0, 1, { c: i % 2 ? C.door : C.doorD, j: 0.05 });
+    for (const y of [0.35, dh - 0.45]) W.put(T.box(dw * 0.85, 0.08, 0.04), [dx - 0.05, FL + y, dz + 0.16], 0, 1, { c: C.iron });
+    W.put(T.torus(0.07, 0.018, 4, 10), [dx + dw * 0.3, FL + 1.05, dz + 0.18], 0, 1, { c: C.iron });
+    // Fenêtres à volets bleus (gauche) et petite fenêtre (droite).
+    const windowAt = (x, y, w, h, shutters) => {
+      S.put(T.box(w + 0.28, h + 0.28, 0.2), [x, y, dz + 0.02], 0, 1, { c: C.dressed, box: 1.1 });
+      W.put(T.box(w, h, 0.06), [x, y, dz + 0.1], 0, 1, { c: C.window, emit: 0.05 });
+      W.put(T.box(0.05, h, 0.05), [x, y, dz + 0.14], 0, 1, { c: "#f2efe6" });
+      W.put(T.box(w, 0.05, 0.05), [x, y, dz + 0.14], 0, 1, { c: "#f2efe6" });
+      if (shutters)
+        for (const s of [-1, 1]) {
+          W.put(T.box(w * 0.55, h + 0.06, 0.06), [x + s * (w * 0.5 + 0.2 + w * 0.27), y, dz + 0.12], 0, 1, { c: C.shutter });
+          for (const yy of [-0.25, 0.25]) W.put(T.box(w * 0.5, 0.05, 0.03), [x + s * (w * 0.5 + 0.2 + w * 0.27), y + yy * h, dz + 0.16], 0, 1, { c: C.doorD });
+        }
+      // Jardinière fleurie.
+      W.put(T.boxB(w + 0.2, 0.18, 0.22), [x, y - h / 2 - 0.2, dz + 0.2], 0, 1, { c: C.woodD });
+      for (let i = 0; i < 5; i++) W.put(T.blob(40 + i, 0, 0.3), [x - w / 2 + (i + 0.5) * (w / 5), y - h / 2 - 0.02, dz + 0.24], 0, [0.13, 0.11, 0.1], { c: i % 2 ? "#ff5a6a" : "#ffffff", rim: 0.5 });
+    };
+    windowAt(-2.6, FL + 1.55, 0.8, 0.95, true);
+    windowAt(1.45, FL + 1.75, 0.55, 0.65, false);
+    // Hortensias bleus et roses au pied de la façade (très bretons).
+    const hydrangea = (x, z, s, c) => {
+      W.put(T.blob(70 + Math.round(x * 10), 1, 0.14, 1.7, -0.3), [x, FL + 0.3 * s, z], 0, [0.6 * s, 0.42 * s, 0.48 * s], { c: "#2f6a28", rim: 0.8, vj: 0.1, dark: 0.3 });
+      const heads = [[0, 0.62, 0.05, 0.27]];
+      for (let i = 0; i < 6; i++) {
+        const a = (i / 6) * TAU + x;
+        heads.push([Math.cos(a) * 0.36, 0.44 + (i % 2) * 0.1, Math.sin(a) * 0.27, 0.23]);
+      }
+      for (const [hx, hy, hz, r] of heads) W.put(T.blob(80 + Math.floor(rnd() * 5), 1, 0.2, 3), [x + hx * s, FL + hy * s, z + hz * s], 0, r * s, { c: P.vary(c, rnd, 0.25), rim: 0.8, vj: 0.18, vs: 6, emit: 0.1 });
+    };
+    hydrangea(-3.7, -2.12, 1, C.flowerB);
+    hydrangea(-1.95, -2.15, 0.8, C.flowerP);
+    hydrangea(2.25, -2.15, 0.75, C.flowerB);
+    // Vieille meule dressée contre le pignon gauche, sacs de farine au coin.
+    W.put(T.cyl(0.7, 0.7, 0.22, 20), [bx0 - 0.22, FL + 0.66, bcz + 1.1], [0, 0, Math.PI / 2 - 0.22], 1, { c: "#cbc2b0", vj: 0.1, vs: 4, rim: 0.3 });
+    W.put(T.cyl(0.16, 0.16, 0.24, 10), [bx0 - 0.22, FL + 0.66, bcz + 1.1], [0, 0, Math.PI / 2 - 0.22], 1, { c: "#5a5248" });
+    for (const [x, z, r] of [
+      [bx0 - 0.35, bcz - 1.2, 0.3],
+      [bx0 - 0.4, bcz - 0.55, -0.2],
+    ]) {
+      W.put(T.blob(90 + Math.round(z * 3), 1, 0.08), [x, FL + 0.32, z], [0, r, 0], [0.28, 0.34, 0.25], { c: "#d9c49a", rim: 0.5, vj: 0.05 });
+      W.put(T.cylB(0.06, 0.1, 0.12, 6), [x, FL + 0.62, z], 0, 1, { c: "#b09a70" });
+    }
+
+    /* --- fosse de la roue (murs de granit), roue à aubes (rôle 3 : tourne dans le shader) */
+    const pz0 = -3.62,
+      pz1 = -2.16;
+    S.put(T.boxB(2.85, 2.65, 0.3), [3.925, -0.45, pz0 + 0.15], 0, 1, { c: C.granite, box: 1.5, ao: [0.55, -0.45, 1.4] });
+    S.put(T.boxB(0.3, FL + 0.5, pz1 - pz0), [bx1 - 0.05, -0.45, (pz0 + pz1) / 2], 0, 1, { c: C.graniteD, box: 1.4 });
+    S.put(T.boxB(0.3, FL + 0.5, pz1 - pz0), [5.25, -0.45, (pz0 + pz1) / 2], 0, 1, { c: C.graniteD, box: 1.4 });
+    W.put(T.boxB(0.12, 0.55, 0.8), [5.12, -0.4, WH.z + 0.25], 0, 1, { c: "#0f1418" });
+    W.put(T.boxB(2.6, 0.1, pz1 - pz0), [3.925, -0.55, (pz0 + pz1) / 2], 0, 1, { c: "#20303a" });
+    const wheelO = { c: C.wet, role: 3, j: 0.06 };
+    for (const s of [-1, 1]) W.put(T.torus(WH.r, 0.075, 5, 28), [WH.x, WH.y, WH.z + s * (WH.w / 2)], 0, 1, Object.assign({}, wheelO, { c: C.woodD }));
+    for (const s of [-1, 1]) W.put(T.torus(WH.r * 0.62, 0.05, 4, 20), [WH.x, WH.y, WH.z + s * (WH.w / 2)], 0, 1, Object.assign({}, wheelO, { c: C.woodD }));
+    for (let i = 0; i < 8; i++) {
+      const a = (i / 8) * TAU;
+      for (const s of [-1, 1]) W.put(T.box(0.11, WH.r * 2 - 0.1, 0.09), [WH.x, WH.y, WH.z + s * (WH.w / 2)], [0, 0, a], 1, Object.assign({}, wheelO, { c: C.wood }));
+    }
+    for (let i = 0; i < 16; i++) {
+      const a = (i / 16) * TAU;
+      W.put(T.box(0.34, 0.07, WH.w + 0.1), [WH.x + Math.cos(a) * (WH.r - 0.12), WH.y + Math.sin(a) * (WH.r - 0.12), WH.z], [0, 0, a + 0.35], 1, Object.assign({}, wheelO, { c: i % 2 ? C.woodW : C.wood }));
+    }
+    W.put(T.cyl(0.2, 0.2, WH.w + 0.3, 10), [WH.x, WH.y, WH.z], [Math.PI / 2, 0, 0], 1, Object.assign({}, wheelO, { c: C.iron }));
+    W.put(T.cyl(0.08, 0.08, 1.1, 6), [WH.x, WH.y, WH.z - 0.5], [Math.PI / 2, 0, 0], 1, { c: C.iron });
+
+    /* --- coursier (auge en bois sur tréteaux) depuis la levée du bief, à l'arrière */
+    const fx0 = WH.x + 0.82,
+      fyE = WH.y + WH.r + 0.4,
+      fzE = WH.z - 0.15,
+      fz0 = -8.55,
+      fy0 = fyE + 0.18;
+    const fl = Math.abs(fz0 - fzE),
+      fs = Math.atan2(fy0 - fyE, fl);
+    const fcz = (fz0 + fzE) / 2,
+      fcy = (fy0 + fyE) / 2;
+    W.put(T.box(0.7, 0.08, fl), [fx0, fcy - 0.2, fcz], [fs, 0, 0], 1, { c: C.woodD });
+    for (const s of [-1, 1]) W.put(T.box(0.07, 0.38, fl), [fx0 + s * 0.33, fcy, fcz], [fs, 0, 0], 1, { c: C.wood, j: 0.05 });
+    for (let i = 0; i < 4; i++) {
+      const z = fzE - 0.8 - i * 1.35;
+      const yTop = lerp(fyE, fy0, (fzE - z) / fl) - 0.25;
+      for (const s of [-1, 1]) W.put(T.boxB(0.12, yTop - FL, 0.12), [fx0 + s * 0.32, FL, z], [0, 0, s * 0.06], 1, { c: C.woodD });
+      W.put(T.box(0.8, 0.1, 0.12), [fx0, yTop - 0.05, z], 0, 1, { c: C.woodD });
+    }
+    // Levée du bief : talus d'herbe, mur de soutènement, vanne.
+    W.put(T.blob(301, 1, 0.1), [4.3, fy0 - 1.25, -8.3], 0, [1.6, 1.4, 1.15], { c: C.grass, g: [C.earth, C.grass, FL, fy0], rim: 0.35, vj: 0.12 });
+    S.put(T.boxB(2.3, fy0 - FL - 0.1, 0.5), [4.35, FL, -7.4], 0, 1, { c: C.granite, box: 1.4, ao: [0.65, FL, fy0] });
+    W.put(T.boxB(0.78, 0.9, 0.1), [fx0, fy0 - 0.45, -7.12], 0, 1, { c: C.woodD });
+    W.put(T.box(0.08, 1.3, 0.08), [fx0 - 0.36, fy0 + 0.2, -7.08], 0, 1, { c: C.wood });
+    W.put(T.box(0.08, 1.3, 0.08), [fx0 + 0.36, fy0 + 0.2, -7.08], 0, 1, { c: C.wood });
+    W.put(T.box(0.9, 0.1, 0.1), [fx0, fy0 + 0.8, -7.08], 0, 1, { c: C.woodD });
+    W.put(T.cyl(0.04, 0.04, 0.9, 5), [fx0, fy0 + 0.45, -7.02], 0, 1, { c: C.iron });
+    // Touffes et roseaux sur la levée.
+    for (let i = 0; i < 7; i++) {
+      const a = i * 1.9,
+        r = 0.6 + (i % 3) * 0.3;
+      for (let k = 0; k < 5; k++)
+        W.put(T.blade(0.12 * (k % 2 ? 1 : -1), 0.05), [4.3 + Math.cos(a) * r, fy0 - 0.05, -8.4 + Math.sin(a) * r * 0.6], [0, k * 1.3 + i, (k - 2) * 0.12], [1, 0.55 + (k % 3) * 0.15, 1], {
+          c: k % 2 ? "#7fb850" : "#5f9a3a",
+        });
+    }
+
+    /* --- lanterne (support de fer) et cloche d'alarme (rôle 4 : se balance) */
+    const lan = { x: 0.75, y: FL + 1.95, z: bz1 + 0.42 };
+    W.put(T.box(0.05, 0.05, 0.5), [lan.x, lan.y + 0.62, bz1 + 0.2], 0, 1, { c: C.iron });
+    W.put(T.box(0.05, 0.4, 0.05), [lan.x, lan.y + 0.42, bz1 + 0.02], [0.6, 0, 0], 1, { c: C.iron });
+    W.put(T.boxB(0.3, 0.04, 0.3), [lan.x, lan.y - 0.02, lan.z], 0, 1, { c: C.iron });
+    W.put(T.cone(0.24, 0.2, 4), [lan.x, lan.y + 0.4, lan.z], [0, Math.PI / 4, 0], 1, { c: C.iron });
+    for (const sx of [-1, 1]) for (const sz of [-1, 1]) W.put(T.boxB(0.03, 0.4, 0.03), [lan.x + sx * 0.12, lan.y, lan.z + sz * 0.12], 0, 1, { c: C.iron });
+    W.put(T.boxB(0.2, 0.34, 0.2), [lan.x, lan.y + 0.02, lan.z], 0, 1, { c: C.lantern, emit: 1.1 });
+    const bell = { x: -1.5, y: FL + 2.35, z: bz1 + 0.62 };
+    // Potence de chêne, petit auvent de planches, et la cloche de bronze.
+    W.put(T.box(0.13, 0.13, 0.85), [bell.x, bell.y + 0.2, bz1 + 0.38], 0, 1, { c: C.woodD });
+    W.put(T.box(0.1, 0.62, 0.1), [bell.x, bell.y - 0.1, bz1 + 0.12], [-0.75, 0, 0], 1, { c: C.woodD });
+    for (const s of [-1, 1]) W.put(T.box(0.5, 0.05, 0.62), [bell.x + s * 0.2, bell.y + 0.44, bell.z - 0.12], [0, 0, -s * 0.55], 1, { c: C.wood, j: 0.08 });
+    W.put(
+      T.lathe("bell", [
+        [0.001, 0.02],
+        [0.1, 0.0],
+        [0.14, -0.12],
+        [0.17, -0.3],
+        [0.24, -0.4],
+        [0.25, -0.44],
+        [0.001, -0.42],
+      ], 12),
+      [bell.x, bell.y + 0.06, bell.z],
+      0,
+      1.35,
+      { c: C.bronze, role: 4, emit: 0.15, rim: 0.4 },
+    );
+    W.put(T.sphere(0.08, 6, 4), [bell.x, bell.y - 0.52, bell.z], 0, 1, { c: C.iron, role: 4 });
+    W.put(T.cylB(0.014, 0.014, 1.5, 4), [bell.x + 0.06, bell.y - 1.95, bell.z + 0.06], 0, 1, { c: "#d8c79a", role: 4 });
+
+    /* --- maillages */
+    const wheelU = new THREE.Vector4(WH.x, WH.y, WH.z, 0);
+    const bellU = new THREE.Vector4(bell.x, bell.y + 0.06, bell.z, 0);
+    const mainMat = P.paint({ rig: { wheel: wheelU, bell: bellU }, lift: 0.14, rim: [0.05, 0.42, 0.55], name: "moulin" });
+    const meshes = [P.mesh(S, P.stoneMat(), { cast: true, name: "granit" }), P.mesh(A.slate, P.slateMat(), { cast: true, name: "ardoises" }), P.mesh(W, mainMat, { cast: true, name: "moulin" })];
+    for (const m of meshes) body.add(m);
+
+    /* --- eau : bief, coursier, chute sur la roue, fosse et canal de fuite */
+    const water = P.waterMesh([
+      P.waterStrip(
+        [
+          [fx0, fy0 - 0.02, fz0 + 0.2],
+          [fx0, fyE + 0.12, fzE + 0.05],
+        ],
+        0.56,
+        [1, 0, 0],
+        "#3f9fc0",
+        0.9,
+        1.4,
+      ),
+      P.waterStrip(
+        [
+          [fx0, fyE + 0.12, fzE + 0.05],
+          [fx0 - 0.02, fyE - 0.05, fzE + 0.28],
+          [fx0 - 0.08, WH.y + 1.05, WH.z + 0.1],
+          [fx0 - 0.02, WH.y + 0.1, WH.z + 0.12],
+          [fx0 + 0.05, -0.2, WH.z + 0.1],
+        ],
+        0.5,
+        [1, 0, 0],
+        "#8fd8f0",
+        (t) => 0.85 - t * 0.2,
+        2.4,
+      ),
+      P.waterStrip(
+        [
+          [2.55, -0.28, (pz0 + pz1) / 2 + 0.1],
+          [5.12, -0.28, (pz0 + pz1) / 2 + 0.1],
+        ],
+        1.25,
+        [0, 0, 1],
+        "#2f86a8",
+        0.92,
+        0.7,
+      ),
+      P.waterStrip(
+        [
+          [3.4, fy0 - 0.05, -8.8],
+          [5.3, fy0 - 0.05, -8.8],
+        ],
+        1.2,
+        [0, 0, 1],
+        "#3f9fc0",
+        0.85,
+        0.25,
+      ),
+    ]);
+    body.add(water);
+
+    /* --- lueurs et particules (un seul lot) */
+    const specs = [];
+    // Groupe 0 : lanterne (chaude) ; 1 : lanterne rouge + ondes de la cloche (alarme) ; 2 : fumée ; 3 : éclaboussures.
+    specs.push({ mode: "glow", p: [lan.x, lan.y + 0.2, lan.z + 0.05], size: 0.75, cell: "glow", color: "#ffb84a", a: 0.9, add: 1, flick: 0.18, group: 0 });
+    specs.push({ mode: "glow", p: [lan.x, lan.y + 0.2, lan.z + 0.05], size: 1.35, cell: "glow", color: "#ff8a2a", a: 0.35, add: 1, flick: 0.1, group: 0 });
+    specs.push({ mode: "glow", p: [lan.x, lan.y + 0.2, lan.z + 0.05], size: 1.3, cell: "glow", color: "#ff2a1a", a: 1, add: 1, flick: 0.5, group: 1 });
+    specs.push({ mode: "glow", p: [lan.x, lan.y + 0.2, lan.z + 0.05], size: 2.6, cell: "glow", color: "#ff3a10", a: 0.5, add: 0.8, flick: 0.3, group: 1 });
+    for (let i = 0; i < 3; i++) specs.push({ mode: "ring", p: [bell.x, bell.y - 0.25, bell.z + 0.15], size: 0.35, end: 1.6, cell: "ding", color: "#fff4b0", a: 1, add: 0.55, speed: 1.6, phase: i / 3, group: 1 });
+    for (let i = 0; i < 6; i++)
+      specs.push({ mode: "smoke", p: [bx0 + 0.45, EAVE + RISE + 1.15, bcz - 0.1], size: 0.35, end: 1.15, rise: 2.8, drift: [0.8, -0.3], cell: "puff", color: "#f2f0ec", a: 0.8, add: 0, speed: 0.16, phase: i / 6, group: 2 });
+    for (let i = 0; i < 10; i++) {
+      const a = rnd() * TAU;
+      specs.push({ mode: "drop", p: [fx0 - 0.05, WH.y + 0.9, WH.z + 0.15], size: 0.07, cell: "drop", color: "#e8fbff", a: 0.95, add: 0.4, speed: 1.4 + rnd(), phase: rnd(), vel: [Math.cos(a) * 0.9 + 0.3, 1.2 + rnd() * 0.8, Math.sin(a) * 0.5], grav: 7, group: 3 });
+    }
+    for (let i = 0; i < 5; i++)
+      specs.push({ mode: "smoke", p: [fx0 - 0.1 + (rnd() - 0.5) * 0.5, -0.25, WH.z + 0.2 + (rnd() - 0.5) * 0.4], size: 0.18, end: 0.5, rise: 0.25, drift: [0.4, 0], cell: "puff", color: "#ffffff", a: 0.8, add: 0.2, speed: 0.9, phase: i / 5, group: 3 });
+    for (let i = 0; i < 6; i++)
+      specs.push({ mode: "slide", p: [4.0 + (rnd() - 0.5) * 0.6, -0.22, WH.z + 0.15 + (rnd() - 0.5) * 0.6], size: 0.16, len: 1.8, dir: [1, 0], rot: -Math.PI / 2, cell: "leaf", color: "#ffffff", a: 0.55, add: 0.3, speed: 0.6, phase: i / 6, group: 3 });
+    const fx = P.fx(specs, { name: "lueurs du moulin" });
+    body.add(fx.mesh);
+
+    const st = { t: 0, alarm: false, a: 0, bellA: 0, bellV: 0, wheel: 0 };
+    return {
+      object: root,
+      alarm(on) {
+        st.alarm = !!on;
+      },
+      update(dt, time) {
+        if (dt > 0.1) dt = 0.1;
+        if (dt < 0) dt = 0;
+        P.tick(time);
+        st.t += dt;
+        st.a = damp(st.a, st.alarm ? 1 : 0, 6, dt);
+        // Roue : tourne lentement (le bord droit descend sous la chute).
+        st.wheel -= dt * 0.75;
+        wheelU.w = st.wheel % TAU;
+        // Cloche : balancement vif pendant l'alarme, ressort qui s'amortit ensuite.
+        const target = st.alarm ? Math.sin(st.t * 9.5) * 0.75 : 0;
+        st.bellV += ((target - st.bellA) * 60 - st.bellV * 6) * dt;
+        st.bellA += st.bellV * dt;
+        bellU.w = st.bellA;
+        const blink = 0.5 + 0.5 * Math.sin(st.t * 10);
+        fx.gain.set(1 - st.a * 0.85, st.a * (0.55 + 0.45 * blink), 1, 1);
+      },
+      dispose() {
+        if (root.parent) root.parent.remove(root);
+        for (const m of meshes) m.geometry.dispose();
+        water.geometry.dispose();
+        mainMat.dispose();
+        fx.material.dispose();
+        fx.mesh.geometry.dispose();
+      },
+    };
+  };
+
+  /* ================================================================== butte */
+  // Case surélevée (+1,3 m) au milieu d'une route, qui doit se repérer d'un coup d'œil : socle de
+  // granit sombre appareillé en gros blocs aux flancs nets, couronnement de pierre claire, dessus
+  // d'herbe bordé de dalles ; sur la face avant, trois bannières aux couleurs des familles de tours
+  // (brun-vert, bleu, rouge : « toutes les tours »), et un fanion tricolore au coin avant gauche
+  // (une tour posée au milieu ne cache ni l'un ni l'autre).
+  const HG = { top: 1.3, half: 1.68 };
+  const HC = {
+    core: "#24221f",
+    blocks: ["#5a554f", "#655f58", "#4f4b46", "#615b54"],
+    blockTop: "#7d776d",
+    coping: "#c9c2b2",
+    copingD: "#a9a293",
+    slab: ["#bdb6a6", "#c8c1b1", "#b1aa9a"],
+    grass: "#86cc48",
+    grassD: "#5aa632",
+    pole: "#4a3626",
+    flag: ["#7a8a26", "#2f7cff", "#ff3a1e"],
+    gold: "#ffcf4a",
+  };
+  /** Flamme triangulaire à trois bandes horizontales, deux faces ; le balancement croît vers la pointe. */
+  function pennantTpl(len, fh, cols) {
+    return P.tc(`pennant${len},${fh},${cols.join()}`, () => {
+      const N = 6;
+      const pos = [],
+        idx = [],
+        bandOf = [],
+        uOf = [];
+      for (let b = 0; b < 3; b++) {
+        const base = pos.length / 3;
+        for (let i = 0; i <= N; i++) {
+          const u = i / N;
+          const hh = (fh / 2) * (1 - 0.9 * u);
+          pos.push(0.04 + u * len, hh * (1 - (2 * b) / 3), 0, 0.04 + u * len, hh * (1 - (2 * (b + 1)) / 3), 0);
+          bandOf.push(b, b);
+          uOf.push(u, u);
+          if (i > 0) {
+            const a = base + (i - 1) * 2;
+            idx.push(a, a + 1, a + 3, a, a + 3, a + 2);
+          }
+        }
+      }
+      const n = pos.length / 3;
+      const t = P.twoSided(new Float32Array(pos), idx);
+      t.col = new Float32Array(t.n * 3);
+      t.inf = new Float32Array(t.n * 4);
+      for (let i = 0; i < t.n; i++) {
+        const k = i % n;
+        const c = col(cols[bandOf[k]]);
+        t.col[i * 3] = c.r;
+        t.col[i * 3 + 1] = c.g;
+        t.col[i * 3 + 2] = c.b;
+        t.inf[i * 4] = 0.1 + uOf[k];
+        t.inf[i * 4 + 1] = 0.22;
+        t.inf[i * 4 + 2] = 1;
+        t.inf[i * 4 + 3] = 0.15;
+      }
+      return t;
+    });
+  }
+  PTMT.models.highGround = function (opts) {
+    opts = opts || {};
+    const seed = opts.seed | 0;
+    const root = new THREE.Group();
+    root.name = "ptmt-butte";
+    const rnd = P.rng(1300 + seed * 17);
+    const A = new P.Acc({ seed: 61 + seed });
+    const H = HG.top,
+      h = HG.half;
+    const COP = 0.16; // couronnement de pierre claire sous le dessus
+    // Noyau sombre (visible dans les joints entre les blocs).
+    A.put(T.boxB(h * 2 - 0.12, H - 0.08, h * 2 - 0.12), [0, 0, 0], 0, 1, { c: HC.core });
+    // Parements : deux assises de gros blocs sur chaque face, joints sombres, arêtes un peu irrégulières.
+    const courses = [
+      [0, 0.58],
+      [0.58, H - COP - 0.02],
+    ];
+    for (let f = 0; f < 4; f++) {
+      const M = new THREE.Matrix4().makeRotationY((f * Math.PI) / 2);
+      courses.forEach(([y0, y1], ci) => {
+        let x = -h,
+          k = 0;
+        while (x < h - 0.05) {
+          const w = Math.min(h - x, 0.9 + rnd() * 0.5 + (ci ? 0.2 : 0));
+          const ww = h - x - w < 0.45 ? h - x : w;
+          const c = HC.blocks[(k + ci * 2 + f) % 4];
+          A.put(T.boxB(ww - 0.07, y1 - y0 - 0.06, 0.34), [x + ww / 2, y0 + 0.03, h - 0.15 + rnd() * 0.04], [0, (rnd() - 0.5) * 0.03, (rnd() - 0.5) * 0.02], 1, {
+            g: [c, HC.blockTop, y0 - 0.2, y1 + 0.35],
+            vj: 0.12,
+            vs: 3,
+            rim: 0.4,
+            ao: [0.7, 0, 0.45],
+          }, M);
+          x += ww;
+          k++;
+        }
+      });
+      // Couronnement clair : une ligne nette qui dessine le bord de la case vue d'en haut.
+      A.put(T.boxB(h * 2 + 0.08, COP, 0.3), [0, H - COP, h - 0.11], 0, 1, { g: [HC.copingD, HC.coping, H - COP, H], vj: 0.06, vs: 4, rim: 0.3 }, M);
+    }
+    // Dessus : dalles claires en bordure, herbe au milieu (la place de la tour).
+    A.put(T.boxB(h * 2 - 0.1, 0.05, h * 2 - 0.1), [0, H - 0.04, 0], 0, 1, { c: HC.grassD });
+    for (let f = 0; f < 4; f++) {
+      const M = new THREE.Matrix4().makeRotationY((f * Math.PI) / 2);
+      let x = -h + 0.06,
+        k = 0;
+      while (x < h - 0.2) {
+        const w = Math.min(h - 0.06 - x, 0.5 + rnd() * 0.25);
+        A.put(T.boxB(w - 0.05, 0.05, 0.36), [x + w / 2, H - 0.02, h - 0.3], [0, (rnd() - 0.5) * 0.05, 0], 1, { c: HC.slab[k % 3], vj: 0.08, vs: 4, rim: 0.2 }, M);
+        x += w;
+        k++;
+      }
+    }
+    A.put(T.boxSeg(h * 2 - 1.0, 0.05, h * 2 - 1.0, 4, 1, 4), [0, H - 0.02, 0], 0, 1, { g: [HC.grassD, HC.grass, H - 0.02, H + 0.03], vj: 0.14, vs: 1.6 });
+    // Touffes et fleurs dans les coins (le milieu reste libre pour la tour).
+    for (let i = 0; i < 8; i++) {
+      const sx = i % 2 ? 1 : -1,
+        sz = i % 4 < 2 ? 1 : -1;
+      const x = sx * (h - 0.62 - rnd() * 0.2),
+        z = sz * (h - 0.62 - rnd() * 0.2);
+      for (let k = 0; k < 4; k++)
+        A.put(T.blade(0.1 * (rnd() - 0.5), 0.06, 2), [x + (rnd() - 0.5) * 0.18, H, z + (rnd() - 0.5) * 0.18], [0, rnd() * TAU, (rnd() - 0.5) * 0.7], [1, 0.28 + rnd() * 0.2, 1], {
+          g: ["#3f7a26", "#a4d456", H, H + 0.45],
+          sway: 1,
+          pivot: [x, H, z],
+        });
+      if (i < 4) A.put(T.flower(5, 0.075, 0.02, ["#ffffff", "#ffd21a", "#ff5aa8", "#ffffff"][i], "#ffd21a"), [x, H + 0.2, z], [0, rnd() * TAU, 0], 1, { emit: 0.2, sway: 1, pivot: [x, H, z] });
+    }
+    // Trois bannières pendues au couronnement de la face avant (pointe en queue d'aronde).
+    const BW = 0.62,
+      BH = 0.92;
+    for (let b = 0; b < 3; b++) {
+      const bx = (b - 1) * 0.95;
+      const zf = h + 0.06;
+      A.put(T.box(BW + 0.16, 0.06, 0.06), [bx, H - 0.02, zf + 0.02], 0, 1, { c: HC.gold, emit: 0.25, rim: 0.3 });
+      A.put(T.boxB(BW, BH - 0.18, 0.035), [bx, H - BH + 0.16, zf], 0, 1, { c: HC.flag[b], emit: 0.16, rim: 0.2, vj: 0.06 });
+      for (const s of [-1, 1])
+        A.put(
+          T.extrude("bannerTail", [
+            [0, 0],
+            [BW / 2, 0],
+            [BW / 2, -0.2],
+          ], 0.035),
+          [bx, H - BH + 0.16, zf],
+          [0, s < 0 ? Math.PI : 0, 0],
+          [1, 1, 1],
+          { c: HC.flag[b], emit: 0.16, rim: 0.2 },
+        );
+      // Liseré clair et petit écusson (étoile) au milieu.
+      A.put(T.box(BW - 0.12, 0.04, 0.04), [bx, H - 0.24, zf + 0.02], 0, 1, { c: "#f6efd8", emit: 0.2 });
+      A.put(T.octa(0.1), [bx, H - 0.52, zf + 0.04], [0, 0, Math.PI / 4], [1, 1, 0.4], { c: "#f6efd8", emit: 0.25 });
+    }
+    // Fanion tricolore sur sa hampe au coin avant gauche, tourné vers la caméra (flotte vers l'extérieur).
+    const fxp = -h + 0.3,
+      fzp = h - 0.3,
+      poleH = 2.5;
+    A.put(T.cylB(0.11, 0.13, 0.1, 8), [fxp, H, fzp], 0, 1, { c: "#4a4642" });
+    A.put(T.cylB(0.05, 0.065, poleH, 6), [fxp, H, fzp], 0, 1, { c: HC.pole, rim: 0.4 });
+    A.put(T.sphere(0.11, 8, 6), [fxp, H + poleH + 0.05, fzp], 0, 1, { c: HC.gold, emit: 0.4 });
+    // Flamme tricolore, inclinée vers le ciel (elle se présente à la caméra du jeu), qui flotte vers l'extérieur.
+    const FLn = 1.5,
+      FH = 0.95,
+      TILT_F = 0.7;
+    const FM = new THREE.Matrix4()
+      .makeRotationY(Math.PI)
+      .premultiply(new THREE.Matrix4().makeRotationX(-TILT_F))
+      .setPosition(fxp, H + poleH - 0.05 - (FH / 2) * Math.cos(TILT_F), fzp + (FH / 2) * Math.sin(TILT_F));
+    A.put(pennantTpl(FLn, FH, HC.flag), [0, 0, 0], 0, 1, { sway: 4, pivot: [fxp, H, fzp] }, FM);
+    // Quelques cailloux au pied, devant (sur la route).
+    for (let i = 0; i < 4; i++) {
+      const x = (rnd() - 0.5) * 2 * (h - 0.2),
+        z = h + 0.14 + rnd() * 0.16;
+      A.put(T.rock(700 + i, 0, 0.3), [x, 0.02, z], [0, rnd() * TAU, 0], [0.12 + rnd() * 0.06, 0.08, 0.1 + rnd() * 0.05], { c: "#a49d90", rim: 0.6, dark: 0.25 });
+    }
+    const mat = P.shared("butte", () => P.paint({ sway: true, lift: 0.12, rim: [0.05, 0.45, 0.55], name: "butte" }));
+    const mesh = P.mesh(A, mat, { cast: true, name: "butte", pad: 1.5 });
+    root.add(mesh);
+    return {
+      object: root,
+      height: H,
+      update(dt, time) {
+        P.tick(time);
+      },
+      dispose() {
+        if (root.parent) root.parent.remove(root);
+        mesh.geometry.dispose();
+      },
+    };
+  };
+
+  /* ================================================================== barrière */
+  // Entrée fermée : barrière de bois (poteaux, lisses, croix de Saint-André, lisse haute peinte en
+  // rouge et blanc), haie d'ajoncs en fleur côté extérieur, panneau « Route barrée » devant.
+  // open() : la barrière tremble, les planches volent et retombent en vrac sur les bords, la haie
+  // s'écarte de part et d'autre, le panneau bascule ; il reste des débris sur les côtés du chemin.
+  let barrierTex = null;
+  const BAR_WHITE = [0.5, 0.08];
+  function barrierTexture() {
+    if (barrierTex) return barrierTex;
+    const W = 512,
+      Hh = 256;
+    const cv = document.createElement("canvas");
+    cv.width = W;
+    cv.height = Hh;
+    const g = cv.getContext("2d");
+    g.fillStyle = "#ffffff";
+    g.fillRect(0, 0, W, Hh);
+    // Panneau (haut de la planche : 512 × 200) : fond blanc, large bord rouge, texte noir.
+    g.fillStyle = "#d8231a";
+    g.fillRect(0, 0, W, 200);
+    g.fillStyle = "#fbfaf4";
+    g.fillRect(20, 20, W - 40, 160);
+    g.fillStyle = "#16130f";
+    g.textAlign = "center";
+    g.textBaseline = "middle";
+    g.font = '800 66px system-ui, "Segoe UI", sans-serif';
+    g.fillText("ROUTE", W / 2, 66);
+    g.fillText("BARRÉE", W / 2, 136);
+    barrierTex = new THREE.CanvasTexture(cv);
+    barrierTex.encoding = THREE.sRGBEncoding;
+    barrierTex.anisotropy = 4;
+    barrierTex.name = "ptmt:props-barrier";
+    return barrierTex;
+  }
+  const _q = new THREE.Quaternion(),
+    _e = new THREE.Euler();
+  PTMT.models.barrier = function (o) {
+    const opts = typeof o === "object" && o ? o : { width: o };
+    const nw = clamp(Math.round(opts.width || 1), 1, 3);
+    const Wd = nw * P.TILE;
+    const half = Wd / 2 - 0.1;
+    const root = new THREE.Group();
+    root.name = "ptmt-barrier-" + nw;
+    const rnd = P.rng(5100 + nw * 31 + (opts.seed | 0) * 7);
+    const A = new P.Acc({ uv: true, seed: 71 + nw });
+    const R = P.pieces(A);
+    const WO = (c, more) => Object.assign({ c, uvs: [0, 0], uo: BAR_WHITE[0], vo: BAR_WHITE[1] }, more || {});
+    const pieces = []; // { k, kind, from: [x, y, z], to, rot0, rot1, delay, dur, arc, side }
+    const zB = 0.35; // ligne de la barrière
+    const zH = -0.85; // haie (côté extérieur)
+    // Point de chute au bord du chemin (côté de la pièce), un peu en avant ou en arrière.
+    const landing = (x0) => {
+      const side = x0 < 0 || (x0 === 0 && rnd() < 0.5) ? -1 : 1;
+      return [side * (Wd / 2 + 0.25 + rnd() * 0.85), 0, (rnd() - 0.45) * 1.8];
+    };
+    // Tours entiers ajoutés à la rotation finale : la pièce vrille en vol et retombe à plat.
+    const turn = () => TAU * (rnd() < 0.5 ? -1 : 1) * (1 + Math.floor(rnd() * 2));
+
+    /* --- poteaux et planches */
+    const nPost = Math.max(2, Math.ceil(Wd / 1.8) + 1);
+    const posts = [];
+    for (let i = 0; i < nPost; i++) posts.push(-half + (i * (2 * half)) / (nPost - 1));
+    posts.forEach((x, i) => {
+      const edge = i === 0 || i === nPost - 1;
+      R.begin([x, edge ? 0 : 0.6, zB]);
+      A.put(T.boxB(0.16, 1.25, 0.16), [x, -0.05, zB], [0, (rnd() - 0.5) * 0.2, (rnd() - 0.5) * 0.06], 1, WO("#5e4632", { vj: 0.1, rim: 0.3 }));
+      A.put(T.cone(0.12, 0.14, 4), [x, 1.2, zB], [0, Math.PI / 4, 0], 1, WO("#4a3626"));
+      const k = R.end();
+      // Les poteaux des bords restent debout, un peu penchés ; ceux du milieu volent vers les bords
+      // et retombent couchés (pivot au milieu du poteau).
+      if (edge) pieces.push({ k, kind: "lean", from: [x, 0, zB], side: x < 0 ? -1 : 1, delay: 0.18 + rnd() * 0.1, dur: 0.7 });
+      else
+        pieces.push({
+          k,
+          kind: "fly",
+          from: [x, 0.6, zB],
+          to: landing(x),
+          y1: 0.09,
+          side: x < 0 ? -1 : 1,
+          delay: 0.2 + rnd() * 0.15,
+          dur: 0.8 + rnd() * 0.3,
+          arc: 1.2 + rnd() * 1.0,
+          rot: [turn(), (rnd() - 0.5) * 1.6, Math.PI / 2 + (rnd() < 0.5 ? turn() : 0)],
+        });
+    });
+    for (let i = 0; i < nPost - 1; i++) {
+      const x0 = posts[i],
+        x1 = posts[i + 1];
+      const L = x1 - x0 + 0.2,
+        cx = (x0 + x1) / 2;
+      const plank = (y, ang, color, stripes) => {
+        R.begin([cx, y, zB + 0.1]);
+        if (stripes) {
+          const n = 5;
+          for (let s = 0; s < n; s++) A.put(T.box(L / n + 0.002, 0.2, 0.06), [cx - L / 2 + (s + 0.5) * (L / n), y, zB + 0.12], [0, 0, 0], 1, WO(s % 2 ? "#f6f2ea" : "#d8231a", { emit: 0.08 }));
+        } else A.put(T.box(L, 0.17, 0.05), [cx, y, zB + 0.1], [0, 0, ang], 1, WO(color, { vj: 0.12, vs: 3, rim: 0.25 }));
+        const k = R.end();
+        // Rotation finale (repère « YXZ ») : on défait l'inclinaison, on couche la planche à plat, on
+        // la tourne au hasard ; des tours entiers en plus pour la vrille en vol.
+        pieces.push({
+          k,
+          kind: "fly",
+          from: [cx, y, zB + 0.1],
+          to: landing(cx),
+          side: cx < 0 ? -1 : 1,
+          delay: 0.25 + rnd() * 0.25,
+          dur: 0.85 + rnd() * 0.35,
+          arc: 1.8 + rnd() * 1.6,
+          rot: [Math.PI / 2 + turn(), (rnd() - 0.5) * 1.6 + turn() * 0.5 * (rnd() < 0.5 ? 0 : 1), -ang + (rnd() < 0.5 ? turn() : 0)],
+        });
+      };
+      plank(1.02, 0, null, true);
+      plank(0.42, 0, "#a8835a");
+      // Croix de Saint-André (deux planches en diagonale).
+      const diag = Math.atan2(0.5, L - 0.2);
+      plank(0.72, diag, "#9a7652");
+      plank(0.72, -diag, "#8a6a48");
+    }
+    /* --- haie d'ajoncs (côté extérieur) */
+    const nBush = Math.max(3, Math.round(Wd / 0.85));
+    for (let i = 0; i < nBush; i++) {
+      const x = -half + 0.2 + ((i + 0.5) / nBush) * (2 * half - 0.4) + (rnd() - 0.5) * 0.2;
+      const z = zH + (rnd() - 0.5) * 0.3;
+      const r = 0.48 + rnd() * 0.2;
+      R.begin([x, 0, z]);
+      A.put(T.blob(300 + (i % 5), 1, 0.3, 3.4, -0.5), [x, r * 0.7, z], [0, rnd() * TAU, 0], [r, r * 0.9, r], WO("#2f6a22", { g: ["#173e16", "#3f7a28", 0, 1.0], vj: 0.1, dark: 0.3, sway: 0.4, rim: 1, pivot: [x, 0, z] }));
+      for (let k = 0; k < 9; k++) {
+        const u = rnd() * TAU,
+          e = rnd() * 1.2;
+        A.put(T.tet(0.08), [x + Math.cos(u) * Math.cos(e) * r, r * 0.7 + Math.sin(e) * r * 0.85, z + Math.sin(u) * Math.cos(e) * r], [rnd() * 3, rnd() * 3, 0], 1, WO(k % 3 ? "#ffcc12" : "#ffe45a", { emit: 0.35, sway: 0.4, pivot: [x, 0, z] }));
+      }
+      const k = R.end();
+      const side = x < 0 ? -1 : 1;
+      const tx = side * (Wd / 2 + 0.35 + rnd() * 0.45) + (x - side * half) * 0.18;
+      pieces.push({ k, kind: "slide", from: [x, 0, z], to: [tx, 0, z - 0.25 - rnd() * 0.4], side, delay: 0.3 + Math.abs(x) * 0.04 + rnd() * 0.1, dur: 0.75 + rnd() * 0.2 });
+    }
+    /* --- panneau « Route barrée » (deux faces imprimées) */
+    {
+      const sx = (rnd() < 0.5 ? -1 : 1) * Math.min(0.6, Wd * 0.12),
+        sz = zB + 0.55;
+      R.begin([sx, 0, sz]);
+      A.put(T.boxB(0.09, 1.3, 0.09), [sx, -0.05, sz], 0, 1, WO("#6a6a6e", { rim: 0.3 }));
+      A.put(T.box(1.42, 0.6, 0.05), [sx, 1.35, sz], 0, 1, WO("#d8231a"));
+      for (const f of [1, -1]) A.put(T.plane, [sx, 1.35, sz + f * 0.03], [0, f < 0 ? Math.PI : 0, 0], [1.38, 0.56, 1], { c: "#ffffff", uvs: [1, 200 / 256], uo: 0, vo: 1 - 200 / 256, emit: 0.06 });
+      const k = R.end();
+      pieces.push({ k, kind: "sign", from: [sx, 0, sz], to: [sx < 0 ? -Wd / 2 - 0.6 : Wd / 2 + 0.6, 0, sz + 0.5], side: sx < 0 ? -1 : 1, delay: 0.12, dur: 0.95 });
+    }
+    // Pierres au pied des poteaux d'angle, touffes (fixes).
+    for (const s of [-1, 1])
+      for (let i = 0; i < 3; i++)
+        A.put(T.rock(760 + i, 0, 0.3), [s * (half + 0.15) + (rnd() - 0.5) * 0.4, 0.02, zB + (rnd() - 0.5) * 0.5], [0, rnd() * TAU, 0], [0.2, 0.13, 0.17], WO("#9c958a", { rim: 0.6, dark: 0.3 }));
+
+    const mat = P.shared("barrier", () => P.paint({ map: barrierTexture(), sway: true, lift: 0.14, rim: [0.05, 0.42, 0.5], name: "barrière" }));
+    const mesh = P.mesh(A, mat, { cast: true, name: "barrière", pad: Wd / 2 + 2.5 });
+    R.bind(mesh);
+    root.add(mesh);
+    // Poussière et pétales d'ajonc pendant l'ouverture (lot caché le reste du temps).
+    const specs = [];
+    for (let i = 0; i < 10; i++)
+      specs.push({ mode: "smoke", p: [(rnd() - 0.5) * Wd * 0.9, 0.15, (rnd() - 0.5) * 1.6], size: 0.5, end: 1.6, rise: 0.9, drift: [(rnd() - 0.5) * 0.8, 0.3], cell: "puff", color: "#d8c8a8", a: 0.85, add: 0, speed: 0.9, phase: rnd(), group: 0 });
+    for (let i = 0; i < 14; i++) {
+      const a = rnd() * TAU;
+      specs.push({ mode: "drop", p: [(rnd() - 0.5) * Wd * 0.9, 0.9, zH + (rnd() - 0.5) * 0.6], size: 0.07, cell: "leaf", color: i % 2 ? "#ffd21a" : "#6fae3e", a: 1, add: 0.2, speed: 0.8 + rnd() * 0.5, phase: rnd(), vel: [Math.cos(a) * 1.6, 2.4 + rnd() * 1.5, Math.sin(a) * 1.2], grav: 6, group: 0 });
+    }
+    const fx = P.fx(specs, { name: "poussière de la barrière" });
+    fx.mesh.visible = false;
+    root.add(fx.mesh);
+
+    const st = { open: false, t: -1, resolve: null, dust: 0 };
+    const ease = (t) => t * t * (3 - 2 * t);
+    /** Pose de toutes les pièces à l'instant t de l'ouverture (t < 0 : fermée). */
+    function pose(t) {
+      for (const p of pieces) {
+        const u = clamp((t - p.delay) / p.dur, 0, 1);
+        const shake = t >= 0 && t < 0.35 ? Math.sin(t * 70 + p.k) * 0.03 * (1 - t / 0.35) : 0;
+        const [x0, y0, z0] = p.from;
+        if (t < 0) {
+          R.home(p.k);
+          continue;
+        }
+        if (p.kind === "fly") {
+          const [x1, , z1] = p.to;
+          const e = ease(u);
+          const y = lerp(y0, p.y1 || 0.04, e) + p.arc * 4 * u * (1 - u);
+          // Vrille en vol, planche couchée à plat à l'arrivée.
+          _e.set(p.rot[0] * e, p.rot[1] * e, p.rot[2] * e, "YXZ");
+          _q.setFromEuler(_e);
+          R.set(p.k, [lerp(x0, x1, e) + shake, y, lerp(z0, z1, e)], _q, 1);
+        } else if (p.kind === "slide") {
+          const [x1, , z1] = p.to;
+          const e = ease(u);
+          const squash = 1 - 0.18 * e;
+          _e.set(0, 0, -p.side * 0.25 * Math.sin(Math.PI * u), "XYZ");
+          _q.setFromEuler(_e);
+          R.set(p.k, [lerp(x0, x1, e) + shake, 0.35 * Math.sin(Math.PI * u), lerp(z0, z1, e)], _q, [1 + 0.08 * e, squash, 1 + 0.08 * e]);
+        } else if (p.kind === "sign") {
+          const [x1, , z1] = p.to;
+          const e = ease(u);
+          _e.set(-1.45 * e, 0.4 * p.side * e, p.side * 0.25 * e, "XYZ");
+          _q.setFromEuler(_e);
+          R.set(p.k, [lerp(x0, x1, e), 0.1 * Math.sin(Math.PI * u), lerp(z0, z1, e)], _q, 1);
+        } else {
+          const e = ease(u);
+          _e.set(0.18 * e, 0, -p.side * 0.32 * e, "XYZ");
+          _q.setFromEuler(_e);
+          R.set(p.k, [x0 + shake, 0, z0], _q, 1);
+        }
+      }
+      R.commit();
+    }
+    const END = Math.max(...pieces.map((p) => p.delay + p.dur)) + 0.05;
+    return {
+      object: root,
+      width: nw,
+      get isOpen() {
+        return st.open;
+      },
+      /** La barrière cède (≈ 1,5 s) ; la promesse se résout quand tout est retombé. */
+      open() {
+        if (st.open) return Promise.resolve(false);
+        st.open = true;
+        st.t = 0;
+        return new Promise((res) => (st.resolve = res));
+      },
+      /** État sans animation (chargement d'une partie, remise à zéro). */
+      setOpen(on) {
+        st.open = !!on;
+        st.t = on ? END : -1;
+        pose(st.t);
+        if (st.resolve) st.resolve(true);
+        st.resolve = null;
+        fx.mesh.visible = false;
+      },
+      update(dt, time) {
+        if (dt > 0.1) dt = 0.1;
+        if (dt < 0) dt = 0;
+        P.tick(time);
+        if (st.open && st.t >= 0 && st.t < END) {
+          st.t = Math.min(END, st.t + dt);
+          pose(st.t);
+          const d = clamp(st.t / 0.25, 0, 1) * clamp((END - st.t) / 0.5, 0, 1);
+          fx.mesh.visible = d > 0.01;
+          fx.gain.set(d, 1, 1, 1);
+          if (st.t >= END) {
+            fx.mesh.visible = false;
+            if (st.resolve) st.resolve(true);
+            st.resolve = null;
+          }
+        }
+      },
+      dispose() {
+        if (root.parent) root.parent.remove(root);
+        mesh.geometry.dispose();
         fx.material.dispose();
         fx.mesh.geometry.dispose();
       },
