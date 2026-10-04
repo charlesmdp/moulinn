@@ -67,6 +67,7 @@
   function pad(R, o) {
     const r = o.R;
     const wy = o.pond ? 0.16 : 0;
+    R.meta.frenzyY = wy + 0.1; // chevrons de frénésie sur l'anneau d'écume
     if (o.pond) {
       // Mare sur la butte : berge de terre, eau, couronne de pierres.
       R.add(G.cyl(r + 0.02, r + 0.1, 0.14, 24), "root", { p: [0, 0.07, 0], c: "#5a6a4a", ol: false });
@@ -494,10 +495,10 @@
           h,
           wy,
           seed: 7 + level,
-          cattails: big ? 4 : 2 + Math.min(level, 2),
+          cattails: big ? 4 : 3,
           pads: big ? 4 : 3,
           flowers: level >= 3 ? 2 : 1,
-          tufts: big ? 13 : 9 + Math.min(level, 3),
+          tufts: big ? 13 : 8 + Math.min(level, 3),
           reed: spec === "B" ? "#6a5a80" : spec === "A" ? "#6e94b8" : C.reed,
           reedD: spec === "B" ? "#2e2a3a" : spec === "A" ? "#2e4a6a" : C.reedD,
           twig: spec === "B" ? "#3a3048" : spec === "A" ? "#4a6a8e" : C.twig,

@@ -11,8 +11,9 @@
 //    cache par clé : deux tours identiques partagent leurs géométries) ;
 //  - K.face(...) : des yeux expressifs (paupières boudeuses, sourcils, pupilles qui regardent, clignements) ;
 //  - les effets communs (halo au sol, anneau de sélection, aura de Frénésie) ;
-//  - les tours v3 : gabarits articulés (UN maillage animé par os pour toute une tour, matière « dessin
-//    animé » à liseré sombre, yeux, fanion), la coque commune et le registre
+//  - les tours : gabarits articulés (UN maillage animé par os pour toute une tour, matière « dessin
+//    animé » à liseré sombre, yeux, fanion, réserve de charges, étoiles d'éblouissement, rides, aura de
+//    Frénésie intégrée), la coque commune (visée, attaque, charges, jet continu, éblouissement…) et le registre
 //    PTMT.models.ctTower(famille, niveau, spécialisation) / ctTowerInfo (familles : 20-boar, 21-swan, 22-dog).
 (function () {
   "use strict";
@@ -1595,17 +1596,18 @@
     });
 
 
-  /* ------------------------------------------------------------------ tours v3 : créatures articulées */
+  /* ------------------------------------------------------------------ tours : créatures articulées */
   // Chaque tour (sanglier, cygne, berger-dragon) est UN SkinnedMesh : socle, corps, tête, yeux et
   // accessoires sont fusionnés dans une géométrie partagée par toutes les tours identiques, chaque
   // sommet suivant un seul os (pièces rigides). Les os sont de simples Object3D animés à la main.
   // Une seule matière « dessin animé » sert à toutes les tours : couleurs de sommets franches, motifs
-  // calculés dans le shader (rayures de marcassin, robe merle, écailles, plumes, bois, paille, granit)
-  // et liseré sombre (coque retournée, gonflée à l'écran : épaisseur constante en pixels, écartée des
-  // ombres). Les lueurs additives (flammes, runes, braises vives) forment un second maillage qui partage
-  // le squelette et les tampons de la géométrie, sans ombre portée. Soit un appel de dessin par tour
-  // (deux avec des lueurs, trois pour un cygne et ses rides), plus un seul pour l'ombre ; en qualité
-  // téléphone (ctConfig({ mobile: true })) : un seul appel, sans ombre.
+  // calculés dans le shader (rayures de marcassin, robe merle, écailles, plumes, bois, paille, granit,
+  // feuillage, boules d'eau) et liseré sombre (coque retournée, gonflée à l'écran : épaisseur constante
+  // en pixels, écartée des ombres). Les lueurs additives (flammes, runes, braises vives, rides animées
+  // de l'eau) forment un second maillage qui partage le squelette et les tampons de la géométrie, sans
+  // ombre portée. Soit un appel de dessin par tour (deux avec des lueurs), plus un seul pour l'ombre,
+  // y compris pendant la Frénésie (aura intégrée) ; en qualité téléphone (ctConfig({ mobile: true })) :
+  // un seul appel, sans ombre ni rides.
   //
   //   K.ctTemplate(clé, (R) => { R.bone(nom, parent, [x, y, z]); R.add(géo, os, opt); R.glow(géo, os, opt); … })
   //   K.ctInstance(gabarit) → { mesh, glow (maillage des lueurs ou null), bones, bone: { nom: Bone } }
@@ -2003,6 +2005,7 @@
     if (tpl) return tpl;
     const R = new CtRig(key);
     author(R);
+    if (!R.meta.noFrenzy) K.ctFrenzy(R, R.meta.frenzyR || 1.4, R.meta.frenzyY === undefined ? 0.07 : R.meta.frenzyY);
     const seed = strSeed(key);
     const opaque = [];
     const glows = [];
@@ -2425,6 +2428,37 @@
     R.meta.dizzy = true;
   };
 
+  /* ---- frénésie ---- */
+  /** Chevron plat (pointe vers +X), couché au sol (normale +Y). */
+  G.chevron = (w, l) =>
+    gc(`chevron${w},${l}`, () => {
+      const sh = shapeFrom([
+        [l * 0.5, 0],
+        [-l * 0.2, w * 0.5],
+        [-l * 0.5, w * 0.5],
+        [l * 0.2, 0],
+        [-l * 0.5, -w * 0.5],
+        [-l * 0.2, -w * 0.5],
+      ]);
+      return new THREE.ShapeGeometry(sh).rotateX(-Math.PI / 2);
+    });
+  /**
+   * Aura de Frénésie intégrée au maillage de la tour (aucun appel de dessin en plus, même pour une tour sans
+   * lueurs) : chevrons de feu lumineux qui tournent au pied et langues de flamme ; os « frenzy », réduit à rien
+   * hors frénésie (ajouté à tous les gabarits, sauf R.meta.noFrenzy).
+   */
+  K.ctFrenzy = function (R, r, y) {
+    R.bone("frenzy", "root", [0, y === undefined ? 0.07 : y, 0]);
+    for (let i = 0; i < 8; i++) {
+      const a = (i / 8) * TAU;
+      R.add(G.chevron(0.4, 0.5), "frenzy", { p: [Math.sin(a) * r, 0, Math.cos(a) * r], r: [0, a + Math.PI, 0], c: i % 2 ? "#ff4a12" : "#ffc02a", cls: CLS.glow, ol: false, noTop: true });
+    }
+    for (let i = 0; i < 5; i++) {
+      const a = (i / 5) * TAU + 0.4;
+      R.add(G.flame(0.15, 0.8, 4, 3), "frenzy", { p: [Math.sin(a) * r * 0.93, 0, Math.cos(a) * r * 0.93], r: [Math.cos(a) * 0.25, 0, -Math.sin(a) * 0.25], g: ["#ff3a10", "#ffd84a", 0, 0.7], cls: CLS.glow, ol: false, noTop: true });
+    }
+  };
+
   /* ---- rides sur l'eau ---- */
   /** Anneau plat de rides animées (passe des lueurs, omis sur téléphone) entre r0 et r1 autour de l'origine. */
   K.ctRipples = function (R, bone, r0, r1, y, k) {
@@ -2730,7 +2764,12 @@
             sel.rotation.y = time * 0.35;
           }
         }
-        if (st.frOn && !aura) {
+        if (B.frenzy) {
+          // aura intégrée aux lueurs de la tour
+          const k = st.fr;
+          B.frenzy.scale.set(k > 0.02 ? 0.75 + 0.25 * k : 0.001, k > 0.02 ? k * (1 + 0.15 * Math.sin(time * 13)) : 0.001, k > 0.02 ? 0.75 + 0.25 * k : 0.001);
+          B.frenzy.rotation.y = -time * 2.4;
+        } else if (st.frOn && !aura) {
           aura = K.fx.aura(ringR * 0.95, Math.max(1.4, height * 0.75));
           root.add(aura.group);
         }

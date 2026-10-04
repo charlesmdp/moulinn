@@ -90,6 +90,7 @@
     const glowC = o.blue ? "#4f9cff" : C.rimOrange;
     const h1 = 0.3,
       h2 = 0.2;
+    R.meta.frenzyY = h1 + 0.06; // chevrons de frénésie sur la dalle
     // Dalle octogonale, liseré rouge (couleur de famille), marche ronde.
     R.add(G.cyl(r, r + 0.04, h1, 8), "root", { p: [0, h1 / 2, 0], r: [0, Math.PI / 8, 0], c: C.graniteD, pat, flat: true, ol: true });
     R.add(G.cyl(r - 0.02, r - 0.02, 0.06, 8), "root", { p: [0, h1 + 0.005, 0], r: [0, Math.PI / 8, 0], c: rim, cls: CLS.heat, flat: true, ol: false });

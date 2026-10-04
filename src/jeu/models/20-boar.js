@@ -74,6 +74,7 @@
   function ground(R, o) {
     const r = o.R;
     const top = 0.14;
+    R.meta.frenzyY = 0.22; // chevrons de frénésie posés sur l'anneau de mousse
     R.add(G.discUp(r + 0.02, 28), "root", { p: [0, 0.012, 0], c: C.rim, ol: false });
     // Terre bombée (dessus à « top »).
     R.add(
@@ -593,7 +594,7 @@
         });
         palisade(R, {
           r: Rr - 0.2,
-          n: big ? 15 : level === 1 ? 5 : level === 2 ? 8 : level === 3 ? 11 : 11,
+          n: big ? 15 : level === 1 ? 5 : level === 2 ? 8 : 10,
           a0: big ? 0.75 : level === 1 ? 2.3 : level === 2 ? 1.9 : 1.55,
           a1: big ? TAU - 0.75 : level === 1 ? TAU - 2.3 : level === 2 ? TAU - 1.9 : TAU - 1.55,
           H: big ? 1.35 : 0.7 + L * 0.08,
