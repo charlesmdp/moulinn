@@ -541,9 +541,9 @@
   }
 
   /* ---------------------------------------------------------------- réglages */
-  const PUP = { k: 1.38, hr: 0.36, coat: C.blue, body: [0.28, 0.36, 0.25], legs: 0.17, ears: "floppy", tail: "bob", eyeR: 0.12, lid: -0.8, slant: 0.0, tongue: true, muzzle: 0.9 };
-  const ADULT = { k: 1.5, hr: 0.32, coat: C.blue, body: [0.3, 0.44, 0.27], legs: 0.22, ears: "rose", tail: "bob", eyeR: 0.1, lid: -0.62, slant: 0.14, brow: "#2a2630", browT: 0.02, mane: 0.8, tongue: true, muzzle: 1.1 };
-  const FIRE = { k: 1.6, hr: 0.31, coat: C.blue, body: [0.31, 0.46, 0.28], legs: 0.23, ears: "rose", tail: "bob", eyeR: 0.095, lid: -0.5, slant: 0.24, brow: "#2a2630", browT: 0.022, mane: 1.05, horns: 0.55, wings: "nub", wingK: 0.55, wingC: "#e0703a", muzzle: 1.15, fangs: true };
+  const PUP = { k: 1.5, hr: 0.36, coat: C.blue, body: [0.28, 0.36, 0.25], legs: 0.17, ears: "floppy", tail: "bob", eyeR: 0.12, lid: -0.8, slant: 0.0, tongue: true, muzzle: 0.9 };
+  const ADULT = { k: 1.6, hr: 0.32, coat: C.blue, body: [0.3, 0.44, 0.27], legs: 0.22, ears: "rose", tail: "bob", eyeR: 0.1, lid: -0.62, slant: 0.14, brow: "#2a2630", browT: 0.02, mane: 0.8, tongue: true, muzzle: 1.1 };
+  const FIRE = { k: 1.68, hr: 0.31, coat: C.blue, body: [0.31, 0.46, 0.28], legs: 0.23, ears: "rose", tail: "bob", eyeR: 0.095, lid: -0.5, slant: 0.24, brow: "#2a2630", browT: 0.022, mane: 1.05, horns: 0.55, wings: "nub", wingK: 0.55, wingC: "#e0703a", muzzle: 1.15, fangs: true };
   const RED = { k: 1.55, hr: 0.3, coat: C.red, pat: PAT.scales, body: [0.33, 0.58, 0.3], legs: 0.22, legW: 0.08, neck: 0.55, ears: "fin", tail: "dragon", eyeR: 0.09, lid: -0.42, slant: 0.32, brow: "#3a1a14", browT: 0.024, horns: 0.72, wings: "fold", wingK: 1.0, wingC: C.wingR, wingD: "#a8321e", wingL: "#ff8a4a", fingerC: "#5a2418", muzzle: 1.4, fangs: true, spikes: 7, claws: true, idleFire: 0.35, muzzleTop: "#e8c8b0" };
   const BLUE = Object.assign({}, RED, { coat: C.blue, wingC: C.wingB, wingD: "#28469a", wingL: "#7fb0ff", fingerC: "#1e2a4a", fire: [C.bfire, C.bfireL], iris: ["#4aa8ff", "#8a4a1e"], radiant: true, glowIris: false, spikeC: "#2a3450", brow: "#1a2230", muzzleTop: "#d8dce8" });
   const RED7 = Object.assign({}, RED, { k: 1.85, hr: 0.29, neck: 0.62, wings: "spread", wingK: 1.1, horns: 1.0, spikes: 9, spikeK: 1.3, idleFire: 0.9, rings: true, tailK: 1.15, twin: true });
@@ -552,8 +552,8 @@
   // Hauteur réelle du sommet (m, mesurée sur les gabarits) et rayon d'emprise au sol (m).
   const INFO = {
     1: { height: 1.94, footprint: 1.55 },
-    2: { height: 2.09, footprint: 1.55 },
-    3: { height: 2.3, footprint: 1.55 },
+    2: { height: 2.14, footprint: 1.55 },
+    3: { height: 2.39, footprint: 1.55 },
     A4: { height: 2.98, footprint: 1.55 },
     A5: { height: 3.05, footprint: 1.55 },
     A6: { height: 3.12, footprint: 1.55 },
