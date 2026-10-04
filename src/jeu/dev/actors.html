@@ -334,8 +334,11 @@
   refreshButtons();
   const target = new THREE.Vector3(), from = new THREE.Vector3();
   function fire(name) {
+    // événements propres à un type : seul ce type les reçoit (comme dans le jeu)
+    const only = { blink: "korrigan", flash: "touriste", split: "tracteur" }[name];
     for (const it of items) {
       const a = it.a;
+      if (only && it.type !== only) continue;
       if (name === "die" || name === "escape" || name === "split") it.koAt = performance.now();
       if (name === "blink") {
         // le korrigan saute 1,8 case plus loin (le rendu du jeu le déplace), pouf au départ et à l'arrivée
@@ -347,7 +350,7 @@
         a.event("blink", from);
         continue;
       }
-      if (name === "split" && it.type === "tracteur") {
+      if (name === "split") {
         a.event("split");
         // le rendu fait sauter trois agriculteurs de la cabine
         for (let i = 0; i < 3; i++) {
