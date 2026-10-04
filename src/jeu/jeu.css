@@ -3407,7 +3407,8 @@ kbd {
   top: 36px;
 }
 .pt[data-layout="landscape"] .pt-sel {
-  max-height: calc(100vh - 12px - var(--safe-t) - var(--safe-b));
+  /* au-dessus de la frise des vagues (bande du bas) */
+  max-height: calc(100vh - 12px - var(--safe-t) - var(--pt-bottom));
   overflow: auto;
   padding: 8px 10px 10px;
 }
@@ -4191,6 +4192,7 @@ html.pt-over-enemy .ptmt-stage canvas {
 }
 .pt-heat-bar {
   position: relative;
+  display: block;
   flex: 1 1 120px;
   height: 18px;
   border-radius: 9px;
@@ -4344,6 +4346,8 @@ html.pt-over-enemy .ptmt-stage canvas {
   font-size: 21px;
 }
 .pt-ag-demo {
+  display: flex;
+  align-items: center;
   margin-left: auto;
 }
 .pt-ag-demo.pt-heat .pt-heat-bar {

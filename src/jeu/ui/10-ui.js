@@ -967,7 +967,6 @@
           "div",
           { class: "pt-card pt-tfam", "data-f": fam },
           h("div", { class: "pt-tfam-h" }, h("span", { class: "pt-branch-ic", html: icons().get(fam) }), h("div", {}, h("h2", {}, F.name), h("small", {}, "Se pose sur : ", TERRAIN[F.terrain] || F.terrain, " (et les buttes)")), h("span", { class: "pt-fact" }, ico("gold"), base.cost + " or")),
-          h("p", {}, F.role),
           this.attackGuide(fam),
           h("div", { class: "pt-tlvs" }, lv(1), lv(2), lv(3)),
           h("div", { class: "pt-tspecs" }, spec("A"), spec("B")),
