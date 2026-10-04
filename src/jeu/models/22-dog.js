@@ -115,7 +115,7 @@
       R.glow(G.flame(0.24 * s, 0.7 * s, 7, 5), "brazier" + i, { c: fire[0] });
       R.glow(G.flame(0.13 * s, 0.45 * s, 6, 4), "brazier" + i, { p: [0, 0.02, 0], c: fire[1] });
     });
-    if (o.flag) K.ctPennant(R, Object.assign({ p: [-r * 0.62, h1, -r * 0.55], dir: Math.PI - 0.15, tilt: 0.5 }, o.flag));
+    if (o.flag) K.ctPennant(R, Object.assign({ p: [-r * 0.62, h1, -r * 0.55], dir: 2.5, tilt: 0.5 }, o.flag));
     return h1 + h2;
   }
 
@@ -223,7 +223,7 @@
       R.glow(G.sphere(P.eyeR * k * 1.3, 8, 6), B("ray"), { c: "#6fb8ff" });
       R.glow(G.cone(P.eyeR * k * 1.6, 0.9 * k, 8, true), B("ray"), { p: [0, 0, 0.45 * k], r: [-Math.PI / 2, 0, 0], c: "#3f78d8", lite: false });
     }
-    if (!pre) K.ctDizzy(R, B("head"), { p: [0, hc[1] + hr * 1.35, hc[2]], r: hr * 0.95, size: Math.max(0.13, hr * 0.3) });
+    if (!pre) K.ctDizzy(R, B("head"), { p: [0, hc[1] + hr * 1.5, hc[2]], r: hr * 1.05, size: Math.max(0.2, hr * 0.44) });
     return { hr, hc };
   }
 
@@ -550,17 +550,17 @@
 
   // Hauteur réelle du sommet (m, mesurée sur les gabarits) et rayon d'emprise au sol (m).
   const INFO = {
-    1: { height: 2.0, footprint: 1.55 },
-    2: { height: 2.25, footprint: 1.55 },
-    3: { height: 2.5, footprint: 1.55 },
-    A4: { height: 3.0, footprint: 1.55 },
-    A5: { height: 3.2, footprint: 1.55 },
-    A6: { height: 3.4, footprint: 1.55 },
-    A7: { height: 4.2, footprint: 1.6 },
-    B4: { height: 3.0, footprint: 1.55 },
-    B5: { height: 3.2, footprint: 1.55 },
-    B6: { height: 3.4, footprint: 1.55 },
-    B7: { height: 4.6, footprint: 1.6 },
+    1: { height: 1.94, footprint: 1.55 },
+    2: { height: 2.09, footprint: 1.55 },
+    3: { height: 2.3, footprint: 1.55 },
+    A4: { height: 2.98, footprint: 1.55 },
+    A5: { height: 3.05, footprint: 1.55 },
+    A6: { height: 3.12, footprint: 1.55 },
+    A7: { height: 3.74, footprint: 1.6 },
+    B4: { height: 2.98, footprint: 1.55 },
+    B5: { height: 3.05, footprint: 1.55 },
+    B6: { height: 3.12, footprint: 1.55 },
+    B7: { height: 4.29, footprint: 1.6 },
   };
 
   function variant(level, spec) {

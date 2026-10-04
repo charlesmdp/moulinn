@@ -199,7 +199,7 @@
         R.glow(G.box(0.035, 0.13, 0.02), "float", { p: [x, h * 0.55, z], r: [0, a, -0.9], c: o.runes });
       }
     }
-    if (o.flag) K.ctPennant(R, Object.assign({ bone: "float", p: [-r * 0.66, h * 0.7, -r * 0.6], dir: Math.PI - 0.15, tilt: 0.5 }, o.flag));
+    if (o.flag) K.ctPennant(R, Object.assign({ bone: "float", p: [-r * 0.66, h * 0.7, -r * 0.6], dir: 2.5, tilt: 0.5 }, o.flag));
     R.sway("float", "x", 0, 0.022, 1.1, 0);
     R.sway("float", "z", 0, 0.026, 0.9, 1.3);
   }
@@ -390,7 +390,7 @@
     // Petite huppe (cygne noir).
     if (P.crest) for (let i = 0; i < 3; i++) R.add(G.cone(0.035 * k, 0.16 * k, 4), "head", { p: [0, hr * 0.95, hr * (0.1 - i * 0.18)], r: [-0.7 - i * 0.2, 0, 0], c: P.crest, cls: plum, ol: false });
     // Étoiles d'éblouissement au-dessus de la tête.
-    K.ctDizzy(R, "head", { p: [0, hr * 1.45, hr * 0.3], r: 0.32 * Math.sqrt(k), size: 0.12 * Math.sqrt(k) });
+    K.ctDizzy(R, "head", { p: [0, hr * 1.6, hr * 0.3], r: 0.36 * Math.sqrt(k), size: 0.17 * Math.sqrt(k) });
     R.sway("tail", "y", 0, 0.12, 2.7, 0);
     return { hr };
   }
@@ -437,7 +437,7 @@
   const CYGNET = { k: 1.3, body: "#dfe2ea", belly: "#f4f5f8", head: "#e8eaf0", neck: "#e2e4ec", wing: "#c9ccd8", wingTip: "#9ea4b4", tail: "#c9ccd8", hr: 0.24, neckL: 1.02, neckR: 1.12, beak: "#ff8a2a", beakD: "#d9620c", beakTip: "#ffb05a", knob: 0.8, mask: "#3a3a44", eyeR: 0.105, iris: "#2a1a10", lid: -0.72, slant: 0.04, fluff: 9, wingK: 0.82, beakL: 0.85 };
   const WHITE = { k: 1.5, body: C.white, belly: "#e2e8f0", wing: C.white, wingTip: C.shade, hr: 0.21, neckL: 1.3, beak: C.beak, beakD: C.beakD, beakTip: "#ffb05a", beakL: 1.15, knob: 1.1, mask: C.black, eyeR: 0.085, iris: "#2a1a10", lid: -0.45, slant: 0.3, brow: C.black, browT: 0.018 };
   const MAJESTIC = Object.assign({}, WHITE, { k: 1.62, hr: 0.21, knob: 1.35, wings: "arch", wingK: 1.2, eyeR: 0.08, slant: 0.36, lid: -0.35 });
-  const ICE = { k: 1.68, body: "#e6f6ff", belly: "#bfe4fb", head: "#f4fbff", neck: "#e8f7ff", wing: "#c8ecff", wingTip: "#6ab2ec", tail: "#9fd4f8", hr: 0.21, neckL: 1.15, beak: "#bfe3f4", beakD: "#7fb6d8", beakTip: "#e8f8ff", beakL: 1.1, knob: 1, mask: "#2a4a78", eyeR: 0.078, iris: "#2f7fd8", lid: -0.4, slant: 0.34, brow: "#2a4a78", browT: 0.018, wings: "arch", wingK: 1.18, frost: true, cls: CLS.satin, spit: "#dff8ff" };
+  const ICE = { k: 1.68, body: "#cfe7fa", belly: "#9ccdf2", head: "#e4f3ff", neck: "#d6ecfc", wing: "#b2d8f6", wingTip: "#3a7fd4", tail: "#6fb2ea", hr: 0.21, neckL: 1.15, beak: "#bfe3f4", beakD: "#7fb6d8", beakTip: "#e8f8ff", beakL: 1.1, knob: 1, mask: "#2a4a78", eyeR: 0.078, iris: "#2f7fd8", lid: -0.4, slant: 0.34, brow: "#2a4a78", browT: 0.018, wings: "arch", wingK: 1.18, frost: true, cls: CLS.satin, spit: "#dff8ff" };
   const ROYAL = Object.assign({}, ICE, { k: 1.9, hr: 0.2, wings: "spread", wingK: 1.05, crystalWings: true, crown: true, eyeR: 0.074 });
   const BLACK = { k: 1.68, body: "#1d1a26", belly: "#2a2536", head: "#23202e", neck: "#221e2c", wing: "#2a2438", wingTip: "#4a3a6e", tail: "#2a2438", hr: 0.21, neckL: 1.15, beak: C.red, beakD: "#a81e1a", beakTip: "#ff5a4a", beakL: 1.1, band: "#f4f0ea", knob: 0, eyeR: 0.08, iris: "#e0302a", lid: -0.38, slant: 0.38, brow: "#0e0c12", browT: 0.02, wings: "arch", wingK: 1.15, cls: CLS.irid, crest: "#2a2438", spit: "#b98cff" };
   const ENCHANTER = Object.assign({}, BLACK, { k: 1.9, wings: "spread", wingK: 1.08, eyeR: 0.072, glowIris: true, iris: "#ff5a8a" });
@@ -447,17 +447,17 @@
 
   // Hauteur réelle du sommet (m, mesurée sur les gabarits, nid sur l'eau) et rayon d'emprise (m).
   const INFO = {
-    1: { height: 1.95, footprint: 1.55 },
-    2: { height: 2.37, footprint: 1.55 },
-    3: { height: 2.6, footprint: 1.55 },
-    A4: { height: 3.0, footprint: 1.55 },
-    A5: { height: 3.16, footprint: 1.55 },
-    A6: { height: 3.32, footprint: 1.55 },
-    A7: { height: 4.2, footprint: 1.6 },
-    B4: { height: 3.0, footprint: 1.55 },
-    B5: { height: 3.16, footprint: 1.55 },
-    B6: { height: 3.32, footprint: 1.55 },
-    B7: { height: 4.2, footprint: 1.6 },
+    1: { height: 2.09, footprint: 1.55 },
+    2: { height: 2.69, footprint: 1.55 },
+    3: { height: 2.9, footprint: 1.55 },
+    A4: { height: 2.8, footprint: 1.55 },
+    A5: { height: 2.9, footprint: 1.55 },
+    A6: { height: 3.04, footprint: 1.55 },
+    A7: { height: 3.82, footprint: 1.6 },
+    B4: { height: 2.85, footprint: 1.55 },
+    B5: { height: 2.9, footprint: 1.55 },
+    B6: { height: 3.04, footprint: 1.55 },
+    B7: { height: 3.74, footprint: 1.6 },
   };
 
   function variant(level, spec, opts) {
@@ -501,7 +501,7 @@
           reed: spec === "B" ? "#6a5a80" : spec === "A" ? "#6e94b8" : C.reed,
           reedD: spec === "B" ? "#2e2a3a" : spec === "A" ? "#2e4a6a" : C.reedD,
           twig: spec === "B" ? "#3a3048" : spec === "A" ? "#4a6a8e" : C.twig,
-          straw: spec === "B" ? "#8a7aa8" : spec === "A" ? "#a8c8e0" : C.straw,
+          straw: spec === "B" ? "#8a7aa8" : spec === "A" ? "#86aed0" : C.straw,
           bowl: spec === "B" ? "#241e30" : C.bowl,
           flower: spec === "B" ? "#b58cff" : spec === "A" ? "#e0f6ff" : C.lotus,
           crystals: spec === "A" ? { n: big ? 8 : 1 + deco * 2, c: C.ice, cls: CLS.ice, k: big ? 1.5 : 1.1 } : spec === "B" && (deco >= 2 || big) ? { n: big ? 6 : deco * 2 - 1, c: C.mana, cls: CLS.glow, k: big ? 1.2 : 0.95 } : null,

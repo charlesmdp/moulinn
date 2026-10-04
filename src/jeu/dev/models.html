@@ -871,7 +871,7 @@
     if (q.get("frenzy") === "1") act("z");
     if (q.get("dazzle") === "1") act("e");
     if (q.get("labels") === "0") { state.labels = false; applyToggles(); }
-    if (q.get("ui") === "0") document.getElementById("ui").style.display = "none";
+    if (q.get("ui") === "0") { document.getElementById("ui").style.display = "none"; document.getElementById("stats").style.display = "none"; }
     else if (innerWidth < 600) document.getElementById("ui").classList.add("hidden");
     frame();
   }

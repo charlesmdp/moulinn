@@ -94,12 +94,13 @@
     const rnd = PTMT.rng(o.seed || 7);
     R.add(mossRing(r - 0.17, 0.2, 14), "root", { p: [0, 0.07, 0], g: [o.mossC || C.moss, C.mossL, -0.05, 0.16], pat: PAT.leaf, ol: false });
     // Litière de paille (où se tient la bête).
-    const bz = o.bedZ === undefined ? 0.2 : o.bedZ;
-    R.add(G.discUp(o.bedR || 0.82, 18), "root", { p: [0, top + 0.022, bz], s: [1, 1, 0.9], c: o.bed || C.straw, pat: PAT.straw, uv: [8, 0.5], ol: false });
+    const bz = o.bedZ === undefined ? 0.2 : o.bedZ,
+      bx = o.bedX || 0;
+    R.add(G.discUp(o.bedR || 0.82, 18), "root", { p: [bx, top + 0.022, bz], s: [1, 1, 0.9], c: o.bed || C.straw, pat: PAT.straw, uv: [8, 0.5], ol: false });
     for (let i = 0; i < 5; i++) {
       const a = rnd() * TAU,
         d = (o.bedR || 0.82) * (0.75 + rnd() * 0.3);
-      R.add(G.cyl(0.018, 0.018, 0.34 + rnd() * 0.2, 3), "root", { p: [Math.sin(a) * d, top + 0.04, bz + Math.cos(a) * d * 0.9], r: [Math.PI / 2, rnd() * 3, 0], ro: "YXZ", c: i % 2 ? C.straw : C.strawD, ol: false });
+      R.add(G.cyl(0.018, 0.018, 0.34 + rnd() * 0.2, 3), "root", { p: [bx + Math.sin(a) * d, top + 0.04, bz + Math.cos(a) * d * 0.9], r: [Math.PI / 2, rnd() * 3, 0], ro: "YXZ", c: i % 2 ? C.straw : C.strawD, ol: false });
     }
     return top;
   }
@@ -107,16 +108,18 @@
   /* ---------------------------------------------------------------- bauge : hutte de branchages */
   /**
    * Hutte en ruche (profil de révolution étiré en profondeur), toit de brindilles, de feuilles ou de mousse,
-   * pointe de branches en faisceau, grande entrée sombre tournée vers l'avant (vers la caméra), d'où sort
-   * la bête. o = { z (centre), rx, ry (hauteur), rz (profondeur), roof: "twigs" | "leaves" | "moss", sticks,
-   *   leaves (touffes), lintel (rondin et montants), door (largeur relative de l'entrée), cloth (tenture), y0, seed }
+   * pointe de branches en faisceau, grande entrée sombre d'où sort la bête. La hutte est posée à l'arrière
+   * gauche, tournée vers l'avant droit : vue du ciel, son entrée reste visible à côté du sanglier.
+   * o = { at: [x, z] (centre), yaw (orientation de l'entrée), rx, ry (hauteur), rz (profondeur), roof: "twigs" |
+   *   "leaves" | "moss", sticks, leaves (touffes), lintel (rondin et montants), door (largeur relative de
+   *   l'entrée), cloth (tenture), y0, seed }. Os « den » (tourné de yaw au repos).
    */
   function den(R, o) {
-    const z = o.z,
-      y0 = o.y0 || 0.1,
+    const y0 = o.y0 || 0.1,
       rx = o.rx,
       ry = o.ry,
       rz = o.rz;
+    R.bone("den", "root", [o.at[0], 0, o.at[1]], [0, o.yaw || 0, 0]);
     const roof = o.roof || "twigs";
     const prof = [
       [1.0, 0.0],
@@ -127,36 +130,36 @@
       [0.12, 1.0],
       [0.001, 1.0],
     ];
-    R.add(G.lathe("bauge5", prof, 13), "root", { p: [0, y0, z], s: [rx, ry, rz], g: [C.twig, roof === "moss" ? C.moss : roof === "leaves" ? C.leaf : C.twigL, 0.25, 1.0], pat: roof === "twigs" ? PAT.wood : PAT.leaf, uv: [9, 4], ol: true });
+    R.add(G.lathe("bauge5", prof, 13), "den", { p: [0, y0, 0], s: [rx, ry, rz], g: [C.twig, roof === "moss" ? C.moss : roof === "leaves" ? C.leaf : C.twigL, 0.25, 1.0], pat: roof === "twigs" ? PAT.wood : PAT.leaf, uv: [9, 4], ol: true });
     // Ceinture de branches couchées au pied de la hutte (bord net, couleur bois).
-    R.add(G.torus(1, 0.09, 3, 16), "root", { p: [0, y0 + 0.05, z], r: [Math.PI / 2, 0, 0], s: [rx * 0.99, rz * 0.99, 1], c: C.stakeD, pat: PAT.wood, ol: false });
-    // Entrée sombre (arche) collée à la pente avant de la hutte, tournée vers la caméra.
+    R.add(G.torus(1, 0.09, 3, 16), "den", { p: [0, y0 + 0.05, 0], r: [Math.PI / 2, 0, 0], s: [rx * 0.99, rz * 0.99, 1], c: C.stakeD, pat: PAT.wood, ol: false });
+    // Entrée sombre (arche) collée à l'avant de la hutte.
     const dw = rx * (o.door || 0.7),
-      dh = ry * 0.62;
+      dh = ry * 0.68;
     const arch = [];
     for (let i = 0; i <= 10; i++) {
       const a = Math.PI - (i / 10) * Math.PI;
       arch.push([Math.cos(a) * dw * 0.5, Math.sin(a) * dh]);
     }
-    R.add(G.extrude("bauge5:door:" + dw.toFixed(2) + ":" + dh.toFixed(2), arch, 0.12, 0), "root", { p: [0, y0 - 0.02, z + rz * 0.93], r: [-0.42, 0, 0], c: C.dark, ol: false });
+    R.add(G.extrude("bauge5:door:" + dw.toFixed(2) + ":" + dh.toFixed(2), arch, 0.12, 0), "den", { p: [0, y0 - 0.02, rz * 0.99], r: [-0.13, 0, 0], c: C.dark, ol: false });
     // Linteau : rondin au-dessus de l'entrée, montants.
     if (o.lintel) {
-      R.add(G.cyl(0.075, 0.075, dw * 1.3, 6), "root", { p: [0, y0 + dh * 0.95, z + rz * 0.62], r: [0, 0, Math.PI / 2], c: C.stakeD, pat: PAT.wood, ol: true });
-      for (const sx of [-1, 1]) R.add(G.cyl(0.065, 0.075, dh * 1.02, 6), "root", { p: [sx * dw * 0.56, y0 + dh * 0.5, z + rz * 0.84], r: [-0.42, 0, 0], c: C.stakeD, pat: PAT.wood, ol: true });
+      R.add(G.cyl(0.075, 0.075, dw * 1.3, 6), "den", { p: [0, y0 + dh * 1.0, rz * 1.0 - dh * 0.13], r: [0, 0, Math.PI / 2], c: C.stakeD, pat: PAT.wood, ol: true });
+      for (const sx of [-1, 1]) R.add(G.cyl(0.065, 0.075, dh * 1.02, 6, true), "den", { p: [sx * dw * 0.56, y0 + dh * 0.5, rz * 1.02 - dh * 0.065], r: [-0.13, 0, 0], c: C.stakeD, pat: PAT.wood, ol: true });
     }
     // Faisceau de branches au sommet (pointe de la hutte) et branches couchées sur la pente.
     const rnd = PTMT.rng(o.seed || 11);
     const top = y0 + ry;
     for (let i = 0; i < 4; i++) {
       const a = (i / 4) * TAU + 0.4;
-      R.add(G.cyl(0.035, 0.05, ry * 0.75, 4), "root", { p: [Math.sin(a) * 0.1, top + ry * 0.12, z + Math.cos(a) * 0.08], r: [Math.cos(a) * 0.42, 0, -Math.sin(a) * 0.42], c: i % 2 ? C.twig : C.stakeD, pat: PAT.wood, ol: true });
+      R.add(G.cyl(0.035, 0.05, ry * 0.75, 4), "den", { p: [Math.sin(a) * 0.1, top + ry * 0.12, Math.cos(a) * 0.08], r: [Math.cos(a) * 0.42, 0, -Math.sin(a) * 0.42], c: i % 2 ? C.twig : C.stakeD, pat: PAT.wood, ol: true });
     }
     const ns = o.sticks || 6;
     for (let i = 0; i < ns; i++) {
       const a = (i / ns) * TAU + (rnd() - 0.5) * 0.4;
       const L = ry * (0.8 + rnd() * 0.3);
-      R.add(G.cyl(0.03, 0.04, L, 4), "root", {
-        p: [Math.sin(a) * rx * 0.62, y0 + ry * 0.62, z + Math.cos(a) * rz * 0.62],
+      R.add(G.cyl(0.03, 0.04, L, 4), "den", {
+        p: [Math.sin(a) * rx * 0.62, y0 + ry * 0.62, Math.cos(a) * rz * 0.62],
         r: [Math.cos(a) * 0.75, 0, -Math.sin(a) * 0.75 * (rx / Math.max(rx, rz))],
         c: i % 2 ? C.twig : C.stakeD,
         pat: PAT.wood,
@@ -168,10 +171,8 @@
     for (let i = 0; i < nl; i++) {
       const a = (i / nl) * TAU + rnd() * 0.5 + 0.6;
       const u = 0.45 + rnd() * 0.25;
-      const x = Math.sin(a) * rx * u,
-        zz = z + Math.cos(a) * rz * u;
       const yy = y0 + ry * (1 - u * u * 0.7);
-      R.add(G.blob(0.26 + rnd() * 0.08, 0, 0.18, 3 + i), "root", { p: [x, yy, zz], s: [1.2, 0.65, 1], c: i % 2 ? C.leafL : C.leaf, pat: PAT.leaf, ol: false });
+      R.add(G.blob(0.26 + rnd() * 0.08, 0, 0.18, 3 + i), "den", { p: [Math.sin(a) * rx * u, yy, Math.cos(a) * rz * u], s: [1.2, 0.65, 1], c: i % 2 ? C.leafL : C.leaf, pat: PAT.leaf, ol: false });
     }
     // Tenture colorée au-dessus de l'entrée (chasseur, laie).
     if (o.cloth) {
@@ -190,8 +191,8 @@
           0.03,
           0,
         ),
-        "root",
-        { p: [0, y0 + dh * 1.22, z + rz * 0.6], r: [-0.55, 0, 0], c: o.cloth, cls: CLS.satin, ol: true },
+        "den",
+        { p: [0, y0 + dh * 1.22, rz * 0.6], r: [-0.55, 0, 0], c: o.cloth, cls: CLS.satin, ol: true },
       );
     }
   }
@@ -456,7 +457,7 @@
     // Cicatrice en travers de l'œil droit.
     if (P.scar) R.add(G.capsule(hr * 0.06, hr * 0.75, 4, 2), B("head"), { p: [-hr * 0.47, hc[1] + hr * 0.55, hc[2] + hr * 0.68], r: [-0.6, 0.35, 0.75], c: C.scar, cls: CLS.satin, ol: false });
     // Étoiles d'éblouissement.
-    if (!lite) K.ctDizzy(R, B("head"), { p: [0, hc[1] + hr * 1.45, hc[2]], r: hr * 0.95, size: Math.max(0.13, hr * 0.3) });
+    if (!lite) K.ctDizzy(R, B("head"), { p: [0, hc[1] + hr * 1.55, hc[2]], r: hr * 1.05, size: Math.max(0.2, hr * 0.44) });
     R.sway(B("earL"), "z", 0, 0.08, 1.7, 0);
     R.sway(B("earR"), "z", 0, 0.08, 1.9, 2);
     return { hc, nz };
@@ -542,17 +543,17 @@
 
   // Hauteur réelle du sommet (m, mesurée sur les gabarits) et rayon d'emprise au sol (m) : ctTowerInfo sans construire.
   const INFO = {
-    1: { height: 2.0, footprint: 1.55 },
-    2: { height: 2.2, footprint: 1.55 },
-    3: { height: 2.4, footprint: 1.55 },
-    A4: { height: 2.75, footprint: 1.55 },
-    A5: { height: 2.9, footprint: 1.55 },
-    A6: { height: 3.05, footprint: 1.55 },
-    A7: { height: 3.9, footprint: 1.6 },
-    B4: { height: 2.75, footprint: 1.55 },
-    B5: { height: 2.9, footprint: 1.55 },
-    B6: { height: 3.05, footprint: 1.55 },
-    B7: { height: 3.9, footprint: 1.6 },
+    1: { height: 1.88, footprint: 1.55 },
+    2: { height: 2.03, footprint: 1.55 },
+    3: { height: 2.18, footprint: 1.55 },
+    A4: { height: 2.57, footprint: 1.55 },
+    A5: { height: 2.71, footprint: 1.55 },
+    A6: { height: 2.85, footprint: 1.55 },
+    A7: { height: 3.43, footprint: 1.6 },
+    B4: { height: 2.57, footprint: 1.55 },
+    B5: { height: 2.71, footprint: 1.55 },
+    B6: { height: 2.85, footprint: 1.55 },
+    B7: { height: 3.64, footprint: 1.6 },
   };
   const FLAG = { color: "#4f8f2c", trim: "#6e4628" };
 
@@ -574,11 +575,12 @@
       jumpH: big ? 0.35 : 0.5,
       attackKind: "shot",
       author(R) {
-        const top = ground(R, { R: Rr, seed: 3 + level, bedR: big ? 1.0 : 0.72 + L * 0.04, bedZ: big ? 0.3 : 0.25, bed: level === 1 ? C.mud : C.straw });
+        const top = ground(R, { R: Rr, seed: 3 + level, bedR: big ? 1.0 : 0.72 + L * 0.04, bedX: big ? 0.2 : 0.26, bedZ: big ? 0.32 : 0.3, bed: level === 1 ? C.mud : C.straw });
         den(R, {
-          z: big ? -0.9 : -0.78 - L * 0.02,
+          at: big ? [-0.6, -0.66] : [-0.62, -0.6],
+          yaw: 0.5,
           y0: top - 0.02,
-          rx: big ? 1.2 : 0.88 + L * 0.06,
+          rx: big ? 1.1 : 0.84 + L * 0.05,
           ry: big ? 1.55 : 0.98 + L * 0.1,
           rz: big ? 0.72 : 0.58 + L * 0.03,
           roof: level === 1 ? "twigs" : level === 2 ? "leaves" : "moss",
@@ -600,9 +602,9 @@
           seed: 5 + level,
           rope: level >= 2,
         });
-        pile(R, Rr * 0.52, Rr * 0.36, top, big ? 4 : Math.min(3, 1 + L));
+        pile(R, -Rr * 0.5, Rr * 0.56, top, big ? 4 : Math.min(3, 1 + L));
         K.ctPennant(R, {
-          p: [-Rr * 0.6, top - 0.05, -Rr * 0.48],
+          p: [Rr * 0.6, top - 0.05, -Rr * 0.52],
           h: big ? 3.2 : level >= 4 ? 2.2 + deco * 0.14 : 1.5 + level * 0.15,
           color: level >= 4 ? C.red : FLAG.color,
           trim: level >= 4 ? C.gold : FLAG.trim,
@@ -612,14 +614,14 @@
           starR: big ? 0.15 : 0.13,
           thick: 0.04,
           tail: level >= 4 ? "swallow" : "point",
-          dir: Math.PI - 0.15,
+          dir: 0.62,
           tilt: 0.5,
         });
-        boar(R, P, { at: [0, top - 0.02, big ? 0.32 : 0.26] });
+        boar(R, P, { at: big ? [0.22, top - 0.02, 0.34] : [0.3, top - 0.02, 0.3] });
         // Camp du chasseur : cible de paille (5+), trophée de cerf (6+).
         if (deco >= 2 || big) {
-          const x = Rr * 0.66,
-            z = -Rr * 0.42,
+          const x = Rr * 0.8,
+            z = -Rr * 0.06,
             y = top;
           R.add(G.cyl(0.05, 0.05, 1.0, 4, true), "root", { p: [x, y + 0.5, z], c: C.stakeD, pat: PAT.wood, ol: true });
           R.add(G.cyl(0.34, 0.34, 0.1, 10), "root", { p: [x, y + 0.98, z + 0.05], r: [Math.PI / 2 - 0.45, 0, 0], c: C.straw, pat: PAT.straw, ol: true });
@@ -631,8 +633,8 @@
             R.add(G.disc(rr, 9), "root", { p: [x, y + 0.98 + Math.sin(0.45) * (0.056 + 0.03 * (0.3 - rr)), z + 0.05 + Math.cos(0.45) * (0.056 + 0.03 * (0.3 - rr))], r: [-0.45, 0, 0], c: cc, cls: CLS.satin, ol: false });
         }
         if (deco >= 3 || big) {
-          const x = -Rr * 0.78,
-            z = Rr * 0.1,
+          const x = -Rr * 0.82,
+            z = Rr * 0.24,
             y = top;
           R.add(G.cyl(0.055, 0.06, 1.25, 5), "root", { p: [x, y + 0.62, z], c: C.stake, pat: PAT.wood, ol: true });
           for (const sx of [-1, 1]) {
@@ -700,12 +702,12 @@
       turn: 5,
       attackKind: "shot",
       author(R) {
-        const top = ground(R, { R: Rr, seed: 20 + level, bedR: 0.86, bedZ: 0.2 });
-        den(R, { z: -0.92, y0: top - 0.02, rx: 1.05, ry: 1.25, rz: 0.6, roof: "moss", sticks: 6, leaves: 4, lintel: true, door: 0.66, cloth: "#e0a020", seed: 30 + level });
+        const top = ground(R, { R: Rr, seed: 20 + level, bedR: 0.86, bedX: 0.26, bedZ: 0.26 });
+        den(R, { at: [-0.62, -0.62], yaw: 0.5, y0: top - 0.02, rx: 0.98, ry: 1.25, rz: 0.6, roof: "moss", sticks: 6, leaves: 4, lintel: true, door: 0.66, cloth: "#e0a020", seed: 30 + level });
         palisade(R, { r: Rr - 0.2, n: 9, a0: 1.75, a1: TAU - 1.75, H: 0.8, y: top - 0.05, seed: 20 + level });
-        pile(R, Rr * 0.55, Rr * 0.3, top, 3);
-        K.ctPennant(R, { p: [-Rr * 0.6, top - 0.05, -Rr * 0.48], h: 2.2 + deco * 0.14, color: "#e0a020", trim: C.redD, stars: deco, len: 0.8, tall: 0.52, starR: 0.13, thick: 0.04, tail: "swallow", dir: Math.PI - 0.15, tilt: 0.5 });
-        boar(R, P, { at: [0, top - 0.02, 0.22] });
+        pile(R, -Rr * 0.5, Rr * 0.56, top, 3);
+        K.ctPennant(R, { p: [Rr * 0.6, top - 0.05, -Rr * 0.52], h: 2.2 + deco * 0.14, color: "#e0a020", trim: C.redD, stars: deco, len: 0.8, tall: 0.52, starR: 0.13, thick: 0.04, tail: "swallow", dir: 0.62, tilt: 0.5 });
+        boar(R, P, { at: [0.28, top - 0.02, 0.26] });
         const k = P.k;
         const tp = P.body[2] * k * 0.98;
         // Couverture bleue, selle et bâti de la catapulte sur le dos.
@@ -804,7 +806,7 @@
       author(R) {
         const top = ground(R, { R: Rr, seed: 31, bedR: 1.12, bedZ: 0 });
         palisade(R, { r: Rr - 0.2, n: 14, a0: 0.9, a1: TAU - 0.9, H: 0.95, y: top - 0.05, ribbons: "#e0a020", seed: 31 });
-        K.ctPennant(R, { p: [-Rr * 0.72, top - 0.05, -Rr * 0.5], h: 3.4, color: "#e0a020", trim: C.redD, stars: 3, len: 0.95, tall: 0.6, starR: 0.15, thick: 0.045, tail: "swallow", dir: Math.PI - 0.15, tilt: 0.5 });
+        K.ctPennant(R, { p: [-Rr * 0.72, top - 0.05, -Rr * 0.5], h: 3.4, color: "#e0a020", trim: C.redD, stars: 3, len: 0.95, tall: 0.6, starR: 0.15, thick: 0.045, tail: "swallow", dir: 2.5, tilt: 0.5 });
         R.bone("yaw", "root", [0, top - 0.02, 0]);
         // Plateau de bois et roues.
         R.add(G.box(1.3, 0.1, 2.1), "yaw", { p: [0, 0.18, -0.05], c: C.stake, pat: PAT.wood, uv: "box", tile: 0.5, ol: true });
@@ -842,7 +844,7 @@
         boar(R, PIG, { pre: "p2", parent: "yaw", at: [-0.5, 0.24, 1.25] });
         for (const p of ["p1", "p2"]) R.add(G.husk(0.1), p + "body", { p: [0, 0.26, -0.02], c: C.husk, flat: true, ol: true });
         // Étoiles d'éblouissement au-dessus de la laie.
-        K.ctDizzy(R, "shead", { p: [0, 0.75, 0.2], r: 0.4, size: 0.14 });
+        K.ctDizzy(R, "shead", { p: [0, 0.8, 0.2], r: 0.45, size: 0.2 });
       },
       pose(st, B) {
         const t = st.t + st.phase;

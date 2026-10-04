@@ -159,7 +159,7 @@
       ]),
     bigChestnut: () =>
       mergeColored([
-        [huskGeo(0.4, 1.95), "#a8e040"],
+        [huskGeo(0.36, 1.95), "#a8e040"],
         [nutGeo(0.22).rotateZ(0.5).translate(0.15, 0.35, 0.02), "#8a4a22"],
         [nutGeo(0.21).rotateZ(-0.6).translate(-0.17, 0.33, -0.06), "#9a5426"],
       ]),

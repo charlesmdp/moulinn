@@ -1938,14 +1938,18 @@
       this.items = [];
       this.meta = { eyes: [], sway: [] };
     }
-    /** Os (position de repos relative à l'os parent ; la racine « root » est à l'origine). */
-    bone(name, parent, p) {
+    /**
+     * Os (position de repos relative à l'os parent ; la racine « root » est à l'origine). r : rotation de repos
+     * facultative [x, y, z] (appliquée à l'instance : les pièces de l'os tournent autour de son origine ; réservée
+     * aux os sans os enfants, dont la position de repos ne tiendrait pas compte de cette rotation).
+     */
+    bone(name, parent, p, r) {
       const pi = this.bi[parent || "root"];
       if (pi === undefined) throw new Error("PTMT tours : os parent inconnu " + parent);
       const w = this.bones[pi].w;
       p = p || [0, 0, 0];
       this.bi[name] = this.bones.length;
-      this.bones.push({ name, parent: pi, p: p.slice(), w: [w[0] + p[0], w[1] + p[1], w[2] + p[2]] });
+      this.bones.push({ name, parent: pi, p: p.slice(), w: [w[0] + p[0], w[1] + p[1], w[2] + p[2]], r: r ? r.slice() : null });
       return this;
     }
     /** Position de repos d'un os dans le repère du modèle. */
@@ -2125,7 +2129,7 @@
       key,
       geo,
       geoGlow,
-      bones: R.bones.map((b) => ({ name: b.name, parent: b.parent, p: b.p })),
+      bones: R.bones.map((b) => ({ name: b.name, parent: b.parent, p: b.p, r: b.r })),
       inverses,
       glow: glowCount > 0,
       meta: Object.assign(R.meta, { top: Math.round(top * 100) / 100 }),
@@ -2188,6 +2192,7 @@
       const b = new THREE.Bone();
       b.name = d.name;
       b.position.set(d.p[0], d.p[1], d.p[2]);
+      if (d.r) b.rotation.set(d.r[0], d.r[1], d.r[2]);
       b.userData.rest = b.position.clone();
       if (d.parent >= 0) bones[d.parent].add(b);
       bones.push(b);
@@ -2396,12 +2401,12 @@
       const nm = "orb" + i;
       R.bone(nm, o.parent || "root", [0, o.y, 0]);
       if (o.kind === "ice") {
-        R.add(G.ico(s * 1.12, 0), nm, { c: "#58b4f4", cls: CLS.ice, flat: true, ol: true });
-        R.add(G.oct(s * 0.62), nm, { r: [0.4, 0.3, 0], c: "#ffffff", cls: CLS.glow, flat: true, ol: false });
+        R.add(G.ico(s * 1.12, 0), nm, { c: "#58b4f4", cls: CLS.ice, flat: true, ol: true, noTop: true });
+        R.add(G.oct(s * 0.62), nm, { r: [0.4, 0.3, 0], c: "#ffffff", cls: CLS.glow, flat: true, ol: false, noTop: true });
       } else if (o.kind === "dark") {
-        R.add(G.sphere(s, 8, 6), nm, { c: "#6a2ac0", cls: CLS.orb, ol: true });
+        R.add(G.sphere(s, 8, 6), nm, { c: "#6a2ac0", cls: CLS.orb, ol: true, noTop: true });
         R.glow(G.oct(s * 0.5), nm, { p: [0, s * 1.25, 0], c: "#9fd0ff" });
-      } else R.add(G.sphere(s, 8, 6), nm, { c: "#1590e0", cls: CLS.orb, ol: true });
+      } else R.add(G.sphere(s, 8, 6), nm, { c: "#1590e0", cls: CLS.orb, ol: true, noTop: true });
     }
     R.meta.orbs = { parent: o.parent || "root", y: o.y, r: o.r || 1, size: s };
   };
@@ -2415,7 +2420,7 @@
       s = o.size || 0.16;
     for (let i = 0; i < n; i++) {
       const a = (i / n) * TAU;
-      R.add(G.star(5, s, s * 0.45, s * 0.35), "dizzy", { p: [Math.sin(a) * r, (i % 2) * s * 0.5, Math.cos(a) * r], r: [-0.55, a, 0], ro: "YXZ", c: "#ffd23a", cls: CLS.gold, ol: true });
+      R.add(G.star(5, s, s * 0.45, s * 0.35), "dizzy", { p: [Math.sin(a) * r, (i % 2) * s * 0.5, Math.cos(a) * r], r: [-0.55, a, 0], ro: "YXZ", c: "#ffd23a", cls: CLS.gold, ol: true, noTop: true });
     }
     R.meta.dizzy = true;
   };
