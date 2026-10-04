@@ -6,8 +6,14 @@
 //                                                         //   diamant) ; state "lair" | "ground" | "carried" | "lost"
 //   PTMT.icons.skill("goldVault")                         // une icône par compétence de DATA.SKILLS
 //   PTMT.icons.branch("boar")                             // hure de sanglier, cygne, berger (branches et familles)
-//   PTMT.icons.status("slow")                             // effets : slow, freeze, fear, burn, radiance, stun, disarm…
+//   PTMT.icons.status("slow")                             // effets : slow, freeze, fear, burn, radiance, stun, disarm,
+//                                                         //   wading (patauge), dazzled (tour éblouie)…
+//   PTMT.icons.lair("puits")                              // cachette : moulin, puits, dolmen, chapelle
 //   PTMT.icons.names                                      // liste des noms disponibles (galerie du banc d'essai)
+//
+// Surprises et façons d'attaquer (v4) : tideLow, tideHigh (marée), gate (barrière qui cède), secret
+// (passage secret), fly (vol), swim (nage), shot (tir), charges (charges du cygne), beam (jet de feu),
+// heat (chaleur), dazzle (éblouissement), peloton, blink, split, wading.
 //   PTMT.icons.kit                                        // outils de dessin partagés avec le logo et les portraits
 //
 // Style « autocollant », commun à tout le jeu (et aux portraits des ennemis) : formes pleines aux
@@ -695,6 +701,202 @@
   ];
   DEF.road = () => [...block("#d8b77a", "#9c7a45"), P("M9 16Q20 22 39 18M9 26Q22 30 39 27", "none", { stroke: "#b8935a", w: 2, rim: false })];
 
+  // Surprises de la carte (frise des vagues, annonces, encyclopédie)
+  /** Flèche épaisse (verticale) : de y0 vers y1, pointe comprise. */
+  const vArrow = (x, y0, y1, col) => {
+    const d = y1 > y0 ? 1 : -1;
+    return [...TS(`M${x} ${y0}V${y1 - d * 4}`, col, 3.4), P(`M${x - 5.5} ${y1 - d * 5.5}L${x} ${y1 + d * 1.5}L${x + 5.5} ${y1 - d * 5.5}Z`, col)];
+  };
+  // Marée basse : l'eau descend (flèche vers le bas) et découvre l'estran, du sable où l'on marche.
+  DEF.tideLow = () => [
+    R(4, 14, 40, 30, 7, "#f2d48a"),
+    P("M9 31Q15 29 21 31M27 38Q33 36 39 38M10 40Q13 39 16 40", "none", { stroke: "#c9a35a", w: 2, rim: false, cap: "round" }),
+    E(15, 35, 2, 2.8, "#8a5a32", NO),
+    E(20, 30.5, 2, 2.8, "#8a5a32", NO),
+    E(26, 34.5, 2, 2.8, "#8a5a32", NO),
+    E(31, 29.5, 2, 2.8, "#8a5a32", NO),
+    P("M34 34Q38 28 42 34Z", "#ff9a86", { w: 1.6, rim: false }),
+    P("M4 10Q4 4 10 4L38 4Q44 4 44 10L44 17Q39 20.5 34 17.5Q29 14.5 24 17.5Q19 20.5 14 17.5Q9 14.5 4 17.5Z", COL.blue),
+    P("M8 9.5Q12 7.5 16 9.5", "none", { stroke: "#cfe9ff", w: 2.2, rim: false, cap: "round" }),
+    ...vArrow(36, 5.5, 21, CREAM),
+  ];
+  // Marée haute : l'eau monte (flèche vers le haut) et recouvre l'estran.
+  DEF.tideHigh = () => [
+    R(4, 34, 40, 10, 5, "#f2d48a"),
+    P("M4 14Q10 8 16 14T28 14T40 14Q44 12 44 16L44 36Q39 39.5 34 36.5Q29 33.5 24 36.5Q19 39.5 14 36.5Q9 33.5 4 36.5Z", COL.blue),
+    P("M4 14Q10 8 16 14T28 14T40 14", "none", { stroke: "#d8f1ff", w: 2.6, rim: false, cap: "round" }),
+    P("M9 25Q13 23 17 25M8 31Q11 29.5 14 31", "none", { stroke: "#9fd3ff", w: 2, rim: false, cap: "round" }),
+    ...vArrow(33, 34, 17, CREAM),
+  ];
+  // Barrière qui cède : poteaux, planches « route barrée » rayées rouge et blanc, celle du bas cassée.
+  const stripes = (x, y, w, hh) => {
+    let d = "";
+    for (let k = x + 6.5; k + 4.5 <= x + w - 1.5; k += 8.5) d += `M${f1(k)} ${y}L${f1(k + 4.5)} ${y}L${f1(k + 4.5 - hh * 0.6)} ${f1(y + hh)}L${f1(k - hh * 0.6)} ${f1(y + hh)}Z`;
+    return P(d, COL.red, NO);
+  };
+  DEF.gate = () => [
+    R(7, 8, 6, 36, 2, COL.woodDark),
+    R(35, 8, 6, 36, 2, COL.woodDark),
+    R(3, 11, 42, 9.5, 3, CREAM),
+    stripes(3, 11, 42, 9.5),
+    R(3, 11, 42, 9.5, 3, "none", { rim: false }),
+    G("rotate(-15 22 29)", [R(2, 25, 20, 8, 2.5, CREAM), stripes(2, 25, 20, 8), R(2, 25, 20, 8, 2.5, "none", { rim: false })]),
+    G("rotate(17 26 29)", [R(26, 25, 20, 8, 2.5, CREAM), stripes(26, 25, 20, 8), R(26, 25, 20, 8, 2.5, "none", { rim: false })]),
+    P("M22.5 23.5L24 18.5M26 24.5L30 21M21.5 34.5L19 39", "none", { w: 2.4, stroke: "#ffb21f", rim: false, cap: "round" }),
+  ];
+  // Passage secret : une haie s'ouvre sur un trou sombre, une flèche s'y faufile.
+  DEF.secret = () => [
+    ...blob([C(12, 27, 10), C(24, 17, 13), C(36, 27, 10), R(3, 26, 42, 17, 7)], "#3f9a4a"),
+    C(17, 15, 3, "#6cc24a", hi(0.7)),
+    C(33, 21, 2.4, "#6cc24a", hi(0.7)),
+    C(8, 33, 2.2, "#6cc24a", hi(0.6)),
+    P("M15 43L15 33Q15 24 24 24Q33 24 33 33L33 43Z", "#2b1a10"),
+    ...TS("M18.5 36H27", "#ffd23a", 2.8),
+    P("M25 31.5L31 36L25 40.5Z", "#ffd23a"),
+    P(sparkle(41, 8, 6), "#fff"),
+  ];
+  // Vol (montgolfière) : enveloppe rayée, cordes, nacelle d'osier.
+  DEF.fly = () => [
+    P("M18.5 31L17.5 35.5M29.5 31L30.5 35.5", "none", { w: 1.8, rim: false }),
+    R(16.5, 34.5, 15, 9.5, 2.5, COL.wood),
+    P("M16.5 38.5H31.5", "none", { w: 1.4, rim: false, o: 0.5 }),
+    P("M24 3Q41 3 41 17Q41 26 30.5 31.5L17.5 31.5Q7 26 7 17Q7 3 24 3Z", COL.red),
+    P("M24 3Q31.5 6 31.5 17Q31.5 26.5 28 31.5L20 31.5Q16.5 26.5 16.5 17Q16.5 6 24 3Z", "#ffd23a", NO),
+    P("M24 3Q41 3 41 17Q41 26 30.5 31.5L17.5 31.5Q7 26 7 17Q7 3 24 3Z", "none", { rim: false }),
+    P("M7.5 17H40.5", "none", { rim: false, w: 1.3, o: 0.35 }),
+    E(13.5, 12, 2.6, 4.6, "#fff", hi(0.5)),
+  ];
+  // Charges (cygne) : boules d'eau en réserve, la dernière se remplit encore.
+  const orb = (x, y, r, full) => [
+    C(x, y, r, full ? COL.blue : "#e2f3ff"),
+    full ? [] : P(`M${x - r} ${y}A${r} ${r} 0 0 0 ${x + r} ${y}Z`, COL.blue, NO),
+    C(x - r * 0.35, y - r * 0.38, r * 0.3, "#fff", hi(0.75)),
+    C(x, y, r, "none", { rim: false }),
+  ];
+  DEF.charges = () => [P("M5 41Q24 47 43 41", "none", { stroke: "#9fd3ff", w: 2.6, rim: false, cap: "round" }), orb(11, 30, 8, true), orb(24, 18, 8.5, true), orb(37, 30, 8, false)];
+  // Jet de feu continu : flamme en cône qui s'élargit vers la cible.
+  DEF.beam = () => [
+    P("M3 24Q11 19.5 21 17Q33 13 40 9Q47.5 15 45.5 24Q47.5 33 40 39Q33 35 21 31Q11 28.5 3 24Z", "#ff6a1f"),
+    P("M8 24Q15 21.5 23 20Q33 18 39.5 15.5Q43 19.5 42 24Q43 28.5 39.5 32.5Q33 30 23 28Q15 26.5 8 24Z", "#ffb21f", NO),
+    P("M14 24Q21 22.6 29 22.2Q36 22 38.5 24Q36 26 29 25.8Q21 25.4 14 24Z", "#ffe98a", NO),
+    C(4, 24, 3.2, "#ffe98a", { w: 1.8 }),
+  ];
+  // Chaleur : thermomètre qui monte, ondes de chaleur.
+  DEF.heat = () => [
+    ...blob([R(16, 3.5, 12, 32, 6), C(22, 37, 8.5)], "#fffaf0"),
+    R(19.5, 13, 5, 24, 2.5, COL.red, NO),
+    C(22, 37, 5.5, COL.red, NO),
+    C(19.6, 34.6, 1.8, "#fff", hi(0.7)),
+    P("M28 11H31M28 17H31M28 23H31", "none", { w: 1.8, rim: false }),
+    P("M36 7Q39 10.5 36 14Q33 17.5 36 21M42.5 13Q45.5 16.5 42.5 20Q39.5 23.5 42.5 27", "none", { stroke: "#ff8c2e", w: 2.8, rim: false, cap: "round" }),
+  ];
+  // Éblouissement : éclat du flash d'un appareil photo.
+  DEF.dazzle = () => [
+    P(star(29, 17, 16.5, 7.5, 8, -90), "#fff3a0"),
+    P(star(29, 17, 9.5, 4.5, 8, -67.5), "#fff", NO),
+    R(4, 27, 25, 17, 4, "#3e4452"),
+    R(9, 23.5, 8, 5, 2, "#3e4452"),
+    C(16.5, 35.5, 5.8, "#9fd3ff"),
+    C(16.5, 35.5, 2.7, INK, NO),
+    C(15, 34, 1.2, "#fff", NO),
+    R(22, 29.5, 4, 3, 1, "#fff3a0", NO),
+  ];
+  // Tir (sanglier) : une bogue de châtaigne lancée, traits de vitesse.
+  DEF.shot = () => [
+    P("M3 17H14M6 25H16M3 33H13", "none", { w: 3, cap: "round" }),
+    P(star(31, 25, 14.5, 10.5, 16, -90), "#6fa336"),
+    C(31, 25, 10.5, "#9ccf4e", { rim: false }),
+    P("M25 24Q31 15.5 37 24Q31 28 25 24Z", "#7a4420", { rim: false, w: 1.4 }),
+    C(29, 20, 1.6, "#fff", hi(0.6)),
+  ];
+  // Cachettes (selon le décor) : moulin, vieux puits, dolmen, chapelle.
+  DEF.lairMoulin = () => {
+    let spokes = "";
+    for (let k = 0; k < 4; k++) {
+      const a = (k * Math.PI) / 4;
+      spokes += `M${f1(35 - 8 * Math.cos(a))} ${f1(29 - 8 * Math.sin(a))}L${f1(35 + 8 * Math.cos(a))} ${f1(29 + 8 * Math.sin(a))}`;
+    }
+    return [
+      C(35, 29, 11, COL.wood),
+      C(35, 29, 7.5, "#a8733f", NO),
+      P(spokes, "none", { stroke: COL.woodDark, w: 2, rim: false }),
+      C(35, 29, 2.6, COL.woodDark, NO),
+      R(4, 21, 25, 21, 2.5, "#c2b49c"),
+      P("M7 27H12M18 35H25M7 38H11", "none", { stroke: "#8f8373", w: 2, rim: false, cap: "round" }),
+      R(13.5, 31, 7, 11, 3, COL.woodDark),
+      R(6.5, 25.5, 5, 5, 1, "#ffe7a0", { w: 1.6 }),
+      P("M1.5 23L16.5 8.5L31.5 23Z", "#56627a"),
+      P("M7 19H25M12 14H20", "none", { stroke: "#7a88a3", w: 1.8, rim: false }),
+    ];
+  };
+  DEF.lairPuits = () => [
+    R(8.5, 7, 4, 25, 1.5, COL.woodDark),
+    R(35.5, 7, 4, 25, 1.5, COL.woodDark),
+    P("M3 12L24 3L45 12L41 16L24 8.5L7 16Z", "#c0562e"),
+    R(10, 15, 28, 3.4, 1.7, COL.wood),
+    P("M24 18.4V23", "none", { w: 1.6, rim: false }),
+    P("M20 22H28L27 28H21Z", COL.steelDark, { w: 1.8 }),
+    P("M5.5 30L5.5 40Q24 47.5 42.5 40L42.5 30Z", COL.stone),
+    P("M5.5 35Q24 41.5 42.5 35M15 31V37M24 32V39M33 31V37", "none", { stroke: COL.stoneDark, w: 1.5, rim: false }),
+    E(24, 30, 18.5, 5.5, "#c3c7cf"),
+    E(24, 30, 13.5, 3.4, "#1d2a3a", NO),
+  ];
+  DEF.lairDolmen = () => [
+    E(24, 41.5, 21, 4.5, "#6cc24a"),
+    R(8, 19, 10, 23, 3.5, COL.stone),
+    R(30, 19, 10, 23, 3.5, COL.stoneDark),
+    P("M13 25V37M35 25V36", "none", { stroke: "#5f646e", w: 1.6, rim: false }),
+    P("M3 19Q5 9 24 8Q43 9 45 17Q45.5 22.5 39 22.5L9 23Q3 23.5 3 19Z", "#9aa0aa"),
+    P("M8 15Q20 11.5 35 12.5", "none", { stroke: "#c9cdd5", w: 2.4, rim: false, cap: "round" }),
+    P("M24 26Q22 30 24 34Q26 30 24 26Z", "#8fe6ff", { rim: false, w: 1.2 }),
+  ];
+  DEF.lairChapelle = () => [
+    R(5, 22, 26, 20, 2, "#efe6d2"),
+    R(13.5, 30, 9, 12, 4.5, COL.woodDark),
+    P("M2 24L18 10.5L34 24Z", "#56627a"),
+    R(29, 15, 13, 27, 2, "#e4d8bf"),
+    R(32.5, 19.5, 6, 7, 3, "#2b2b33", { w: 1.6 }),
+    C(35.5, 24, 2, "#ffd23a", NO),
+    P("M27 17L35.5 6L44 17Z", "#56627a"),
+    ...TS("M35.5 1.5V7.5M32.8 3.6H38.2", "#ffd23a", 2),
+  ];
+  // Capacités des nouveaux ennemis
+  DEF.peloton = () => [
+    C(12, 32, 9, "#3e4452"),
+    C(12, 32, 5.5, "#cfe9ff", NO),
+    C(36, 32, 9, "#3e4452"),
+    C(36, 32, 5.5, "#cfe9ff", NO),
+    ...TS("M12 32L19.5 19L32 19L36 32M19.5 19L24 32L32 19M24 32H12", "#e8412f", 2.8),
+    ...TS("M17 15H23M30 13L33 13L32 19", "#2b1a10", 1.6),
+    C(24, 32, 2.2, "#ffd23a"),
+  ];
+  DEF.blink = () => [
+    ...blob([C(15, 29, 10), C(27, 21, 12), C(35, 31, 9), C(23, 34, 9)], "#b98cff"),
+    C(23, 19, 3.6, "#fff", hi(0.55)),
+    P("M19 31Q24 34 30 30", "none", { stroke: "#8a5ce0", w: 2, rim: false, cap: "round" }),
+    P(sparkle(9, 11, 6.5), "#ffd23a"),
+    P(sparkle(41, 9, 5), "#fff"),
+    P(sparkle(43, 41, 4.5), "#ffd23a"),
+  ];
+  DEF.split = () => [
+    R(9, 10, 3.5, 12, 1.5, "#5a5f6a"),
+    R(20, 7, 17, 17, 3, "#d8412f"),
+    R(23, 10, 11, 9, 2, "#cfe9ff", NO),
+    R(4, 21, 36, 12, 3.5, "#d8412f"),
+    P("M6 25H18", "none", { stroke: "#ff8a72", w: 2, rim: false }),
+    C(32, 35, 9.5, INK),
+    C(32, 35, 4.6, "#ffc93a", NO),
+    C(11, 38, 6, INK),
+    C(11, 38, 3, "#ffc93a", NO),
+  ];
+  DEF.wading = () => [
+    R(17, 6, 5, 24, 2.5, "#c0562e"),
+    R(26, 6, 5, 24, 2.5, "#c0562e"),
+    E(24, 34, 20, 8, COL.blue),
+    E(24, 32.5, 12, 3.6, "#9fd3ff", NO),
+    P("M10 24Q8 19 11 15Q13 20 10 24ZM38 24Q40 19 37 15Q35 20 38 24Z", "#9fd3ff", { w: 1.8 }),
+  ];
+
   // Sorts
   // Couper : hache de bûcheron (manche de frêne, large fer), deux copeaux qui volent.
   const axeShapes = () => [
@@ -828,9 +1030,12 @@
   icons.skill = (id) => icons["skill_" + id] || icons.skillPoint;
   /** Icône d'une branche ou d'une famille de tours : "boar" | "swan" | "dog". */
   icons.branch = (b) => icons[b] || "";
-  const STATUS = { slow: "slow", freeze: "freeze", fear: "fear", burn: "burn", radiance: "radiance", stun: "stun", disarmed: "disarm", disarm: "disarm", haste: "haste", invisible: "smoke", smoke: "smoke" };
+  const STATUS = { slow: "slow", freeze: "freeze", fear: "fear", burn: "burn", radiance: "radiance", stun: "stun", disarmed: "disarm", disarm: "disarm", haste: "haste", invisible: "smoke", smoke: "smoke", wading: "wading", dazzled: "dazzle", flying: "fly", swims: "swim" };
   /** Icône d'un effet d'état (clés de enemy.fx ou des niveaux de tour). */
   icons.status = (k) => icons[STATUS[k] || k] || "";
+  const LAIRS = { moulin: "lairMoulin", puits: "lairPuits", dolmen: "lairDolmen", chapelle: "lairChapelle" };
+  /** Icône d'une cachette selon son décor : "moulin" | "puits" | "dolmen" | "chapelle". */
+  icons.lair = (style) => icons[LAIRS[style] || "lairMoulin"];
   // Outils partagés avec le logo (07) et les portraits des tours (08).
   icons.kit = { INK, RIM, CREAM, COL, GEMS, shape, P, C, E, R, G, place, NO, hi, TS, blob, svg, star, sparkle, gear, arc, mix, gemShapes, coinShapes, flameShapes, snowflakeShapes, boltShapes, crownShapes, dropShapes, boarHead, swanHead, dogHead };
 })();
