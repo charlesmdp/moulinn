@@ -1170,6 +1170,7 @@
       beams: [], beamOn: [false, false], shotK: 0, dazzled: false, dazzleAt: 0,
     };
     v.model = this.makeTowerModel(tw.family, tw.level, tw.spec, tw.i, tw.j);
+    v.beamKind = this.beamKind(v);
     this.placeTower(v);
     this.towers.set(tw.id, v);
     return v;
@@ -1238,7 +1239,7 @@
     const seen = this._beamSeen || (this._beamSeen = [false, false, false, false]);
     seen[0] = seen[1] = seen[2] = seen[3] = false;
     if (list) {
-      const kind = this.beamKind(v);
+      const kind = v.beamKind || "fire";
       for (const b of list) {
         const slot = b.slot | 0;
         const tgt = this.enemies.get(b.targetId);
@@ -1285,11 +1286,10 @@
     for (const tw of st.towers || []) {
       seen.add(tw.id);
       let v = this.towers.get(tw.id);
-      const key = tw.family + tw.level + (tw.spec || "");
       if (!v) {
         v = this.newTower(tw);
         v.pop = 0.001;
-      } else if (v.key !== key) {
+      } else if (v.level !== tw.level || v.spec !== (tw.spec || null)) {
         // montée de niveau : nouveau modèle, célébration, colonne dorée
         this.releaseBeams(v);
         const old = v.model;
@@ -1298,9 +1298,10 @@
           old.dispose && old.dispose();
         } catch (e) {}
         v.model = this.makeTowerModel(tw.family, tw.level, tw.spec, v.i, v.j);
-        v.key = key;
         v.level = tw.level;
         v.spec = tw.spec || null;
+        v.key = tw.family + tw.level + (tw.spec || "");
+        v.beamKind = this.beamKind(v);
         v.frenzy = false;
         v.selected = false;
         v.dazzled = false;
@@ -2301,7 +2302,10 @@
       U.uRange.value.w = 0;
       return;
     }
-    const r = range || this.towerRange(tw);
+    // portée de la simulation (bonus de butte et de compétences compris), sinon tirée des données
+    let r = range;
+    if (!r && this.state) for (const t of this.state.towers || []) if (t.id === towerId) r = t.range;
+    if (!r) r = this.towerRange(tw);
     U.uRange.value.set(toX(tw.i + 0.5), toZ(tw.j + 0.5), r * TILE, 1);
     U.uRangeCol.value.copy(lin(RANGE_HEX[tw.family] || "#ffffff"));
   };

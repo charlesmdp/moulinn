@@ -277,7 +277,7 @@
     L.model = model;
     L.native = !!native;
     L.total = total;
-    L.slotsKey = "";
+    L.slotsKey = -1;
     if (L.alarm && model.alarm) model.alarm(true);
   };
   W.buildLairs = function () {
@@ -302,7 +302,7 @@
       }
       o.rotation.y = fixedYaw === null ? 0 : fixedYaw;
       this.root.add(o);
-      this.lairs.push({ id: L.id, x: L.x, y: L.y, total: L.total, style: L.style, mill: !!L.mill, model, native: !!native, fixedYaw, alarm: false, slotsKey: "" });
+      this.lairs.push({ id: L.id, x: L.x, y: L.y, total: L.total, style: L.style, mill: !!L.mill, model, native: !!native, fixedYaw, alarm: false, slotsKey: -1 });
       this.staticShadowCasters.push({ x: L.x, y: L.y - 0.6, r: 0.9, h: 0.6, a: 0.4 });
     }
   };
@@ -323,8 +323,9 @@
   W.setLairSlots = function (lairId, list) {
     const L = this.lairs && this.lairs[lairId];
     if (!L) return;
-    let key = "";
-    for (let k = 0; k < list.length; k++) key += list[k] ? "1" : "0";
+    // masque des logements pleins (sans allocation par image)
+    let key = list.length * 1024;
+    for (let k = 0; k < list.length && k < 10; k++) if (list[k]) key += 1 << k;
     if (key === L.slotsKey) return;
     L.slotsKey = key;
     const m = L.model;
