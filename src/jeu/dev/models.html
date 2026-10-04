@@ -7,7 +7,7 @@
 <style>
   html, body { margin: 0; height: 100%; overflow: hidden; background: #9dbbdc; font: 13px/1.3 system-ui, -apple-system, "Segoe UI", sans-serif; color: #1d2a1a; }
   canvas { display: block; touch-action: none; }
-  #ui { position: fixed; left: 8px; top: 8px; max-width: min(620px, calc(100vw - 16px)); display: flex; flex-direction: column; gap: 5px; z-index: 5; }
+  #ui { position: fixed; left: 8px; top: 8px; max-width: min(680px, calc(100vw - 16px)); display: flex; flex-direction: column; gap: 5px; z-index: 5; }
   #ui .row { display: flex; flex-wrap: wrap; gap: 4px; align-items: center; }
   #ui button { font: inherit; border: 0; border-radius: 9px; padding: 5px 9px; background: #fff7e6; color: #3b2a14; box-shadow: 0 2px 0 #c9a86a, 0 3px 8px rgba(0,0,0,.18); cursor: pointer; }
   #ui button[aria-pressed="true"] { background: #7fae4b; color: #fff; box-shadow: 0 2px 0 #4f7a26, 0 3px 8px rgba(0,0,0,.2); }
@@ -23,12 +23,18 @@
 <div id="ui">
   <div class="row"><span class="title">Pas touche à mes trésors · tours</span><button data-k="h" title="Masquer/afficher (H)">☰</button></div>
   <div class="row" id="sections"></div>
-  <div class="row"><button data-k="f">Tir (F)</button><button data-k="p">Projectiles (P)</button><button data-k="a" data-toggle="auto">Tir auto (A)</button><button data-k="y" data-toggle="sweep">Visée tournante (Y)</button><button data-k="t" data-toggle="track">Suivre les cibles (T)</button></div>
-  <div class="row"><button data-k="z" data-toggle="frenzy">Frénésie (Z)</button><button data-k="s" data-toggle="sel">Sélection (S)</button><button data-k="u">Montée de niveau (U)</button><button data-k="n">Niveau suivant (N)</button><button data-k="v">Vue (V)</button><button data-k="b" data-toggle="labels">Étiquettes (B)</button></div>
+  <div class="row"><button data-k="a" data-toggle="auto">Attaques auto (A)</button><button data-k="f">Élan seul (F)</button><button data-k="y" data-toggle="sweep">Visée tournante (Y)</button><button data-k="t" data-toggle="track">Suivre les cibles (T)</button><button data-k="w" data-toggle="walk">Cibles en marche (W)</button></div>
+  <div class="row"><button data-k="z" data-toggle="frenzy">Frénésie (Z)</button><button data-k="s" data-toggle="sel">Sélection (S)</button><button data-k="e" data-toggle="dazzle">Ébloui (E)</button><button data-k="u">Montée de niveau (U)</button><button data-k="n">Niveau suivant (N)</button><button data-k="v">Vue (V)</button><button data-k="b" data-toggle="labels">Étiquettes (B)</button></div>
 </div>
 <div id="stats"></div>
 <script>
 "use strict";
+// Galerie des tours (sanglier, cygne, berger-dragon) et de leurs attaques :
+//  - sanglier : tir à la suite (élan, bogue de châtaigne ; Grand Solitaire : deux bogues sur deux cibles) ;
+//  - cygne : réserve de boules (setCharges) lâchée en rafale puis rechargée une à une ;
+//  - berger, dragon : jet continu (setBeam + PTMT.fx.beam) qui chauffe tant que la cible reste à portée.
+// Paramètres d'URL : section, solo=famille:niveau[:spé[:terrain]], px (pixels par case en vue de jeu),
+// view=jeu|proche, labels=0, ui=0, auto=0|1, track=0, walk=0, mobile, n (tours de la partie), dt, speed.
 (function () {
   const q = new URLSearchParams(location.search);
   const files = [
@@ -66,7 +72,7 @@
     renderer.outputEncoding = THREE.sRGBEncoding;
     renderer.toneMapping = THREE.ACESFilmicToneMapping;
     renderer.toneMappingExposure = 0.95;
-    renderer.shadowMap.enabled = true;
+    renderer.shadowMap.enabled = !q.has("mobile");
     renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     document.body.appendChild(renderer.domElement);
     // Appels de la passe d'ombre : renderer.info.render.calls est remis à zéro juste après elle, on les compte à part.
@@ -111,15 +117,15 @@
     const TEX = {
       grass: canvasTex((g) => noisy(g, [96, 150, 58], [60, 70, 40], 3)),
       road: canvasTex((g) => noisy(g, [196, 164, 112], [50, 44, 36], 5)),
-      rock: canvasTex((g) => { noisy(g, [132, 124, 118], [60, 56, 54], 9); g.strokeStyle = "#ff8a2a"; g.lineWidth = 2; for (let i = 0; i < 7; i++) { g.beginPath(); let x = Math.random() * 256, y = Math.random() * 256; g.moveTo(x, y); for (let k = 0; k < 5; k++) { x += (Math.random() - 0.5) * 50; y += (Math.random() - 0.5) * 50; g.lineTo(x, y); } g.stroke(); } }),
-      water: canvasTex((g) => noisy(g, [46, 132, 170], [30, 40, 40], 13)),
+      rock: canvasTex((g) => noisy(g, [132, 124, 118], [60, 56, 54], 9)),
+      water: canvasTex((g) => noisy(g, [40, 120, 160], [26, 36, 36], 13)),
     };
     const MAT = {
       grass: new THREE.MeshStandardMaterial({ map: TEX.grass, roughness: 0.95 }),
       road: new THREE.MeshStandardMaterial({ map: TEX.road, roughness: 0.95 }),
       rock: new THREE.MeshStandardMaterial({ map: TEX.rock, roughness: 0.9 }),
-      water: new THREE.MeshStandardMaterial({ map: TEX.water, roughness: 0.12, metalness: 0.1, transparent: true, opacity: 0.88 }),
-      bed: new THREE.MeshStandardMaterial({ color: PTMT.color("#4a5a3a"), roughness: 1 }),
+      water: new THREE.MeshStandardMaterial({ map: TEX.water, roughness: 0.12, metalness: 0.1, transparent: true, opacity: 0.9 }),
+      bed: new THREE.MeshStandardMaterial({ color: PTMT.color("#2e4a3a"), roughness: 1 }),
       cliff: new THREE.MeshStandardMaterial({ color: PTMT.color("#8a7458"), roughness: 1 }),
     };
     const TERRAIN = { boar: "grass", swan: "water", dog: "rock" };
@@ -129,7 +135,7 @@
     let TILES = {};
     function bucket(key, geo) { (TILES[key] = TILES[key] || []).push(geo); }
     /** Une case de terrain à la position (x, z) ; renvoie la hauteur du dessus. */
-    function tile(parent, kind, x, z, base) {
+    function tile(kind, x, z, base) {
       base = base === undefined ? -0.6 : base;
       const top = TOP[kind];
       if (kind === "water") {
@@ -155,7 +161,7 @@
       TILES = {};
     }
 
-    // Ennemi factice (échelle : ≈ 2,2 m) qui marche le long d'un chemin.
+    // Ennemi factice (échelle : ≈ 2,2 m), coloré, qui marche le long d'un chemin.
     function dummy(color) {
       const g = new THREE.Group();
       const m = new THREE.MeshStandardMaterial({ color: PTMT.color(color || "#c9c2b5"), roughness: 0.7 });
@@ -169,16 +175,42 @@
     const items = []; // tours
     const walkers = []; // cibles
     const shots = []; // projectiles en vol
+    const pending = []; // départs différés (délai renvoyé par attack())
     const labels = [];
     let root = null;
-    const state = { auto: q.get("auto") === "1", sel: false, frenzy: false, sweep: false, track: true, labels: q.get("labels") !== "0", time: 0 };
-    const view = { mode: q.get("view") || "jeu", yaw: +(q.get("yaw") || 0), pitch: +(q.get("pitch") || 60), px: +(q.get("px") || 46), dist: 30, target: new THREE.Vector3() };
-    const FAMS = { boar: "Sanglier", swan: "Cygne", dog: "Berger" };
+    const state = { auto: q.get("auto") !== "0", sel: false, frenzy: false, sweep: false, track: q.get("track") !== "0", walk: q.get("walk") !== "0", dazzle: false, labels: q.get("labels") !== "0", time: 0, flashCycle: false };
+    const view = { mode: q.get("view") || "jeu", yaw: +(q.get("yaw") || 0), pitch: +(q.get("pitch") || 58), px: +(q.get("px") || 46), dist: 30, target: new THREE.Vector3() };
     const LEVELS = [[1, null], [2, null], [3, null], [4, "A"], [5, "A"], [6, "A"], [7, "A"], [4, "B"], [5, "B"], [6, "B"], [7, "B"]];
     const EVO = [[1, null], [2, null], [3, null], [4, "A"], [5, "A"], [6, "A"], [7, "A"], [1, null], [2, null], [3, null], [4, "B"], [5, "B"], [6, "B"], [7, "B"]];
+    const NAMES = {
+      boar: ["Marcassin", "Jeune sanglier", "Sanglier des talus", "Sanglier chasseur", "Grand Solitaire", "Laie baliste", "Catapulte à châtaignes"],
+      swan: ["Cygneau", "Cygne", "Cygne majestueux", "Cygne des glaces", "Cygne royal", "Cygne noir", "Cygne noir enchanteur"],
+      dog: ["Chiot berger", "Berger australien", "Berger de feu", "Dragon merle rouge", "Grand dragon rouge", "Dragon merle bleu", "Grand dragon bleu"],
+    };
     function levelName(f, lv, sp) {
-      const d = DATA && DATA.towerLevel(f, lv, sp);
-      return d ? d.name : f + " " + lv + (sp || "");
+      const d = DATA && DATA.towerLevel && DATA.towerLevel(f, lv, sp);
+      if (d && d.name) return d.name;
+      const n = NAMES[f];
+      return lv <= 3 ? n[lv - 1] : n[(sp === "B" ? 5 : 3) + (lv === 7 ? 1 : 0)];
+    }
+    // Projectiles v4 (anciens noms des données v3 → nouveaux) et jets.
+    const V4SHOT = { waterJet: "waterOrb", iceShard: "iceOrb", darkWater: "darkOrb" };
+    function towerData(f, lv, sp) {
+      const d = (DATA && DATA.towerLevel && DATA.towerLevel(f, lv, sp)) || {};
+      const shot = f === "boar" ? (sp === "B" ? "bigChestnut" : "chestnut") : f === "swan" ? (sp === "A" ? "iceOrb" : sp === "B" ? "darkOrb" : "waterOrb") : null;
+      const beam = f === "dog" ? (sp === "A" ? "dragonFire" : sp === "B" ? "blueFire" : "fire") : null;
+      return {
+        rate: d.rate || (f === "boar" ? (sp === "B" ? 0.75 : 1.2 + lv * 0.1) : 1),
+        range: (d.range || (f === "dog" ? 2.9 : 2.5)) * (q.get("range") ? +q.get("range") : 1.25),
+        speed: d.speed || 8,
+        splash: d.splash || (sp === "B" && f === "boar" ? 1 : 0),
+        shot: V4SHOT[d.shot] || shot,
+        beam,
+        double: f === "boar" && lv === 7 && sp === "A", // deux bogues sur deux cibles
+        twin: f === "dog" && lv === 7 && sp === "A", // deux jets (deux têtes)
+        bounce: f === "dog" && lv === 7 && sp === "B", // le jet rebondit sur une seconde cible
+        recharge: 1.4, // s par boule (cygne)
+      };
     }
 
     function addLabel(obj, text, sub, y) {
@@ -193,24 +225,44 @@
       const api = M.ctTower(family, lv, sp, { terrain: extra && extra.terrain });
       api.object.position.set(x, y, z);
       root.add(api.object);
-      const it = Object.assign({ api, family, lv, sp, x, z, y, cd: Math.random() * 1.5 }, extra || {});
+      const it = Object.assign({ api, family, lv, sp, x, z, y, cd: Math.random() * 1.2, d: towerData(family, lv, sp), beams: [], heat: [0, 0], tgt: [null, null] }, extra || {});
+      initCharges(it);
       it.label = addLabel(api.object, levelName(family, lv, sp), (sp ? sp : "") + lv + " · " + api.height.toFixed(2) + " m", api.height + 0.45);
       items.push(it);
       return it;
     }
     function rebuild(it, lv, sp) {
       const pos = it.api.object.position.clone();
+      stopBeams(it);
       it.api.dispose();
       it.api = M.ctTower(it.family, lv, sp, { terrain: it.terrain });
       it.api.object.position.copy(pos);
       root.add(it.api.object);
-      it.lv = lv; it.sp = sp;
+      it.lv = lv; it.sp = sp; it.d = towerData(it.family, lv, sp);
+      initCharges(it);
       it.label.obj = it.api.object; it.label.y = it.api.height + 0.45;
       it.label.el.innerHTML = levelName(it.family, lv, sp) + "<small>" + (sp || "") + lv + " · " + it.api.height.toFixed(2) + " m</small>";
-      it.api.setSelected(state.sel); it.api.setFrenzy(state.frenzy);
+      it.api.setSelected(state.sel); it.api.setFrenzy(state.frenzy); it.api.setDazzled(state.dazzle);
       it.api.celebrate();
     }
+    function initCharges(it) {
+      if (it.family !== "swan") return;
+      const c = it.api.charges ? it.api.charges() : { max: 3 };
+      it.ch = { full: c.max, max: c.max, part: 0, burst: 0, gap: 0, cool: 0 };
+      it.api.setCharges(it.ch.full, it.ch.max, 0);
+    }
 
+    /* ---------------------------------------------------------------- sections */
+    function road(i0, i1, z, x0) { for (let i = i0; i <= i1; i++) tile("road", (x0 || 0) + i * TILE, z, -0.6); }
+    function makeWalker(x, z, y, speed, color, x0, x1) {
+      const d = dummy(color);
+      d.position.set(x, y, z);
+      root.add(d);
+      const w = { obj: d, x0: x0 === undefined ? -12 : x0, x1: x1 === undefined ? 12 : x1, speed, y, z, phase: Math.random() * 6 };
+      walkers.push(w);
+      return w;
+    }
+    const COLORS = ["#c8433a", "#3a7ad8", "#e0b020", "#7a4ab8", "#3aa860", "#e07a30"];
     /** Section d'une famille : grille 4 × 3 (1-3 + évolution, A4-A7, B4-B7) le long d'un chemin avec des cibles. */
     function buildFamily(f) {
       const kind = TERRAIN[f];
@@ -223,37 +275,52 @@
       ];
       layout.forEach((row, r) => row.forEach((cell, c) => {
         const x = cols[c], z = rows[r];
-        const y = tile(root, kind, x, z) - (kind === "water" ? 0 : 0);
+        const y = tile(kind, x, z);
         if (cell === "evo") { const it = place(f, 1, null, x, z, y, { evo: 0, terrain: kind }); it.label.el.innerHTML = "Évolution<small>N : niveau suivant</small>"; }
         else place(f, cell[0], cell[1], x, z, y, { terrain: kind });
       }));
-      // Chemin et cibles devant la grille.
-      for (let i = -3; i <= 3; i++) tile(root, "road", i * TILE, TILE * 1.4, -0.6);
-      for (let i = 0; i < 3; i++) walkers.push(makeWalker(-11 + i * 7.5, TILE * 1.4, 0, 1.4 + i * 0.2, ["#c8433a", "#3a7ad8", "#e0b020"][i]));
-      return { center: [0, 0.8, -1.5], width: 34 };
-    }
-    function makeWalker(x, z, y, speed, color) {
-      const d = dummy(color);
-      d.position.set(x, y, z);
-      root.add(d);
-      return { obj: d, x0: -12, x1: 12, speed, y, z, phase: Math.random() * 6 };
+      road(-3, 3, TILE * 1.4);
+      for (let i = 0; i < 3; i++) makeWalker(-11 + i * 7.5, TILE * 1.4, 0, 1.4 + i * 0.2, COLORS[i]);
+      return { center: [0, 0.8, -2.2], width: 30 };
     }
     /** Toutes les familles côte à côte. */
     function buildAll() {
-      const fams = ["boar", "swan", "dog"];
-      fams.forEach((f, r) => {
+      ["boar", "swan", "dog"].forEach((f, r) => {
         LEVELS.forEach(([lv, sp], c) => {
           const x = (c - 5) * (TILE + 0.4), z = (r - 1) * (TILE + 1.6);
-          const y = tile(root, TERRAIN[f], x, z);
+          const y = tile(TERRAIN[f], x, z);
           place(f, lv, sp, x, z, y, { terrain: TERRAIN[f] });
         });
       });
-      for (let i = -6; i <= 6; i++) tile(root, "road", i * TILE, 2 * (TILE + 1.6) - 0.6, -0.6);
-      for (let i = 0; i < 4; i++) walkers.push(makeWalker(-20 + i * 11, 2 * (TILE + 1.6) - 0.6, 0, 1.6, ["#c8433a", "#3a7ad8", "#e0b020", "#7a4ab8"][i]));
-      walkers.forEach((w) => { w.x0 = -22; w.x1 = 22; });
+      road(-6, 6, 2 * (TILE + 1.6) - 0.6);
+      for (let i = 0; i < 4; i++) makeWalker(-20 + i * 11, 2 * (TILE + 1.6) - 0.6, 0, 1.6, COLORS[i], -22, 22);
       return { center: [0, 0.8, 1], width: 48 };
     }
-    /** Petit plateau façon jeu : chemin en S, herbe, eau, roche, butte ; tours de tous niveaux. */
+    /**
+     * Vignettes : chaque tour sur sa case, cases jointives, comme en partie (à juger à 30-60 px par case :
+     * ?px=40). Rangées : sanglier, cygne, berger ; colonnes : niveaux 1, 2, 3, A4…A7, B4…B7.
+     */
+    function buildThumbs() {
+      // ?cols=0,1,2 : seulement certaines colonnes (0 = niveau 1 … 10 = B7)
+      const cols = q.get("cols") ? q.get("cols").split(",").map(Number) : LEVELS.map((_, i) => i);
+      const n = cols.length;
+      ["boar", "swan", "dog"].forEach((f, r) => {
+        cols.forEach((ci, c) => {
+          const [lv, sp] = LEVELS[ci];
+          const x = (c - (n - 1) / 2) * TILE, z = (r - 1) * TILE;
+          const y = tile(TERRAIN[f], x, z);
+          const it = place(f, lv, sp, x, z, y, { terrain: TERRAIN[f] });
+          it.api.aim(0.5);
+        });
+      });
+      // un chemin et des herbes autour, pour le contraste
+      const h = (n + 1) / 2;
+      for (let c = -h; c <= h; c++) { tile("road", c * TILE, 2 * TILE, -0.6); tile("grass", c * TILE, -2 * TILE); }
+      for (let r = -1; r <= 1; r++) { tile("grass", -h * TILE, r * TILE); tile("grass", h * TILE, r * TILE); }
+      state.track = q.get("track") === "1";
+      return { center: [0, 0.4, 0], width: (n + 2) * TILE };
+    }
+    /** Petit plateau façon jeu : chemin en S, herbe, eau, roche ; tours de tous niveaux. */
     function buildBoard() {
       const map = [
         ".b..~~~~.^d^",
@@ -265,21 +332,19 @@
         "############",
       ];
       const W = 12, H = map.length;
-      const towers = { "1,0": ["boar", 3, null], "5,1": ["swan", 5, "A"], "10,0": ["dog", 7, "A"], "2,3": ["boar", 7, "B"], "1,4": ["boar", 5, "A"], "6,4": ["swan", 7, "B"], "10,4": ["dog", 5, "B"] };
-      const path = [];
+      const towers = { "1,0": ["boar", 1, null], "5,1": ["swan", 2, null], "10,0": ["dog", 2, null], "2,3": ["boar", 3, null], "1,4": ["boar", 5, "A"], "6,4": ["swan", 7, "B"], "10,4": ["dog", 7, "A"] };
       for (let j = 0; j < H; j++) for (let i = 0; i < W; i++) {
-        let ch = map[j][i] || ".";
+        const ch = map[j][i] || ".";
         const x = (i - W / 2 + 0.5) * TILE, z = (j - H / 2 + 0.5) * TILE;
-        let kind = ch === "#" ? "road" : ch === "~" || ch === "s" ? "water" : ch === "^" || ch === "d" ? "rock" : "grass";
-        const y = tile(root, kind, x, z);
+        const kind = ch === "#" ? "road" : ch === "~" || ch === "s" ? "water" : ch === "^" || ch === "d" ? "rock" : "grass";
+        const y = tile(kind, x, z);
         const tw = towers[i + "," + j];
         if (tw) place(tw[0], tw[1], tw[2], x, z, y, { terrain: kind });
       }
-      // Chemin parcouru par les cibles : rangée 2 vers la droite, colonne 11, rangée 6 vers la gauche.
       const P = (i, j) => [(i - W / 2 + 0.5) * TILE, (j - H / 2 + 0.5) * TILE];
       const route = [P(-1, 2), P(11, 2), P(11, 6), P(-1, 6)];
       for (let i = 0; i < 5; i++) {
-        const d = dummy(["#c8433a", "#3a7ad8", "#e0b020", "#7a4ab8", "#3aa860"][i]);
+        const d = dummy(COLORS[i]);
         root.add(d);
         walkers.push({ obj: d, route, s: i * 7, speed: 1.3 + i * 0.1, y: 0 });
       }
@@ -294,7 +359,6 @@
       const W = 16, H = 9;
       const P = (i, j) => [(i - W / 2 + 0.5) * TILE, (j - H / 2 + 0.5) * TILE];
       const isPath = (i, j) => j === 1 || j === 4 || j === 7 || (i === 15 && j > 1 && j < 4) || (i === 0 && j > 4 && j < 7);
-      // Les 33 variantes (3 familles × 11 niveaux) dans un ordre mélangé fixe, répétées au besoin.
       const all = [];
       for (const f of ["boar", "swan", "dog"]) for (const [lv, sp] of LEVELS) all.push([f, lv, sp]);
       let seed = 7;
@@ -307,57 +371,89 @@
       for (let j = 0; j < H; j++) for (let i = 0; i < W; i++) {
         const [x, z] = P(i, j), tw = at[i + "," + j];
         const kind = isPath(i, j) ? "road" : tw ? TERRAIN[tw[0]] : "grass";
-        const y = tile(root, kind, x, z);
+        const y = tile(kind, x, z);
         if (tw) place(tw[0], tw[1], tw[2], x, z, y, { terrain: kind });
       }
       const route = [P(-1, 1), P(15, 1), P(15, 4), P(0, 4), P(0, 7), P(16, 7)];
       for (let i = 0; i < 6; i++) {
-        const d = dummy(["#c8433a", "#3a7ad8", "#e0b020", "#7a4ab8", "#3aa860", "#e07a30"][i]);
+        const d = dummy(COLORS[i]);
         root.add(d);
         walkers.push({ obj: d, route, s: i * 11, speed: 1.4 + i * 0.1, y: 0 });
       }
       return { center: [0, 0, 0.3], width: W * TILE + 2 };
     }
-    /** Laboratoire des projectiles : chaque sorte tirée en boucle entre deux poteaux. */
-    const PROJ = ["chestnut", "bigChestnut", "waterJet", "iceShard", "darkWater", "fireball", "dragonFire", "blueFire"];
-    const SPLASH = { chestnut: 0, bigChestnut: 1.0, waterJet: 0.55, iceShard: 0.6, darkWater: 0.7, fireball: 0, dragonFire: 0.9, blueFire: 0 };
+    /** Une rangée de tours d'une famille le long d'un chemin, cibles qui passent (charges, jet). */
+    function buildRow(f, list, opts) {
+      const kind = TERRAIN[f];
+      list.forEach(([lv, sp], c) => {
+        const x = (c - (list.length - 1) / 2) * (TILE + 0.6);
+        const y = tile(kind, x, 0);
+        place(f, lv, sp, x, 0, y, { terrain: kind });
+      });
+      const span = Math.ceil(list.length * 0.6 + 2);
+      road(-span, span, TILE * 1.25);
+      if (opts && opts.back) road(-span, span, -TILE * 1.25);
+      const n = (opts && opts.walkers) || 4;
+      const half = span * TILE;
+      for (let i = 0; i < n; i++) makeWalker(-half + (i / n) * 2 * half, TILE * 1.25, 0, 1.1 + (i % 3) * 0.25, COLORS[i % COLORS.length], -half, half);
+      if (opts && opts.back) for (let i = 0; i < 3; i++) { const w = makeWalker(half - i * 9, -TILE * 1.25, 0, -(1.0 + i * 0.3), COLORS[(i + 3) % 6], -half, half); w.reverse = true; }
+      return { center: [0, 0.6, 0.6], width: list.length * (TILE + 0.6) + 6 };
+    }
+    const buildCharges = () => buildRow("swan", [[1, null], [2, null], [3, null], [4, "A"], [7, "A"], [4, "B"], [7, "B"]], { walkers: 5 });
+    const buildBeam = () => buildRow("dog", [[1, null], [2, null], [3, null], [4, "A"], [7, "A"], [4, "B"], [7, "B"]], { walkers: 3, back: true });
+    function buildDazzle() {
+      const lay = buildRow("boar", [[1, null], [3, null], [7, "A"]], { walkers: 2 });
+      ["swan", "dog"].forEach((f, r) => [[1, null], [3, null], [7, f === "dog" ? "A" : "B"]].forEach(([lv, sp], c) => {
+        const x = (c - 1) * (TILE + 0.6), z = -(r + 1) * (TILE + 0.6);
+        const y = tile(TERRAIN[f], x, z);
+        place(f, lv, sp, x, z, y, { terrain: TERRAIN[f] });
+      }));
+      state.flashCycle = true;
+      return { center: [0, 0.6, -3], width: 16 };
+    }
+    /** Laboratoire des projectiles et des jets : chaque sorte en boucle entre un poteau et une cible. */
+    const PROJ = ["chestnut", "bigChestnut", "waterOrb", "iceOrb", "darkOrb", "fireball", "dragonFire", "blueFire"];
+    const BEAMS = ["fire", "dragonFire", "blueFire"];
+    const SPLASH = { chestnut: 0, bigChestnut: 1.0, waterOrb: 0.55, iceOrb: 0.6, darkOrb: 0.7, fireball: 0, dragonFire: 0.9, blueFire: 0 };
+    const labs = [];
     function buildLab() {
-      PROJ.forEach((kind, i) => {
-        const z = (i - 3.5) * 3.2;
-        for (let k = -2; k <= 2; k++) tile(root, k === 2 ? "road" : "grass", k * TILE, z, -0.6);
+      const rows = PROJ.concat(BEAMS.map((b) => "jet:" + b));
+      rows.forEach((kind, i) => {
+        const z = (i - (rows.length - 1) / 2) * 3.0;
+        for (let k = -2; k <= 2; k++) tile(k === 2 ? "road" : "grass", k * TILE, z, -0.6);
         const post = new THREE.Mesh(new THREE.CylinderGeometry(0.2, 0.25, 1.6, 8), MAT.cliff); post.position.set(-7.2, 0.45 + 0.8, z); post.castShadow = true; root.add(post);
-        const d = dummy(["#c8433a", "#3a7ad8", "#e0b020", "#7a4ab8", "#3aa860", "#c8433a", "#3a7ad8", "#e0b020"][i]);
+        const d = dummy(COLORS[i % 6]);
         d.position.set(7.2, 0, z); root.add(d);
-        const el = addLabel(post, kind, null, 2.2);
-        labs.push({ kind, from: new THREE.Vector3(-7.2, 2.1, z), to: new THREE.Vector3(7.2, 1.1, z), t: i * 0.13, period: kind === "bigChestnut" ? 1.9 : 1.2, h: null });
-        void el;
+        addLabel(post, kind, null, 2.2);
+        labs.push({ kind, from: new THREE.Vector3(-7.2, 2.1, z), to: new THREE.Vector3(7.2, 1.1, z), t: i * 0.13, period: kind === "bigChestnut" ? 1.9 : 1.2, h: null, dummy: d, heat: 0 });
       });
       return { center: [0, 0, 0], width: 24 };
     }
-    const labs = [];
-
+    /** ?section=solo&solo=boar:7:A[:terrain] */
+    function buildSolo() {
+      const a = (q.get("solo") || "boar:1").split(":");
+      const f = a[0], lv = +a[1] || 1, sp = a[2] && a[2] !== "-" ? a[2] : null, kind = a[3] || TERRAIN[f];
+      const y = tile(kind, 0, 0);
+      place(f, lv, sp, 0, 0, y, { terrain: kind });
+      for (let i = -1; i <= 1; i++) if (i) tile(kind, i * TILE, 0);
+      road(-1, 1, TILE);
+      makeWalker(-6, TILE, 0, 1.2, "#c8433a", -6, 6);
+      return { center: [0, 1, 0], width: 3 * TILE };
+    }
     const SECTIONS = {
       boar: { name: "Sangliers", build: () => buildFamily("boar") },
       swan: { name: "Cygnes", build: () => buildFamily("swan") },
       dog: { name: "Bergers", build: () => buildFamily("dog") },
       tout: { name: "Toutes", build: buildAll },
+      vignettes: { name: "Vignettes", build: buildThumbs },
       jeu: { name: "Plateau", build: buildBoard },
       partie: { name: "Partie (30 tours)", build: buildGame },
-      tirs: { name: "Projectiles", build: buildLab },
+      charges: { name: "Charges", build: buildCharges },
+      jet: { name: "Jet continu", build: buildBeam },
+      ebloui: { name: "Éblouissement", build: buildDazzle },
+      tirs: { name: "Projectiles et jets", build: buildLab },
       solo: { name: "Solo", build: buildSolo },
     };
-    /** ?section=solo&solo=boar:7:A[:terrain] */
-    function buildSolo() {
-      const a = (q.get("solo") || "boar:1").split(":");
-      const f = a[0], lv = +a[1] || 1, sp = a[2] || null, kind = a[3] || TERRAIN[f];
-      const y = tile(root, kind, 0, 0);
-      place(f, lv, sp === "-" ? null : sp, 0, 0, y, { terrain: kind });
-      for (let i = -1; i <= 1; i++) if (i) tile(root, kind, i * TILE, 0);
-      for (let i = -1; i <= 1; i++) tile(root, "road", i * TILE, TILE, -0.6);
-      walkers.push(makeWalker(-6, TILE, 0, 1.2, "#c8433a"));
-      walkers[0].x0 = -6; walkers[0].x1 = 6;
-      return { center: [0, 1, 0], width: 3 * TILE };
-    }
     const sectionsEl = document.getElementById("sections");
     for (const [k, s] of Object.entries(SECTIONS)) {
       if (k === "solo") continue;
@@ -368,7 +464,7 @@
 
     let layout = null, current = null;
     function clearSection() {
-      for (const it of items) it.api.dispose();
+      for (const it of items) { stopBeams(it); it.api.dispose(); }
       items.length = 0;
       for (const s of shots) s.p.release();
       shots.length = 0;
@@ -378,6 +474,7 @@
       walkers.length = 0;
       for (const l of labels) l.el.remove();
       labels.length = 0;
+      state.flashCycle = false;
       if (root) scene.remove(root);
       root = new THREE.Group();
       scene.add(root);
@@ -392,7 +489,7 @@
       applyToggles();
     }
 
-    // Caméras : « jeu » = orthographique inclinée (≈ 60°, px par case réglable), « proche » = perspective.
+    // Caméras : « jeu » = orthographique inclinée (≈ 58°, px par case réglable), « proche » = perspective.
     const persp = new THREE.PerspectiveCamera(35, innerWidth / innerHeight, 0.1, 600);
     const ortho = new THREE.OrthographicCamera(-10, 10, 10, -10, 0.1, 600);
     let camera = ortho;
@@ -420,107 +517,204 @@
         ortho.left = -w / 2; ortho.right = w / 2; ortho.top = h / 2; ortho.bottom = -h / 2; ortho.near = 1; ortho.far = 400;
         ortho.updateProjectionMatrix();
       } else { persp.aspect = innerWidth / innerHeight; persp.updateProjectionMatrix(); }
+      if (fxOK) PTMT.fx._.S.camera = camera;
     }
 
-    // Fx.
+    // Effets.
     const fxOK = !!(PTMT.fx && PTMT.fx.init);
     if (fxOK) PTMT.fx.init(scene, ortho, renderer, { mobile: q.has("mobile") });
     const hasKind = (k) => fxOK && PTMT.fx._ && PTMT.fx._.KINDS && PTMT.fx._.KINDS[k];
+    const hasBeam = () => fxOK && typeof PTMT.fx.beam === "function";
 
-    // Tirs : la tour attaque, le projectile part de la bouche après le délai renvoyé, vole jusqu'à la cible.
-    const _a = new THREE.Vector3(), _b = new THREE.Vector3(), _c = new THREE.Vector3();
+    /* ---------------------------------------------------------------- cibles et attaques */
+    const _a = new THREE.Vector3(), _b = new THREE.Vector3(), _c = new THREE.Vector3(), _d = new THREE.Vector3();
+    const towerPos = (it, out) => it.api.object.getWorldPosition(out);
+    /** Cibles à portée, de la plus proche à la plus lointaine. */
+    function inRange(it) {
+      towerPos(it, _a);
+      const r = it.d.range * TILE;
+      const list = [];
+      for (const w of walkers) { const d = Math.hypot(w.obj.position.x - _a.x, w.obj.position.z - _a.z); if (d <= r) list.push([d, w]); }
+      list.sort((p, q2) => p[0] - q2[0]);
+      return list.map((p) => p[1]);
+    }
     function nearestWalker(it) {
       let best = null, bd = 1e9;
-      it.api.object.getWorldPosition(_a);
+      towerPos(it, _a);
       for (const w of walkers) { const d = w.obj.position.distanceToSquared(_a); if (d < bd) { bd = d; best = w; } }
       return best;
     }
-    const pending = []; // départs différés (délai renvoyé par attack(), en temps de la scène)
-    function fire(it) {
+    const chest = (w, out) => out.copy(w.obj.position).setY(w.obj.position.y + 1.15);
+    function yawTo(it, w) { towerPos(it, _a); return Math.atan2(w.obj.position.x - _a.x, w.obj.position.z - _a.z); }
+
+    /** Sanglier : élan puis bogue ; Grand Solitaire : deux bogues, deux cibles. */
+    function fireShot(it, targets) {
       const delay = it.api.attack();
-      const d = DATA && DATA.towerLevel(it.family, it.lv, it.sp);
-      const kind = d ? d.shot : "fireball";
-      pending.push({ it, kind, d, target: nearestWalker(it), t: delay });
+      pending.push({ it, t: delay, targets: targets.slice(0, it.d.double ? 2 : 1) });
+    }
+    /** Cygne : une boule part de la réserve (attack fait filer la boule vers le bec). */
+    function fireOrb(it, target) {
+      const delay = it.api.attack();
+      it.ch.full = Math.max(0, it.ch.full - 1);
+      it.api.setCharges(it.ch.full, it.ch.max, it.ch.part);
+      pending.push({ it, t: delay, targets: [target] });
     }
     function stepPending(dt) {
       for (let i = pending.length - 1; i >= 0; i--) {
-        const q = pending[i];
-        q.t -= dt;
-        if (q.t <= 0) { pending.splice(i, 1); launch(q.it, q.kind, q.d, q.target); }
+        const p = pending[i];
+        p.t -= dt;
+        if (p.t > 0) continue;
+        pending.splice(i, 1);
+        if (!items.includes(p.it) || !fxOK) continue;
+        p.targets.forEach((w, k) => launch(p.it, w, k));
       }
     }
-    function launch(it, kind, d, target) {
-      if (!items.includes(it) || !fxOK) return;
-      const k = hasKind(kind) ? kind : "fireball";
+    function launch(it, target, k) {
+      const kind = hasKind(it.d.shot) ? it.d.shot : "chestnut";
       const from = new THREE.Vector3();
-      it.api.muzzle.getWorldPosition(from);
-      const to = target ? target.obj.position.clone().add(new THREE.Vector3(0, 1.1, 0)) : from.clone().add(new THREE.Vector3(Math.sin(it.api.bones.yaw.rotation.y) * 8, -1, Math.cos(it.api.bones.yaw.rotation.y) * 8));
-      const speed = (d ? d.speed : 8) * TILE * 0.55;
+      (it.api.muzzles[k] || it.api.muzzle).getWorldPosition(from);
+      const to = target ? chest(target, new THREE.Vector3()) : from.clone().add(new THREE.Vector3(0, -1, 6));
+      const speed = kind === "bigChestnut" ? 9 : it.family === "swan" ? 12 : 16;
       const dist = from.distanceTo(to);
-      const arc = k === "bigChestnut" ? Math.max(2.5, dist * 0.45) : k === "chestnut" ? dist * 0.08 : 0.2;
-      shots.push({ p: PTMT.fx.projectile(k), kind: k, from, to, t: 0, T: Math.max(0.25, dist / speed), arc, splash: d && d.splash ? d.splash : SPLASH[k] || 0, target });
+      const arc = kind === "bigChestnut" ? Math.max(2.5, dist * 0.45) : kind === "chestnut" ? dist * 0.05 : dist * 0.08;
+      shots.push({ p: PTMT.fx.projectile(kind), kind, from, to, t: 0, T: Math.max(0.2, dist / speed), arc, splash: it.d.splash || SPLASH[kind] || 0, target, crit: it.family === "boar" && it.lv >= 4 && it.sp === "A" && Math.random() < 0.3 });
     }
     function stepShots(dt) {
       for (let i = shots.length - 1; i >= 0; i--) {
         const s = shots[i];
         s.t += dt;
-        if (s.target) s.to.copy(s.target.obj.position).y += 1.1;
+        if (s.target && s.kind !== "bigChestnut") chest(s.target, s.to);
         const k = Math.min(1, s.t / s.T);
         const pos = (k2) => _c.copy(s.from).lerp(s.to, k2).setY(THREE.MathUtils.lerp(s.from.y, s.to.y, k2) + Math.sin(k2 * Math.PI) * s.arc);
         _a.copy(pos(k));
         _b.copy(pos(Math.min(1, k + 0.02))).sub(_a);
         if (_b.lengthSq() < 1e-8) _b.copy(s.to).sub(s.from);
-        s.p.set(_a, _b);
+        s.p.set(_a, _b, s.kind === "bigChestnut" ? 0 : undefined);
         if (k >= 1) {
           s.p.release();
           shots.splice(i, 1);
-          PTMT.fx.burst(s.kind + "Hit", _a.setY(s.to.y - 1.0), { radius: s.splash, crit: Math.random() < 0.25 });
+          const g = _a.clone();
+          g.y = 0;
+          PTMT.fx.burst(s.kind + "Hit", g, { radius: s.splash, h: s.kind === "bigChestnut" ? 0.2 : Math.max(0.3, s.to.y), crit: s.crit });
         }
       }
     }
+    /** Berger, dragon : jet continu sur la cible tant qu'elle reste à portée ; la chaleur monte en 3 s. */
+    function stepBeam(it, dt, list) {
+      const want = list.length ? (it.d.twin ? 2 : 1) : 0;
+      // cible collante (comme la simulation) : on garde la cible tant qu'elle reste à portée
+      const keep = (w) => w && list.includes(w);
+      for (let k = 0; k < 2; k++) {
+        let w = null;
+        if (k < want) {
+          if (keep(it.tgt[k])) w = it.tgt[k];
+          else w = list.find((c) => c !== it.tgt[1 - k]) || null;
+        }
+        if (w !== it.tgt[k]) { it.tgt[k] = w; it.heat[k] = 0; }
+        if (w) {
+          it.heat[k] = Math.min(1, it.heat[k] + dt / 3);
+          if (k === 1) it.api.aim(yawTo(it, w), 1);
+          it.api.setBeam(true, it.heat[k], k);
+        } else it.api.setBeam(false, 0, k);
+      }
+      if (!hasBeam()) return;
+      const hop = it.d.bounce && it.tgt[0] ? list.find((c) => c !== it.tgt[0]) : null;
+      for (let k = 0; k < 3; k++) {
+        const on = k < 2 ? !!it.tgt[k] : !!hop;
+        if (!on) { if (it.beams[k]) { it.beams[k].release(); it.beams[k] = null; } continue; }
+        if (!it.beams[k]) it.beams[k] = PTMT.fx.beam(it.d.beam);
+        if (k < 2) {
+          (it.api.muzzles[k] || it.api.muzzle).getWorldPosition(_c);
+          chest(it.tgt[k], _d);
+          it.beams[k].set(_c, _d, it.heat[k], state.time);
+        } else {
+          // rebond du grand dragon bleu : de la première cible à la suivante
+          chest(it.tgt[0], _c);
+          chest(hop, _d);
+          it.beams[k].set(_c, _d, it.heat[0] * 0.8, state.time);
+        }
+      }
+    }
+    function stopBeams(it) {
+      for (let k = 0; k < it.beams.length; k++) if (it.beams[k]) { it.beams[k].release(); it.beams[k] = null; }
+      if (it.api.setBeam) { it.api.setBeam(false, 0, 0); it.api.setBeam(false, 0, 1); }
+      it.tgt[0] = it.tgt[1] = null;
+    }
+    /** Cygne : rafale (une boule toutes les 0,16 s) dès qu'une cible est à portée, puis recharge une à une. */
+    function stepCharges(it, dt, list) {
+      const c = it.ch;
+      if (c.full < c.max) {
+        c.part += (dt / it.d.recharge) * (state.frenzy ? 2 : 1);
+        if (c.part >= 1) { c.part = 0; c.full++; }
+      } else c.part = 0;
+      c.gap -= dt;
+      if (list.length && c.full > 0 && (c.burst > 0 || c.full === c.max)) {
+        if (c.burst <= 0) c.burst = c.full;
+        if (c.gap <= 0) {
+          fireOrb(it, list[(c.max - c.burst) % list.length]);
+          c.burst--;
+          c.gap = 0.16;
+        }
+      } else if (!list.length) c.burst = 0;
+      it.api.setCharges(c.full, c.max, c.part);
+    }
+
     function stepLabs(dt) {
       for (const l of labs) {
         l.t += dt;
+        if (l.kind.startsWith("jet:")) {
+          // jet : la cible va et vient, la chaleur monte puis retombe (cycle de 4 s)
+          const ph = (l.t % 4) / 4;
+          l.dummy.position.z = l.to.z + Math.sin(l.t * 0.9) * 1.2;
+          l.heat = ph < 0.8 ? Math.min(1, ph / 0.75) : 0;
+          if (ph < 0.8) {
+            if (!l.h && hasBeam()) l.h = PTMT.fx.beam(l.kind.slice(4));
+            if (l.h) l.h.set(l.from, _d.set(l.to.x, 1.15, l.dummy.position.z), l.heat, state.time);
+          } else if (l.h) { l.h.release(); l.h = null; }
+          continue;
+        }
         const k = (l.t % l.period) / l.period;
         if (!l.h || l.k > k) {
-          if (l.h) { l.h.release(); PTMT.fx.burst(l.kind + "Hit", l.to.clone().setY(0.02), { radius: SPLASH[l.kind] || 0, crit: Math.random() < 0.3 }); }
+          if (l.h) { l.h.release(); PTMT.fx.burst(l.kind + "Hit", l.to.clone().setY(0.02), { radius: SPLASH[l.kind] || 0, h: l.kind === "bigChestnut" ? 0.2 : 1.1, crit: Math.random() < 0.3 }); }
           l.h = hasKind(l.kind) ? PTMT.fx.projectile(l.kind) : null;
         }
         l.k = k;
         if (!l.h) continue;
-        const arc = l.kind === "bigChestnut" ? 4 : l.kind === "chestnut" ? 1 : 0.4;
+        const arc = l.kind === "bigChestnut" ? 4 : l.kind === "chestnut" ? 0.6 : 0.4;
         const pos = (k2) => _c.copy(l.from).lerp(l.to, k2).setY(THREE.MathUtils.lerp(l.from.y, l.to.y, k2) + Math.sin(k2 * Math.PI) * arc);
         _a.copy(pos(k)); _b.copy(pos(Math.min(1, k + 0.02))).sub(_a);
-        l.h.set(_a, _b);
+        l.h.set(_a, _b, l.kind === "bigChestnut" ? 0 : undefined);
       }
     }
 
     // Commandes.
     function applyToggles() {
-      for (const it of items) { it.api.setSelected(state.sel); it.api.setFrenzy(state.frenzy); }
+      for (const it of items) { it.api.setSelected(state.sel); it.api.setFrenzy(state.frenzy); it.api.setDazzled(state.dazzle); }
       document.body.classList.toggle("nolabels", !state.labels);
       for (const b of document.querySelectorAll("[data-toggle]")) b.setAttribute("aria-pressed", String(!!state[b.dataset.toggle]));
     }
     const actions = {
       f: () => { for (const it of items) it.api.attack(); },
-      p: () => { for (const it of items) fire(it); },
-      a: () => { state.auto = !state.auto; },
+      a: () => { state.auto = !state.auto; if (!state.auto) for (const it of items) stopBeams(it); },
       y: () => { state.sweep = !state.sweep; if (state.sweep) state.track = false; },
       t: () => { state.track = !state.track; if (state.track) state.sweep = false; if (!state.track) for (const it of items) it.api.aim(0); },
+      w: () => { state.walk = !state.walk; },
       z: () => { state.frenzy = !state.frenzy; },
       s: () => { state.sel = !state.sel; },
+      e: () => { state.dazzle = !state.dazzle; if (state.dazzle) flashAll(); },
       u: () => { for (const it of items) it.api.celebrate(); },
       n: () => { for (const it of items) if (it.evo !== undefined) { it.evo = (it.evo + 1) % EVO.length; rebuild(it, EVO[it.evo][0], EVO[it.evo][1]); } },
       v: () => { view.mode = view.mode === "jeu" ? "proche" : "jeu"; applyView(); },
       b: () => { state.labels = !state.labels; },
       h: () => document.getElementById("ui").classList.toggle("hidden"),
     };
+    function flashAll() { if (!fxOK) return; for (const it of items) { towerPos(it, _a); PTMT.fx.burst("dazzle", _a, { height: it.api.height }); } }
     function act(k) { if (actions[k]) { actions[k](); applyToggles(); } }
     for (const b of document.querySelectorAll("#ui [data-k]")) b.onclick = () => act(b.dataset.k);
     addEventListener("keydown", (e) => {
       const k = e.key.toLowerCase();
       const keys = Object.keys(SECTIONS).filter((n) => n !== "solo");
-      if (k >= "1" && k <= String(keys.length)) return showSection(keys[+k - 1]);
+      if (k >= "1" && k <= "9" && +k <= keys.length) return showSection(keys[+k - 1]);
       act(k);
     });
     // Orbite à la souris / au doigt (utile pour inspecter ; le jeu reste en vue fixe).
@@ -551,6 +745,7 @@
     const speed = +(q.get("speed") || 1);
     const fixedDt = q.get("dt") ? +q.get("dt") : 0;
     function stepWalkers(dt) {
+      if (!state.walk) dt = 0;
       for (const w of walkers) {
         if (w.route) {
           w.s += dt * w.speed;
@@ -565,8 +760,9 @@
         } else {
           w.obj.position.x += w.speed * dt;
           if (w.obj.position.x > w.x1) w.obj.position.x = w.x0;
+          if (w.obj.position.x < w.x0) w.obj.position.x = w.x1;
           w.obj.position.y = w.y + Math.abs(Math.sin(state.time * 8 + w.phase)) * 0.08;
-          w.obj.rotation.y = Math.PI / 2;
+          w.obj.rotation.y = w.speed > 0 ? Math.PI / 2 : -Math.PI / 2;
         }
       }
     }
@@ -577,27 +773,34 @@
       step(dt);
       draw();
     }
-    /** Avance la scène de dt secondes (tours, cibles, tirs, effets). */
+    let flashT = 0;
+    /** Avance la scène de dt secondes (tours, cibles, attaques, effets). */
     function step(dt) {
       state.time += dt;
       const time = state.time;
       stepWalkers(dt);
+      // éblouissement en boucle (section dédiée) : 2,5 s ébloui, 2,5 s normal
+      if (state.flashCycle) {
+        flashT += dt;
+        const on = flashT % 5 < 2.5;
+        if (on !== state.dazzle) { state.dazzle = on; if (on) flashAll(); applyToggles(); }
+      }
       for (const it of items) {
+        const list = state.auto || state.track ? inRange(it) : [];
         if (state.sweep) it.api.aim(Math.sin(time * 0.7 + it.x * 0.2) * 2.2);
         else if (state.track && walkers.length) {
-          const w = nearestWalker(it);
-          it.api.object.getWorldPosition(_a);
-          it.api.aim(Math.atan2(w.obj.position.x - _a.x, w.obj.position.z - _a.z));
+          const w = (it.family === "dog" && it.tgt[0]) || list[0] || nearestWalker(it);
+          if (w) it.api.aim(yawTo(it, w));
         }
-        if (state.auto) {
-          it.cd -= dt;
-          if (it.cd <= 0) {
-            const d = DATA && DATA.towerLevel(it.family, it.lv, it.sp);
-            const rate = (d ? d.rate : 1) * (state.frenzy ? 2 : 1);
-            it.cd = 1 / rate;
-            fire(it);
+        if (state.auto && !state.dazzle) {
+          if (it.family === "dog") stepBeam(it, dt, list);
+          else if (it.family === "swan") stepCharges(it, dt, list);
+          else {
+            it.cd -= dt;
+            if (it.cd <= 0 && list.length) { it.cd = 1 / (it.d.rate * (state.frenzy ? 2 : 1)); fireShot(it, list); }
           }
-        }
+        } else if (it.family === "dog") stopBeams(it);
+        else if (it.family === "swan" && state.auto) stepCharges(it, dt, []);
         it.api.update(dt, time);
       }
       stepPending(dt);
@@ -623,7 +826,7 @@
 
     // API de test (outil de capture).
     window.G = {
-      THREE, scene, renderer, items, state, view, act, showSection, walkers,
+      THREE, scene, renderer, items, state, view, act, showSection, walkers, shots,
       get camera() { return camera; },
       stats() {
         return items.map((it) => Object.assign({ name: it.family + ":" + (it.sp || "") + it.lv, height: it.api.height }, it.api.stats(), { meshes: countMeshes(it.api.object) }));
@@ -655,7 +858,6 @@
         return { all, towers, perTower: +(towers.calls / n).toFixed(2), perTowerShadow: +(towers.shadow / n).toFixed(2) };
       },
       advance(s) { for (let t = 0; t < s - 1e-6; t += 1 / 60) step(Math.min(1 / 60, s - t)); draw(); },
-      fire(filter) { for (const it of items) if (!filter || filter(it)) fire(it); },
       attack(filter) { for (const it of items) if (!filter || filter(it)) it.api.attack(); },
       aim(yaw) { state.track = false; state.sweep = false; for (const it of items) it.api.aim(yaw); },
       look(tx, ty, tz, px, pitch, yaw) { view.mode = "jeu"; view.target.set(tx, ty, tz); if (px) view.px = px; if (pitch) view.pitch = pitch; if (yaw !== undefined) view.yaw = yaw; },
@@ -667,7 +869,7 @@
     showSection(SECTIONS[sec] ? sec : "boar");
     if (q.get("sel") === "1") act("s");
     if (q.get("frenzy") === "1") act("z");
-    if (q.get("track") === "0") act("t");
+    if (q.get("dazzle") === "1") act("e");
     if (q.get("labels") === "0") { state.labels = false; applyToggles(); }
     if (q.get("ui") === "0") document.getElementById("ui").style.display = "none";
     else if (innerWidth < 600) document.getElementById("ui").classList.add("hidden");

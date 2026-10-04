@@ -1647,8 +1647,9 @@
     });
 
   /** Motifs (aMat.x) et classes de matière (aMat.y) de la matière des tours. */
-  const PAT = (K.PAT = { plain: 0, fur: 1, stripes: 2, merle: 3, scales: 4, eyeW: 5, iris: 6, feather: 7, wood: 8, straw: 9, stone: 10, ember: 11, emberBlue: 12, hull: 30, glow: 31 });
-  const CLS = (K.CLS = { matte: 0, satin: 1, glossy: 2, metal: 3, glow: 4, heat: 5, gold: 6, ice: 7, wet: 8, irid: 9 });
+  const PAT = (K.PAT = { plain: 0, fur: 1, stripes: 2, merle: 3, scales: 4, eyeW: 5, iris: 6, feather: 7, wood: 8, straw: 9, stone: 10, ember: 11, emberBlue: 12, leaf: 13, hull: 30, glow: 31 });
+  // orb : boule d'eau des charges (reflets et remous animés) ; ripple : rides (passe des lueurs seulement).
+  const CLS = (K.CLS = { matte: 0, satin: 1, glossy: 2, metal: 3, glow: 4, heat: 5, gold: 6, ice: 7, wet: 8, irid: 9, orb: 10, ripple: 20 });
   /** Uniformes partagés : horloge des lueurs, résolution du tampon (x, y), rapport de pixels (z), contour actif (w). */
   const TOON = (K.toon = { time: { value: 0 }, outline: { value: new THREE.Vector4(1280, 800, 1, 1) } });
 
@@ -1748,11 +1749,21 @@
       float n = tNoise3(vRest * 2.6) * 0.5 + tNoise3(vRest * 7.0) * 0.3 + tNoise3(vRest * 21.0) * 0.2;
       tAlb *= 0.74 + 0.5 * n;
       tAlb *= 1.0 - 0.45 * step(0.83, tNoise3(vRest * 31.0));
+    } else if (tPat > 12.5 && tPat < 13.5) {
+      // feuillage, mousse : touffes claires et creux sombres bien marqués (lisibles de loin)
+      float n = tNoise3(vRest * 5.5 + 1.3) * 0.65 + tNoise3(vRest * 13.0) * 0.35;
+      tAlb *= 0.62 + 0.62 * smoothstep(0.3, 0.75, n);
+      tAlb = mix(tAlb, tAlb * vec3(1.15, 1.22, 0.8), smoothstep(0.7, 0.85, tNoise3(vRest * 9.0 - 4.1)) * 0.6);
+    }
+    if (tCls > 9.5 && tCls < 10.5) {
+      // boule d'eau : cœur plus sombre, remous clairs (de la teinte de la boule) qui tournent
+      float w = tNoise3(vRest * 7.0 + vec3(0.0, uTime * 1.6, uTime * 0.7));
+      tAlb = mix(tAlb * 0.7, clamp(tAlb * 1.8 + vec3(0.12, 0.25, 0.3), 0.0, 1.0), smoothstep(0.6, 0.76, w) * 0.7);
     }
     diffuseColor.rgb = tAlb;
   `;
   const TF_ROUGH = /* glsl */ `
-    roughnessFactor = tCls < 0.5 ? 0.86 : (tCls < 1.5 ? 0.55 : (tCls < 2.5 ? 0.3 : (tCls < 3.5 ? 0.34 : (tCls < 6.5 ? 0.4 : (tCls < 7.5 ? 0.12 : (tCls < 8.5 ? 0.18 : 0.24))))));
+    roughnessFactor = tCls < 0.5 ? 0.86 : (tCls < 1.5 ? 0.55 : (tCls < 2.5 ? 0.3 : (tCls < 3.5 ? 0.34 : (tCls < 6.5 ? 0.4 : (tCls < 7.5 ? 0.12 : (tCls < 8.5 ? 0.18 : (tCls < 9.5 ? 0.24 : 0.08)))))));
     if (tPat > 5.5 && tPat < 6.5) roughnessFactor = 0.16;
   `;
   const TF_METAL = /* glsl */ `
@@ -1770,6 +1781,12 @@
       if (tCls > 5.5 && tCls < 6.5) totalEmissiveRadiance += vec3(1.0, 0.62, 0.12) * (0.16 + 1.1 * tFres);
       if (tCls > 6.5 && tCls < 7.5) totalEmissiveRadiance += vec3(0.45, 0.8, 1.0) * (0.08 + 0.95 * tFres) + diffuseColor.rgb * 0.22;
       if (tCls > 8.5 && tCls < 9.5) totalEmissiveRadiance += vec3(0.5, 0.28, 1.0) * (0.04 + 1.3 * tFres) + vec3(0.1, 0.35, 1.0) * pow(tFres, 4.0) * 0.8;
+      // boule d'eau : lumineuse par elle-même (lisible sur l'eau sombre), liseré clair, éclat en haut à gauche
+      if (tCls > 9.5 && tCls < 10.5) {
+        totalEmissiveRadiance += diffuseColor.rgb * 0.42 + clamp(diffuseColor.rgb * 1.6 + vec3(0.1, 0.25, 0.35), 0.0, 1.0) * tFres * 0.9;
+        vec3 tNv = normalize(vNormal);
+        totalEmissiveRadiance += vec3(1.0) * smoothstep(0.82, 0.93, dot(tNv, normalize(vec3(-0.45, 0.6, 0.66)))) * 1.6;
+      }
       if (tCrack > 0.0) {
         float pulse = 0.75 + 0.25 * sin(uTime * 2.1 + dot(vRest, vec3(1.3, 2.1, 1.7)));
         vec3 emb = tPat < 11.5 ? vec3(1.0, 0.36, 0.04) : vec3(0.18, 0.55, 1.0);
@@ -1818,7 +1835,11 @@
       return m;
     });
   }
-  /** Lueurs additives (flammes, runes, yeux ardents) : fondu doux sur les bords, léger scintillement. */
+  /**
+   * Lueurs additives (flammes, runes, yeux ardents) : fondu doux sur les bords, léger scintillement.
+   * Classe « ripple » (K.CLS.ripple) : rides concentriques animées sur l'eau, calculées dans le shader
+   * (anneau plat centré sur l'origine de la tour) — elles partagent l'appel de dessin des lueurs.
+   */
   function glowMat() {
     return PTMT.mat("kit:ctGlow", () => {
       const m = new THREE.ShaderMaterial({
@@ -1826,9 +1847,12 @@
         vertexShader: /* glsl */ `
           #include <common>
           #include <skinning_pars_vertex>
+          attribute vec2 aMat;
           varying vec3 vCol;
           varying float vEdge;
           varying vec3 vRest;
+          varying float vMode;
+          varying float vPh;
           void main() {
             #include <beginnormal_vertex>
             #include <skinbase_vertex>
@@ -1842,16 +1866,35 @@
             vEdge = abs(dot(n, vd));
             vCol = color;
             vRest = position;
+            vMode = aMat.y;
+            vPh = fract(sin(dot(modelMatrix[3].xz, vec2(12.9898, 78.233))) * 43758.5453) * 6.28;
           }`,
         fragmentShader: /* glsl */ `
           uniform float uTime;
           varying vec3 vCol;
           varying float vEdge;
           varying vec3 vRest;
+          varying float vMode;
+          varying float vPh;
           void main() {
-            float k = 0.2 + 0.8 * pow(vEdge, 1.4);
-            float fl = 0.82 + 0.18 * sin(uTime * 13.0 + vRest.y * 9.0 + vRest.x * 5.0);
-            gl_FragColor = vec4(vCol * k * fl, 1.0);
+            if (vMode > 19.5) {
+              // rides : anneaux qui s'éloignent du nid, bord ondulé ; vCol.r = rayon intérieur, vCol.g = extérieur
+              float r = length(vRest.xz);
+              float a = atan(vRest.z, vRest.x);
+              float r0 = vCol.r, r1 = vCol.g;
+              float wob = 0.03 * sin(a * 5.0 + uTime * 1.3 + vPh) + 0.018 * sin(a * 9.0 - uTime * 2.1);
+              float x = (r + wob) * 2.2 - uTime * 0.45 - vPh;
+              float ring = smoothstep(0.78, 0.88, fract(x)) * (1.0 - smoothstep(0.9, 0.98, fract(x)));
+              float u = (r - r0) / max(0.01, r1 - r0);
+              float fade = smoothstep(0.0, 0.18, u) * (1.0 - smoothstep(0.55, 1.0, u));
+              float al = ring * fade * vCol.b;
+              if (al < 0.01) discard;
+              gl_FragColor = vec4(vec3(0.75, 0.95, 1.0) * al, 1.0);
+            } else {
+              float k = 0.2 + 0.8 * pow(vEdge, 1.4);
+              float fl = 0.82 + 0.18 * sin(uTime * 13.0 + vRest.y * 9.0 + vRest.x * 5.0);
+              gl_FragColor = vec4(vCol * k * fl, 1.0);
+            }
             #include <tonemapping_fragment>
             #include <encodings_fragment>
           }`,
@@ -1965,11 +2008,20 @@
     R.items.forEach((it, idx) => {
       const bi = R.bi[it.bone];
       if (bi === undefined) throw new Error("PTMT tours : os inconnu " + it.bone + " (" + key + ")");
-      if (lite && it.o.lite === false) return; // halos et cônes translucides : omis en qualité téléphone
+      if (lite && (it.o.lite === false || it.o.ripple)) return; // halos, cônes translucides et rides : omis en qualité téléphone
       const w = R.bones[bi].w;
       const g = bakeItem(it.geo, it.o, idx, seed);
       if (w[0] || w[1] || w[2]) g.translate(w[0], w[1], w[2]);
-      const e = { g, bi, pat: it.glow ? PAT.glow : it.o.pat || 0, cls: it.o.cls || 0 };
+      if (it.o.ripple) {
+        // rides : la couleur porte les paramètres (rayon intérieur, rayon extérieur, intensité)
+        const ca = g.attributes.color.array;
+        for (let i = 0; i < ca.length; i += 3) {
+          ca[i] = it.o.ripple[0];
+          ca[i + 1] = it.o.ripple[1];
+          ca[i + 2] = it.o.ripple[2];
+        }
+      }
+      const e = { g, bi, pat: it.glow ? PAT.glow : it.o.pat || 0, cls: it.o.ripple ? CLS.ripple : it.o.cls || 0 };
       const tris = g.attributes.position.count / 3;
       const bk = it.bone.split(":")[0];
       byBone[bk] = (byBone[bk] || 0) + tris;
@@ -2187,16 +2239,16 @@
     const iris = Array.isArray(o.iris) ? o.iris : [o.iris || "#3a2414", o.iris || "#3a2414"];
     const slant = o.slant === undefined ? 0.3 : o.slant;
     const pr = r * (o.pupil || 0.62);
-    // Découpage selon la taille : un œil de 8 cm ne fait que quelques pixels vu du ciel.
-    const hi = r >= 0.14;
+    // Découpage selon la taille : un œil de 10 cm ne fait que quelques pixels vu du ciel (30 à 60 px par case).
+    const hi = r >= 0.22;
     const ws = hi ? 12 : 8,
-      hs = hi ? 8 : 6;
+      hs = hi ? 8 : 5;
     sides.forEach((sx, i) => {
       R.add(G.sphere(r, ws, hs), nm + ":lids", { p: [sx * gap, 0, 0], c: o.white || "#fbfaf2", pat: PAT.eyeW, cls: CLS.glossy, ol: true });
-      R.add(G.sphere(pr, hi ? 10 : 8, hi ? 6 : 4), nm + ":pup", { p: T(sx * gap, 0, r * 0.8), r: [-up, 0, 0], s: [1, 1.08, 0.46], c: iris[i], pat: PAT.iris, cls: o.glowIris ? CLS.glow : CLS.glossy, ol: false });
-      if (o.dot !== 0) R.add(G.sphere(pr * (o.dot || 0.55), hi ? 8 : 6, 4), nm + ":pup", { p: T(sx * gap, 0, r * 0.87), r: [-up, 0, 0], s: [1, 1.1, 0.4], c: "#0c0a0d", pat: PAT.iris, cls: CLS.glossy, ol: false });
-      R.add(G.sphere(pr * 0.3, 4, 3), nm + ":pup", { p: T(sx * gap + pr * 0.34, pr * 0.42, r * 0.97), c: "#ffffff", cls: CLS.glow, ol: false });
-      R.add(G.sphere(r * 1.1, hi ? 10 : 8, 2, 0, Math.PI / 2), nm + ":lids", {
+      R.add(G.sphere(pr, hi ? 10 : 7, hi ? 6 : 4), nm + ":pup", { p: T(sx * gap, 0, r * 0.8), r: [-up, 0, 0], s: [1, 1.08, 0.46], c: iris[i], pat: PAT.iris, cls: o.glowIris ? CLS.glow : CLS.glossy, ol: false });
+      if (o.dot !== 0) R.add(G.sphere(pr * (o.dot || 0.55), hi ? 8 : 5, hi ? 4 : 3), nm + ":pup", { p: T(sx * gap, 0, r * 0.87), r: [-up, 0, 0], s: [1, 1.1, 0.4], c: "#0c0a0d", pat: PAT.iris, cls: CLS.glossy, ol: false });
+      R.add(G.sphere(pr * 0.3, 4, 2), nm + ":pup", { p: T(sx * gap + pr * 0.34, pr * 0.42, r * 0.97), c: "#ffffff", cls: CLS.glow, ol: false });
+      R.add(G.sphere(r * 1.1, hi ? 10 : 7, 2, 0, Math.PI / 2), nm + ":lids", {
         p: [sx * gap, 0, 0],
         r: [0, 0, (sx || 1) * slant],
         g: [o.lash || "#1b1512", o.skin || "#7a6a5a", r * 0.02, r * 0.32],
@@ -2263,7 +2315,9 @@
   /**
    * Mât planté + drapeau en deux panneaux qui flottent + étoiles d'or.
    * o = { bone (parent, "root" par défaut), p:[x,y,z] (pied du mât, relatif à l'os), h (hauteur), color,
-   *       trim (bordure), stars (0..3), len, tall, name, dir (orientation du drapeau, rad), tail ("swallow"|"point") }
+   *       trim (bordure), stars (0..3), len, tall, name, dir (orientation du drapeau, rad), tail ("swallow"|"point"),
+   *       tilt (rad : le drapeau penche vers l'arrière pour montrer sa face à la caméra, qui le voit d'en haut),
+   *       starR (rayon des étoiles), thick (rayon du mât) }
    */
   K.ctPennant = function (R, o) {
     const bone = o.bone || "root";
@@ -2272,8 +2326,9 @@
       L = o.len || 0.62,
       T = o.tall || 0.4,
       nm = o.name || "flag";
-    R.add(G.cyl(0.032, 0.045, h, 6), bone, { p: [x, y + h / 2, z], c: o.pole || "#6d4a2a", pat: PAT.wood, uv: [0.3, 2], ol: true });
-    R.add(G.sphere(0.075, 8, 5), bone, { p: [x, y + h + 0.04, z], c: "#ffcf3a", cls: CLS.gold, ol: true });
+    const th = o.thick || 0.032;
+    R.add(G.cyl(th, th * 1.4, h, 6), bone, { p: [x, y + h / 2, z], c: o.pole || "#6d4a2a", pat: PAT.wood, uv: [0.3, 2], ol: true });
+    R.add(G.sphere(th * 2.4, 6, 4), bone, { p: [x, y + h + 0.04, z], c: "#ffcf3a", cls: CLS.gold, ol: true });
     const fy = y + h - T / 2 - 0.05;
     R.bone(nm, bone, [x, fy, z]);
     R.bone(nm + "2", nm, [L * 0.5, 0, 0]);
@@ -2308,37 +2363,88 @@
       R.add(G.box(half + 0.02, 0.05, d + 0.012), nm, { p: [half / 2, -T / 2 + 0.025, 0], c: o.trim, cls: CLS.satin, ol: false });
     }
     const n = o.stars || 0;
-    const sr = Math.min(0.12, T * 0.3);
+    const sr = o.starR || Math.min(0.12, T * 0.3);
     for (let i = 0; i < n; i++) {
       // étoiles réparties sur la longueur, sur les deux faces
-      const u = n === 1 ? 0.3 : 0.14 + (i / (n - 1)) * 0.46;
+      const u = n === 1 ? 0.3 : 0.16 + (i / (n - 1)) * 0.5;
       const sx = u * L;
       const onFirst = sx < half - 0.02;
       const b = onFirst ? nm : nm + "2";
       const lx = onFirst ? sx : sx - half;
-      const yy = n === 3 && i === 1 ? 0.03 : 0;
-      for (const sz of [-1, 1])
-        R.add(G.star(5, sr, sr * 0.45, 0.022), b, { p: [lx, yy, sz * (d / 2 + 0.008)], c: "#ffd23a", cls: CLS.gold, ol: false });
+      const yy = n === 3 && i === 1 ? T * 0.08 : 0;
+      // drapeau incliné vers la caméra : les étoiles ne sont posées que sur la face qu'elle voit
+      for (const sz of o.tilt ? [-1] : [-1, 1])
+        R.add(G.star(5, sr, sr * 0.45, 0.022), b, { p: [lx, yy, sz * (d / 2 + 0.008)], c: "#ffd23a", cls: CLS.gold, ol: o.starOl === true });
     }
     const dir = o.dir || 0;
-    R.sway(nm, "y", dir, 0.22, 2.3, 0);
-    R.sway(nm + "2", "y", 0, 0.38, 2.3, -1.1);
+    R.sway(nm, "y", dir, o.tilt ? 0.12 : 0.22, 2.3, 0);
+    R.sway(nm + "2", "y", 0, o.tilt ? 0.3 : 0.38, 2.3, -1.1);
     R.sway(nm, "z", 0, 0.04, 3.1, 0.4);
+    if (o.tilt) R.sway(nm, "x", -o.tilt, 0.03, 1.7, 0.9);
   };
 
-  /* ---- coque commune des tours v3 ---- */
+  /* ---- réserve de charges (cygne) ---- */
+  /**
+   * Boules en réserve qui tournent au-dessus du nid : cinq os « orb0 » … « orb4 » sous l'os parent, placés à
+   * chaque image par la coque selon setCharges (pleines, celle qui se recharge grossit, celle qui part file
+   * vers la bouche pendant l'élan). o = { parent, y (hauteur du cercle), r (rayon), size (rayon d'une boule),
+   * kind: "water" | "ice" | "dark" }.
+   */
+  K.ctOrbs = function (R, o) {
+    const s = o.size || 0.22;
+    for (let i = 0; i < 5; i++) {
+      const nm = "orb" + i;
+      R.bone(nm, o.parent || "root", [0, o.y, 0]);
+      if (o.kind === "ice") {
+        R.add(G.ico(s * 1.12, 0), nm, { c: "#58b4f4", cls: CLS.ice, flat: true, ol: true });
+        R.add(G.oct(s * 0.62), nm, { r: [0.4, 0.3, 0], c: "#ffffff", cls: CLS.glow, flat: true, ol: false });
+      } else if (o.kind === "dark") {
+        R.add(G.sphere(s, 8, 6), nm, { c: "#6a2ac0", cls: CLS.orb, ol: true });
+        R.glow(G.oct(s * 0.5), nm, { p: [0, s * 1.25, 0], c: "#9fd0ff" });
+      } else R.add(G.sphere(s, 8, 6), nm, { c: "#1590e0", cls: CLS.orb, ol: true });
+    }
+    R.meta.orbs = { parent: o.parent || "root", y: o.y, r: o.r || 1, size: s };
+  };
+
+  /* ---- éblouissement (flash de touriste) ---- */
+  /** Couronne d'étoiles d'or qui tourne au-dessus de la tête (os « dizzy », caché hors éblouissement). */
+  K.ctDizzy = function (R, bone, o) {
+    R.bone("dizzy", bone, o.p);
+    const n = o.n || 3,
+      r = o.r || 0.42,
+      s = o.size || 0.16;
+    for (let i = 0; i < n; i++) {
+      const a = (i / n) * TAU;
+      R.add(G.star(5, s, s * 0.45, s * 0.35), "dizzy", { p: [Math.sin(a) * r, (i % 2) * s * 0.5, Math.cos(a) * r], r: [-0.55, a, 0], ro: "YXZ", c: "#ffd23a", cls: CLS.gold, ol: true });
+    }
+    R.meta.dizzy = true;
+  };
+
+  /* ---- rides sur l'eau ---- */
+  /** Anneau plat de rides animées (passe des lueurs, omis sur téléphone) entre r0 et r1 autour de l'origine. */
+  K.ctRipples = function (R, bone, r0, r1, y, k) {
+    R.glow(G.ring(r0, r1, 40, 1), bone || "root", { p: [0, y || 0.015, 0], ripple: [r0, r1, k === undefined ? 0.8 : k] });
+  };
+
+  /* ---- coque commune des tours ---- */
   const CT = (K.ct = {});
   /**
    * Enregistre une famille. def = {
-   *   variant(niveau, spé, opts) → { key, author(R), pose(st, B, dt), muzzle: [os, [x, y, z]], release (s),
-   *     dur (s), ring (rayon de l'anneau de sélection), height, footprint, turn (rad/s), extras(root, inst, st) },
+   *   variant(niveau, spé, opts) → { key, author(R), pose(st, B, dt), muzzle: [os, [x, y, z]], muzzles: [[os, [x, y, z]], …]
+   *     (bouches supplémentaires : deux bogues du Grand Solitaire, deux têtes du grand dragon rouge), release (s),
+   *     dur (s), ring (rayon de l'anneau de sélection), height, footprint, turn (rad/s), charges (réserve par défaut
+   *     du cygne), attackKind ("shot" | "charges" | "beam"), extras(root, inst, st) },
    *   info(niveau, spé) → { height, footprint } (sans construire) }
+   * La pose lit dans st : w (élan 0..1), s (détente), a, ae, fr (frénésie), t, time, turn, fid/fidK (manies),
+   *   beam (jet 0..1, lissé), heat (chaleur 0..1, lissée), beam2/heat2 (second jet), yaw2 (visée de la seconde
+   *   tête, relative), dz (éblouissement 0..1), jump/squash (célébration) ; elle écrit eyeOpen et look.
    */
   K.defCt = (family, def) => {
     CT[family] = def;
   };
   let ctSeed = 1;
-  const _wp = new THREE.Vector3();
+  const _wp = new THREE.Vector3(),
+    _mw = new THREE.Vector3();
   const normLevel = (level, spec) => {
     level = clamp(level | 0 || 1, 1, 7);
     return [level, level >= 4 ? (spec === "B" ? "B" : "A") : null];
@@ -2357,10 +2463,15 @@
     const rate = data && data.rate ? data.rate : 1;
     const R0 = v.release || 0.2;
     const D0 = Math.max(R0 + 0.18, Math.min(v.dur || 0.8, 0.95 / rate));
-    const muzzle = new THREE.Object3D();
-    muzzle.name = "bouche";
-    muzzle.position.fromArray(v.muzzle[1]);
-    B[v.muzzle[0]].add(muzzle);
+    // Bouches : la première est « muzzle » (départ des projectiles et du jet), les suivantes pour les tirs doubles.
+    const muzzles = [v.muzzle].concat(v.muzzles || []).map((mz, i) => {
+      const m = new THREE.Object3D();
+      m.name = i ? "bouche" + (i + 1) : "bouche";
+      m.position.fromArray(mz[1]);
+      B[mz[0]].add(m);
+      return m;
+    });
+    const muzzle = muzzles[0];
     const eyes = tpl.meta.eyes.map((d) => eyeCtl(B[d.lids], B[d.pup], B[d.brow], d, rng));
     const sway = tpl.meta.sway;
     const ringR = v.ring || 1.5;
@@ -2368,6 +2479,8 @@
     let sel = null,
       aura = null;
     const yawRest = B.yaw ? B.yaw.userData.rest : null;
+    const orbs = tpl.meta.orbs || null;
+    const chDefault = clamp(v.charges || 2, 1, 5);
     const st = {
       t: rng() * 20,
       dt: 0,
@@ -2375,6 +2488,9 @@
       rng,
       yaw: 0,
       yawT: 0,
+      yaw2: 0,
+      yaw2W: 0,
+      yawT2: null,
       turn: 0,
       ae: -1,
       w: 0,
@@ -2400,33 +2516,91 @@
       release: R0,
       dur: D0,
       phase: rng() * TAU,
+      // jet continu (berger, dragon) : consigne et valeurs lissées
+      beamOn: false,
+      heatT: 0,
+      beam: 0,
+      heat: 0,
+      beamOn2: false,
+      heatT2: 0,
+      beam2: 0,
+      heat2: 0,
+      // éblouissement
+      dzOn: false,
+      dz: 0,
+      // charges (cygne) : pleines, maximum, recharge en cours (0..1), tirs pas encore décomptés par la simulation
+      chFull: chDefault,
+      chMax: chDefault,
+      chPart: 0,
+      chPend: 0,
+      chSet: false,
+      fly: [-1, -1, -1, -1, -1],
+      pop: [9, 9, 9, 9, 9],
     };
     const extra = v.extras ? v.extras(root, inst, st) : null;
+    const orbParent = orbs ? B[orbs.parent] : null;
     const api = {
       object: root,
       height,
       footprint: v.footprint || 1.5,
       muzzle,
+      muzzles,
       family,
       level,
       spec,
+      attackKind: v.attackKind || (family === "swan" ? "charges" : family === "dog" ? "beam" : "shot"),
       bones: B,
-      /** yaw monde (0 = vers +Z) : la bête pivote en douceur, le socle reste fixe. */
-      aim(yaw) {
-        st.yawT = yaw;
+      /** yaw monde (0 = vers +Z) : la bête pivote en douceur, le socle reste fixe. i = 1 : seconde tête (grand dragon rouge). */
+      aim(yaw, i) {
+        if (i === 1) st.yawT2 = yaw;
+        else st.yawT = yaw;
       },
       /**
        * Déclenche l'attaque (à l'événement « attack » de la simulation, au début de l'élan) ; renvoie le délai (s)
        * avant le départ du projectile. L'élan dure ce délai en temps réel (même en frénésie) : la détente de
-       * l'animation tombe pile quand la simulation crée le projectile.
+       * l'animation tombe pile quand la simulation crée le projectile. Cygne : une boule de la réserve file vers le bec.
        */
       attack() {
         st.ae = 0;
         st.shots++;
         st.sinceAtk = 0;
         st.fid = 0;
+        if (orbs) {
+          const shown = clamp(st.chFull - st.chPend, 0, st.chMax);
+          if (shown > 0) {
+            st.fly[shown - 1] = 0;
+            st.chPend++;
+          }
+        }
         if (v.onAttack) v.onAttack(st, B);
         return R0;
+      },
+      /** Cygne : boules pleines, réserve maximale (2 à 5), avancement de la recharge de la suivante (0..1). */
+      setCharges(full, max, partial01) {
+        const m = clamp(Math.round(max === undefined ? st.chMax : max), 1, 5);
+        const f = clamp(Math.round(full || 0), 0, m);
+        if (st.chSet) {
+          if (f < st.chFull) st.chPend = Math.max(0, st.chPend - (st.chFull - f));
+          for (let k = st.chFull; k < f; k++) st.pop[k] = 0;
+        }
+        st.chFull = f;
+        st.chMax = m;
+        st.chPart = clamp(partial01 || 0, 0, 1);
+        st.chSet = true;
+      },
+      /** Berger, dragon : jet continu (gueule ouverte, tête qui suit la cible, brasier qui s'emballe avec la chaleur). */
+      setBeam(on, heat01, i) {
+        if (i === 1) {
+          st.beamOn2 = !!on;
+          st.heatT2 = clamp(heat01 || 0, 0, 1);
+        } else {
+          st.beamOn = !!on;
+          st.heatT = clamp(heat01 || 0, 0, 1);
+        }
+      },
+      /** Ébloui par un flash : étoiles qui tournent, tête qui oscille, yeux plissés. */
+      setDazzled(b) {
+        st.dzOn = !!b;
       },
       update(dt, time) {
         if (!(dt > 0)) dt = 0;
@@ -2458,10 +2632,28 @@
           }
         }
         st.sinceAtk += dt;
-        // Visée lissée.
+        // Jet continu : ouverture rapide, chaleur qui suit la simulation ; éblouissement.
+        st.beam = damp(st.beam, st.beamOn ? 1 : 0, st.beamOn ? 16 : 9, dt);
+        st.heat = damp(st.heat, st.beamOn ? st.heatT : 0, 6, dt);
+        st.beam2 = damp(st.beam2, st.beamOn2 ? 1 : 0, st.beamOn2 ? 16 : 9, dt);
+        st.heat2 = damp(st.heat2, st.beamOn2 ? st.heatT2 : 0, 6, dt);
+        st.dz = damp(st.dz, st.dzOn ? 1 : 0, st.dzOn ? 10 : 5, dt);
+        if (st.beam > 0.3 || st.beam2 > 0.3) {
+          st.sinceAtk = 0;
+          st.fid = 0;
+        }
+        // Visée lissée (plus vive pendant le jet : la tête suit la cible).
         const prev = st.yaw;
-        st.yaw = angleTo(st.yaw, st.yawT, (v.turn || 6.5) * (1 + 0.6 * st.fr) * dt);
+        const turnK = (v.turn || 6.5) * (1 + 0.6 * st.fr + 1.2 * st.beam) * (1 - 0.7 * st.dz);
+        st.yaw = angleTo(st.yaw, st.yawT, turnK * dt);
         st.turn = dt > 0 ? damp(st.turn, (st.yaw - prev) / dt, 10, dt) : st.turn;
+        // Seconde tête : visée relative au corps, bornée (± 1,3 rad), revient au repos sans cible.
+        {
+          let d = ((st.yawT2 === null ? st.yaw + 0.5 : st.yawT2) - st.yaw) % TAU;
+          if (d > Math.PI) d -= TAU;
+          else if (d < -Math.PI) d += TAU;
+          st.yaw2 = angleTo(st.yaw2, clamp(d, -1.3, 1.3), turnK * 1.2 * dt);
+        }
         // Célébration : saut, écrasement à l'atterrissage.
         st.jump = 0;
         st.squash = 0;
@@ -2483,7 +2675,7 @@
           B.yaw.scale.set(1 + q * 0.14, 1 - q * 0.2, 1 + q * 0.14);
         }
         // Manies d'inactivité (grogne, s'ébroue, se lèche…).
-        if (st.sinceAtk > 2.2 && st.ae < 0) {
+        if (st.sinceAtk > 2.2 && st.ae < 0 && st.dz < 0.05) {
           st.nextFid -= dt;
           if (st.nextFid <= 0) {
             st.fid = 1;
@@ -2501,12 +2693,24 @@
         st.look = null;
         st.lookY = 0;
         v.pose(st, B, dt);
+        // Ébloui : yeux plissés qui roulent (après la pose, qui ne le sait pas toujours).
+        if (st.dz > 0.05) {
+          st.eyeOpen = lerp(st.eyeOpen, -1, st.dz);
+          st.look = Math.sin(st.time * 9) * st.dz;
+          st.lookY = Math.cos(st.time * 9) * 0.6 * st.dz;
+        }
         for (let i = 0; i < eyes.length; i++) {
           const e = eyes[i];
           e.setOpen(st.eyeOpen);
           e.look(st.look, st.lookY);
           e.update(sdt);
         }
+        if (B.dizzy) {
+          const k = st.dz;
+          B.dizzy.scale.setScalar(k > 0.02 ? 0.4 + 0.6 * k : 0.001);
+          B.dizzy.rotation.y = st.time * 4.2;
+        }
+        if (orbs) updateOrbs(dt);
         // Anneau de sélection et aura de Frénésie (créés à la demande).
         st.sel = damp(st.sel, st.selOn ? 1 : 0, 10, dt);
         if (st.selOn && !sel) {
@@ -2555,12 +2759,63 @@
       stats() {
         return Object.assign({ top: tpl.meta.top }, tpl.stats);
       },
+      /** État des charges tel qu'affiché (essais). */
+      charges() {
+        return { full: st.chFull, max: st.chMax, partial: st.chPart, pending: st.chPend, shown: clamp(st.chFull - st.chPend, 0, st.chMax) };
+      },
       dispose() {
         if (root.parent) root.parent.remove(root);
         inst.mesh.skeleton.dispose();
         if (extra && extra.dispose) extra.dispose();
       },
     };
+
+    /** Boules en réserve : cercle qui tourne, recharge qui grossit, départ vers la bouche pendant l'élan. */
+    function updateOrbs(dt) {
+      const m = st.chMax;
+      const shown = clamp(st.chFull - st.chPend, 0, m);
+      let haveMuzzle = false;
+      for (let i = 0; i < 5; i++) {
+        const b = B["orb" + i];
+        if (i >= m) {
+          b.scale.setScalar(0.001);
+          continue;
+        }
+        const a = (i / m) * TAU + st.t * (0.8 + 0.6 * st.fr);
+        const bob = Math.sin(st.t * 2.3 + i * 1.9) * 0.07;
+        let x = Math.sin(a) * orbs.r,
+          y = orbs.y + bob,
+          z = Math.cos(a) * orbs.r;
+        let s;
+        if (st.fly[i] >= 0) {
+          st.fly[i] += dt;
+          const k = st.fly[i] / Math.max(0.06, R0);
+          if (k >= 1) {
+            st.fly[i] = -1;
+            s = 0.001; // la boule est devenue le projectile
+          } else {
+            if (!haveMuzzle) {
+              // bouche dans le repère du parent des boules (matrices de l'image précédente : sans allocation)
+              muzzle.getWorldPosition(_mw);
+              orbParent.worldToLocal(_mw);
+              haveMuzzle = true;
+            }
+            const e = k * k;
+            x += (_mw.x - x) * e;
+            y += (_mw.y - y) * e;
+            z += (_mw.z - z) * e;
+            s = 1 - 0.35 * e;
+          }
+        } else if (i < shown) {
+          st.pop[i] += dt;
+          const p = st.pop[i];
+          s = 1 + (p < 0.35 ? Math.sin((p / 0.35) * Math.PI) * 0.45 : 0) + Math.sin(st.t * 3 + i) * 0.04;
+        } else if (i === shown && st.chFull < m) s = 0.22 + 0.62 * st.chPart;
+        else s = 0.001;
+        b.position.set(x, y, z);
+        b.scale.setScalar(s);
+      }
+    }
     return api;
   }
 
