@@ -76,16 +76,22 @@
   // ---------------------------------------------------------------------------------------------
   // Chargement : tout est procédural, rien à télécharger
   // ---------------------------------------------------------------------------------------------
-  A.load = function () {
+  // load() prépare les ordinaires des seize types (et les lots d'effets), puis finit les champions et
+  // les boss par petites tranches pendant les temps morts : le démarrage bloque trois fois moins. Un
+  // gabarit encore absent est construit à la demande par create(). load({ all: true }) prépare tout
+  // d'un coup (galerie, mesures).
+  A.load = function (opts) {
     if (A.ready) return Promise.resolve(A);
     if (A._loading) return A._loading;
     A._loading = new Promise((ok, ko) => {
       try {
         const t0 = performance.now();
-        for (const t of A.TYPES) for (const r of [0, 1, 2]) templateFor(t, r);
+        const all = !!(opts && opts.all);
+        for (const t of A.TYPES) for (const r of all ? [0, 1, 2] : [0]) templateFor(t, r);
         if (A.overlay && A.overlay.init) A.overlay.init();
         A.loadMs = performance.now() - t0;
         A.ready = true;
+        if (!all) finishLater();
         ok(A);
       } catch (err) {
         A._loading = null;
@@ -94,6 +100,18 @@
     });
     return A._loading;
   };
+  function finishLater() {
+    const todo = [];
+    for (const r of [1, 2]) for (const t of A.TYPES) todo.push([t, r]);
+    const idle = typeof requestIdleCallback === "function" ? (f) => requestIdleCallback(f, { timeout: 400 }) : (f) => setTimeout(f, 30);
+    const next = () => {
+      const t0 = performance.now();
+      // une ou deux variantes par tranche (≈ 10 ms sur ordinateur)
+      while (todo.length && performance.now() - t0 < 8) templateFor(todo[0][0], todo.shift()[1]);
+      if (todo.length) idle(next);
+    };
+    idle(next);
+  }
 
   // ---------------------------------------------------------------------------------------------
   // Assemblage : pièces placées dans l'espace de liaison (debout, face +Z, gauche = +X, pieds à y = 0),

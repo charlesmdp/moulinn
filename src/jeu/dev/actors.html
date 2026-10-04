@@ -237,7 +237,7 @@
   }
 
   PTMT.actors.mobile = mobile;
-  await PTMT.actors.load();
+  await PTMT.actors.load({ all: true });
 
   // gemme factice (le vrai modèle vient de PTMT.models.gem, ≈ 1,3 m) : octaèdre brillant
   const GEM_COLORS = [0xe8243a, 0x2fd06a, 0x2b8cff, 0xa050ff, 0xffc21a, 0xe8f6ff];
