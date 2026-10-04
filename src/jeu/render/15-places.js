@@ -406,11 +406,13 @@
         if (this.nativeButte) {
           const m = tryModel("highGround", { seed: k++ });
           if (m) {
+            // au niveau de la route au milieu d'un chemin, au niveau du plateau ailleurs (+1,3 m au-dessus)
+            const base = Math.max(0, f.heightAt(i + 0.5, j + 0.5));
             const o = objOf(m);
-            o.position.set(toX(i + 0.5), 0, toZ(j + 0.5));
+            o.position.set(toX(i + 0.5), base, toZ(j + 0.5));
             this.root.add(o);
             this.buttes.push({ i, j, model: m });
-            this.highTop.set(i + "," + j, typeof m.height === "number" ? m.height : HIGH_Y);
+            this.highTop.set(i + "," + j, base + (typeof m.height === "number" ? m.height : HIGH_Y));
             this.staticShadowCasters.push({ x: i + 0.5, y: j + 0.5, r: 0.7, h: 1.3, a: 0.8 });
             continue;
           }

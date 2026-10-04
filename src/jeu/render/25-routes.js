@@ -288,9 +288,9 @@
     this.alpha += (want - this.alpha) * Math.min(1, dt * (want ? 2.5 : 6));
     if (this.alpha < 0.02) return;
     const busy = (st.enemies || []).length > 0 ? 0.7 : 1;
-    const gap = view.mobile ? 0.5 : 0.42;
+    const gap = view.mobile ? 0.52 : 0.46;
     const speed = urgent ? 1.6 : 1.1;
-    const dot = 0.62 * k, chev = 1.0 * k;
+    const dot = 0.95 * k, chev = 1.45 * k;
     for (const P of this.paths) {
       const pts = P.pts, n = P.n, len = P.len;
       const col = P.color;

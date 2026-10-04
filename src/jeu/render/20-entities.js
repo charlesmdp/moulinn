@@ -681,7 +681,7 @@
     m.castShadow = true;
     const g = new THREE.Group();
     g.add(m);
-    g.scale.setScalar(1.25);
+    g.scale.setScalar(2.1);
     m.position.y = 0.34;
     let st = "lair";
     return {
@@ -1535,7 +1535,7 @@
     g.attachedTo = null;
     this.root.add(o);
     o.position.copy(g.lastPos);
-    o.scale.setScalar(1);
+    o.scale.setScalar(g.baseScale || 1);
   };
   P.attachGem = function (g, ev) {
     const anchor = ev.anchor;
@@ -1545,11 +1545,11 @@
       // la gemme du jeu flotte d'elle-même au-dessus de la main ; celle de secours un peu plus haut
       anchor.add(o);
       o.position.set(0, g.native ? 0 : 0.6, 0);
-      o.scale.setScalar(1 / Math.max(0.01, ev.base || 1));
+      o.scale.setScalar(g.baseScale / Math.max(0.01, ev.base || 1));
     } else {
       ev.obj.add(o);
       o.position.set(0, (ev.height / ev.base) * 1.05, 0);
-      o.scale.setScalar(0.8);
+      o.scale.setScalar((g.baseScale * 0.8) / Math.max(0.01, ev.base || 1));
     }
     g.attachedTo = ev;
     g.model.setState && g.model.setState("carried");
@@ -1581,6 +1581,7 @@
       if (!g) {
         g = { id: gs.id, color: gs.color | 0, where: null, model: this.makeGem(gs.color | 0), attachedTo: null, lastPos: new THREE.Vector3(), anim: null };
         g.native = typeof (PTMT.models && PTMT.models.gem) === "function" && !g.model.fallback;
+        g.baseScale = g.model.object.scale.x || 1;
         g.model.object.visible = false;
         this.root.add(g.model.object);
         this.gems.set(gs.id, g);
@@ -1667,7 +1668,7 @@
         if (o.parent !== this.root) this.root.add(o);
         o.visible = true;
         W.lairSlot(lairId, slot, o.position);
-        o.scale.setScalar(1);
+        o.scale.setScalar(g.baseScale);
         const full = this.lairFull[lairId];
         if (full && slot < full.length) full[slot] = true;
       }

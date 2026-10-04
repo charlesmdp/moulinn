@@ -437,7 +437,8 @@
 
   /* ------------------------------------------------------------------ trajets types */
   /** Flaque de l'estran en (x, y) cases : le même bruit sert à la peinture et au masque de l'eau. */
-  MK.puddle = (x, y) => vnoise(x * 1.9 + 3.3, y * 1.9 + 8.1, 51) * 0.75 + vnoise(x * 5.3, y * 5.3, 52) * 0.25 > 0.66;
+  MK.puddleV = (x, y) => vnoise(x * 1.9 + 3.3, y * 1.9 + 8.1, 51) * 0.75 + vnoise(x * 5.3, y * 5.3, 52) * 0.25;
+  MK.puddle = (x, y) => MK.puddleV(x, y) > 0.66;
   const RADIUS = 0.2;
   /**
    * Trajets types des ennemis (polylignes en cases) : depuis chaque entrée (barrières comprises),
@@ -446,8 +447,9 @@
    * (même pente, même voie, même glissement le long des bords). Leurs traces deviennent ornières,
    * sentes et empreintes. Sans simulation chargée : aucun trajet.
    */
-  MK.walkLine = function (g, f, x, y, lane, mode, maxLen, out) {
+  MK.walkLine = function (g, f, x, y, lane, mode, maxLen, out, wobble) {
     const GW = g.w;
+    const lane0 = lane;
     const tmp = { x: 0, y: 0 };
     out = out || [];
     out.length = 0;
@@ -468,6 +470,7 @@
       const idx = tj * GW + ti;
       if (!g.passable(ti, tj, mode) || f.D[idx] >= 1e8) break;
       if (f.D[idx] === 0) break;
+      if (wobble) lane = clamp(lane0 + wobble * Math.sin(len * 0.42 + lane0 * 5.1) + wobble * 0.5 * Math.sin(len * 1.13 + 1.7), -1, 1);
       let fx, fy;
       if (g.flowAt(f, x, y, tmp)) {
         fx = tmp.x;
@@ -530,14 +533,14 @@
     const rng = PTMT.rng(((map.id || 1) * 131) | 0);
     for (const e of g.entrances) {
       const w = e.tiles.length;
-      const lanes = w <= 1 ? [-0.5, 0.4] : w === 2 ? [-0.75, -0.1, 0.55] : [-0.85, -0.4, 0.1, 0.55, 0.9];
+      const lanes = w <= 1 ? [-0.45, 0.35] : w === 2 ? [-0.6, 0.0, 0.55] : [-0.75, -0.2, 0.3, 0.8];
       for (const L of g.lairs) {
         const f = g.toLair(L.id, "walk");
         // départ : le milieu de l'entrée, au bord de la carte
         const sx = e.x, sy = e.y;
         if (g.at(f, Math.floor(sx), Math.floor(sy)) >= 1e8) continue;
         for (const lane of lanes) {
-          const pts = MK.walkLine(g, f, sx + (rng() - 0.5) * 0.3, sy + (rng() - 0.5) * 0.3, lane + (rng() - 0.5) * 0.2, "walk", 90, []);
+          const pts = MK.walkLine(g, f, sx + (rng() - 0.5) * 0.3, sy + (rng() - 0.5) * 0.3, lane + (rng() - 0.5) * 0.2, "walk", 90, [], 0.22 + rng() * 0.18);
           if (pts.length < 6) continue;
           const r = rng();
           out.push({ pts, kind: r < 0.4 ? 0 : r < 0.7 ? 1 : 2 });
@@ -1102,12 +1105,12 @@
           c.stroke();
         }
       // flaques (même bruit que le masque de l'eau : elles restent pleines à marée basse)
-      for (let gy = -1; gy < MH + 1; gy += 0.06)
-        for (let gx = -1; gx < MW + 1; gx += 0.06) {
-          if (at(fine.tide, gx, gy) < 0.6 || !MK.puddle(gx, gy)) continue;
-          c.fillStyle = "rgba(58,74,72,0.55)";
-          c.fillRect(px(gx) - T * 0.035, px(gy) - T * 0.035, T * 0.07, T * 0.07);
-        }
+      const pud = derive((k) => (fine.tide[k] > 0.55 ? MK.puddleV((k % nx) / F - A, Math.floor(k / nx) / F - A) : 0));
+      c.fillStyle = "rgba(52,70,70,0.5)";
+      c.fill(region(pud, 0.66));
+      c.strokeStyle = "rgba(240,232,206,0.45)";
+      c.lineWidth = Math.max(1, T * 0.012);
+      c.stroke(segsPath(contour(pud, 0.665)));
       // goémon (lanières sombres) et coquillages
       for (let i = 0; i < EW * EH * 3; i++) {
         const gx = rng() * EW - A, gy = rng() * EH - A;
@@ -1953,7 +1956,7 @@
         const x = (k % f.nx) / f.F - A0, y = Math.floor(k / f.nx) / f.F - A0;
         bed[k * 4 + 1] = clamp(f.tide[k] * 1.6, 0, 1) * 255;
         bed[k * 4 + 2] = ord[k] * 255;
-        bed[k * 4 + 3] = MK.puddle(x, y) ? 255 : 0;
+        bed[k * 4 + 3] = clamp((MK.puddleV(x, y) - 0.64) / 0.05, 0, 1) * 255;
       } else bed[k * 4 + 3] = 0;
     }
     const bedTex = new THREE.DataTexture(bed, f.nx, f.ny, THREE.RGBAFormat);
