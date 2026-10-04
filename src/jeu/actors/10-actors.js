@@ -1,28 +1,41 @@
 // « Pas touche à mes trésors » — les ennemis animés (PTMT.actors).
 //
-//   await PTMT.actors.load();                            // prépare tous les gabarits (11 types × 3 rangs)
+//   await PTMT.actors.load();                            // prépare tous les gabarits (16 types × 3 rangs)
 //   const a = PTMT.actors.create(type, champion, boss);  // réutilisé depuis une réserve par variante
-//   a.object  a.height  a.carryAnchor  a.update(dt, time, s)  a.event(name[, cible])  a.release()
+//   a.object  a.height  a.carryAnchor  a.finished  a.flying
+//   a.update(dt, time, s)  a.event(name[, cible])  a.release()
 //
 // Personnages « chibi » entièrement procéduraux (11-types.js pour les piétons, 13-mounts.js pour les
-// cavaliers) : grosse tête, corps trapu, moufles et gros souliers, couvre-chef et monture lisibles de
-// haut. Squelette léger fait maison (21 os de corps + os d'accessoires et de monture), animé à la main :
-// démarches, conduite, chevauchée, nage du canard, gestes des capacités (crêpe, fumigène, lasso, biniou,
-// pas de côté), réactions (coup, K.-O., gel, feu, peur, étourdissement…). Aucun clip ni mélangeur.
+// cavaliers et les véhicules) : grosse tête, corps trapu, moufles et gros souliers, couvre-chef et
+// monture lisibles de haut. Squelette léger fait maison (21 os de corps + os d'accessoires et de
+// monture), animé à la main : démarches, conduite, chevauchée, pédalage, nage du canard, vol de la
+// montgolfière, pataugeage, gestes des capacités (crêpe, fumigène, lasso, biniou, pas de côté, photo au
+// flash, disparition du korrigan), réactions (coup, K.-O., gel, feu, peur, étourdissement…). Aucun clip
+// ni mélangeur.
 //
+// Taille : tout est modelé à l'échelle « chibi » puis agrandi d'office de A.NATIVE (× 1,2) pour la vue du
+// dessus ; les montures sont modelées nettement plus grandes que leur cavalier (vache énorme, colvert
+// géant, gros quad), et le cavalier peut être réduit (spec.riderScale) pour laisser la monture dominer.
 // Rangs : 0 ordinaire, 1 champion (couleurs plus riches, dorures), 2 boss (champion + grande couronne et
 // cape, ou monture dorée). a.object.scale est réglé d'office (× 1,3 champion, × 1,6 boss, d'après
 // PTMT.sim.DATA) ; a.height en tient compte.
+//
+// États lus dans s (tous facultatifs) : speed (m/s au sol), moving, carrying, water (nage), wading
+// (patauge : l'objet est posé à la surface de l'eau, le personnage s'y enfonce jusqu'aux cuisses et
+// avance en levant les genoux), slow, freeze, burn, fear, invisible, barrier, haste, stun, disarmed,
+// radiance, hp (0..1), alt (montgolfière : hauteur de vol en m, pour la chute ; 6 par défaut).
+// a.flying (montgolfière) : la nacelle est au sol du modèle, le rendu soulève l'objet et dessine l'ombre.
 //
 // Rendu : un seul SkinnedMesh par ennemi (corps, visage, accessoires, monture et coque de contour
 // fusionnés), une seule matière partagée par tous les ennemis : un appel de dessin (+ ombre sur
 // ordinateur). La coque de contour est une copie retournée de la géométrie, gonflée à l'écran par le
 // shader : liseré sombre d'épaisseur constante en pixels, qui détache les silhouettes de l'herbe. Les
-// motifs (rayures, vichy, pie noir, camouflage, dentelle, tartan) sont calculés dans le shader et fondus
-// quand ils deviennent plus fins que quelques pixels. Les données par instance (éclair de coup, mouillé,
-// gelé, brûlé, fantôme, dissolution, immunité, hâte, rayonnement) passent par un « os de données »
-// (indice 0) lu par le shader. Les états visibles (glaçon, bulle, flammes, étoiles, notes…) sont
-// dessinés en lots partagés (12-overlay.js).
+// motifs (rayures, vichy, pie noir, camouflage, dentelle, tartan, pois, fleurs, osier, paille, vitres,
+// crampons) sont calculés dans le shader et fondus quand ils deviennent plus fins que quelques pixels.
+// Les données par instance (éclair de coup, mouillé, gelé, brûlé, fantôme, dissolution, immunité, hâte,
+// rayonnement, ligne d'eau, lueur du flash ou des yeux) passent par un « os de données » (indice 0) lu
+// par le shader. Les états visibles (glaçon, bulle, flammes, étoiles, notes…) sont dessinés en lots
+// partagés (12-overlay.js).
 (function () {
   "use strict";
   if (typeof THREE === "undefined") return; // rendu seulement : sans three.js (banc de simulation), rien à enregistrer
@@ -38,6 +51,8 @@
   // x, y : taille du tampon de dessin (px) ; z : rapport de pixels ; w : contour actif (1) ou non (0)
   A._outline = { value: new THREE.Vector4(1280, 800, 1, 1) };
   A.RANKS = ["ordinaire", "champion", "boss"];
+  /** Agrandissement d'office de tous les modèles (lisibilité vue du dessus). */
+  A.NATIVE = 1.2;
 
   // Os du corps, dans l'ordre des tableaux de pose (les accessoires et la monture suivent).
   const BODY = [
@@ -116,7 +131,9 @@
      * opt : { color, mat (classe), part (motif), pal (2e couleur du motif, indice de palette), pos, rot,
      *         scale, quat, order, matrix, bone, weights(x,y,z) → [[os, poids], ...],
      *         colors (garder l'attribut color de la géométrie, linéaire), grad [hexHaut, hexBas, y0, y1],
-     *         outline (true/false ; automatique selon la taille sinon), invert (face intérieure), jitter, seed }
+     *         outline (true/false ; automatique selon la taille sinon), invert (face intérieure), jitter, seed,
+     *         hullOnly (seulement la coque de contour : une pièce faite de morceaux colorés garde un seul
+     *         liseré extérieur) }
      */
     add(geometry, opt) {
       opt = opt || {};
@@ -202,9 +219,9 @@
         for (let i = 0; i < n; i++) { SI[i * 4] = b; SW[i * 4] = 1; }
       }
       const part = opt.part === undefined ? 0 : opt.part, mat = opt.mat || 0, pal = opt.pal || 0;
-      this._push(P, N, C, part, mat, pal, SI, SW, idx, flip);
+      if (!opt.hullOnly) this._push(P, N, C, part, mat, pal, SI, SW, idx, flip);
       // contour : automatique pour les pièces assez grandes
-      let outline = opt.invert ? false : opt.outline;
+      let outline = opt.invert ? false : opt.hullOnly ? true : opt.outline;
       if (outline === undefined) {
         cx /= n; cy /= n; cz /= n;
         let rr = 0;
@@ -288,9 +305,14 @@
   // Matière partagée (tous les ennemis) : couleurs de sommets franches, motifs, états, contour
   // ---------------------------------------------------------------------------------------------
   // Parties (aMat.x) : 0 uni, 2 rayures fines, 3 rayures verticales, 4 blanc des yeux, 5 pupille,
-  // 6 dentelle, 7 pie noir, 8 camouflage, 9 vichy, 10 cerceaux larges, 11 tartan, 12 plumage,
-  // 30 coque de contour. La 2e couleur d'un motif vient de la palette (aMat.z).
-  // Classes (aMat.y) : 0 mat, 1 satiné, 2 brillant, 3 métal, 4 lumineux, 5 fluo, 6 or, 7 verre sombre.
+  // 6 dentelle, 7 pie noir (grosses taches noires sur blanc), 8 camouflage, 9 vichy, 10 cerceaux larges,
+  // 11 tartan, 12 plumage, 13 maillot du peloton (jaune ou à pois rouges, selon le coureur), 14 chemise
+  // hawaïenne (hibiscus), 15 osier tressé, 16 vitre (une trame sur deux : on voit au travers), 17 paille
+  // (botte de foin), 19 pois réguliers, 30 coque de contour. La 2e couleur d'un motif vient de la palette
+  // (aMat.z).
+  // Classes (aMat.y) : 0 mat, 1 satiné, 2 brillant, 3 métal, 4 lumineux, 5 fluo, 6 or, 7 verre sombre,
+  // 8 éclair (lueur pilotée par l'instance : flash de l'appareil photo, brûleur), 9 magie (lueur qui
+  // palpite : yeux du korrigan).
   const VERT_PARS = /* glsl */ `
     attribute vec3 aMat;
     varying vec3 vMat;
@@ -299,8 +321,10 @@
     varying vec4 vFx0;
     varying vec4 vFx1;
     varying vec4 vFx2;
+    varying vec4 vFx3;
+    varying float vWY;
     uniform vec4 uOutline;
-    uniform vec3 uPal[16];
+    uniform vec3 uPal[24];
   `;
   const VERT_SKIN = /* glsl */ `
     vMat = aMat;
@@ -308,10 +332,11 @@
     vCol2 = uPal[int(aMat.z + 0.5)];
     #ifdef USE_SKINNING
       mat4 ptData = getBoneMatrix(0.0);
-      vFx0 = ptData[0]; vFx1 = ptData[1]; vFx2 = ptData[2];
+      vFx0 = ptData[0]; vFx1 = ptData[1]; vFx2 = ptData[2]; vFx3 = ptData[3];
     #else
-      vFx0 = vec4(0.0); vFx1 = vec4(0.0); vFx2 = vec4(0.0);
+      vFx0 = vec4(0.0); vFx1 = vec4(0.0); vFx2 = vec4(0.0); vFx3 = vec4(0.0);
     #endif
+    vWY = (modelMatrix * vec4(transformed, 1.0)).y;
   `;
   const VERT_HULL = /* glsl */ `
     if (aMat.x > 29.5) {
@@ -329,6 +354,8 @@
     varying vec4 vFx0;
     varying vec4 vFx1;
     varying vec4 vFx2;
+    varying vec4 vFx3;
+    varying float vWY;
     uniform float uTime;
     ${"PTMT_NOISE"}
     float ptBayer(vec2 p){
@@ -348,6 +375,16 @@
     float ptStep(float e, float x){
       float w = max(fwidth(x), 1e-4);
       return clamp((x - e) / w * 0.5 + 0.5, 0.0, 1.0);
+    }
+    // pois en quinconce sur (angle autour de l'axe vertical, hauteur) : 1 dans un pois ; fondu à la
+    // couverture moyenne quand les pois deviennent trop petits à l'écran
+    float ptDots(vec3 p, float ka, float ky, float r){
+      vec2 q = vec2(atan(p.x, p.z) * ka, p.y * ky);
+      q.x += floor(q.y) * 0.5;
+      vec2 f = fract(q) - 0.5;
+      float wv = max(max(fwidth(q.x), fwidth(q.y)), 1e-4);
+      float d = 1.0 - clamp((length(f) - r) / wv + 0.5, 0.0, 1.0);
+      return mix(d, 3.14 * r * r, smoothstep(0.2, 0.45, wv));
     }
   `;
   const FRAG_COLOR = /* glsl */ `
@@ -379,10 +416,10 @@
         float lace = mix(max(hole, rib), 0.3, smoothstep(0.2, 0.45, wv));
         ptAlb = mix(ptAlb, ptB, lace);
       } else if (ptPart > 6.5 && ptPart < 7.5) {
-        // pie noir : grandes taches blanches, ventre plus clair (une robe par ennemi)
-        float n = ptNoise3(vRest * 1.55 + vec3(vFx2.w * 17.0, vFx2.w * 5.0, 0.0));
-        n += (0.78 - vRest.y) * 0.55;
-        ptAlb = mix(ptAlb, ptB, ptStep(0.62, n));
+        // pie noir : grosses taches noires sur la robe blanche (une robe par vache), ventre blanc
+        float n = ptNoise3(vRest * vec3(1.25, 1.4, 1.05) + vec3(vFx2.w * 17.0, vFx2.w * 5.0, vFx2.w * 11.0));
+        n -= smoothstep(1.05, 0.7, vRest.y) * 0.4;
+        ptAlb = mix(ptAlb, ptB, ptStep(0.6, n));
       } else if (ptPart > 7.5 && ptPart < 8.5) {
         // camouflage : deux tons de taches par-dessus le vert
         float n1 = ptNoise3(vRest * 3.4 + 3.1), n2 = ptNoise3(vRest * 5.7 + 9.7);
@@ -400,19 +437,70 @@
         ptAlb = mix(ptAlb, ptB, clamp(a * b * 0.8 + l * 0.35, 0.0, 1.0));
       } else if (ptPart > 11.5 && ptPart < 12.5) {
         // plumage : écailles en quinconce, bord plus sombre
-        vec2 q = vec2(vRest.x * 7.0, vRest.z * 5.5 - vRest.y * 3.0);
+        vec2 q = vec2(vRest.x * 5.0, vRest.z * 4.0 - vRest.y * 2.2);
         q.x += floor(q.y) * 0.5;
         vec2 f = fract(q) - vec2(0.5, 0.0);
         float d = length(f * vec2(1.0, 1.4));
         float wv = max(fwidth(q.x), fwidth(q.y));
         float edge = clamp((d - 0.5) / max(wv, 1e-4) + 0.5, 0.0, 1.0) * (1.0 - clamp((d - 0.62) / max(wv, 1e-4) + 0.5, 0.0, 1.0));
         ptAlb = mix(ptAlb, ptB, edge * (1.0 - smoothstep(0.2, 0.45, wv)) * 0.8);
+      } else if (ptPart > 12.5 && ptPart < 13.5) {
+        // maillot du peloton : jaune (couleur de la pièce) ou blanc à pois rouges, selon le coureur ; seul
+        // le tissu jaune change (une manche courte porte aussi la peau du bras)
+        float ptJy = step(ptAlb.b, 0.08) * step(0.45, ptAlb.g);
+        if (fract(vFx2.w * 7.31) > 0.5) ptAlb = mix(ptAlb, mix(vec3(1.0), ptB, ptDots(vRest, 2.1, 6.0, 0.25)), ptJy);
+      } else if (ptPart > 13.5 && ptPart < 14.5) {
+        // chemise hawaïenne : grosses fleurs d'hibiscus (cœur jaune), une sur deux blanche
+        vec2 q = vec2(atan(vRest.x, vRest.z) * 1.35, vRest.y * 3.6);
+        q.x += floor(q.y) * 0.5;
+        vec2 cell = floor(q);
+        vec2 f = fract(q) - 0.5;
+        float h = fract(sin(dot(cell, vec2(12.9898, 78.233))) * 43758.5453);
+        float a = atan(f.y, f.x) + h * 6.283;
+        float r = length(f);
+        float wv = max(max(fwidth(q.x), fwidth(q.y)), 1e-4);
+        float petal = 0.36 * (0.7 + 0.3 * cos(5.0 * a));
+        float fl = 1.0 - clamp((r - petal) / wv + 0.5, 0.0, 1.0);
+        float core = 1.0 - clamp((r - 0.08) / wv + 0.5, 0.0, 1.0);
+        vec3 pc = h > 0.45 ? ptB : vec3(1.0, 0.92, 0.8);
+        vec3 flower = mix(pc, vec3(1.0, 0.75, 0.05), core);
+        vec3 detail = mix(ptAlb, flower, fl);
+        ptAlb = mix(detail, mix(ptAlb, ptB, 0.3), smoothstep(0.2, 0.45, wv));
+      } else if (ptPart > 14.5 && ptPart < 15.5) {
+        // osier tressé : brins qui passent dessus-dessous, jours sombres entre les rangs
+        float u = (vRest.x + vRest.z) * 7.0, v = vRest.y * 9.0;
+        float row = floor(v);
+        float fu = fract(u + row * 0.5), fv = fract(v);
+        float bump = sin(fu * 3.1416) * sin(fv * 3.1416);
+        float wv = max(fwidth(u), fwidth(v));
+        float k = mix(0.55 + 0.6 * bump, 0.85, smoothstep(0.25, 0.5, wv));
+        ptAlb = mix(ptB, ptAlb, k);
+      } else if (ptPart > 15.5 && ptPart < 16.5) {
+        // vitre : une trame sur deux (on voit le conducteur au travers), reflets en biais
+        if (ptBayer(gl_FragCoord.xy) < 0.5) discard;
+        float st = ptSq((vRest.x + vRest.y + vRest.z) * 2.4);
+        ptAlb = mix(ptAlb, vec3(1.0), 0.25 * st);
+      } else if (ptPart > 16.5 && ptPart < 17.5) {
+        // paille : brins serrés et ficelles
+        float n = ptNoise3(vec3(vRest.x * 2.5, vRest.y * 30.0, vRest.z * 30.0));
+        ptAlb *= 0.72 + 0.5 * n;
+      } else if (ptPart > 18.5 && ptPart < 19.5) {
+        ptAlb = mix(ptAlb, ptB, ptDots(vRest, 3.0, 9.0, 0.25));
       }
     }
     // blanc des yeux : liseré d'encre au bord du globe (sans coque)
     if (ptPart > 3.5 && ptPart < 4.5) {
       float ptK = abs(dot(normalize(vNormal), normalize(vViewPosition)));
       ptAlb *= mix(0.12, 1.0, smoothstep(0.12, 0.42, ptK));
+    }
+    // dans l'eau (nage, pataugeage) : ce qui est sous la ligne d'eau verdit et s'assombrit, liseré d'écume
+    float ptUnder = 0.0;
+    if (vFx3.y > 0.01) {
+      float d = vFx3.x - vWY;
+      ptUnder = smoothstep(-0.01, 0.07, d) * vFx3.y;
+      ptAlb = mix(ptAlb, vec3(0.03, 0.17, 0.2), ptUnder * 0.72);
+      float foam = (1.0 - smoothstep(0.0, 0.06, abs(d + 0.015))) * vFx3.y;
+      ptAlb = mix(ptAlb, vec3(0.85, 0.96, 1.0), foam * 0.85);
     }
     // états : gelé, mouillé, brûlé, éclair de coup
     float ptFlash = vFx0.x, ptWet = vFx0.y, ptFrozen = vFx0.z, ptBurn = vFx0.w;
@@ -427,9 +515,10 @@
     vec3 ptLine = mix(vec3(0.028, 0.022, 0.04), vec3(0.12, 0.3, 0.5), max(ptFrozen * 0.7, ptRad * 0.8));
     ptLine = mix(ptLine, vec3(1.0, 0.72, 0.18), ptImm * 0.85);
     ptLine = mix(ptLine, vec3(1.0, 0.92, 0.7), ptFlash * 0.65);
+    ptLine = mix(ptLine, vec3(0.02, 0.12, 0.14), ptUnder);
   `;
   const FRAG_ROUGH = /* glsl */ `
-    roughnessFactor = ptCls < 0.5 ? 0.82 : (ptCls < 1.5 ? 0.55 : (ptCls < 2.5 ? 0.3 : (ptCls < 3.5 ? 0.3 : (ptCls < 5.5 ? 0.6 : (ptCls < 6.5 ? 0.34 : 0.14)))));
+    roughnessFactor = ptCls < 0.5 ? 0.82 : (ptCls < 1.5 ? 0.55 : (ptCls < 2.5 ? 0.3 : (ptCls < 3.5 ? 0.3 : (ptCls < 5.5 ? 0.6 : (ptCls < 6.5 ? 0.34 : (ptCls < 7.5 ? 0.14 : 0.45))))));
     if (ptPart > 4.5 && ptPart < 5.5) roughnessFactor = 0.18;
     roughnessFactor *= 1.0 - 0.55 * ptWet;
   `;
@@ -447,6 +536,8 @@
       if (ptCls > 3.5 && ptCls < 4.5) totalEmissiveRadiance += diffuseColor.rgb * 1.4;
       if (ptCls > 4.5 && ptCls < 5.5) totalEmissiveRadiance += diffuseColor.rgb * 0.65;
       if (ptCls > 5.5 && ptCls < 6.5) totalEmissiveRadiance += vec3(1.0, 0.62, 0.12) * (0.22 + 1.3 * ptFres) * (0.8 + 0.2 * sin(uTime * 4.0 + vRest.x * 5.0 + vRest.y * 3.0));
+      if (ptCls > 7.5 && ptCls < 8.5) totalEmissiveRadiance += diffuseColor.rgb * (0.35 + 7.0 * vFx3.z);
+      if (ptCls > 8.5 && ptCls < 9.5) totalEmissiveRadiance += diffuseColor.rgb * (1.3 + 0.9 * sin(uTime * 5.0 + vFx2.w * 20.0));
       totalEmissiveRadiance += vec3(1.0, 0.96, 0.9) * ptFlash * 0.9;
       totalEmissiveRadiance += vec3(1.0, 0.36, 0.05) * ptBurn * (0.14 + 0.12 * sin(uTime * 23.0 + vRest.y * 6.0));
       totalEmissiveRadiance += vec3(0.4, 0.75, 1.0) * ptFrozen * 0.12;
@@ -454,6 +545,7 @@
       totalEmissiveRadiance += vec3(0.2, 0.55, 1.0) * ptRad * (0.05 + 1.25 * ptFres) * (0.7 + 0.3 * sin(uTime * 7.0));
       totalEmissiveRadiance += vec3(1.0, 0.78, 0.3) * ptImm * (0.12 + 1.8 * ptFres);
       totalEmissiveRadiance += vec3(1.0, 0.8, 0.3) * vFx1.w * ptFres * 0.9;
+      totalEmissiveRadiance *= 1.0 - 0.6 * ptUnder;
       if (ptDiss > 0.001 && ptN < ptDiss + 0.07) totalEmissiveRadiance += vec3(1.0, 0.9, 0.55) * 2.5;
     }
   `;
@@ -466,7 +558,7 @@
   const palUniform = { value: [] };
   function bodyMaterial() {
     if (bodyMat) return bodyMat;
-    palUniform.value = (A.PALETTE || [0xffffff]).concat(new Array(16).fill(0xffffff)).slice(0, 16).map((h) => PTMT.color(h));
+    palUniform.value = (A.PALETTE || [0xffffff]).concat(new Array(24).fill(0xffffff)).slice(0, 24).map((h) => PTMT.color(h));
     const m = new THREE.MeshStandardMaterial({ vertexColors: true, skinning: true, roughness: 0.8, metalness: 0 });
     m.name = "ptmt:actor";
     m.extensions = { derivatives: true };
@@ -486,7 +578,7 @@
         .replace("#include <emissivemap_fragment>", "#include <emissivemap_fragment>\n" + FRAG_EMISSIVE)
         .replace("#include <tonemapping_fragment>", FRAG_OUT);
     };
-    m.customProgramCacheKey = () => "ptmt-actor-ct-v1";
+    m.customProgramCacheKey = () => "ptmt-actor-ct-v2";
     bodyMat = m;
     return m;
   }
@@ -609,6 +701,21 @@
     sneak: [-1.1, 0, 0.38, -1.6, 0, 0, 0.75, 0, 0, 1],
     hip: [0.3, 0, 0.75, -1.95, 0, 0, 0, 0, 0, 1],
     binoc: [-1.55, 0, 0.35, -2.1, 0, 0, 0.3, 0, 0, 1.0],
+    // appareil photo : tenu devant le ventre, puis levé à l'œil (flash)
+    camera: [-0.85, 0, 0.32, -1.35, 0, 0, 0.2, 0, 0, 1.0],
+    photo: [-1.85, 0, 0.28, -1.95, 0, 0, 0.35, 0, 0, 1.12],
+    // pataugeage : bras écartés et levés pour garder l'équilibre au sec
+    wade: [-1.15, 0, 1.15, -0.85, 0, 0, 0, 0, 0, 1.05],
+    // guidon de vélo (penché), volant du tracteur, bord de la nacelle, salut de la main
+    bars: [-1.45, 0, 0.12, -0.25, 0, 0, 0.1, 0, 0, 1.18],
+    wheel: [-1.05, 0, 0.18, -0.9, 0, 0, 0.1, 0, 0, 1.08],
+    rim: [-0.55, 0, 0.55, -0.95, 0, 0, 0.3, 0, 0, 1.05],
+    waveA: [-2.75, 0, 0.75, -0.25, 0, 0, 0, 0, 0, 1.3],
+    waveB: [-2.6, 0, 0.35, -0.9, 0, 0, 0, 0, 0, 1.3],
+    // korrigan : bras qui balancent en sautillant, mains sur les hanches (narquois)
+    skipA: [-1.1, 0, 0.9, -0.6, 0, 0, 0, 0, 0, 1.1],
+    skipB: [0.7, 0, 0.85, -0.3, 0, 0, 0, 0, 0, 1.1],
+    akimbo: [0.15, 0, 0.95, -1.7, 0, 0, 0.4, 0, 0, 1.0],
   };
   A.ARM_POSES = ARM;
   /** Poses de port de la gemme (main levée). */
@@ -621,6 +728,8 @@
     pipe: ["pipeA", "pipeB", 14, 0],
     sickle: ["sickleA", "sickleB", 3.5, 0],
     flail: ["flailA", "flailB", 11, Math.PI],
+    wave: ["waveA", "waveB", 7, 0],
+    skip: ["skipA", "skipB", 8, Math.PI],
   };
   // Démarches : longueur de cycle (m), amplitude des jambes, genoux, rebond, bras, penchée, roulis…
   const GAIT = {
@@ -632,6 +741,9 @@
     run: { stride: 2.3, leg: 0.95, knee: 1.6, bob: 0.13, arm: 1.1, fore: 1.4, lean: 0.34, roll: 0.05, twist: 0.2, hop: 0.1 },
     glide: { stride: 1.6, leg: 0.38, knee: 0.5, bob: 0.03, arm: 0.3, fore: 0.25, lean: 0.05, roll: 0.03, twist: 0.05, hop: 0.015 },
     shuffle: { stride: 1.25, leg: 0.42, knee: 0.62, bob: 0.05, arm: 0.35, fore: 0.3, lean: 0.08, roll: 0.09, twist: 0.06, hop: 0.035 },
+    // korrigan : petits bonds de lutin ; touriste : flânerie, nez en l'air
+    skip: { stride: 1.35, leg: 0.75, knee: 1.3, bob: 0.12, arm: 0.9, fore: 0.5, lean: 0.1, roll: 0.1, twist: 0.16, hop: 0.2 },
+    stroll: { stride: 1.4, leg: 0.5, knee: 0.75, bob: 0.06, arm: 0.45, fore: 0.3, lean: -0.04, roll: 0.07, twist: 0.1, hop: 0.04 },
     ride: { stride: 1.5, leg: 0, knee: 0, bob: 0, arm: 0, fore: 0, lean: 0, roll: 0, twist: 0, hop: 0 },
   };
   A.GAITS = GAIT;
@@ -645,13 +757,17 @@
   const clamp = (x, a, b) => (x < a ? a : x > b ? b : x);
   const smooth = (cur, target, dt, rate) => cur + (target - cur) * (1 - Math.exp(-dt * rate));
   const ease = (t) => t * t * (3 - 2 * t);
-  // Réactions du corps (durées, priorité) et gestes des bras (durées).
-  const REACT = { hit: 0.28, healed: 0.45, immune: 0.55, barrierBreak: 0.4, dodge: 0.46, spawn: 0.6, escape: 0.75, die: 1.0 };
-  const PRIO = { hit: 1, healed: 2, immune: 3, barrierBreak: 3, dodge: 5, spawn: 7, escape: 8, die: 9 };
-  const GESTURE = { pickup: 0.55, drop: 0.6, heal: 0.7, smoke: 0.6, tune: 1.3, lasso: 1.0 };
+  // Réactions du corps (durées, priorité) et gestes des bras (durées). « blink » : réapparition du
+  // korrigan (le rendu l'a déplacé) ; « flash » : photo au flash du touriste ; « split » : le tracteur
+  // se renverse (comme « die », avec l'explosion de foin).
+  const REACT = { hit: 0.28, healed: 0.45, immune: 0.55, barrierBreak: 0.4, dodge: 0.46, blink: 0.55, spawn: 0.6, escape: 0.75, die: 1.0 };
+  const PRIO = { hit: 1, healed: 2, immune: 3, barrierBreak: 3, dodge: 5, blink: 6, spawn: 7, escape: 8, die: 9 };
+  const GESTURE = { pickup: 0.55, drop: 0.6, heal: 0.7, smoke: 0.6, tune: 1.3, lasso: 1.0, flash: 1.05 };
   A.KO_DURATION = REACT.die;
   A.ESCAPE_DURATION = REACT.escape;
-  A.EVENTS = Object.keys(REACT).concat(Object.keys(GESTURE));
+  A.EVENTS = Object.keys(REACT).concat(Object.keys(GESTURE), ["split"]);
+  /** Instant (s) du déclenchement du flash dans le geste « flash ». */
+  A.FLASH_AT = 0.36;
   const NB = BODY.length;
   const ORDER_YXZ = new Set([BI.root, BI.hips, BI.body, BI.head]);
   const IDENTITY = new THREE.Matrix4();
@@ -670,10 +786,16 @@
       this.dims = tpl.spec.dims;
       this.scale = tpl.spec.scale || 1;
       this.sizeFactor = A.sizeFactor(tpl.rank);
+      /** Cavalier réduit par rapport à sa monture (échelle de l'os du bassin). */
+      this.riderScale = tpl.spec.riderScale || 1;
+      /** Montgolfière : le rendu soulève l'objet (la nacelle est au sol du modèle) et dessine l'ombre. */
+      this.flying = !!tpl.spec.flying;
+      /** Durée du K.-O. (s) : chute de la montgolfière, tracteur qui se renverse… */
+      this.dieT = tpl.spec.dieTime || REACT.die;
       /** Sommet sans agrandissement de rang (m) ; a.height donne la valeur dans le repère du parent. */
       this.baseHeight = tpl.spec.height;
       const cp = tpl.spec.carry.pos;
-      this.carryLift = Math.max(0, (cp[1] + 0.32) * this.scale - this.baseHeight);
+      this.carryLift = tpl.spec.carry.noLift ? 0 : Math.max(0, (cp[1] + 0.32) * this.scale - this.baseHeight);
       /** Vitesse (m/s) de démonstration (galerie) : celle du jeu pour ce type. */
       this.naturalSpeed = tpl.spec.natural;
       this.gait = Object.assign({}, GAIT[tpl.spec.motion.gait || "walk"], tpl.spec.motion.gaitOver || null);
@@ -712,6 +834,9 @@
       this.carryAnchor = new THREE.Object3D();
       this.carryAnchor.name = "ptmt:carry";
       this.B.p_gem.add(this.carryAnchor);
+      // la gemme est-elle portée par le cavalier (sous le bassin, donc réduite avec lui) ?
+      this.gemOnRider = false;
+      for (let o = this.B.p_gem; o && o !== this.rig; o = o.parent) if (o === this.B.hips) this.gemOnRider = true;
       this.bones = BODY.map((n) => this.B[n]);
       this.restArr = BODY.map((n) => this.rest[n]);
       this.orders = BODY.map((n, i) => (ORDER_YXZ.has(i) ? "YXZ" : "XYZ"));
@@ -735,7 +860,7 @@
       this.w = {};
       this.fly = {};
       /** Mouvement de la selle (monture) appliqué au bassin du cavalier. */
-      this.mm = { y: 0, z: 0, pitch: 0, roll: 0, yaw: 0 };
+      this.mm = { y: 0, z: 0, pitch: 0, roll: 0, yaw: 0, ik: false, legs: new Float32Array(6) };
       this.mountT = {};
       this.face = { open: 1, wide: 1, tilt: 0, up: 0, mouth: 0, grin: 1, lookX: 0, lookY: 0, tx: 0, ty: 0, lookT: 0, blinkT: 2, blink: 0, dizzy: 0 };
       this.target = new THREE.Vector3();
@@ -771,8 +896,16 @@
       this.rig.quaternion.identity();
       this.rig.scale.setScalar(this.scale);
       const w = this.w;
-      for (const k of ["carry", "frozen", "wet", "burn", "ghost", "haste", "water", "fear", "stun", "radiance", "barrier", "disarm", "armL", "armR", "flash", "move", "diss", "imm", "hp"]) w[k] = 0;
+      for (const k of ["carry", "frozen", "wet", "burn", "ghost", "haste", "water", "wade", "fear", "stun", "radiance", "barrier", "disarm", "armL", "armR", "flash", "move", "diss", "imm", "hp"]) w[k] = 0;
       w.hp = 1;
+      /** Lueur pilotée par le type (flash de l'appareil, brûleur de la montgolfière) : 0..1. */
+      this.glow = 0;
+      this._split = false;
+      this._blinkFrom = null;
+      this._blinkArrive = false;
+      this._flashed = false;
+      this.flashYaw = 0;
+      this.flashGlow = 0;
       this.prev = { carrying: false };
       this.react = null;
       this.reactT = 0;
@@ -800,6 +933,8 @@
       this.seed = Math.random();
       const mm = this.mm;
       mm.y = mm.z = mm.pitch = mm.roll = mm.yaw = 0;
+      mm.ik = false;
+      mm.legs.fill(0);
       for (const k in this.mountT) this.mountT[k] = 0;
       for (const k in this.fly) this._landProp(k);
       for (const b of this.tpl.bones) {
@@ -808,8 +943,8 @@
         bone.quaternion.identity();
         bone.scale.set(1, 1, 1);
       }
-      // la gemme garde sa taille quel que soit le rang
-      this.carryAnchor.scale.setScalar(1 / (this.scale * this.sizeFactor));
+      // la gemme garde sa taille quel que soit le rang (et la taille du cavalier qui la porte)
+      this.carryAnchor.scale.setScalar(1 / (this.scale * this.sizeFactor * (this.gemOnRider ? this.riderScale : 1)));
       this.armCur.l.set(ARM.rest);
       this.armCur.r.set(ARM.rest);
       const f = this.face;
@@ -823,10 +958,23 @@
     // --- événements ponctuels ------------------------------------------------------------------
     /**
      * name : "hit" | "die" | "pickup" | "drop" | "heal" | "healed" | "smoke" | "tune" | "lasso" | "dodge"
-     *        | "barrierBreak" | "spawn" | "escape" | "immune". target (facultatif) : position monde visée
-     *        (crêpe lancée vers l'allié soigné, lasso vers la gemme).
+     *        | "barrierBreak" | "spawn" | "escape" | "immune" | "blink" | "flash" | "split".
+     * target (facultatif) : position monde visée (crêpe lancée vers l'allié soigné, lasso vers la gemme,
+     * tour photographiée par le touriste) ; pour « blink », point de départ du korrigan (le pouf violet
+     * part de là ; sans cible, de l'endroit où il se trouve à l'appel), la réapparition se joue à la
+     * prochaine mise à jour, là où le rendu l'a posé.
      */
     event(name, target) {
+      if (name === "split") {
+        // le tracteur se renverse : explosion de foin (une seule fois, même après « die »), puis K.-O.
+        if (this._split) return;
+        this._split = true;
+        const ov0 = A.overlay;
+        if (ov0 && ov0.burst) ov0.burst(this, "split");
+        if (this.dead) return;
+        name = "die";
+        target = null;
+      }
       if (this.dead) return;
       if (target && target.x !== undefined) {
         this.target.set(target.x, target.y || 0, target.z);
@@ -835,6 +983,16 @@
       if (GESTURE[name] !== undefined) {
         this.gesture = name;
         this.gestureT = 0;
+        if (name === "flash") {
+          // le touriste se tourne vers la tour qu'il photographie (angle dans le repère de l'ennemi)
+          this._flashed = false;
+          this.flashYaw = 0;
+          if (this.hasTarget) {
+            this.object.updateWorldMatrix(true, false);
+            const v = this.object.worldToLocal(this.v1.copy(this.target));
+            this.flashYaw = clamp(Math.atan2(v.x, v.z), -1.4, 1.4);
+          }
+        }
       } else if (REACT[name] !== undefined) {
         if (name === "die") {
           this.dead = true;
@@ -851,6 +1009,14 @@
           if (this.react && PRIO[this.react] > PRIO[name] && this.reactT < REACT[this.react]) return;
           if (name === "dodge") this.dodgeSide = Math.random() < 0.5 ? -1 : 1;
           if (name === "immune") this.w.imm = 1;
+          if (name === "blink") {
+            // départ : la cible donnée, sinon la position actuelle ; l'arrivée suit à la mise à jour
+            if (!this._blinkFrom) this._blinkFrom = new THREE.Vector3();
+            if (this.hasTarget) this._blinkFrom.copy(this.target);
+            else this.object.getWorldPosition(this._blinkFrom);
+            this._blinkArrive = true;
+            this.gesture = null;
+          }
           this._react(name);
         }
       } else return;
@@ -925,7 +1091,7 @@
       // réaction et geste en cours
       if (this.react) {
         this.reactT += dt;
-        if (this.reactT >= REACT[this.react]) {
+        if (this.reactT >= (this.react === "die" ? this.dieT : REACT[this.react])) {
           if (this.react === "die" || this.react === "escape") this.finished = true;
           else this.react = null;
         }
@@ -948,6 +1114,7 @@
       w.ghost = smooth(w.ghost, clamp(s.invisible || 0, 0, 1), dt, 8);
       w.haste = smooth(w.haste, s.haste && !dead ? 1 : 0, dt, 6);
       w.water = smooth(w.water, s.water ? 1 : 0, dt, 4);
+      w.wade = smooth(w.wade, s.wading && !s.water && !this.flying ? 1 : 0, dt, 5);
       w.fear = smooth(w.fear, s.fear && !dead ? 1 : 0, dt, 8);
       w.stun = smooth(w.stun, s.stun && !dead ? 1 : 0, dt, 10);
       w.radiance = smooth(w.radiance, s.radiance && !dead ? 1 : 0, dt, 6);
@@ -970,7 +1137,10 @@
       this._rigLayer(dt, s, moving, speed, solid);
       this._common(dt, s, moving, speed);
       this._updateFly(dt);
-      w.diss = this.react === "die" ? clamp((this.reactT - 0.72) / 0.26, 0, 1) : this.react === "escape" ? clamp((this.reactT - 0.55) / 0.2, 0, 1) : 0;
+      w.diss = this.react === "die" ? clamp((this.reactT - (this.dieT - 0.28)) / 0.26, 0, 1) : this.react === "escape" ? clamp((this.reactT - 0.55) / 0.2, 0, 1) : 0;
+      // flash de l'appareil photo : éclair bref au déclenchement
+      const ft = this.gesture === "flash" ? this.gestureT - A.FLASH_AT : -1;
+      this.flashGlow = ft >= 0 ? Math.max(0, 1 - ft / 0.22) : 0;
       this._writeData(speed);
       if (ov && ov.actor) ov.actor(this, dt, s);
     }
@@ -998,32 +1168,36 @@
       const ph = this.phase;
       const sn = Math.sin(ph), cs = Math.cos(ph);
       if (!ride) {
+        // pataugeage : genoux levés haut, jambes plus lentes et plus amples
+        const wk = 1 + 0.9 * w.wade, wl = 1 + 0.35 * w.wade;
         for (let si = 0; si < 2; si++) {
           const p = ph + (si ? Math.PI : 0), sp = Math.sin(p), cp = Math.cos(p);
           const th = si ? BI.thigh_r : BI.thigh_l, sh = si ? BI.shin_r : BI.shin_l, ft = si ? BI.foot_r : BI.foot_l;
           const lift = Math.max(0, cp * back);
-          R(th, -g.leg * sp * amp - (g.crouch ? 0.25 * amp : 0), 0, 0);
-          R(sh, (g.knee * lift + (g.crouch ? 0.4 : 0)) * amp, 0, 0);
+          R(th, -g.leg * wl * sp * amp - (g.crouch ? 0.25 * amp : 0) - 0.5 * w.wade * lift * amp, 0, 0);
+          R(sh, (g.knee * wk * lift + (g.crouch ? 0.4 : 0)) * amp, 0, 0);
           R(ft, -(-g.leg * sp + g.knee * lift) * 0.55 * amp, 0, 0);
         }
         const bob = g.bob * (Math.abs(cs) - 0.5) * 2 * amp;
         T(BI.hips, 0, bob - (g.crouch || 0) * amp, 0);
-        R(BI.hips, 0, g.twist * sn * amp, g.roll * sn * amp);
-        const lean = g.lean * (1 - 1.9 * w.fear) + 0.12 * w.haste;
+        R(BI.hips, 0, g.twist * sn * amp, g.roll * (1 + w.wade) * sn * amp);
+        const lean = g.lean * (1 - 1.9 * w.fear) + 0.12 * w.haste - 0.12 * w.wade;
         R(BI.body, lean * amp, -g.twist * 1.3 * sn * amp, -g.roll * 0.4 * sn * amp);
         R(BI.head, -lean * 0.55 * amp + Math.sin(ph * 2 - 0.8) * 0.04 * amp, 0, g.roll * 0.6 * sn * amp);
       } else {
-        // en selle : bassin sur la selle (mouvement de la monture), jambes de part et d'autre
+        // en selle : bassin sur la selle (mouvement de la monture), jambes de part et d'autre ; la
+        // monture peut piloter les jambes (pédalage : angles calculés par la monture, mm.ik)
         const st = spec.mount.seat, mm = this.mm;
         T(BI.hips, 0, st.dy + mm.y, st.dz + mm.z);
-        R(BI.hips, mm.pitch, mm.yaw, mm.roll);
+        R(BI.hips, mm.pitch + (st.hipPitch || 0), mm.yaw, mm.roll);
         for (let si = 0; si < 2; si++) {
-          const sg = si ? -1 : 1;
-          R(si ? BI.thigh_r : BI.thigh_l, st.thigh, 0, sg * st.spread);
-          R(si ? BI.shin_r : BI.shin_l, st.shin, 0, -sg * st.spread * 0.55);
-          R(si ? BI.foot_r : BI.foot_l, st.foot || 0.1, 0, 0);
+          const sg = si ? -1 : 1, L = mm.legs, o = si * 3;
+          R(si ? BI.thigh_r : BI.thigh_l, mm.ik ? L[o] : st.thigh, 0, sg * st.spread);
+          R(si ? BI.shin_r : BI.shin_l, mm.ik ? L[o + 1] : st.shin, 0, -sg * st.spread * 0.55);
+          R(si ? BI.foot_r : BI.foot_l, mm.ik ? L[o + 2] : st.foot || 0.1, 0, 0);
         }
         R(BI.body, (st.lean || 0) - mm.pitch * 0.5, 0, -mm.roll * 0.4);
+        if (st.head) R(BI.head, st.head, 0, 0);
       }
       // respiration au repos
       const idle = 1 - w.move;
@@ -1035,11 +1209,11 @@
 
       // 2) bras
       let poseL = null, poseR = null, osc = null;
-      const arms = mo.arms || NO_ARMS;
+      const arms = (w.move < 0.5 && mo.idleArms) || mo.arms || NO_ARMS;
       const carry = !!s.carrying && !dead;
       const carryArms = spec.carry.arms;
-      if (dead) poseL = poseR = "koA";
-      else if (react === "escape" || ges === "pickup") poseL = poseR = "cheer";
+      if (dead) poseL = poseR = ride && mo.koArms ? mo.koArms : "koA";
+      else if (react === "escape" || ges === "pickup" || (react === "blink" && rt > 0.12)) poseL = poseR = "cheer";
       else if (ges === "drop") poseL = poseR = "shrug";
       else if (ges === "heal" || ges === "smoke") {
         poseR = gt < 0.24 ? "throwA" : "throwB";
@@ -1047,9 +1221,14 @@
       } else if (ges === "lasso") {
         poseR = gt < 0.3 ? "lasso" : gt < 0.75 ? "toss" : "lasso";
         poseL = arms[0];
+      } else if (ges === "flash") {
+        // l'appareil monte à l'œil, déclenche, puis redescend
+        poseR = gt < 0.85 ? "photo" : "camera";
+        poseL = carry ? carryArms[0] : gt < 0.85 ? "photo" : arms[0];
       } else if ((w.fear > 0.5 || s.burn) && !ride && !carry) osc = "flail";
       else if (w.stun > 0.5 && !carry) poseL = poseR = "droop";
       else if (carry) { poseL = carryArms[0]; poseR = carryArms[1]; }
+      else if (w.wade > 0.5 && !ride) poseL = poseR = "wade";
       else { poseL = arms[0]; poseR = arms[1]; }
       if (w.disarm > 0.5 && !carry && !dead && !ges && poseR && mo.disarmDrop) poseR = "droop";
       const tmp = this.armTmp;
@@ -1116,6 +1295,19 @@
         R(BI.body, -0.12 * k, Math.sin(gt * 9) * 0.15 * k, Math.sin(gt * 4.5) * 0.12 * k);
         R(BI.head, -0.2 * k, 0, Math.sin(gt * 9) * 0.12 * k);
       }
+      if (ges === "flash") {
+        // le buste se tourne vers la tour visée, petit recul au déclenchement
+        const k = Math.sin(clamp(gt / GESTURE.flash, 0, 1) * Math.PI);
+        const kick = gt > A.FLASH_AT ? Math.max(0, 1 - (gt - A.FLASH_AT) / 0.25) : 0;
+        R(BI.body, -0.12 * k - 0.12 * kick, this.flashYaw * 0.75 * k, 0);
+        R(BI.head, -0.18 * k, this.flashYaw * 0.25 * k, 0);
+      }
+      if (react === "blink") {
+        // réapparition : il salue, fier de son tour
+        const k = Math.sin(clamp(rt / REACT.blink, 0, 1) * Math.PI);
+        R(BI.body, 0.25 * k, 0, 0);
+        R(BI.head, -0.3 * k, 0, 0.2 * k);
+      }
       // porteur : petit dandinement de joie
       if (carry && moving && !dead) R(BI.head, 0, 0, Math.sin(ph) * 0.05);
 
@@ -1129,6 +1321,11 @@
 
       // 4) visage
       this._face(dt, s, moving, react, rt);
+      // 5) retouches propres au type (regard du touriste, sautillement du korrigan…)
+      if (spec.posing) spec.posing(this, R, T, ps, dt, s, moving);
+      // cavalier réduit autour de son bassin (la monture garde sa taille)
+      const rs = this.riderScale;
+      if (rs !== 1) { ps[BI.hips * 3] *= rs; ps[BI.hips * 3 + 1] *= rs; ps[BI.hips * 3 + 2] *= rs; }
 
       // application
       const bones = this.bones, rest = this.restArr, ord = this.orders;
@@ -1150,6 +1347,8 @@
       let open = m[0], wide = m[1], tilt = m[2], up = m[3], mouth = m[4], grin = m[5];
       if (spec.mood === "angry" && moving) mouth = 0.55 + 0.45 * Math.abs(Math.sin(t * 5 + this.id));
       if (spec.mood === "puff") mouth = 0.15;
+      if (spec.mood === "effort" && moving) mouth = 0.35 + 0.35 * Math.abs(Math.sin(t * 6 + this.id));
+      if (this.gesture === "flash") { wide = 1.25; grin = 1.6; open = 1; }
       const scared = s.burn || w.fear > 0.5 || s.freeze;
       if (s.carrying) { tilt = -0.15; up = 0.02; grin = 1.45; open = 0.8; mouth = Math.max(mouth, 0.3); }
       if (scared) { wide = 1.25; tilt = -0.38; up = 0.05; mouth = 1; grin = 0.8; open = 1; }
@@ -1232,30 +1431,67 @@
         roll -= this.dodgeSide * q * 0.22;
         y += Math.sin(Math.min(1, k * 2) * Math.PI) * 0.22;
       }
+      // pataugeage : le personnage s'enfonce dans l'eau (l'objet est posé à la surface)
+      if (w.wade > 0.001) y -= (spec.wadeDepth === undefined ? 0.46 : spec.wadeDepth) * this.scale * w.wade;
+      // montgolfière : balancement doux autour du ballon, petit tangage en avançant
+      const fly = this.flying, os = this.object.scale.y || 1;
+      if (fly && react !== "die" && react !== "escape") {
+        pivotY = spec.pivotY || 0;
+        y += Math.sin(t * 0.8 + this.id) * 0.12;
+        roll += Math.sin(t * 0.9 + this.id * 1.3) * 0.045;
+        pitch += Math.sin(t * 0.67 + this.id * 0.7) * 0.03 + 0.04 * w.move;
+      }
       if (react === "spawn") {
         const k = clamp(rt / REACT.spawn, 0, 1);
         const q = Math.min(1, k / 0.6);
         const sc = q < 1 ? backOut(q, 1.2) : 1;
         sx *= Math.max(0.01, sc * (1 + 0.12 * Math.sin(q * Math.PI))); sy *= Math.max(0.01, sc * (1 - 0.08 * Math.sin(q * Math.PI)));
-        y += Math.sin(Math.min(1, k / 0.5) * Math.PI) * 0.45;
+        y += Math.sin(Math.min(1, k / 0.5) * Math.PI) * (fly ? 0 : 0.45);
+      }
+      if (react === "blink") {
+        // réapparition du korrigan : il jaillit du pouf en tournoyant
+        const k = clamp(rt / REACT.blink, 0, 1);
+        const q = clamp((k - 0.12) / 0.6, 0, 1);
+        const sc = q <= 0 ? 0.001 : backOut(q, 2.4);
+        sx *= Math.max(0.001, sc); sy *= Math.max(0.001, sc * (1 + 0.18 * Math.sin(q * Math.PI)));
+        yaw += (1 - ease(q)) * TAU;
+        y += Math.sin(q * Math.PI) * 0.5;
       }
       if (react === "escape") {
-        // saut de joie, pirouette, puis « pouf »
         const k = clamp(rt / REACT.escape, 0, 1);
-        y += Math.sin(Math.min(1, k / 0.7) * Math.PI) * 1.3;
-        yaw += ease(k) * TAU;
-        const sh = 1 - clamp((k - 0.62) / 0.3, 0, 1);
-        sx *= Math.max(0.001, sh); sy *= Math.max(0.001, sh * (1 + 0.3 * (1 - sh)));
+        if (fly) {
+          // la montgolfière file vers le ciel et s'efface
+          y += (k * k * 9) / os;
+          yaw += k * 0.6;
+          const sh = 1 - clamp((k - 0.55) / 0.4, 0, 1);
+          sx *= Math.max(0.001, sh); sy *= Math.max(0.001, sh);
+        } else {
+          // saut de joie, pirouette, puis « pouf »
+          y += Math.sin(Math.min(1, k / 0.7) * Math.PI) * 1.3;
+          yaw += ease(k) * TAU;
+          const sh = 1 - clamp((k - 0.62) / 0.3, 0, 1);
+          sx *= Math.max(0.001, sh); sy *= Math.max(0.001, sh * (1 + 0.3 * (1 - sh)));
+        }
       }
       if (react === "die") {
         const C = spec.center;
-        if (ride) {
-          // la monture bascule sur le flanc
-          const k = clamp(rt / 0.34, 0, 1);
+        if (fly) {
+          // le ballon se dégonfle (13-mounts.js), puis tout tombe de la hauteur de vol et s'écrase
+          const lift = (s.alt !== undefined ? s.alt : 6) / os;
+          const tf = clamp((rt - 0.3) / 0.75, 0, 1);
+          y -= lift * tf * tf;
+          const land = clamp((rt - 1.05) / 0.3, 0, 1);
+          if (land > 0) y += Math.sin(land * Math.PI) * 0.35;
+          roll += Math.sin(rt * 7 + this.id) * 0.16 * tf * (1 - land);
+          pitch += Math.sin(rt * 5.3) * 0.1 * tf * (1 - land) + 0.25 * bounceOut(land);
+        } else if (ride) {
+          // la monture bascule sur le flanc (le tracteur se renverse franchement, petit bond d'abord)
+          const tip = spec.tipAngle || 1.35, hop = spec.tipHop || 0.25;
+          const k = clamp(rt / (spec.tipTime || 0.34), 0, 1);
           const side = this.id % 2 ? 1 : -1;
-          roll += side * bounceOut(k) * 1.35;
-          px += side * bounceOut(k) * 0.35 * (spec.dims.w / this.scale);
-          y += Math.sin(clamp(rt / 0.2, 0, 1) * Math.PI) * 0.25;
+          roll += side * bounceOut(k) * tip;
+          px += side * bounceOut(k) * 0.35 * (spec.dims.w / this.scale) * (tip / 1.35);
+          y += Math.sin(clamp(rt / (0.2 * (spec.tipTime || 0.34) / 0.34), 0, 1) * Math.PI) * hop;
         } else {
           // chute en arrière, rebond, puis couché
           const k = clamp(rt / 0.32, 0, 1);
@@ -1266,7 +1502,7 @@
           if (rt < 0.4) { const q = Math.sin(clamp(rt / 0.4, 0, 1) * Math.PI); sy *= 1 + 0.1 * q; }
           void C;
         }
-        const sh = clamp((rt - 0.72) / 0.26, 0, 1);
+        const sh = clamp((rt - (this.dieT - 0.28)) / 0.26, 0, 1);
         sx *= 1 - 0.3 * sh; sy *= 1 - 0.3 * sh;
       }
       // composition : pivot près du sol pour les chutes
@@ -1289,7 +1525,8 @@
         const k = s.carrying ? (p < 1 ? 0.35 + 0.65 * backOut(p) : 1) : 1;
         gb.scale.setScalar(k);
         const bob = moving ? Math.abs(Math.sin(this.phase)) * 0.05 : Math.sin(t * 2.4 + this.id) * 0.03;
-        if (w.carry > 0.01 && !this.dead) {
+        // gemme tenue en main (sinon posée sur la monture : toit du tracteur, nacelle)
+        if (w.carry > 0.01 && !this.dead && !this.spec.carry.parent) {
           const arms = this.spec.carry.arms;
           const upL = CARRY_UP[arms[0]], upR = CARRY_UP[arms[1]];
           const h = this.handInBody(upL ? 0 : 1, this.v1);
@@ -1305,7 +1542,7 @@
         B.p_cape.rotation.set(0.12 + 0.45 * k + Math.sin(t * 7 + this.id) * 0.05 * (0.3 + k), 0, Math.sin(this.phase) * 0.06 * w.move);
       }
       if (B.p_hat && !this.fly.hat) {
-        B.p_hat.scale.setScalar(this.hatGone ? 0 : 1);
+        B.p_hat.scale.setScalar(this.hatGone ? 0 : this.spec.hatScale || 1);
         if (!this.hatGone) B.p_hat.rotation.set(this.react === "hit" ? -0.25 * Math.sin((this.reactT / REACT.hit) * Math.PI) : 0, 0, 0);
       }
     }
@@ -1362,7 +1599,10 @@
       e[0] = Math.max(w.flash, this.react === "hit" ? Math.max(0, 1 - this.reactT / REACT.hit) * 0.8 : 0); e[1] = w.wet; e[2] = w.frozen; e[3] = w.burn;
       e[4] = w.ghost * 0.85; e[5] = w.diss; e[6] = w.imm; e[7] = w.haste;
       e[8] = Math.min(1.5, speed / 3); e[9] = w.radiance; e[10] = w.stun; e[11] = this.seed;
-      e[12] = 0; e[13] = 0; e[14] = 0; e[15] = 1;
+      // ligne d'eau (hauteur monde de l'origine : le rendu pose nageurs et pataugeurs à la surface)
+      const o = this.object, par = o.parent;
+      e[12] = (par ? par.matrixWorld.elements[13] : 0) + o.position.y; e[13] = Math.max(w.water, w.wade);
+      e[14] = Math.max(this.glow, this.flashGlow); e[15] = 1;
     }
 
     /** Retour à la réserve (caché, remis à zéro). */
@@ -1391,6 +1631,11 @@
     fierce: [0.8, 1.05, 0.55, -0.01, 0.45, 1.2],
     puff: [0.75, 1, 0.1, 0.02, 0.15, 0.7],
     proud: [0.8, 1, 0.3, 0, 0, 1.3],
+    // korrigan : paupières mi-closes et grand sourire en coin ; touriste : yeux ronds, ravi ;
+    // coureur : concentré, bouche ouverte (il souffle)
+    mischief: [0.55, 1.05, 0.5, 0, 0.12, 1.75],
+    tourist: [1, 1.12, -0.25, 0.03, 0.25, 1.4],
+    effort: [0.6, 1, 0.5, -0.01, 0.55, 0.9],
   };
   /** Résolution du tampon de dessin pour l'épaisseur du contour (une fois par image suffit). */
   const _res = new THREE.Vector2();

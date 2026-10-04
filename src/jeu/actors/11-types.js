@@ -28,10 +28,14 @@
   A.PALETTE = [
     0xf2ead8, 0xffffff, 0xffcf1f, 0xe0302a, 0x1f2a5c, 0x18181c, 0xff7a1a, 0x2c5220,
     0xf2b632, 0x6b4a2a, 0x6aa83a, 0x4e4a44, 0x8a7a48, 0x2a4fc8, 0xb4c0d2, 0x9aa0a8,
+    0x15131a, 0xff4f9a, 0x7a4818, 0x8a2be2, 0x1aa9b8, 0xd8262a, 0xffe14a, 0x3a2a1c,
   ];
-  const PAL = { cream: 0, white: 1, yellow: 2, red: 3, navy: 4, black: 5, orange: 6, dkgreen: 7, gold: 8, brown: 9, leaf: 10, dusk: 11, khaki: 12, royal: 13, lace: 14, grey: 15 };
-  const PART = { plain: 0, stripes: 2, vstripes: 3, eye: 4, pupil: 5, lace: 6, pie: 7, camo: 8, check: 9, hoops: 10, tartan: 11, feather: 12 };
-  const MAT = { matte: 0, satin: 1, gloss: 2, metal: 3, glow: 4, fluo: 5, gold: 6, glass: 7 };
+  const PAL = {
+    cream: 0, white: 1, yellow: 2, red: 3, navy: 4, black: 5, orange: 6, dkgreen: 7, gold: 8, brown: 9, leaf: 10, dusk: 11, khaki: 12, royal: 13, lace: 14, grey: 15,
+    ink: 16, pink: 17, wicker: 18, violet: 19, teal: 20, scarlet: 21, lemon: 22, umber: 23,
+  };
+  const PART = { plain: 0, stripes: 2, vstripes: 3, eye: 4, pupil: 5, lace: 6, pie: 7, camo: 8, check: 9, hoops: 10, tartan: 11, feather: 12, jersey: 13, flowers: 14, wicker: 15, glass: 16, straw: 17, dots: 19 };
+  const MAT = { matte: 0, satin: 1, gloss: 2, metal: 3, glow: 4, fluo: 5, gold: 6, glass: 7, flash: 8, magic: 9 };
   A.PAL = PAL;
   A.PART = PART;
   A.MAT = MAT;
@@ -235,30 +239,48 @@
   //       shirt, shirtPart, shirtPal, shirtMat, sleeve (0 débardeur … 1 manches longues), cuff,
   //       pants, pantsPart, pantsPal, pantsLen (0.3 short … 1 long), socks, legStops (tronçons de jambe),
   //       shoe, sole, glove (null = mains nues), robe { color, part, pal, mat, hem, flare } }
+  //       noLegs (caché dans la nacelle), glowEyes (yeux lumineux à pupille fendue : korrigan),
+  //       ears (oreilles rondes) ou pointyEars (longues oreilles pointues de lutin)
   function body(k, p, c) {
     head(k, p, c);
     if (c.robe) robe(k, p, c);
     else torso(k, p, c);
     arms(k, p, c);
-    legs(k, p, c);
+    if (!c.noLegs) legs(k, p, c);
   }
   function head(k, p, c) {
-    k.add(G.sphere(p.headR, 12, 8), { bone: "head", pos: HC(p), scale: [1, 0.96, 0.97], color: c.headColor || c.skin, mat: 1, outline: true });
+    // cavaliers et conducteurs (c.lite) : tête un peu moins fine (budget de triangles de la monture)
+    k.add(c.lite ? G.sphere(p.headR, 10, 7) : G.sphere(p.headR, 12, 8), { bone: "head", pos: HC(p), scale: [1, 0.96, 0.97], color: c.headColor || c.skin, mat: 1, outline: true });
     if (c.ears) for (const s of [1, -1]) k.add(G.sphere(0.085, 6, 4), { bone: "head", pos: [s * (p.headR - 0.02), p.headY - 0.05, p.headZ - 0.02], scale: [0.55, 1, 0.8], color: c.skin, mat: 1, outline: true });
+    if (c.pointyEars) {
+      // longues oreilles pointues tendues de côté (on les voit dépasser du chapeau, vues de haut)
+      const L = c.pointyEars;
+      for (const s of [1, -1]) {
+        k.add(G.cone(0.15, L, 6), { bone: "head", pos: [s * (p.headR + L * 0.4), p.headY + 0.08, p.headZ - 0.04], rot: [0, 0, -s * (Math.PI / 2 - 0.42)], scale: [1, 1, 0.5], color: c.skin, mat: 1, outline: true });
+        k.add(G.cone(0.085, L * 0.7, 5), { bone: "head", pos: [s * (p.headR + L * 0.34), p.headY + 0.08, p.headZ + 0.0], rot: [0, 0, -s * (Math.PI / 2 - 0.42)], scale: [1, 1, 0.3], color: c.earIn || 0xe07a6a, mat: 1, outline: false });
+      }
+    }
     face(k, p, c);
   }
   function face(k, p, c) {
     for (const s of [1, -1]) {
       const eb = s > 0 ? "eye_l" : "eye_r", bb = s > 0 ? "brow_l" : "brow_r";
       const ex = s * p.eyeX;
-      // blanc bombé (liseré d'encre dans le shader), pupille, reflet
-      k.add(G.sphere(p.eyeR, 7, 5), { bone: eb, pos: [ex, p.eyeY, p.eyeZ], scale: [0.9, 1.1, 0.8], color: 0xffffff, part: PART.eye, mat: 2, outline: false });
-      k.add(G.sphere(p.eyeR * 0.56, 5, 3), { bone: eb, pos: [ex, p.eyeY - 0.006, p.eyeZ + p.eyeR * 0.55], scale: [1, 1.12, 0.62], color: c.iris || 0x17110d, part: PART.pupil, mat: 2, outline: false });
-      k.add(G.sphere(p.eyeR * 0.2, 4, 3), { bone: eb, pos: [ex + 0.026, p.eyeY + 0.03, p.eyeZ + p.eyeR * 0.93], color: 0xffffff, mat: MAT.glow, outline: false });
+      // (petites sphères peu découpées : à l'échelle du jeu, un œil fait quelques pixels)
+      if (c.glowEyes) {
+        // yeux de lutin : globe lumineux qui palpite, pupille fendue
+        k.add(G.sphere(p.eyeR, 7, 5), { bone: eb, pos: [ex, p.eyeY, p.eyeZ], scale: [0.95, 1.08, 0.8], color: c.glowEyes, mat: MAT.magic, outline: false });
+        k.add(G.sphere(p.eyeR * 0.5, 4, 3), { bone: eb, pos: [ex, p.eyeY, p.eyeZ + p.eyeR * 0.62], scale: [0.4, 1.35, 0.55], color: 0x120a04, part: PART.pupil, mat: 2, outline: false });
+      } else {
+        // blanc bombé (liseré d'encre dans le shader), pupille, reflet
+        k.add(G.sphere(p.eyeR, 6, 5), { bone: eb, pos: [ex, p.eyeY, p.eyeZ], scale: [0.9, 1.1, 0.8], color: 0xffffff, part: PART.eye, mat: 2, outline: false });
+        k.add(G.sphere(p.eyeR * 0.56, 5, 3), { bone: eb, pos: [ex, p.eyeY - 0.006, p.eyeZ + p.eyeR * 0.55], scale: [1, 1.12, 0.62], color: c.iris || 0x17110d, part: PART.pupil, mat: 2, outline: false });
+        k.add(G.sphere(p.eyeR * 0.2, 3, 2), { bone: eb, pos: [ex + 0.026, p.eyeY + 0.03, p.eyeZ + p.eyeR * 0.93], color: 0xffffff, mat: MAT.glow, outline: false });
+      }
       k.add(G.box(0.16, 0.06, 0.06), { bone: bb, pos: [ex, p.browY, p.browZ], rot: [0.2, 0, 0], scale: [c.browW || 1, c.browH || 1, 1], color: c.brow || 0x2a1a10, mat: 1, outline: false });
-      if (c.cheek !== null) k.add(G.sphere(c.cheekR || 0.07, 5, 3), { bone: "head", pos: [s * 0.27, p.headY - 0.12, p.headZ + 0.35], scale: [1, 0.7, 0.35], color: c.cheek || 0xff8f8f, outline: false });
+      if (c.cheek !== null) k.add(G.sphere(c.cheekR || 0.07, 5, 2), { bone: "head", pos: [s * 0.27, p.headY - 0.12, p.headZ + 0.35], scale: [1, 0.7, 0.35], color: c.cheek || 0xff8f8f, outline: false });
     }
-    if (!c.noNose) k.add(G.sphere(p.noseR, 6, 4), { bone: "head", pos: [0, p.noseY, p.noseZ], scale: [1.05, 0.9, 1], color: c.nose || shade(c.skin, 0.93, 1.04), mat: 1, outline: false });
+    if (!c.noNose) k.add(G.sphere(p.noseR, 5, 4), { bone: "head", pos: [0, p.noseY, p.noseZ], scale: [1.05, 0.9, 1], color: c.nose || shade(c.skin, 0.93, 1.04), mat: 1, outline: false });
     k.add(G.sphere(1, 6, 3), { bone: "mouth", pos: [0, p.mouthY, p.mouthZ], scale: [0.1, 0.032, 0.04], color: 0x4a0f12, mat: 1, outline: false });
   }
   function torso(k, p, c) {
@@ -322,14 +344,14 @@
       const a = [s * p.shX, p.shY, 0], e = [s * p.elX, p.elY, 0.02], w = [s * p.wrX, p.wrY, 0.04];
       const stops = c.sleeve >= 0.99 ? [[0, c.shirt]] : c.sleeve > 0.05 ? [[0, c.shirt], [c.sleeve, c.skin]] : [[0, c.skin]];
       if (c.cuff) stops.push([0.84, c.cuff]);
-      const part = c.sleeve >= 0.99 && !c.cuff ? c.shirtPart || 0 : 0;
+      const part = c.sleeve >= 0.99 && !c.cuff ? c.shirtPart || 0 : c.sleevePart || 0;
       k.add(limbGeo("arm" + side + p.armR + "," + p.shX + "," + p.elX, [a, e, w], p.armR * 1.06, p.armR * 0.92, stops, 5, 3), {
         colors: true, part, pal: c.shirtPal || 0, weights: limbWeights(a, e, w, "arm" + side, "fore" + side, 0.07), outline: true,
       });
       // moufle + pouce
       const hc = c.glove || c.skin;
       const hr = p.handR;
-      k.add(G.sphere(hr, 6, 5), { bone: "hand" + side, pos: [w[0] + s * 0.015, w[1] - hr * 0.72, w[2] + 0.02], scale: [0.92, 1.05, 0.86], color: hc, mat: 1, outline: !!c.handOutline });
+      k.add(G.sphere(hr, 6, 4), { bone: "hand" + side, pos: [w[0] + s * 0.015, w[1] - hr * 0.72, w[2] + 0.02], scale: [0.92, 1.05, 0.86], color: hc, mat: 1, outline: !!c.handOutline });
       k.add(G.sphere(hr * 0.42, 4, 3), { bone: "hand" + side, pos: [w[0] - s * 0.05, w[1] - hr * 0.5, w[2] + hr * 0.72], color: hc, mat: 1, outline: false });
     }
   }
@@ -339,12 +361,12 @@
       if (!c.robe) {
         const a = [s * p.hipX, p.hip + 0.04, 0], e = [s * p.hipX, p.knee, 0.015], w = [s * p.hipX, p.ankle + 0.02, 0];
         const stops = c.legStops || (c.pantsLen >= 0.99 ? [[0, c.pants]] : [[0, c.pants], [c.pantsLen, c.socks || c.skin]]);
-        k.add(limbGeo("leg" + side + p.hip + "," + p.legR + "," + p.hipX, [a, e, w], p.legR * 1.08, p.legR * 0.92, stops, 5, 3), {
+        k.add(limbGeo("leg" + side + p.hip + "," + p.legR + "," + p.hipX, [a, e, w], p.legR * 1.08, p.legR * 0.92, stops, c.lite ? 4 : 5, 3), {
           colors: true, weights: limbWeights(a, e, w, "thigh" + side, "shin" + side, 0.08), outline: c.legOutline !== false,
         });
       }
       const ft = "foot" + side, f = p.foot;
-      k.add(G.rbox(f[0], f[1], f[2], 0.07, 2), { bone: ft, pos: [s * p.hipX, f[1] * 0.5 + 0.02, f[2] * 0.18], color: c.shoe, mat: c.shoeMat === undefined ? 1 : c.shoeMat, outline: false });
+      k.add(G.rbox(f[0], f[1], f[2], 0.07, c.lite ? 1 : 2), { bone: ft, pos: [s * p.hipX, f[1] * 0.5 + 0.02, f[2] * 0.18], color: c.shoe, mat: c.shoeMat === undefined ? 1 : c.shoeMat, outline: false });
       if (c.sole) k.add(G.box(f[0] + 0.02, 0.05, f[2] + 0.02), { bone: ft, pos: [s * p.hipX, 0.025, f[2] * 0.18], color: c.sole, mat: 0, outline: false });
     }
   }
@@ -381,14 +403,26 @@
       const a = (i / n) * TAU + (o.rot || 0);
       const sx = Math.sin(a), sz = Math.cos(a);
       k.add(G.cone(r * 0.3, h * 1.15, 4), { bone, pos: [x + sx * r * 0.96, y + h + h * 0.55, z + sz * r * 0.96], rot: [0, a + Math.PI / 4, 0], scale: [1, 1, 0.55], color: col, mat: MAT.gold, outline: o.big === true });
-      k.add(G.sphere(r * 0.1, 4, 3), { bone, pos: [x + sx * r * 0.96, y + h * 2.15, z + sz * r * 0.96], color: 0xfff0a0, mat: MAT.gold, outline: false });
-      k.add(G.sphere(r * 0.11, 4, 3), { bone, pos: [x + sx * r * 1.0, y + h * 0.5, z + sz * r * 1.0], scale: [1, 1, 0.6], quat: new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), a), color: jewels[i % jewels.length], mat: MAT.glow, outline: false });
+      k.add(G.sphere(r * 0.1, 3, 2), { bone, pos: [x + sx * r * 0.96, y + h * 2.15, z + sz * r * 0.96], color: 0xfff0a0, mat: MAT.gold, outline: false });
+      k.add(G.sphere(r * 0.11, 4, 2), { bone, pos: [x + sx * r * 1.0, y + h * 0.5, z + sz * r * 1.0], scale: [1, 1, 0.6], quat: new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), a), color: jewels[i % jewels.length], mat: MAT.glow, outline: false });
     }
     return y + h * 2.2;
   }
   /** Liseré doré (anneau). */
   function goldRing(k, bone, pos, R, r, rot, scale) {
     k.add(G.torus(R, r || 0.03, 3, 14), { bone, pos, rot: rot || [Math.PI / 2, 0, 0], scale, color: GOLD, mat: MAT.gold, outline: false });
+  }
+  /** Tige (cylindre) tendue d'un point a à un point b ; opt : options de Builder.add (+ seg). */
+  let _ra = null, _rb = null, _rUp = null;
+  function rod(k, a, b, r, color, opt) {
+    if (!_ra) { _ra = new THREE.Vector3(); _rb = new THREE.Vector3(); _rUp = new THREE.Vector3(0, 1, 0); }
+    _ra.fromArray(a);
+    _rb.fromArray(b);
+    const len = Math.max(1e-4, _ra.distanceTo(_rb));
+    _rb.sub(_ra).divideScalar(len);
+    const q = new THREE.Quaternion().setFromUnitVectors(_rUp, _rb);
+    const o = Object.assign({ pos: [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2, (a[2] + b[2]) / 2], quat: q, scale: [1, len, 1], color, mat: 1 }, opt || {});
+    k.add(G.cyl(r, r, 1, (opt && opt.seg) || 5), o);
   }
   /** Cocarde de concours (rubans et disque doré). */
   function rosette(k, bone, pos, s, cols) {
@@ -420,7 +454,7 @@
       },
     };
   }
-  A.parts = { mustache, cap, crown, goldRing, rosette, capeProp, HC };
+  A.parts = { mustache, cap, crown, goldRing, rosette, capeProp, HC, rod };
 
   /** Salopette : bavette, bretelles, boucles. */
   function overalls(k, p, col, buckle) {
@@ -1006,6 +1040,152 @@
     return cy + R * 1.02 + 0.17;
   }
 
+  // --- Korrigan : lutin breton, grosse tête, chapeau rond à boucle, oreilles pointues, yeux qui brillent --
+  // Petit (× 0,82) mais la tête est énorme : vu de haut, le chapeau noir à boucle d'or, les deux longues
+  // oreilles tendues de chaque côté et le gilet vert vif le désignent. Il sautille ; à l'arrêt, poings sur
+  // les hanches, il nargue. « blink » : il jaillit d'un pouf de fumée violette (12-overlay.js).
+  const KORR = {
+    headR: 0.56, headY: 1.79, eyeR: 0.155, eyeX: 0.21, eyeY: 1.84, eyeZ: 0.475, browY: 2.03, browZ: 0.515,
+    mouthY: 1.57, mouthZ: 0.525, noseY: 1.69, noseZ: 0.585, noseR: 0.115,
+    torsoR: 0.31, torsoD: 0.95, shX: 0.27, elX: 0.37, wrX: 0.42, armR: 0.07, legR: 0.085, handR: 0.12, foot: [0.24, 0.15, 0.4],
+  };
+  T.korrigan = {
+    label: "Korrigan",
+    championLabel: "Korrigan des menhirs",
+    scale: 0.82,
+    p: KORR,
+    look: {
+      skin: 0xc8875a, earIn: 0xa8503e, cheek: 0xd8645a, brow: 0x1e140c, browW: 1.4, browH: 1.6, nose: 0xb46a44,
+      glowEyes: 0xffe14a, pointyEars: 0.66,
+      shirt: 0xf4efe1, sleeve: 1, pants: 0x1f2a5c, pantsLen: 0.62, socks: 0xf4efe1, shoe: 0xd29a52, sole: 0x7a5228,
+      hat: 0x15131a, band: 0x8a2be2, buckle: GOLD, vest: 0x22b23c, trim: 0xffb21a, beard: 0x3a2414,
+    },
+    champion: { look: { vest: 0x149a30, trim: GOLD, band: GOLD, pants: 0x15131a } },
+    hatScale: 1.18,
+    mood: "mischief",
+    motion: { gait: "skip", arms: ["skip", "skip"], idleArms: ["akimbo", "akimbo"] },
+    carry: { pos: [0, 2.85, 0.05], arms: ["overhead", "overhead"] },
+    dims: { w: 1.35, h: 2.6, d: 1.1 },
+    height: 2.62,
+    props(s) {
+      const p = s.p;
+      const out = [{ name: "hat", parent: "head", pos: [0, p.headY + 0.36, p.headZ], build: (k, s) => {
+        const top = korriganHat(k, s.p, s.look, s.champion);
+        if (s.boss) crown(k, { pos: [0, top - 0.06, s.p.headZ - 0.03], r: 0.3, h: 0.17, big: true, jewels: [0x8a2be2, 0x3fd06a] });
+      } }];
+      if (s.boss) out.push(capeProp({ top: p.shY + 0.12, z: -0.22, w0: 0.66, w1: 1.1, len: 1.0, color: 0x5a1a8a }));
+      return out;
+    },
+    build(k, s) {
+      const p = s.p, L = s.look;
+      body(k, p, L);
+      vest(k, p, L.vest, { open: 0.5, trim: L.trim, trimMat: s.champion ? MAT.gold : 1 });
+      // boutons dorés et ceinture à boucle
+      for (const sd of [1, -1]) for (let i = 0; i < 3; i++) k.add(G.sphere(0.035, 4, 3), { bone: "body", pos: [sd * 0.19, p.waist + 0.15 + i * 0.12, p.torsoR * p.torsoD + 0.05], color: GOLD, mat: MAT.gold, outline: false });
+      belt(k, p, 0x2a1a10, GOLD, MAT.gold);
+      // barbiche pointue, favoris
+      k.add(G.cone(0.13, 0.32, 6), { bone: "head", pos: [0, p.mouthY - 0.2, p.mouthZ - 0.06], rot: [Math.PI + 0.35, 0, 0], scale: [1, 1, 0.7], color: L.beard, mat: 1, outline: true });
+      for (const sd of [1, -1]) k.add(G.sphere(0.12, 5, 4), { bone: "head", pos: [sd * (p.headR - 0.06), p.headY - 0.16, p.headZ + 0.12], scale: [0.55, 1.2, 0.8], color: L.beard, mat: 1, outline: false });
+      // sabots à bout relevé
+      for (const sd of [1, -1]) k.add(G.cone(0.08, 0.2, 5), { bone: sd > 0 ? "foot_l" : "foot_r", pos: [sd * p.hipX, 0.12, p.foot[2] * 0.62], rot: [Math.PI / 2 - 0.5, 0, 0], color: L.shoe, mat: 1, outline: true });
+      if (s.champion) {
+        // torque d'or et petit trèfle
+        k.add(G.torus(p.torsoR * 0.72, 0.04, 3, 10, Math.PI * 1.6), { bone: "body", pos: [0, p.chest - 0.03, 0.02], rot: [Math.PI / 2 + 0.1, 0, Math.PI * 0.2], color: GOLD, mat: MAT.gold, outline: false });
+      }
+    },
+    posing(a, R) {
+      // à l'arrêt : il se dandine en narguant ; tête penchée, toujours un peu de travers
+      const t = a.time, idle = 1 - a.w.move;
+      R(A.BI.body, 0, Math.sin(t * 2.6 + a.id) * 0.18 * idle, Math.sin(t * 5.2 + a.id) * 0.06 * idle);
+      R(A.BI.head, 0, 0, 0.14 + Math.sin(t * 1.7 + a.id) * 0.06);
+    },
+  };
+  function korriganHat(k, p, L, gold) {
+    const bone = "p_hat", y0 = p.headY + 0.36, z = p.headZ - 0.02;
+    k.add(G.cyl(0.6, 0.62, 0.05, 16), { bone, pos: [0, y0, z], color: L.hat, mat: 1, outline: true });
+    k.add(G.cyl(0.32, 0.36, 0.3, 12), { bone, pos: [0, y0 + 0.16, z], color: L.hat, mat: 1, outline: true });
+    k.add(G.cyl(0.366, 0.366, 0.11, 12, true), { bone, pos: [0, y0 + 0.08, z], color: L.band, mat: gold ? MAT.gold : 2, outline: false });
+    // grosse boucle dorée devant (lisible de haut, elle dépasse du bord)
+    k.add(G.rbox(0.32, 0.24, 0.05, 0.03, 1), { bone, pos: [0, y0 + 0.11, z + 0.37], rot: [-0.15, 0, 0], color: L.buckle, mat: MAT.gold, outline: true });
+    k.add(G.rbox(0.16, 0.11, 0.03, 0.015, 1), { bone, pos: [0, y0 + 0.11, z + 0.39], rot: [-0.15, 0, 0], color: L.hat, mat: 1, outline: false });
+    if (gold) k.add(G.torus(0.61, 0.022, 3, 22), { bone, pos: [0, y0 + 0.03, z], rot: [Math.PI / 2, 0, 0], color: GOLD, mat: MAT.gold, outline: false });
+    return y0 + 0.31;
+  }
+
+  // --- Touriste au flash : bob, chemise hawaïenne, short, chaussettes dans les sandales, appareil photo ---
+  // Coup de soleil, ventre rond, nez en l'air : il regarde partout. « flash » : il lève l'appareil vers
+  // la tour (cible), un gros éclair blanc part du flash (12-overlay.js) et la tour est éblouie.
+  T.touriste = {
+    label: "Touriste au flash",
+    championLabel: "Chasseur d'images",
+    p: { torsoR: 0.38, belly: 0.1, torsoD: 0.92, armR: 0.08, handR: 0.13 },
+    look: {
+      skin: 0xffad8e, cheek: 0xff5a5a, cheekR: 0.095, nose: 0xff7d6e, brow: 0x6a4a2a, browW: 1.1,
+      shirt: 0x14b4c4, shirtPart: PART.flowers, shirtPal: PAL.pink, sleeve: 0.36,
+      pants: 0xd8b47a, legStops: [[0, 0xd8b47a], [0.42, 0xffad8e], [0.68, 0xfbfbf7]], shoe: 0x8a5a2a, sole: 0x3a2412,
+      bob: 0xff6fae, bobBand: 0xfbfbf7, camera: 0x26262c, lens: 0x121216, strap: 0x7a3a1a, pack: 0xe0302a,
+    },
+    champion: { look: { shirt: 0x0e98a8, shirtPal: PAL.lemon, bobBand: GOLD, camera: 0x1a1a1e, strap: GOLD, pack: 0x7a2bd8 } },
+    mood: "tourist",
+    motion: { gait: "stroll", arms: [null, "camera"] },
+    carry: { pos: [0.5, 2.5, 0.08], arms: ["carryUp", "camera"] },
+    dims: { w: 1.4, h: 2.5, d: 1.2 },
+    height: 2.42,
+    props(s) {
+      const p = s.p, hc = handC(p, -1);
+      const out = [
+        { name: "hat", parent: "head", pos: [0, p.headY + 0.3, p.headZ], build: (k, s) => {
+          const top = bobHat(k, s.p, s.look, s.champion);
+          if (s.boss) crown(k, { pos: [0, top - 0.05, s.p.headZ - 0.03], r: 0.28, h: 0.16, big: true });
+        } },
+        { name: "camera", parent: "hand_r", pos: hc, build: (k, s) => photoCamera(k, hc, s.look, s.champion) },
+      ];
+      if (s.boss) out.push(capeProp({ top: p.shY + 0.14, z: -0.26, w0: 0.8, w1: 1.25, len: 1.1, color: 0x0e7a88, lining: 0xff4f9a }));
+      return out;
+    },
+    build(k, s) {
+      const p = s.p, L = s.look;
+      body(k, p, L);
+      // courroie de l'appareil autour du cou, banane sur le ventre
+      k.add(G.torus(p.torsoR * 0.82, 0.03, 3, 12), { bone: "body", pos: [0, p.chest - 0.12, 0.06], rot: [Math.PI / 2 + 0.55, 0, 0], color: L.strap, mat: 1, outline: false });
+      const bz = (p.torsoR * 1.08 + p.belly) * (p.torsoD + p.belly * 0.6);
+      k.add(G.rbox(0.42, 0.16, 0.14, 0.06, 2), { bone: "hips", pos: [0, p.waist + 0.04, bz - 0.02], color: L.pack, mat: 2, outline: true });
+      k.add(G.box(0.3, 0.025, 0.02), { bone: "hips", pos: [0, p.waist + 0.06, bz + 0.06], color: 0xf2f2f2, mat: MAT.metal, outline: false });
+      if (s.champion) {
+        // badge de presse doré et petite sacoche
+        k.add(G.rbox(0.14, 0.18, 0.03, 0.02, 1), { bone: "body", pos: [0.2, p.waist + 0.42, p.torsoR * p.torsoD + 0.1], rot: [-0.15, 0, 0], color: GOLD, mat: MAT.gold, outline: false });
+      }
+    },
+    posing(a, R) {
+      // nez en l'air : il regarde partout (sauf pendant la photo)
+      if (a.gesture || a.dead) return;
+      const t = a.time;
+      R(A.BI.head, -0.18 + Math.sin(t * 0.9 + a.id) * 0.08, Math.sin(t * 0.55 + a.id * 2) * 0.55, 0);
+    },
+    animate(a) {
+      a.hold("camera", 1, 0, 0, 0);
+    },
+  };
+  function bobHat(k, p, L, gold) {
+    const bone = "p_hat", y0 = p.headY + 0.28, z = p.headZ - 0.02;
+    // calotte arrondie et bord tombant (bob)
+    // (profils de tour parcourus de bas en haut, de l'extérieur vers l'intérieur : faces vers le dehors)
+    k.add(G.lathe("bobcrown2", [[0.42, 0.0], [0.36, 0.25], [0.2, 0.35], [0.001, 0.36]], 12), { bone, pos: [0, y0, z], color: L.bob, mat: 1, outline: true });
+    k.add(G.lathe("bobbrim2", [[0.42, -0.04], [0.68, -0.15], [0.66, -0.12], [0.4, 0.02]], 14), { bone, pos: [0, y0, z], color: L.bob, mat: 1, outline: true });
+    k.add(G.cyl(0.425, 0.43, 0.09, 12, true), { bone, pos: [0, y0 + 0.04, z], color: L.bobBand, mat: gold ? MAT.gold : 1, outline: false });
+    return y0 + 0.36;
+  }
+  function photoCamera(k, hc, L, gold) {
+    const [x, y, z] = hc;
+    const cy = y + 0.12, cz = z + 0.16;
+    k.add(G.rbox(0.4, 0.26, 0.18, 0.05, 2), { pos: [x, cy, cz], color: L.camera, mat: 2, outline: true });
+    k.add(G.cyl(0.11, 0.12, 0.18, 10), { pos: [x, cy - 0.01, cz + 0.16], rot: [Math.PI / 2, 0, 0], color: gold ? GOLD : 0x3a3a44, mat: gold ? MAT.gold : MAT.metal, outline: true });
+    k.add(G.cyl(0.075, 0.075, 0.02, 10), { pos: [x, cy - 0.01, cz + 0.255], rot: [Math.PI / 2, 0, 0], color: 0x2a4a7a, mat: MAT.glass, outline: false });
+    // flash : fenêtre blanche qui s'allume (classe « éclair »)
+    k.add(G.rbox(0.18, 0.12, 0.12, 0.02, 1), { pos: [x - 0.08, cy + 0.19, cz], color: 0x2a2a30, mat: 2, outline: true });
+    k.add(G.box(0.15, 0.08, 0.02), { pos: [x - 0.08, cy + 0.2, cz + 0.065], color: 0xfff8e0, mat: MAT.flash, outline: false });
+  }
+
   // ---------------------------------------------------------------------------------------------
   // Assemblage d'une variante (type + rang)
   // ---------------------------------------------------------------------------------------------
@@ -1022,7 +1202,11 @@
     fermier: "Le Grand Fermier", quad: "Le Roi du quad", cowboy: "Le Shérif d'Elven", vache: "Le Maire sur sa vache",
     druide: "Le Grand Druide", bigoudene: "La Reine des crêpes", chasseur: "Le Chasseur fantôme", rugbyman: "Le Capitaine",
     sonneur: "Le Penn-Soner", pompier: "Le Capitaine des pompiers", canard: "Le Canard doré",
+    cycliste: "Le Maillot jaune", korrigan: "Le Roi des korrigans", touriste: "Le Paparazzi", tracteur: "Le Roi du labour",
+    montgolfiere: "Le Baron des nuages",
   };
+  // Vitesses (cases/s) de démonstration quand les données du jeu ne connaissent pas encore le type.
+  const SPEED = { fermier: 1, quad: 1.6, cowboy: 0.75, vache: 0.7, druide: 1, bigoudene: 1, chasseur: 1.5, rugbyman: 1.5, sonneur: 1, pompier: 0.85, canard: 1.2, cycliste: 1.9, korrigan: 1.2, touriste: 1, tracteur: 0.55, montgolfiere: 0.55 };
   /** Spécification complète d'une variante (rang 0 ordinaire, 1 champion, 2 boss). */
   A.variantSpec = function (type, rank) {
     const base = T[type];
@@ -1051,13 +1235,15 @@
     spec.skeleton = skeleton(spec.p);
     spec.headC = [0, spec.p.headY, spec.p.headZ];
     spec.headR = spec.p.headR;
-    spec.scale = spec.scale || 1;
+    // échelle du gabarit : celle du type × agrandissement d'office (lisibilité vue du dessus)
+    spec.scale = (base.scale || 1) * (A.NATIVE || 1);
+    if (spec.hatScale === undefined) spec.hatScale = 1.12;
     const D = PTMT.sim && PTMT.sim.DATA;
     const tile = (D && D.TILE) || 3.6;
-    spec.natural = D && D.ENEMIES && D.ENEMIES[type] ? D.ENEMIES[type].speed * tile : (base.natural || 3.6);
-    // os d'accessoires : ceux du type + ancre de la gemme portée
+    spec.natural = D && D.ENEMIES && D.ENEMIES[type] ? D.ENEMIES[type].speed * tile : (SPEED[type] || 1) * tile;
+    // os d'accessoires : ceux du type + ancre de la gemme portée (sur le buste, ou sur la monture)
     const props = (typeof base.props === "function" ? base.props(spec) : base.props || []).slice();
-    props.push({ name: "gem", parent: "body", pos: spec.carry.pos.slice() });
+    props.push({ name: "gem", parent: spec.carry.parent || "body", pos: spec.carry.pos.slice() });
     spec.propDefs = props;
     spec.builds = [base.build];
     // sommet : + couronne pour le boss ; dimensions des effets à l'échelle du gabarit
@@ -1070,6 +1256,6 @@
     if (base.mount) spec.mount = base.mount;
     return spec;
   };
-  A.TYPES = ["fermier", "quad", "cowboy", "vache", "druide", "bigoudene", "chasseur", "rugbyman", "sonneur", "pompier", "canard"];
+  A.TYPES = ["fermier", "quad", "cowboy", "vache", "druide", "bigoudene", "chasseur", "rugbyman", "sonneur", "pompier", "canard", "cycliste", "korrigan", "touriste", "tracteur", "montgolfiere"];
   A.typeDefs = T;
 })();

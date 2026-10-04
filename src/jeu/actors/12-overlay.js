@@ -2,11 +2,15 @@
 //
 // Tous les ennemis écrivent dans les mêmes lots : sprites posés (flammes, étoiles, ombres, icônes),
 // particules simulées sur le GPU (fumée, gouttes, notes de biniou, crêpes, éclats de bulle, ronds dans
-// l'eau), glaçons et bulles de barrière instanciés. Quatre appels de dessin au total, quel que soit le
-// nombre d'ennemis. La planche de sprites est une copie de la planche commune (PTMT.gfx.atlas) à
-// laquelle on ajoute nos propres cases (48 à 63) : notes, crêpe, croix de soin, désarmé, plume,
-// fumigène, écusson, éclat, panique. Le groupe PTMT.actors.overlay.root s'ajoute tout seul à la scène
-// du premier ennemi mis à jour (on peut aussi l'ajouter soi-même).
+// l'eau, fumée de la cheminée du tracteur, étincelles violettes du korrigan, flamme du brûleur), glaçons
+// et bulles de barrière instanciés. Quatre appels de dessin au total, quel que soit le nombre d'ennemis.
+// La planche de sprites est une copie de la planche commune (PTMT.gfx.atlas) à laquelle on ajoute nos
+// propres cases (48 à 63) : notes, crêpe, croix de soin, désarmé, plume, fumigène, écusson, éclat,
+// panique, paille, éclair du flash. Événements : pouf violet du korrigan (« blink » : au départ, puis à
+// l'arrivée), gros éclair blanc du touriste (« flash », lisible de loin), explosion de foin du tracteur
+// (« split »). Le groupe PTMT.actors.overlay.root s'ajoute tout seul à la scène du premier ennemi mis à
+// jour (on peut aussi l'ajouter soi-même). Pas d'ombre douce sous la montgolfière (a.flying) : le rendu
+// la dessine au sol.
 (function () {
   "use strict";
   if (typeof THREE === "undefined") return; // rendu seulement : sans three.js (banc de simulation), rien à enregistrer
@@ -145,7 +149,7 @@
   }
 
   // --- planche de sprites : copie de la planche commune + nos cases ------------------------------
-  const MY = { note: 48, notes: 49, crepe: 50, plus: 51, disarm: 52, feather: 53, grenade: 54, badge: 55, shard: 56, panic: 57 };
+  const MY = { note: 48, notes: 49, crepe: 50, plus: 51, disarm: 52, feather: 53, grenade: 54, badge: 55, shard: 56, panic: 57, straw: 58, flash: 59 };
   ov.CELLS = MY;
   const INK = "#2b1a14";
   function paintMine(ctx) {
@@ -234,6 +238,27 @@
       for (const [x0, y0, x1, y1] of [[20, 70, 50, 62], [40, 30, 58, 52], [78, 20, 76, 50]]) {
         c.strokeStyle = INK; c.lineWidth = 20; c.beginPath(); c.moveTo(x0, y0); c.lineTo(x1, y1); c.stroke();
         c.strokeStyle = "#fff"; c.lineWidth = 10; c.beginPath(); c.moveTo(x0, y0); c.lineTo(x1, y1); c.stroke();
+      }
+    });
+    // brins de paille (blancs, teintables), en botte lâche
+    cell(MY.straw, (c) => {
+      const rnd = PTMT.rng(58);
+      for (let i = 0; i < 9; i++) {
+        const a = -0.9 + rnd() * 1.8, cx = 64 + (rnd() - 0.5) * 30, cy = 64 + (rnd() - 0.5) * 30, l = 34 + rnd() * 22;
+        const dx = Math.cos(a) * l, dy = Math.sin(a) * l;
+        c.strokeStyle = "rgba(90,60,10,0.9)"; c.lineWidth = 9; c.beginPath(); c.moveTo(cx - dx, cy - dy); c.lineTo(cx + dx, cy + dy); c.stroke();
+        c.strokeStyle = "#fff"; c.lineWidth = 5; c.beginPath(); c.moveTo(cx - dx, cy - dy); c.lineTo(cx + dx, cy + dy); c.stroke();
+      }
+    });
+    // éclair du flash : étoile à huit branches fines, cœur très clair (additif)
+    cell(MY.flash, (c) => {
+      const g = c.createRadialGradient(64, 64, 0, 64, 64, 60);
+      g.addColorStop(0, "rgba(255,255,255,1)"); g.addColorStop(0.18, "rgba(255,255,255,0.95)"); g.addColorStop(0.45, "rgba(255,255,255,0.25)"); g.addColorStop(1, "rgba(255,255,255,0)");
+      c.fillStyle = g; c.beginPath(); c.arc(64, 64, 60, 0, Math.PI * 2); c.fill();
+      c.fillStyle = "#fff";
+      for (let i = 0; i < 8; i++) {
+        const a = (i / 8) * Math.PI * 2, r = i % 2 ? 44 : 62, w = i % 2 ? 0.07 : 0.1;
+        c.beginPath(); c.moveTo(64 + Math.cos(a - w) * 10, 64 + Math.sin(a - w) * 10); c.lineTo(64 + Math.cos(a) * r, 64 + Math.sin(a) * r); c.lineTo(64 + Math.cos(a + w) * 10, 64 + Math.sin(a + w) * 10); c.closePath(); c.fill();
       }
     });
   }
@@ -371,6 +396,13 @@
       fearSweat: { grav: 7, life: 0.6, s0: 0.2, s1: 0.16, cell: C.sweat, a: 1, a1: 0.2, rot: 0 },
       radSpark: { life: 0.8, s0: 0.12, s1: 0.04, cell: C.twinkle, col: [0.35, 0.7, 1], a: 1, a1: 0, add: 1, curve: 1 },
       leaf: { grav: 3, drag: 1.5, life: 1.2, s0: 0.2, s1: 0.2, cell: C.leaf, a: 1, a1: 0.6, spin: 4, rot: "rand", fadeOut: 0.7 },
+      // cheminée du tracteur : grosses bouffées de suie qui montent et s'élargissent
+      soot: { drag: 0.9, life: 1.5, s0: 0.35, s1: 1.5, cell: C.puffDark, col: [0.16, 0.15, 0.16], col1: [0.42, 0.4, 0.4], a: 0.8, a1: 0, rot: "rand", spin: 0.8, curve: 1 },
+      // korrigan : étincelles violettes qui flottent autour de lui
+      magic: { drag: 1.5, life: 0.9, s0: 0.22, s1: 0.04, cell: C.twinkle, col: [0.75, 0.35, 1], a: 1, a1: 0, add: 1, spin: 3, curve: 2 },
+      // pataugeage : ronds autour des jambes, gerbes d'eau à chaque pas
+      wadeRing: { life: 0.9, s0: 0.5, s1: 1.6, cell: C.ripple, mode: 1, col: [0.85, 0.95, 1], a: 0.6, a1: 0, curve: 1 },
+      splash: { grav: 9, life: 0.5, s0: 0.1, s1: 0.06, cell: C.drop, mode: 2, stretch: 0.05, col: [0.8, 0.95, 1], a: 0.95, a1: 0.4 },
     };
     return R;
   }
@@ -392,8 +424,8 @@
     const es = a.es;
     const topY = pos.y + a.baseHeight * os;
     const visible = a.object.visible;
-    // ombre portée douce (lisibilité vue de haut)
-    if (ov.blobShadows && visible) {
+    // ombre portée douce (lisibilité vue de haut) ; la montgolfière vole : son ombre est au sol (rendu)
+    if (ov.blobShadows && visible && !a.flying) {
       const k = react === "die" ? Math.max(0, 1 - (rt - 0.72) / 0.26) : react === "escape" ? Math.max(0, 1 - (rt - 0.5) / 0.25) : 1;
       now.put(pos.x, pos.y + 0.025, pos.z, dw * 1.02, C.shadow, 0.02, 0.02, 0.04, 0.42 * k * (1 - 0.6 * w.ghost) * (1 - 0.8 * w.water), yaw - Math.PI / 2, 0, 1, dd / dw);
     }
@@ -507,14 +539,53 @@
         for (let i = 0; i < 3; i++) fx.emitR(R.paddle, v1.x, pos.y + 0.1, v1.z, (rnd() - 0.5) * 1.2, 1.5 + rnd() * 1.2, (rnd() - 0.5) * 1.2, pos.y);
       }
     }
-    // montures : fumée du quad, poussière des sabots
-    if (a.mountDef && a.speed > 0.1 && react !== "die") {
+    // montures : fumée du quad, poussière des sabots et des roues
+    if (a.mountDef && a.speed > 0.1 && react !== "die" && w.water < 0.3) {
       const kind = a.spec.mount.kind;
       if (kind === "quad" && every(a, "exhaust", 0.1, dt) && (ensure(a), true)) fx.emitR(R.exhaust, an.exhaust.x, an.exhaust.y, an.exhaust.z, -an.fwd.x * 1.2 + (rnd() - 0.5) * 0.4, 0.8 + rnd() * 0.4, -an.fwd.z * 1.2 + (rnd() - 0.5) * 0.4);
-      if ((kind === "cow" || kind === "quad") && every(a, "dust", kind === "cow" ? 0.4 : 0.22, dt)) {
+      if ((kind === "cow" || kind === "quad" || kind === "tractor" || kind === "bike") && w.wade < 0.3 && every(a, "dust", kind === "cow" ? 0.4 : kind === "bike" ? 0.3 : 0.22, dt)) {
         v1.copy(pos).addScaledVector(an.fwd, -dd * 0.3).addScaledVector(an.right, (rnd() - 0.5) * dw * 0.8);
         fx.emitR(R.dust, v1.x, pos.y + 0.08, v1.z, -an.fwd.x * 0.5, 0.3, -an.fwd.z * 0.5);
       }
+    }
+    // tracteur : la cheminée fume toujours (plus fort en roulant), noir épais
+    if (a.type === "tracteur" && react !== "die" && a.mountDef && every(a, "soot", a.speed > 0.1 ? 0.13 : 0.3, dt)) {
+      ensure(a);
+      fx.emitR(R.soot, an.exhaust.x, an.exhaust.y + 0.1 * es, an.exhaust.z, -an.fwd.x * a.speed * 0.4 + (rnd() - 0.5) * 0.3, 1.6 + rnd() * 0.6, -an.fwd.z * a.speed * 0.4 + (rnd() - 0.5) * 0.3, null, 1);
+    }
+    // montgolfière : flamme du brûleur à chaque bouffée
+    if (a.type === "montgolfiere" && a.glow > 0.05 && react !== "die") {
+      ensure(a);
+      const g = a.glow;
+      now.put(an.exhaust.x, an.exhaust.y + 0.45 * es, an.exhaust.z, 0.9 * es * g, C.flame, 1, 1, 1, 0.95 * g, Math.sin(t * 9) * 0.1, 0.35, 3);
+      now.put(an.exhaust.x, an.exhaust.y + 0.4 * es, an.exhaust.z, 1.6 * es * g, C.glow, 1, 0.65, 0.25, 0.7 * g, 0, 1, 0);
+    }
+    // korrigan : étincelles violettes qui flottent autour de lui
+    if (a.type === "korrigan" && react !== "die" && w.ghost < 0.5 && every(a, "magic", 0.22, dt)) {
+      const ang = rnd() * Math.PI * 2, r = dw * (0.35 + rnd() * 0.25);
+      fx.emitR(R.magic, pos.x + Math.cos(ang) * r, pos.y + dh * (0.2 + rnd() * 0.7), pos.z + Math.sin(ang) * r, Math.cos(ang) * 0.3, 0.5 + rnd() * 0.4, Math.sin(ang) * 0.3);
+    }
+    // pataugeage : ronds autour des jambes, gerbes d'eau en avançant
+    if (w.wade > 0.3 && react !== "die") {
+      const n = every(a, "wadeRing", a.speed > 0.1 ? 0.28 : 0.6, dt);
+      R.wadeRing.s0 = dw * 0.55; R.wadeRing.s1 = dw * 1.7;
+      for (let i = 0; i < n; i++) fx.emitR(R.wadeRing, pos.x, pos.y + 0.03, pos.z, 0, 0, 0, null, w.wade);
+      if (a.speed > 0.1 && every(a, "wadeSplash", 0.12, dt)) {
+        const sg = rnd() > 0.5 ? 1 : -1;
+        v1.copy(pos).addScaledVector(an.fwd, dd * 0.15).addScaledVector(an.right, sg * dw * 0.15);
+        for (let i = 0; i < 3; i++) fx.emitR(R.splash, v1.x, pos.y + 0.05, v1.z, (rnd() - 0.5) * 1.4 + an.fwd.x * 0.8, 1.6 + rnd() * 1.4, (rnd() - 0.5) * 1.4 + an.fwd.z * 0.8, pos.y);
+        if (rnd() < 0.5) fx.emitR(R.wake, pos.x - an.fwd.x * dd * 0.3, pos.y + 0.04, pos.z - an.fwd.z * dd * 0.3, -an.fwd.x * 0.5, 0, -an.fwd.z * 0.5);
+      }
+    }
+    // korrigan : réapparition (le rendu l'a déplacé depuis l'événement « blink »)
+    if (a._blinkArrive) {
+      a._blinkArrive = false;
+      violetPoof(a, pos.x, pos.y, pos.z, 1);
+    }
+    // touriste : le flash part au moment où l'appareil est à l'œil
+    if (a.gesture === "flash" && !a._flashed && a.gestureT >= A.FLASH_AT) {
+      a._flashed = true;
+      bigFlash(a);
     }
     // le sonneur joue en marchant : de temps en temps une note s'échappe du biniou
     if (a.type === "sonneur" && react !== "die" && w.disarm < 0.5 && w.frozen < 0.5 && every(a, "ambientNote", 1.1, dt)) {
@@ -579,9 +650,11 @@
           now.put(v1.x + Math.cos(ang) * 0.55 * es, v1.y + 0.2 + Math.sin(ang * 2) * 0.06, v1.z + Math.sin(ang) * 0.55 * es, 0.26 * es, C.star, 1, 1, 1, 1, ang, 0);
         }
       }
-      if (rt > 0.7 && !a._poofed) {
+      if (rt > a.dieT - 0.3 && !a._poofed) {
         a._poofed = true;
-        poof(a, pos, a.mountDef ? 0.9 : 0.45);
+        // la montgolfière s'est écrasée plus bas que son point d'accroche (le rendu la soulève)
+        if (a.flying) poof(a, a.rig.getWorldPosition(v2), 0.6);
+        else poof(a, pos, a.mountDef ? 0.9 : 0.45);
       }
     } else if (react === "escape") {
       if (rt > 0.52 && !a._poofed) {
@@ -600,6 +673,57 @@
     }
     for (let i = 0; i < 6; i++) fx.emit({ x: pos.x, y: cy + 0.3, z: pos.z, vx: (rnd() - 0.5) * 3, vy: 2 + rnd() * 2, vz: (rnd() - 0.5) * 3, grav: 6, life: 0.7, s0: 0.2 * k, s1: 0.1 * k, cell: C.star, a: 1, a1: 0, spin: 6 });
     if (a.type === "canard") for (let i = 0; i < 10; i++) fx.emit({ x: pos.x, y: cy + 0.2, z: pos.z, vx: (rnd() - 0.5) * 3, vy: 1.5 + rnd() * 2, vz: (rnd() - 0.5) * 3, grav: 2, drag: 1.8, life: 1.4, s0: 0.22 * k, s1: 0.2 * k, cell: MY.feather, r: a.boss ? 1 : 0.75, g: a.boss ? 0.8 : 0.72, b: a.boss ? 0.3 : 0.66, a: 1, a1: 0, rot: rnd() * 6, spin: (rnd() - 0.5) * 6, fadeOut: 0.7 });
+  }
+  /** Pouf de fumée violette du korrigan (départ ou arrivée) : volutes, étincelles, petit éclat. */
+  function violetPoof(a, x, y, z, arrive) {
+    if (!root) return;
+    const k = a.object.scale.y * a.scale, Q = ov.mobile ? 0.6 : 1;
+    const cy = y + 0.9 * k;
+    const n = Math.round(12 * Q);
+    for (let i = 0; i < n; i++) {
+      const ang = (i / n) * Math.PI * 2 + rnd() * 0.4, sp = 1.6 + rnd() * 1.6;
+      fx.emit({ x: x + Math.cos(ang) * 0.2, y: cy + (rnd() - 0.5) * 0.8 * k, z: z + Math.sin(ang) * 0.2, vx: Math.cos(ang) * sp * k, vy: 0.4 + rnd() * 1.2, vz: Math.sin(ang) * sp * k, drag: 3.2, life: 0.85 + rnd() * 0.3, s0: 0.55 * k, s1: 1.35 * k, cell: C.puff, r: 0.62, g: 0.3, b: 0.9, a: 0.95, a1: 0, rot: rnd() * 6, spin: (rnd() - 0.5) * 2, curve: 1, fadeOut: 0.6 });
+    }
+    for (let i = 0; i < Math.round(10 * Q); i++) fx.emit({ x: x + (rnd() - 0.5) * 1.2 * k, y: cy + (rnd() - 0.3) * 1.4 * k, z: z + (rnd() - 0.5) * 1.2 * k, vx: (rnd() - 0.5) * 1.5, vy: 0.8 + rnd() * 1.5, vz: (rnd() - 0.5) * 1.5, drag: 1.5, life: 0.8, s0: 0.3, s1: 0.05, cell: C.twinkle, r: 0.9, g: 0.6, b: 1, a: 1, a1: 0, add: 1, spin: 4, delay: rnd() * 0.15, curve: 2 });
+    fx.emit({ x, y: cy, z, life: 0.25, s0: 0.6 * k, s1: 2.6 * k, cell: C.glow, r: 0.75, g: 0.4, b: 1, a: 0.9, a1: 0, add: 1 });
+    if (arrive) fx.emit({ x, y: y + 0.05, z, life: 0.5, s0: 0.5 * k, s1: 2.4 * k, cell: C.ring, mode: 1, r: 0.7, g: 0.4, b: 1, a: 0.9, a1: 0, add: 0.6, curve: 1 });
+  }
+  /** Gros éclair blanc du flash : étoile, halo, anneau qui s'étend, lumière au sol (lisible de loin). */
+  const _fl = new THREE.Vector3();
+  function bigFlash(a) {
+    if (!root) return;
+    const B = a.B, os = a.object.scale.y;
+    a.object.updateMatrixWorld(true);
+    if (B.p_camera) B.p_camera.localToWorld(_fl.set(0, 0.32, 0.25));
+    else a.carryAnchor.getWorldPosition(_fl);
+    const k = Math.max(1, os);
+    fx.emit({ x: _fl.x, y: _fl.y, z: _fl.z, life: 0.32, s0: 2.6 * k, s1: 5.2 * k, cell: MY.flash, r: 1, g: 1, b: 1, a: 1, a1: 0, rot: rnd() * 0.5, add: 1 });
+    fx.emit({ x: _fl.x, y: _fl.y, z: _fl.z, life: 0.45, s0: 3.5 * k, s1: 7 * k, cell: C.glow, r: 1, g: 0.97, b: 0.85, a: 0.95, a1: 0, add: 1 });
+    fx.emit({ x: _fl.x, y: _fl.y, z: _fl.z, delay: 0.05, life: 0.4, s0: 1.2 * k, s1: 6.5 * k, cell: C.ring, r: 1, g: 1, b: 0.95, a: 0.9, a1: 0, add: 0.8, curve: 1 });
+    fx.emit({ x: _fl.x, y: _fl.y, z: _fl.z, delay: 0.12, life: 0.22, s0: 1.4 * k, s1: 3 * k, cell: MY.flash, r: 1, g: 1, b: 1, a: 0.85, a1: 0, rot: 0.4, add: 1 });
+    const p = a.object.position;
+    fx.emit({ x: p.x, y: p.y + 0.06, z: p.z, life: 0.5, s0: 4 * k, s1: 8 * k, cell: C.glow, mode: 1, r: 1, g: 0.98, b: 0.85, a: 0.75, a1: 0, add: 1 });
+    for (let i = 0; i < 8; i++) {
+      const ang = (i / 8) * Math.PI * 2;
+      fx.emit({ x: _fl.x, y: _fl.y, z: _fl.z, vx: Math.cos(ang) * 6, vy: Math.sin(ang) * 3 + 1, vz: Math.sin(ang) * 6, drag: 4, life: 0.35, s0: 0.35, s1: 0.1, cell: C.spark, mode: 2, stretch: 0.25, r: 1, g: 1, b: 0.9, a: 1, a1: 0, add: 1 });
+    }
+  }
+  /** Explosion de foin du tracteur : brins de paille, mottes, poussière, fumée noire. */
+  function hayBurst(a) {
+    if (!root) return;
+    const p = a.object.position, os = a.object.scale.y, k = os * a.scale, Q = ov.mobile ? 0.5 : 1;
+    const cy = p.y + 1.4 * k;
+    for (let i = 0; i < Math.round(30 * Q); i++) {
+      const ang = rnd() * Math.PI * 2, sp = 2 + rnd() * 5;
+      fx.emit({ x: p.x + (rnd() - 0.5) * k, y: cy + (rnd() - 0.5) * k, z: p.z + (rnd() - 0.5) * k, vx: Math.cos(ang) * sp, vy: 3 + rnd() * 5, vz: Math.sin(ang) * sp, grav: 7, drag: 1.2, life: 1.3 + rnd() * 0.5, s0: (0.35 + rnd() * 0.3) * k, s1: 0.3 * k, cell: MY.straw, r: 1, g: 0.8, b: 0.3, a: 1, a1: 0.6, rot: rnd() * 6, spin: (rnd() - 0.5) * 10, floor: p.y + 0.05, fadeOut: 0.75 });
+    }
+    for (let i = 0; i < Math.round(12 * Q); i++) {
+      const ang = rnd() * Math.PI * 2, sp = 1.5 + rnd() * 2.5;
+      fx.emit({ x: p.x, y: cy, z: p.z, vx: Math.cos(ang) * sp, vy: 0.5 + rnd() * 1.5, vz: Math.sin(ang) * sp, drag: 2.5, life: 1.0 + rnd() * 0.4, s0: 0.8 * k, s1: 2.0 * k, cell: C.puff, r: 0.95, g: 0.78, b: 0.42, a: 0.95, a1: 0, rot: rnd() * 6, curve: 1, fadeOut: 0.6 });
+    }
+    for (let i = 0; i < Math.round(8 * Q); i++) fx.emitR(recipes().soot, p.x + (rnd() - 0.5) * k, cy + 0.5 * k, p.z + (rnd() - 0.5) * k, (rnd() - 0.5) * 1.5, 1.5 + rnd() * 1.5, (rnd() - 0.5) * 1.5, null, 1);
+    fx.emit({ x: p.x, y: cy, z: p.z, life: 0.3, s0: 1.5 * k, s1: 4.5 * k, cell: C.glow, r: 1, g: 0.85, b: 0.45, a: 0.9, a1: 0, add: 1 });
+    fx.emit({ x: p.x, y: p.y + 0.06, z: p.z, life: 0.6, s0: 1 * k, s1: 4.5 * k, cell: C.ring, mode: 1, r: 1, g: 0.85, b: 0.5, a: 0.9, a1: 0, add: 0.5, curve: 1 });
   }
   const FIRE_PTS = [
     [0, 0, 0, 0.78],
@@ -733,6 +857,16 @@
       case "escape": {
         v1.copy(an.headTop).addScaledVector(UP, 0.4 * es);
         E({ x: v1.x, y: v1.y, z: v1.z, vy: 0.8, life: 0.8, s0: 0.5 * es, s1: 0.65 * es, cell: C.exclaim, a: 1, a1: 1, fadeOut: 0.75, curve: 2 });
+        break;
+      }
+      case "blink": {
+        // départ du korrigan : pouf violet là d'où il part (l'arrivée suit à la mise à jour)
+        const f = a._blinkFrom || pos;
+        violetPoof(a, f.x, f.y, f.z, 0);
+        break;
+      }
+      case "split": {
+        hayBurst(a);
         break;
       }
       case "immune": {
