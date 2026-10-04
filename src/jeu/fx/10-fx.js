@@ -6,7 +6,8 @@
 //   const p = PTMT.fx.shot(kind, départ, arrivée) : même projectile, déjà placé au départ, orienté vers l'arrivée.
 //   PTMT.fx.burst(kind, position, opts);
 //   (zones, cônes, aperçus de visée : 11-areas.js ; débris, sac, ressort, filet, vague, rappel : 12-props.js ;
-//    projectiles et impacts des tours v3 — bogues, jets d'eau, éclats de glace, eau noire, feux : 13-shots.js)
+//    tirs et impacts des tours — bogues, boules d'eau, de glace et d'eau sombre, feux — et jets continus
+//    PTMT.fx.beam(kind) du berger et des dragons : 13-shots.js ; anciens noms des tirs résolus par _.ALIAS)
 //
 // Une sorte de projectile (FX._.KINDS[kind]) : { spacing (m entre deux émissions de traînée), mesh() (maillage
 // propre, facultatif), start(p), head(p, dt) (sprites posés à chaque image), trail(p, point), place(p)
@@ -404,6 +405,7 @@
   _.Projectile = Projectile;
   FX.projectile = function (kind) {
     if (!S) throw new Error("PTMT.fx.projectile : appeler d’abord PTMT.fx.init()");
+    kind = (_.ALIAS && _.ALIAS[kind]) || kind; // anciens noms (waterJet → waterOrb…, voir 13-shots.js)
     const p = _.pool("proj:" + kind, () => new Projectile(kind));
     p._start();
     return p;
