@@ -36,7 +36,8 @@
 
   function Routes(view) {
     this.view = view;
-    this.key = "";
+    this.sig = NaN;
+    this.next = null;
     this.paths = [];
     this.alpha = 0;
     this.lastEntrances = [];
@@ -240,19 +241,19 @@
     const k = view.ovScale || 1;
     const right = view.cam.right;
     const w = st.wave || {};
-    // aperçu à recalculer ? (vague, carte, marée, cachettes vidées, gemmes au sol)
-    const next = st.over ? null : this.nextWave(st);
-    let key = "";
-    if (next) {
-      key = next.index + "|" + (st.map && st.map.version) + "|" + next.low + "|";
-      for (const L of (st.map && st.map.lairs) || []) key += L.stock > 0 ? "1" : "0";
-      for (const gem of st.gems || []) if (gem.where === "ground") key += "g" + gem.id;
-      for (const g of next.groups) key += ";" + g.entrance + g.mode;
+    // aperçu à recalculer ? (vague, carte, marée, cachettes vidées, gemmes au sol) : signature
+    // numérique, sans allocation ; la vague n'est relue qu'à un changement
+    let sig = ((w.index | 0) + 2) * 7919 + ((st.map && st.map.version) | 0) * 131 + (st.tide === "low" ? 17 : 0) + (st.over ? 3 : 0);
+    const lairs = (st.map && st.map.lairs) || [];
+    for (let i = 0; i < lairs.length; i++) sig = sig * 3 + (lairs[i].stock > 0 ? 1 : 0);
+    const gems = st.gems || [];
+    for (let i = 0; i < gems.length; i++) if (gems[i].where === "ground") sig += gems[i].id * 1013 + Math.floor(gems[i].x * 4) * 7 + Math.floor(gems[i].y * 4);
+    if (sig !== this.sig) {
+      this.sig = sig;
+      this.next = st.over ? null : this.nextWave(st);
+      this.build(st, this.next);
     }
-    if (key !== this.key) {
-      this.key = key;
-      this.build(st, next);
-    }
+    const next = this.next;
     const active = this.lastEntrances;
     const urgent = next && w.countdown !== undefined && w.countdown < 6;
     // entrées : blason lettré sur le poteau, chevrons au sol
@@ -296,7 +297,9 @@
       const col = P.color;
       const fly = P.mode === "fly";
       const phase = (time * speed) % gap;
-      let idx = 0;
+      // numéro de chaque point compté depuis le départ du défilement : le motif (un chevron tous
+      // les quatre points) avance avec eux sans sauter quand la phase reboucle
+      let idx = -Math.floor((time * speed) / gap);
       for (let s = phase; s < len; s += gap, idx++) {
         const q = Math.min(n - 1, Math.round(s / STEP));
         const o = q * 5;

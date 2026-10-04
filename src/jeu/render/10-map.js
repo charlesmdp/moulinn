@@ -533,17 +533,17 @@
     const rng = PTMT.rng(((map.id || 1) * 131) | 0);
     for (const e of g.entrances) {
       const w = e.tiles.length;
-      const lanes = w <= 1 ? [-0.45, 0.35] : w === 2 ? [-0.6, 0.0, 0.55] : [-0.75, -0.2, 0.3, 0.8];
+      // ornières de charrette (0) sur une voie au hasard, sente tassée (1) au milieu, empreintes (2)
+      const plan = w <= 1 ? [[0, -0.3], [2, 0.35]] : [[0, -0.55 + rng() * 0.3], [1, (rng() - 0.5) * 0.3], [2, 0.5 + rng() * 0.3], [0, 0.4 + rng() * 0.3]];
       for (const L of g.lairs) {
         const f = g.toLair(L.id, "walk");
         // départ : le milieu de l'entrée, au bord de la carte
         const sx = e.x, sy = e.y;
         if (g.at(f, Math.floor(sx), Math.floor(sy)) >= 1e8) continue;
-        for (const lane of lanes) {
-          const pts = MK.walkLine(g, f, sx + (rng() - 0.5) * 0.3, sy + (rng() - 0.5) * 0.3, lane + (rng() - 0.5) * 0.2, "walk", 90, [], 0.22 + rng() * 0.18);
+        for (const [kind, lane] of plan) {
+          const pts = MK.walkLine(g, f, sx + (rng() - 0.5) * 0.3, sy + (rng() - 0.5) * 0.3, lane, "walk", 90, [], kind === 1 ? 0.15 : 0.25 + rng() * 0.15);
           if (pts.length < 6) continue;
-          const r = rng();
-          out.push({ pts, kind: r < 0.4 ? 0 : r < 0.7 ? 1 : 2 });
+          out.push({ pts, kind });
         }
       }
     }
@@ -1228,8 +1228,8 @@
       c.lineCap = c.lineJoin = "round";
       // usure générale des couloirs (bande large, à peine plus sombre)
       for (const t of tracks) {
-        c.strokeStyle = "rgba(120,82,44,0.07)";
-        c.lineWidth = T * 0.55;
+        c.strokeStyle = "rgba(120,82,44,0.05)";
+        c.lineWidth = T * 0.7;
         c.stroke(linePath(t.pts, 0));
       }
       tracks.forEach((t, n) => {
@@ -1237,23 +1237,20 @@
         for (let k = 0; k < pts.length; k += 6) mark(pts[k], pts[k + 1], 0.32);
         const kind = t.kind;
         if (kind === 0) {
-          // ornières : deux sillons sombres bordés d'un bourrelet clair
+          // ornières : deux sillons sombres et doux (essieu d'une charrette, ≈ 1 m)
           for (const s of [-1, 1]) {
-            c.strokeStyle = "rgba(236,214,170,0.28)";
-            c.lineWidth = T * 0.05;
-            c.stroke(linePath(pts, s * 0.15));
-            c.strokeStyle = "rgba(88,56,28,0.42)";
-            c.lineWidth = T * 0.038;
-            c.stroke(linePath(pts, s * 0.12));
+            c.strokeStyle = "rgba(96,62,30,0.14)";
+            c.lineWidth = T * 0.075;
+            c.stroke(linePath(pts, s * 0.14));
+            c.strokeStyle = "rgba(78,48,22,0.3)";
+            c.lineWidth = T * 0.026;
+            c.stroke(linePath(pts, s * 0.14));
           }
         } else if (kind === 1) {
           // sente tassée : bande claire et lisse
-          c.strokeStyle = "rgba(240,214,166,0.2)";
-          c.lineWidth = T * 0.24;
+          c.strokeStyle = "rgba(244,218,170,0.16)";
+          c.lineWidth = T * 0.36;
           c.stroke(linePath(pts, 0));
-          c.strokeStyle = "rgba(110,76,40,0.12)";
-          c.lineWidth = T * 0.06;
-          c.stroke(linePath(pts, 0.05));
         } else {
           // empreintes (pas, sabots), alternées de part et d'autre de la trace
           const r2 = PTMT.rng(field.seed + 31 * n);
@@ -2896,7 +2893,8 @@
           const r = rng();
           const sp = r < 0.42 ? "oak" : r < 0.7 ? "chestnut" : r < 0.93 ? "pine" : "bush";
           const dark = 0.9 - 0.3 * smooth01(out / 3.5);
-          lists[sp].push({ x, y, s: (sp === "bush" ? 1.2 : 0.8) + rng() * 0.35, r: rng() * 6.28, v: (rng() * 2) | 0, k: dark * (0.9 + rng() * 0.15) });
+          // qualité « low » : une seule variante par essence (moins d'appels de dessin)
+          lists[sp].push({ x, y, s: (sp === "bush" ? 1.2 : 0.8) + rng() * 0.35, r: rng() * 6.28, v: this.high ? (rng() * 2) | 0 : 0, k: dark * (0.9 + rng() * 0.15) });
           if (sp !== "bush") this.staticShadowCasters.push({ x, y, r: 0.55, h: 3.2 });
         }
       }
@@ -2952,7 +2950,7 @@
       if (acc < 0.34 + rng() * 0.2) continue;
       acc = 0;
       const x = x0 + (rng() - 0.5) * 0.06, y = y0 + (rng() - 0.5) * 0.06;
-      list.push({ x, y, s: 0.55 + rng() * 0.45, r: rng() * 6.28, v: (rng() * 2) | 0 });
+      list.push({ x, y, s: 0.55 + rng() * 0.45, r: rng() * 6.28, v: this.high ? (rng() * 2) | 0 : 0 });
     }
     const mat = MK.treeMaterial("rocks", this.uTime);
     for (const v of [0, 1]) {
@@ -3304,6 +3302,7 @@
     for (const a of this.animated) a(dt, time);
   };
   W.dispose = function () {
+    if (this.disposePlaces) this.disposePlaces();
     this.root.parent && this.root.parent.remove(this.root);
     for (const d of this.disposables) d && d.dispose && d.dispose();
     this.disposables.length = 0;

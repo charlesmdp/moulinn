@@ -355,10 +355,23 @@
     time += dt;
     view.sync(game.state, game.drainEvents(), paused ? 0 : dt * game.state.speed, time);
   }
-  /** Avance rapide (le décor suit le temps simulé). */
+  /**
+   * Avance rapide (le décor suit le temps simulé). Sans rendu entre deux pas, les sprites « posés »
+   * des ennemis (PTMT.actors.overlay, vidés après chaque rendu) s'accumuleraient : on les vide comme
+   * le ferait un rendu.
+   */
+  function flushOverlay() {
+    const ov = P.actors && P.actors.overlay;
+    if (!ov || !ov.root) return;
+    if (ov.now) ov.now._rendered = true;
+    for (const m of ov.root.children) if (m.isInstancedMesh && m.onBeforeRender) m.onBeforeRender();
+  }
   function run(seconds) {
     view.clock = "game";
-    for (let k = 0; k < seconds * 30; k++) tick(1 / 30);
+    for (let k = 0; k < seconds * 30; k++) {
+      tick(1 / 30);
+      flushOverlay();
+    }
     view.clock = null;
   }
   const pre = num("t", 0);
@@ -411,6 +424,19 @@
     run,
     actions,
     spawn,
+    /** Vue refaite en cours de partie (comme main.js quand la qualité change) : l'état se pose sans animation. */
+    remount(q) {
+      if (q) quality = q;
+      view.dispose();
+      scene = new THREE.Scene();
+      const ov = P.actors && P.actors.overlay;
+      if (ov && ov.root && ov.root.parent) ov.root.parent.remove(ov.root);
+      view = P.view.create({ renderer, scene, map: P.sim.MAPS[mapN], mobile, quality, game });
+      view.buildMs = 0;
+      view.resize(innerWidth, innerHeight, INS);
+      window.view = view;
+      return true;
+    },
     placeTowers,
     raise,
     /** Une image dessinée tout de suite (mode ?still). */

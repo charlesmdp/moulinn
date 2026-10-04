@@ -257,6 +257,29 @@
     };
   }
 
+  /** La cachette lairId peut-elle loger total gemmes ? Sinon (compétence « Filon de gemmes »), on la refait. */
+  W.ensureLairCapacity = function (lairId, total) {
+    const L = this.lairs && this.lairs[lairId];
+    if (!L || total <= L.total) return;
+    const old = L.model, o0 = objOf(old);
+    const native = tryModel("lair", total, { style: L.style, mill: !!L.mill });
+    const model = native || FallbackLair(total, L.style);
+    const o = objOf(model);
+    o.position.copy(o0.position);
+    o.rotation.y = o0.rotation.y;
+    o0.parent && o0.parent.remove(o0);
+    try {
+      if (old.dispose) old.dispose();
+    } catch (e) {
+      /* ancien modèle déjà libéré */
+    }
+    this.root.add(o);
+    L.model = model;
+    L.native = !!native;
+    L.total = total;
+    L.slotsKey = "";
+    if (L.alarm && model.alarm) model.alarm(true);
+  };
   W.buildLairs = function () {
     this.lairs = [];
     const mill = this.map.mill || [];
@@ -623,6 +646,24 @@
         if (e.opened > 3) e.opened = -1;
       }
     }
+  };
+  /** Libère les modèles des lieux (vue détruite). */
+  W.disposePlaces = function () {
+    const free = (m) => {
+      try {
+        if (m && m.dispose) m.dispose();
+      } catch (e) {
+        /* modèle déjà libéré */
+      }
+    };
+    for (const L of this.lairs || []) free(L.model);
+    free(this.millModel);
+    for (const b of this.buttes || []) free(b.model);
+    for (const e of this.entrances || []) free(e.barrier);
+    this.lairs = [];
+    this.buttes = [];
+    this.entrances = [];
+    this.millModel = null;
   };
   void _m4;
 })();

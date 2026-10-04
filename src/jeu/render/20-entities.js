@@ -11,6 +11,7 @@
 //   view.showRange(towerId | null, range?) ; view.preview(i, j, family | null)
 //   view.target(spell | null, x, y) (x, y hors carte, par ex. −99 : visée commencée, rien à montrer)
 //   view.setUpgradeHints(ids) ; view.canBuild(i, j, family) ; view.floatText(x, y, lift, texte, classe)
+//   view.selectEnemy(id | null) : anneau doré sous l'ennemi suivi (fiche ouverte dans l'interface)
 //   view.game : la partie (facultative, pour l'aperçu des vagues : game.upcoming) ; view.dispose()
 //
 // La vue possède la carte (render/10-map.js et 15-places.js), la caméra fixe (render/30-camera.js),
@@ -933,6 +934,7 @@
     this.targetState = null;
     this.ghosts = {};
     this.game = o.game || null;
+    this.selEnemy = null;
     this.time = 0;
     this.real = 0;
     this.lastReal = performance.now();
@@ -1572,6 +1574,7 @@
     // logements pleins de chaque cachette (réutilisés d'une image à l'autre)
     const lairs = (st.map && st.map.lairs) || [];
     for (let k = 0; k < lairs.length; k++) {
+      W.ensureLairCapacity(k, lairs[k].total || 0);
       const full = this.lairFull[k] || (this.lairFull[k] = []);
       full.length = lairs[k].total || 0;
       full.fill(false);
@@ -2384,6 +2387,21 @@
   P.setUpgradeHints = function (ids) {
     this.hints = new Set(ids || []);
   };
+  /** Ennemi suivi (fiche ouverte dans l'interface) : anneau doré pulsé sous lui ; null pour aucun. */
+  P.selectEnemy = function (id) {
+    this.selEnemy = id === undefined ? null : id;
+  };
+  P.drawSelection = function (time) {
+    const M = this.marks;
+    if (!M || this.selEnemy === null || this.selEnemy === undefined) return;
+    const v = this.enemies.get(this.selEnemy);
+    if (!v) return;
+    const o = v.obj.position, k = this.ovScale || 1;
+    const size = Math.max(2.6, 1.9 * v.base * (v.flying ? 1.6 : 1)) * (1 + 0.07 * Math.sin(time * 6)) * Math.min(1.4, k);
+    const y = v.ground + 0.12;
+    M.put(o.x, y, o.z, size, HUD.ring, 1, 0.82, 0.2, 0.95, time * 0.8, 0, 1, 1);
+    M.put(o.x, y, o.z, size * 1.25, HUD.glow, 1, 0.8, 0.25, 0.35, 0, 1, 1, 1);
+  };
 
   /* --------------------------------------------------- dessin des surimpressions */
   P.drawHud = function (time) {
@@ -2571,7 +2589,8 @@
         if (!this._warnRoutes) console.warn("Aperçu des vagues :", e);
         this._warnRoutes = true;
       }
-    }
+    } else if (this.marks) this.marks.begin();
+    this.drawSelection(this.real);
     this.updateBossLabels();
     this.fresh = false;
     this.frameNo = (this.frameNo || 0) + 1;
@@ -2642,6 +2661,11 @@
     for (const v of this.dying) this.releaseEnemy(v);
     for (const v of this.projectiles.values()) v.handle && v.handle.release && v.handle.release();
     for (const v of this.areas.values()) v.handle && v.handle.release && v.handle.release();
+    for (const g of this.gems.values()) {
+      try {
+        if (g.model.dispose) g.model.dispose();
+      } catch (e) {}
+    }
     this.towers.clear();
     this.enemies.clear();
     this.projectiles.clear();
