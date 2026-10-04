@@ -2860,6 +2860,12 @@
         b.scale.setScalar(s);
       }
     }
+    // Pose de départ (avant le premier update : fantôme du mode construction, portraits…) : effets cachés,
+    // boules en place, bête au repos — sans toucher aux horloges partagées.
+    if (B.frenzy) B.frenzy.scale.setScalar(0.001);
+    if (B.dizzy) B.dizzy.scale.setScalar(0.001);
+    if (orbs) updateOrbs(0);
+    v.pose(st, B, 0);
     return api;
   }
 
