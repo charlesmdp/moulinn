@@ -1,7 +1,8 @@
-// « Pas touche à mes trésors » — socle des objets posés sur la carte (décor, gemmes, repaire…).
+// « Pas touche à mes trésors » — socle des objets posés sur la carte (décor, gemmes, cachettes…).
 //
-// Outils partagés par 41-gems.js (gemmes, moulin-repaire), 42-landmarks.js (menhirs, entrées),
-// 43-forests.js (forêts à couper, petits éléments de sol) et 44-decor.js (décor des cases X) :
+// Outils partagés par 41-gems.js (gemmes, cachettes), 42-landmarks.js (menhirs, entrées, moulin,
+// buttes, barrières), 43-forests.js (forêts à couper, petits éléments de sol, estran) et 44-decor.js
+// (décor des cases X) :
 //  - des gabarits de géométries indexées (sphères cabossées, rochers, cônes, lames, frondes…) ;
 //  - un accumulateur (P.Acc) qui fusionne des milliers de pièces transformées en UN maillage par
 //    matière : couleurs de sommets (dégradés, mousse, occlusion, grain), UV projetées, et pour chaque
@@ -12,10 +13,13 @@
 //    franches même à l'ombre, scintillement ; et sa jumelle pour les ombres portées ;
 //  - des lueurs et particules animées entièrement par la carte graphique (fumée, étincelles, gouttes,
 //    halos, chevrons au sol, rayons, ondes), toutes dans un seul appel de dessin par objet grâce à
-//    l'alpha prémultiplié (chaque sprite choisit son mélange, de normal à additif).
+//    l'alpha prémultiplié (chaque sprite choisit son mélange, de normal à additif) ;
+//  - des pièces rigides animées dans un lot (P.pieces : planches qui volent, haie qui s'écarte) ;
+//  - les matières partagées granit (moellons), ardoise et rochers (granit moucheté).
 //
 // Rôles de sommet (aInfo.w) : 0 plante qui tombe à la coupe, 1 fixe (souche, bâti), 2 s'enfonce à la
-// coupe (rocher, tertre), 3 roue du moulin, 4 cloche du moulin, 5 tas de gemmes (s'aplatit).
+// coupe (rocher, tertre), 3 roue du moulin, 4 cloche du moulin, 5 s'aplatit (uHeap, gardé pour
+// compatibilité).
 (function () {
   "use strict";
   const PTMT = globalThis.PTMT;
@@ -37,7 +41,6 @@
   };
 
   /* ------------------------------------------------------------------ gabarits */
-  const _v = new THREE.Vector3();
   /** Gabarit : tableaux bruts d'une géométrie indexée (positions, normales, UV, indices). */
   class Tpl {
     constructor(pos, nor, idx, uv) {
@@ -191,7 +194,7 @@
     return t;
   };
   P.tc = tc;
-  const T = (P.T = {
+  P.T = {
     /**
      * Sphère cabossée (icosaèdre soudé) de rayon ~1 : houppiers, buissons, meules.
      * cut : on retire les triangles du dessous (y < cut sur la sphère unité), jamais vus d'en haut.
@@ -339,7 +342,7 @@
         for (let i = 1; i <= m; i++) idx.push(0, i + 1, i);
         return twoSided(new Float32Array(pos), idx);
       }),
-  });
+  };
   /** Surface mince à deux faces (feuilles, lames) : on double les triangles, normales opposées. */
   function twoSided(pos, idx) {
     const n = pos.length / 3;
@@ -938,6 +941,115 @@
     const base = { map: P.graniteTex(), tri: 1.6, rim: [0.16, 0.5, 0.75], lift: 0.1, rough: 0.9, name: "rochers" };
     if (o) return P.paint(Object.assign(base, o));
     return P.shared("rock", () => P.paint(base));
+  };
+  /** Moellons de granit (murs, margelles : UV projetées par « box »), partagée. */
+  P.stoneMat = function () {
+    return P.shared("stone", () => P.paint({ map: K.tex.rubble(), rim: [0.05, 0.4, 0.5], lift: 0.12, name: "granit" }));
+  };
+  /** Ardoises des toits, partagée. */
+  P.slateMat = function () {
+    return P.shared("slate", () => P.paint({ map: K.tex.slate(), rough: 0.62, rim: [0.05, 0.4, 0.4], lift: 0.1, name: "ardoise" }));
+  };
+
+  /* ------------------------------------------------------------------ pièces rigides animées */
+  // Un lot (un seul maillage, un appel de dessin) dont certaines pièces bougent d'un bloc : planches
+  // qui volent, buissons qui s'écartent… On note la plage de sommets de chaque pièce pendant la
+  // construction ; pendant l'animation seulement, le processeur recalcule leurs sommets (positions et
+  // normales de repos gardées), puis le lot redevient immobile (aucun coût au repos).
+  //   const R = P.pieces(acc) ; R.begin([pivot]) ; acc.put(...)… ; const k = R.end() ;
+  //   après P.mesh : R.bind(mesh) ; R.set(k, [x, y, z], quaternion, [sx, sy, sz]) ; R.commit()
+  P.pieces = function (acc) {
+    const list = [];
+    let cur = null,
+      pos = null,
+      nor = null,
+      rest = null,
+      restN = null;
+    const api = {
+      list,
+      begin(pivot) {
+        cur = { v0: acc.nv, v1: acc.nv, pivot: pivot ? pivot.slice() : [0, 0, 0], p: new THREE.Vector3(), q: new THREE.Quaternion(), s: new THREE.Vector3(1, 1, 1), dirty: false };
+      },
+      end() {
+        cur.v1 = acc.nv;
+        cur.p.fromArray(cur.pivot);
+        list.push(cur);
+        cur = null;
+        return list.length - 1;
+      },
+      bind(mesh) {
+        const g = mesh.geometry;
+        pos = g.attributes.position;
+        nor = g.attributes.normal;
+        pos.setUsage(THREE.DynamicDrawUsage);
+        nor.setUsage(THREE.DynamicDrawUsage);
+        rest = Float32Array.from(pos.array);
+        restN = Float32Array.from(nor.array);
+      },
+      /** Pose d'une pièce : son pivot va en p, tourné de q, mis à l'échelle s (autour du pivot). */
+      set(k, p, q, s) {
+        const pc = list[k];
+        if (!pc) return;
+        pc.p.set(p[0], p[1], p[2]);
+        if (q) pc.q.copy(q);
+        else pc.q.identity();
+        if (s === undefined) pc.s.set(1, 1, 1);
+        else if (typeof s === "number") pc.s.set(s, s, s);
+        else pc.s.set(s[0], s[1], s[2]);
+        pc.dirty = true;
+      },
+      /** Pièce remise à sa place d'origine. */
+      home(k) {
+        const pc = list[k];
+        if (pc) api.set(k, pc.pivot, null, 1);
+      },
+      commit() {
+        if (!pos) return;
+        const P3 = pos.array,
+          N3 = nor.array;
+        let any = false;
+        for (const pc of list) {
+          if (!pc.dirty) continue;
+          pc.dirty = false;
+          any = true;
+          const qx = pc.q.x,
+            qy = pc.q.y,
+            qz = pc.q.z,
+            qw = pc.q.w;
+          const [ox, oy, oz] = pc.pivot;
+          const sx = pc.s.x,
+            sy = pc.s.y,
+            sz = pc.s.z;
+          for (let i = pc.v0; i < pc.v1; i++) {
+            const o = i * 3;
+            // Position : (repos − pivot) × échelle, tournée par le quaternion, + nouvelle place.
+            let x = (rest[o] - ox) * sx,
+              y = (rest[o + 1] - oy) * sy,
+              z = (rest[o + 2] - oz) * sz;
+            let tx = 2 * (qy * z - qz * y),
+              ty = 2 * (qz * x - qx * z),
+              tz = 2 * (qx * y - qy * x);
+            P3[o] = pc.p.x + x + qw * tx + (qy * tz - qz * ty);
+            P3[o + 1] = pc.p.y + y + qw * ty + (qz * tx - qx * tz);
+            P3[o + 2] = pc.p.z + z + qw * tz + (qx * ty - qy * tx);
+            x = restN[o];
+            y = restN[o + 1];
+            z = restN[o + 2];
+            tx = 2 * (qy * z - qz * y);
+            ty = 2 * (qz * x - qx * z);
+            tz = 2 * (qx * y - qy * x);
+            N3[o] = x + qw * tx + (qy * tz - qz * ty);
+            N3[o + 1] = y + qw * ty + (qz * tx - qx * tz);
+            N3[o + 2] = z + qw * tz + (qx * ty - qy * tx);
+          }
+        }
+        if (any) {
+          pos.needsUpdate = true;
+          nor.needsUpdate = true;
+        }
+      },
+    };
+    return api;
   };
 
   /* ------------------------------------------------------------------ planche des lueurs */
