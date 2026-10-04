@@ -965,13 +965,11 @@
       .premultiply(new THREE.Matrix4().makeRotationX(-TILT_F))
       .setPosition(fxp, H + poleH - 0.05 - (FH / 2) * Math.cos(TILT_F), fzp + (FH / 2) * Math.sin(TILT_F));
     A.put(pennantTpl(FLn, FH, HC.flag), [0, 0, 0], 0, 1, { sway: 4, pivot: [fxp, H, fzp] }, FM);
-    // Cailloux au pied (sur la route).
-    for (let i = 0; i < 6; i++) {
-      const a = rnd() * TAU;
-      const r = h + 0.12 + rnd() * 0.18;
-      const x = clamp(Math.cos(a) * r * 1.2, -h - 0.25, h + 0.25),
-        z = clamp(Math.sin(a) * r * 1.2, -h - 0.25, h + 0.25);
-      A.put(T.rock(700 + i, 0, 0.3), [x, 0.02, z], [0, rnd() * TAU, 0], [0.17 + rnd() * 0.1, 0.12, 0.15 + rnd() * 0.08], { c: "#8a847a", rim: 0.7, dark: 0.3 });
+    // Quelques cailloux au pied, devant (sur la route).
+    for (let i = 0; i < 4; i++) {
+      const x = (rnd() - 0.5) * 2 * (h - 0.2),
+        z = h + 0.14 + rnd() * 0.16;
+      A.put(T.rock(700 + i, 0, 0.3), [x, 0.02, z], [0, rnd() * TAU, 0], [0.12 + rnd() * 0.06, 0.08, 0.1 + rnd() * 0.05], { c: "#a49d90", rim: 0.6, dark: 0.25 });
     }
     const mat = P.shared("butte", () => P.paint({ sway: true, lift: 0.12, rim: [0.05, 0.45, 0.55], name: "butte" }));
     const mesh = P.mesh(A, mat, { cast: true, name: "butte", pad: 1.5 });

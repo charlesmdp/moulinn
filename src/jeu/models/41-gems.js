@@ -8,8 +8,8 @@
 //       lair      = fond de son logement (l'objet posé sur un gemSlot) : la pointe s'y pose, flaque
 //                   de lumière de sa couleur tout autour, lente rotation sur elle-même ;
 //       ground    = sol : elle flotte bien au-dessus, halo pulsé, ondes au sol, rayon de lumière vertical ;
-//       carried   = point d'accroche du porteur (carryAnchor) : elle flotte ≈ 0,9 m plus haut, un peu
-//                   plus petite (0,95 m) ;
+//       carried   = point d'accroche du porteur (carryAnchor, main levée) : son centre flotte 1 m plus
+//                   haut (≈ 0,9 m au-dessus de la tête), un peu plus petite (1 m) ;
 //       returning = centre de la gemme en vol (traînée lumineuse, dans le repère du monde).
 //     Deux appels de dessin : la gemme (matière à elle : facettes, feux, liseré sombre d'épaisseur
 //     constante à l'écran, éclats en étoile) et ses lueurs (+ la traînée pendant le retour).
@@ -19,15 +19,18 @@
 //     les gemmes se posent en couronne dans des coupelles de granit bien espacées (les logements
 //     vides restent visibles : anneau clair, creux noir). Styles :
 //       "moulin"   cachette principale : pavés et sacs de farine autour (le moulin est un modèle à part) ;
-//       "puits"    margelle de vieux puits breton, treuil et petit toit d'ardoise dans un coin ;
+//       "puits"    margelle de vieux puits breton, treuil, arceau de fer et seau dans un coin ;
 //       "dolmen"   deux pierres levées et leur table de granit, en portique derrière le trou ;
 //       "chapelle" croix celtique de granit, bougies allumées sur ses marches et sur le bord du trou.
 //     Le décor de style se tient derrière le trou (−Z local) ou dans les coins : vu du jeu, il ne
-//     cache jamais les gemmes. mill (facultatif, vrai pour la cachette principale) : pavés jusqu'au
-//     bord arrière, où se dresse la façade du moulin.
+//     cache jamais les gemmes, quelle que soit l'orientation donnée à la cachette (vérifié à 0°, 90°
+//     et 180°). mill (facultatif, vrai pour la cachette principale) : pavés jusqu'au bord arrière,
+//     où se dresse la façade du moulin.
 //     → { object, style, maxGems, gemSlots: [Vector3] (repère local : y poser la gemme « lair »),
-//         radius (rayon du fond), setGems(n) (les n premiers logements pleins), setSlots([bool…]),
-//         alarm(bool), update(dt, time), dispose() }
+//         slotWorld(k, out) (le même logement dans le monde), radius (rayon du fond),
+//         setSlots([bool…]) (quels logements sont pleins : un logement qui change s'éclaire un
+//         instant), setGems(n) (les n premiers pleins), alarm(bool) (cercle rouge, ondes),
+//         update(dt, time), dispose() }    PTMT.models.lair.styles : les quatre styles.
 //     Origine = centre du bloc 2 × 2, au niveau du chemin. Rien n'est creusé : le fond est posé au
 //     ras du sol et le bourrelet donne la profondeur. Trois appels de dessin (granit, le reste, lueurs).
 (function () {
@@ -829,7 +832,7 @@
   PTMT.models.lair = function (maxGems, opts) {
     opts = opts || {};
     const max = clamp(maxGems | 0 || 5, 1, 9);
-    const style = STYLE[opts.style] ? opts.style : opts.mill ? "moulin" : "moulin";
+    const style = STYLE[opts.style] ? opts.style : "moulin";
     const seq = lairSeq++;
     const rnd = P.rng(4242 + seq * 97 + STYLES.indexOf(style) * 13);
     const root = new THREE.Group();
@@ -911,6 +914,12 @@
       maxGems: max,
       gemSlots: slots,
       radius: Rf,
+      /** Position dans le monde du logement k (où poser la gemme « lair »). */
+      slotWorld(k, out) {
+        out = out || new THREE.Vector3();
+        root.updateWorldMatrix(true, false);
+        return out.copy(slots[clamp(k | 0, 0, max - 1)]).applyMatrix4(root.matrixWorld);
+      },
       /** Logements pleins : tableau de booléens (un par logement). */
       setSlots(list) {
         for (let k = 0; k < max; k++) setFull(k, !!(list && list[k]));

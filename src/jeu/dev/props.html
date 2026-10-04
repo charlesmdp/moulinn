@@ -287,6 +287,16 @@
         barriers.push(bar);
         updaters.push(bar);
       }
+      // Planche : barrières de 1, 2 et 3 cases sous la carte.
+      if (q.get("lairs") === "sheet")
+        [[3.5, 1], [9.5, 2], [16.5, 3]].forEach(([cx, n], k) => {
+          const bar = M.barrier({ width: n, seed: 10 + k });
+          const [x, z] = toWorld(cx, 17.7);
+          bar.object.position.set(x, 0, z);
+          props.add(bar.object);
+          barriers.push(bar);
+          updaters.push(bar);
+        });
     }
     // Entrées : flèche tournée vers l'intérieur de la carte.
     if (M.gate) {
@@ -475,19 +485,21 @@
       { name: "ensemble", c: [0, 0], w: W * TILE + 2 },
       { name: "cachettes", c: toWorld(13.5, 7.0), w: 26 },
       { name: "moulin", c: [lairC(0)[0], lairC(0)[1] - 2.5], w: 16 },
+      { name: "gros plan", c: [lairC(0)[0], lairC(0)[1] + 0.2], w: 7.5 },
       { name: "façade", c: toWorld(14.2, 6.6), w: 12 },
       { name: "puits", c: lairC(1), w: 11 },
       { name: "dolmen", c: lairC(2), w: 11 },
       { name: "chapelle", c: lairC(3), w: 11 },
       { name: "buttes", c: toWorld(7.0, 5.5), w: 30 },
       { name: "butte", c: toWorld(9.5, 6.5), w: 9 },
+      { name: "boisée", c: toWorld(11.5, 5.5), w: 9 },
       { name: "barrière", c: toWorld(8.0, 1.0), w: 13 },
       { name: "estran", c: toWorld(5.0, 10.8), w: 14 },
       { name: "gemmes", c: toWorld(6.2, 6.9), w: 17 },
       { name: "sud", c: toWorld(10, 10.5), w: 30 },
     ];
     if (gemRow) VIEWS.push({ name: "joyaux", c: toWorld(6.55, 6.3), w: 13 });
-    if (q.get("lairs") === "sheet") VIEWS.push({ name: "planche", c: toWorld(10, 15.2), w: 70 });
+    if (q.get("lairs") === "sheet") VIEWS.push({ name: "planche", c: toWorld(10, 15.2), w: 70 }, { name: "barrières", c: toWorld(10, 17.5), w: 70 });
     const vq = q.get("view");
     if (vq) { const k = VIEWS.findIndex((v) => v.name === vq); if (k >= 0) state.view = k; }
     const ELEV = (+(q.get("elev") || 60) * Math.PI) / 180;
