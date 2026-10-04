@@ -513,10 +513,6 @@
         });
       }
     },
-    animate(a) {
-      // tête relevée pour regarder la route (il est couché sur le guidon)
-      void a;
-    },
   };
   function bikeHelmet(k, p, L) {
     const bone = "p_hat", R = p.headR * 1.1, z = p.headZ - 0.06;

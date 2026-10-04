@@ -101,14 +101,14 @@
     return A._loading;
   };
   function finishLater() {
-    const todo = [];
-    for (const r of [1, 2]) for (const t of A.TYPES) todo.push([t, r]);
+    const queue = [];
+    for (const r of [1, 2]) for (const t of A.TYPES) queue.push([t, r]);
     const idle = typeof requestIdleCallback === "function" ? (f) => requestIdleCallback(f, { timeout: 400 }) : (f) => setTimeout(f, 30);
     const next = () => {
       const t0 = performance.now();
       // une ou deux variantes par tranche (≈ 10 ms sur ordinateur)
-      while (todo.length && performance.now() - t0 < 8) templateFor(todo[0][0], todo.shift()[1]);
-      if (todo.length) idle(next);
+      while (queue.length && performance.now() - t0 < 8) templateFor(queue[0][0], queue.shift()[1]);
+      if (queue.length) idle(next);
     };
     idle(next);
   }
