@@ -560,10 +560,14 @@
       now.put(an.exhaust.x, an.exhaust.y + 0.45 * es, an.exhaust.z, 0.9 * es * g, C.flame, 1, 1, 1, 0.95 * g, Math.sin(t * 9) * 0.1, 0.35, 3);
       now.put(an.exhaust.x, an.exhaust.y + 0.4 * es, an.exhaust.z, 1.6 * es * g, C.glow, 1, 0.65, 0.25, 0.7 * g, 0, 1, 0);
     }
-    // korrigan : étincelles violettes qui flottent autour de lui
-    if (a.type === "korrigan" && react !== "die" && w.ghost < 0.5 && every(a, "magic", 0.22, dt)) {
-      const ang = rnd() * Math.PI * 2, r = dw * (0.35 + rnd() * 0.25);
-      fx.emitR(R.magic, pos.x + Math.cos(ang) * r, pos.y + dh * (0.2 + rnd() * 0.7), pos.z + Math.sin(ang) * r, Math.cos(ang) * 0.3, 0.5 + rnd() * 0.4, Math.sin(ang) * 0.3);
+    // korrigan : aura violette au sol (on le reconnaît de loin) et étincelles qui flottent autour de lui
+    if (a.type === "korrigan" && react !== "die" && w.ghost < 0.5) {
+      const pul = 0.8 + 0.2 * Math.sin(t * 3.1 + a.id);
+      now.put(pos.x, pos.y + 0.05, pos.z, dw * 1.9, C.glow, 0.6, 0.18, 1, 0.75 * pul * (1 - w.ghost), 0, 1, 1);
+      if (every(a, "magic", 0.22, dt)) {
+        const ang = rnd() * Math.PI * 2, r = dw * (0.35 + rnd() * 0.25);
+        fx.emitR(R.magic, pos.x + Math.cos(ang) * r, pos.y + dh * (0.2 + rnd() * 0.7), pos.z + Math.sin(ang) * r, Math.cos(ang) * 0.3, 0.5 + rnd() * 0.4, Math.sin(ang) * 0.3);
+      }
     }
     // pataugeage : ronds autour des jambes, gerbes d'eau en avançant
     if (w.wade > 0.3 && react !== "die") {
@@ -697,15 +701,17 @@
     if (B.p_camera) B.p_camera.localToWorld(_fl.set(0, 0.32, 0.25));
     else a.carryAnchor.getWorldPosition(_fl);
     const k = Math.max(1, os);
-    fx.emit({ x: _fl.x, y: _fl.y, z: _fl.z, life: 0.32, s0: 2.6 * k, s1: 5.2 * k, cell: MY.flash, r: 1, g: 1, b: 1, a: 1, a1: 0, rot: rnd() * 0.5, add: 1 });
-    fx.emit({ x: _fl.x, y: _fl.y, z: _fl.z, life: 0.45, s0: 3.5 * k, s1: 7 * k, cell: C.glow, r: 1, g: 0.97, b: 0.85, a: 0.95, a1: 0, add: 1 });
-    fx.emit({ x: _fl.x, y: _fl.y, z: _fl.z, delay: 0.05, life: 0.4, s0: 1.2 * k, s1: 6.5 * k, cell: C.ring, r: 1, g: 1, b: 0.95, a: 0.9, a1: 0, add: 0.8, curve: 1 });
-    fx.emit({ x: _fl.x, y: _fl.y, z: _fl.z, delay: 0.12, life: 0.22, s0: 1.4 * k, s1: 3 * k, cell: MY.flash, r: 1, g: 1, b: 1, a: 0.85, a1: 0, rot: 0.4, add: 1 });
+    // deux étoiles croisées très claires, halo, anneau qui s'étend, rayons, lumière au sol
+    fx.emit({ x: _fl.x, y: _fl.y, z: _fl.z, life: 0.4, s0: 4 * k, s1: 8.5 * k, cell: MY.flash, r: 1, g: 1, b: 1, a: 1, a1: 0, rot: rnd() * 0.5, add: 1, curve: 1 });
+    fx.emit({ x: _fl.x, y: _fl.y, z: _fl.z, life: 0.3, s0: 3 * k, s1: 6 * k, cell: MY.flash, r: 1, g: 1, b: 0.92, a: 1, a1: 0, rot: 0.39, add: 1, curve: 1 });
+    fx.emit({ x: _fl.x, y: _fl.y, z: _fl.z, life: 0.55, s0: 5 * k, s1: 10 * k, cell: C.glow, r: 1, g: 0.97, b: 0.85, a: 1, a1: 0, add: 1 });
+    fx.emit({ x: _fl.x, y: _fl.y, z: _fl.z, delay: 0.04, life: 0.45, s0: 1.5 * k, s1: 9 * k, cell: C.ring, r: 1, g: 1, b: 0.95, a: 1, a1: 0, add: 0.8, curve: 1 });
+    fx.emit({ x: _fl.x, y: _fl.y, z: _fl.z, delay: 0.14, life: 0.25, s0: 2 * k, s1: 4 * k, cell: MY.flash, r: 1, g: 1, b: 1, a: 0.9, a1: 0, rot: 0.2, add: 1 });
     const p = a.object.position;
-    fx.emit({ x: p.x, y: p.y + 0.06, z: p.z, life: 0.5, s0: 4 * k, s1: 8 * k, cell: C.glow, mode: 1, r: 1, g: 0.98, b: 0.85, a: 0.75, a1: 0, add: 1 });
-    for (let i = 0; i < 8; i++) {
-      const ang = (i / 8) * Math.PI * 2;
-      fx.emit({ x: _fl.x, y: _fl.y, z: _fl.z, vx: Math.cos(ang) * 6, vy: Math.sin(ang) * 3 + 1, vz: Math.sin(ang) * 6, drag: 4, life: 0.35, s0: 0.35, s1: 0.1, cell: C.spark, mode: 2, stretch: 0.25, r: 1, g: 1, b: 0.9, a: 1, a1: 0, add: 1 });
+    fx.emit({ x: p.x, y: p.y + 0.06, z: p.z, life: 0.6, s0: 6 * k, s1: 11 * k, cell: C.glow, mode: 1, r: 1, g: 0.98, b: 0.85, a: 0.85, a1: 0, add: 1 });
+    for (let i = 0; i < 10; i++) {
+      const ang = (i / 10) * Math.PI * 2;
+      fx.emit({ x: _fl.x, y: _fl.y, z: _fl.z, vx: Math.cos(ang) * 9, vy: Math.sin(ang) * 4 + 1, vz: Math.sin(ang) * 9, drag: 4, life: 0.4, s0: 0.5, s1: 0.15, cell: C.spark, mode: 2, stretch: 0.3, r: 1, g: 1, b: 0.9, a: 1, a1: 0, add: 1 });
     }
   }
   /** Explosion de foin du tracteur : brins de paille, mottes, poussière, fumée noire. */

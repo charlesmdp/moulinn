@@ -277,8 +277,9 @@
   }
   const ranks = only !== null && only !== "" ? [Number(only)] : [0, 1, 2];
   if (vignettes) {
-    // une variante par vignette, bien espacées (aucune ne déborde sur sa voisine)
-    TYPES.forEach((t, i) => ranks.forEach((r, j) => spawn(t, r, (i - (TYPES.length - 1) / 2) * 30, (j - 1) * 40, 0, false)));
+    // une variante par vignette, bien espacées (aucune ne déborde sur sa voisine), chacune sur la route
+    TYPES.forEach((t, i) => ranks.forEach((r, j) => spawn(t, r, (i - (TYPES.length - 1) / 2) * 13, (j - 1) * 22, 0, false)));
+    ranks.forEach((r, j) => addRoad((j - 1) * 22, 4));
   } else if (count) {
     for (let i = 0; i < count; i++) {
       const type = TYPES[i % TYPES.length], rank = i % 11 === 10 ? 1 : 0;
@@ -436,8 +437,11 @@
   function renderVignettes() {
     const cell = vcfg.cell, mpp = TILE / vcfg.px; // mètres par pixel
     const H = renderer.domElement.height;
+    renderer.setScissorTest(false);
+    renderer.setViewport(0, 0, renderer.domElement.width, H);
+    renderer.setClearColor(0x1d2418);
+    renderer.clear();
     renderer.setScissorTest(true);
-    renderer.setClearColor(scene.background);
     const p = (ELEV * Math.PI) / 180;
     items.forEach((it, i) => {
       const cx = (i % vcols) * cell, cy = Math.floor(i / vcols) * (cell + 12);
@@ -495,8 +499,8 @@
       if (global.stun || global.freeze) { st.moving = false; st.speed = 0; }
       st.carrying = !!global.carrying && !a.dead;
       // nage : seuls les nageurs (canard) ; pataugeage : tous les autres (la montgolfière vole)
-      st.water = !!global.water && it.type === "canard";
-      st.wading = (!!global.wading || (!!global.water && it.type !== "canard")) && !a.flying;
+      st.water = (!!global.water || !!global.wading) && it.type === "canard";
+      st.wading = (!!global.wading || !!global.water) && it.type !== "canard" && !a.flying;
       st.slow = global.slow ? 0.45 : 0;
       st.freeze = !!global.freeze; st.burn = !!global.burn; st.fear = !!global.fear;
       st.invisible = global.invisible ? 1 : 0;

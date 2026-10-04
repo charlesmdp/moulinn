@@ -256,7 +256,7 @@
       // longues oreilles pointues tendues de côté (on les voit dépasser du chapeau, vues de haut)
       const L = c.pointyEars;
       for (const s of [1, -1]) {
-        k.add(G.cone(0.15, L, 6), { bone: "head", pos: [s * (p.headR + L * 0.4), p.headY + 0.08, p.headZ - 0.04], rot: [0, 0, -s * (Math.PI / 2 - 0.42)], scale: [1, 1, 0.5], color: c.skin, mat: 1, outline: true });
+        k.add(G.cone(0.17, L, 6), { bone: "head", pos: [s * (p.headR + L * 0.4), p.headY + 0.08, p.headZ - 0.04], rot: [0, 0, -s * (Math.PI / 2 - 0.42)], scale: [1, 1, 0.55], color: c.skin, mat: 1, outline: true });
         k.add(G.cone(0.085, L * 0.7, 5), { bone: "head", pos: [s * (p.headR + L * 0.34), p.headY + 0.08, p.headZ + 0.0], rot: [0, 0, -s * (Math.PI / 2 - 0.42)], scale: [1, 1, 0.3], color: c.earIn || 0xe07a6a, mat: 1, outline: false });
       }
     }
@@ -547,9 +547,9 @@
   };
   function pitchfork(k, hc, tine, gold) {
     const [x, y, z] = hc;
-    k.add(G.cyl(0.032, 0.032, 1.5, 5), { pos: [x, y + 0.3, z], color: 0xa0703a, mat: 1, outline: true });
-    k.add(G.rbox(0.36, 0.06, 0.06, 0.02, 1), { pos: [x, y + 1.06, z], color: tine, mat: gold ? MAT.gold : MAT.metal, outline: true });
-    for (const d of [-0.15, 0, 0.15]) k.add(G.cone(0.028, 0.42, 4), { pos: [x + d, y + 1.3, z], color: tine, mat: gold ? MAT.gold : MAT.metal, outline: true });
+    k.add(G.cyl(0.042, 0.042, 1.75, 5), { pos: [x, y + 0.38, z], color: 0xa0703a, mat: 1, outline: true });
+    k.add(G.rbox(0.48, 0.07, 0.07, 0.025, 1), { pos: [x, y + 1.26, z], color: tine, mat: gold ? MAT.gold : MAT.metal, outline: true });
+    for (const d of [-0.2, 0, 0.2]) k.add(G.cone(0.04, 0.55, 4), { pos: [x + d, y + 1.55, z], color: tine, mat: gold ? MAT.gold : MAT.metal, outline: true });
   }
 
   // --- Cow-boy au lasso : grand chapeau, foulard rouge, gilet de cuir, lasso qui tournoie --------
@@ -619,7 +619,7 @@
       B.p_lasso.rotation.set(0, a.lassoA, 0);
       B.p_lasso.scale.setScalar(sc);
       // corde : de la main au nœud de la boucle (qui tourne avec elle)
-      const r = 0.5 * sc;
+      const r = 0.62 * sc;
       a.rope("rope", hand, cx + Math.sin(a.lassoA) * r, cy, cz + Math.cos(a.lassoA) * r, 1);
     },
   };
@@ -656,8 +656,8 @@
   }
   function lassoLoop(k, hc, col) {
     const [x, y, z] = hc;
-    k.add(G.torus(0.5, 0.032, 3, 16), { pos: [x, y + 0.5, z], rot: [Math.PI / 2, 0, 0], color: col, mat: 1, outline: true });
-    k.add(G.sphere(0.055, 4, 3), { pos: [x, y + 0.5, z + 0.5], color: shade(col, 0.8), outline: false });
+    k.add(G.torus(0.62, 0.042, 3, 16), { pos: [x, y + 0.5, z], rot: [Math.PI / 2, 0, 0], color: col, mat: 1, outline: true });
+    k.add(G.sphere(0.07, 4, 3), { pos: [x, y + 0.5, z + 0.62], color: shade(col, 0.8), outline: false });
   }
 
   // --- Druide : robe blanche, longue barbe, couronne de gui, faucille d'or ------------------------
@@ -716,8 +716,8 @@
   };
   function sickle(k, hc, col) {
     const [x, y, z] = hc;
-    k.add(G.cyl(0.035, 0.035, 0.34, 5), { pos: [x, y + 0.08, z], color: 0x7a4a24, mat: 1, outline: true });
-    k.add(G.torus(0.2, 0.035, 4, 10, Math.PI * 1.25), { pos: [x, y + 0.42, z + 0.05], rot: [0, 0, -0.3], scale: [1, 1, 0.5], color: col, mat: MAT.gold, outline: true });
+    k.add(G.cyl(0.04, 0.04, 0.4, 5), { pos: [x, y + 0.1, z], color: 0x7a4a24, mat: 1, outline: true });
+    k.add(G.torus(0.3, 0.05, 4, 10, Math.PI * 1.25), { pos: [x, y + 0.56, z + 0.05], rot: [0, 0, -0.3], scale: [1, 1, 0.5], color: col, mat: MAT.gold, outline: true });
   }
 
   // --- Bigoudène aux crêpes : haute coiffe de dentelle, robe noire brodée, tablier, pile de crêpes --
@@ -786,10 +786,10 @@
   function crepes(k, hc, L) {
     const [x, y, z] = hc;
     const py = y + 0.1, pz = z + 0.12;
-    k.add(G.cyl(0.3, 0.26, 0.04, 10), { pos: [x, py, pz], color: L.plate, mat: L.plate === GOLD ? MAT.gold : 2, outline: true });
-    for (let i = 0; i < 4; i++) k.add(G.cyl(0.25 - i * 0.004, 0.25, 0.035, 8), { pos: [x + (i % 2 ? 0.012 : -0.01), py + 0.04 + i * 0.037, pz + (i % 2 ? -0.01 : 0.01)], color: shade(L.crepe, 1 - i * 0.04), mat: 1, outline: i === 3 });
+    k.add(G.cyl(0.38, 0.33, 0.045, 10), { pos: [x, py, pz], color: L.plate, mat: L.plate === GOLD ? MAT.gold : 2, outline: true });
+    for (let i = 0; i < 4; i++) k.add(G.cyl(0.32 - i * 0.005, 0.32, 0.04, 8), { pos: [x + (i % 2 ? 0.014 : -0.012), py + 0.045 + i * 0.042, pz + (i % 2 ? -0.012 : 0.012)], color: shade(L.crepe, 1 - i * 0.04), mat: 1, outline: i === 3 });
     // crêpe pliée en triangle sur le dessus
-    k.add(G.cone(0.2, 0.03, 3), { pos: [x, py + 0.2, pz], rot: [0, 0.4, 0], scale: [1, 1, 1], color: shade(L.crepe, 1.08), mat: 1, outline: false });
+    k.add(G.cone(0.26, 0.035, 3), { pos: [x, py + 0.23, pz], rot: [0, 0.4, 0], scale: [1, 1, 1], color: shade(L.crepe, 1.08), mat: 1, outline: false });
   }
 
   // --- Chasseur camouflé : tenue feuillage (ghillie), casquette orange fluo, jumelles -----------------
@@ -896,8 +896,8 @@
     return p.headY + 0.01 + R * 0.98;
   }
   function rugbyBall(k, c, L, gold) {
-    k.add(G.sphere(0.2, 7, 5), { pos: c, scale: [0.72, 0.72, 1.12], rot: [0.2, 0, 0], color: gold ? GOLD : L.ball, mat: gold ? MAT.gold : 1, outline: true });
-    k.add(G.box(0.03, 0.02, 0.16), { pos: [c[0], c[1] + 0.14, c[2]], rot: [0.2, 0, 0], color: L.lace, outline: false });
+    k.add(G.sphere(0.27, 7, 5), { pos: c, scale: [0.72, 0.72, 1.12], rot: [0.2, 0, 0], color: gold ? GOLD : L.ball, mat: gold ? MAT.gold : 1, outline: true });
+    k.add(G.box(0.04, 0.03, 0.22), { pos: [c[0], c[1] + 0.19, c[2]], rot: [0.2, 0, 0], color: L.lace, outline: false });
   }
 
   // --- Sonneur de biniou : chapeau rond à rubans, gilet brodé, biniou rouge ------------------------
@@ -912,6 +912,7 @@
       bag: 0xc41e2a, bagPal: PAL.dkgreen, wood: 0x4a2a12, ivory: 0xf0e6d0,
     },
     champion: { look: { vest: 0x1c2458, trim: GOLD, ribbon: 0x2446b8, buckle: GOLD, bag: 0x2446b8, bagPal: PAL.gold } },
+    hatScale: 1,
     mood: "puff",
     motion: { gait: "march", arms: ["bagL", "pipe"] },
     carry: { pos: [-0.54, 2.6, 0.08], arms: ["bagL", "carryUp"] },
@@ -945,22 +946,25 @@
   };
   function bretonHat(k, p, L, gold) {
     const bone = "p_hat", y0 = p.headY + 0.29, z = p.headZ - 0.02;
-    k.add(G.cyl(0.74, 0.74, 0.035, 16), { bone, pos: [0, y0, z], color: L.hat, mat: 1, outline: true });
+    k.add(G.cyl(0.64, 0.64, 0.04, 16), { bone, pos: [0, y0, z], color: L.hat, mat: 1, outline: true });
     k.add(G.cyl(0.35, 0.4, 0.2, 12), { bone, pos: [0, y0 + 0.11, z], color: L.hat, mat: 1, outline: true });
     k.add(G.cyl(0.405, 0.405, 0.09, 12, true), { bone, pos: [0, y0 + 0.06, z], color: L.ribbon, mat: 1, outline: false });
     k.add(G.rbox(0.16, 0.1, 0.03, 0.012, 1), { bone, pos: [0, y0 + 0.06, z + 0.41], color: L.buckle, mat: gold ? MAT.gold : MAT.metal, outline: false });
-    for (const sd of [1, -1]) k.add(G.rbox(0.1, 0.66, 0.025, 0.012, 1), { bone, pos: [sd * 0.1, y0 - 0.3, z - 0.72], rot: [0.08, 0, sd * 0.08], color: L.ribbon, mat: 1, outline: true });
-    if (gold) k.add(G.torus(0.735, 0.02, 3, 22), { bone, pos: [0, y0 + 0.02, z], rot: [Math.PI / 2, 0, 0], color: GOLD, mat: MAT.gold, outline: false });
+    for (const sd of [1, -1]) k.add(G.rbox(0.1, 0.66, 0.025, 0.012, 1), { bone, pos: [sd * 0.1, y0 - 0.3, z - 0.62], rot: [0.08, 0, sd * 0.08], color: L.ribbon, mat: 1, outline: true });
+    if (gold) k.add(G.torus(0.635, 0.022, 3, 22), { bone, pos: [0, y0 + 0.02, z], rot: [Math.PI / 2, 0, 0], color: GOLD, mat: MAT.gold, outline: false });
     return y0 + 0.21;
   }
   function biniou(k, s) {
     const p = s.p, L = s.look;
-    const c = [0.3, 1.02, 0.22];
-    k.add(G.sphere(0.25, 8, 5), { pos: c, scale: [0.85, 0.7, 1.12], rot: [0.3, 0.3, 0], color: L.bag, part: PART.tartan, pal: L.bagPal, mat: 1, outline: true });
-    // bourdon par-dessus l'épaule gauche, porte-vent vers la bouche, hautbois (levriad) devant
+    const c = [0.36, 1.0, 0.2];
+    // grosse poche rouge (tartan) qui dépasse sous le bras gauche : on la voit de haut
+    k.add(G.sphere(0.32, 8, 5), { pos: c, scale: [0.85, 0.7, 1.12], rot: [0.3, 0.3, 0], color: L.bag, part: PART.tartan, pal: L.bagPal, mat: 1, outline: true });
+    // bourdon par-dessus l'épaule gauche (il dépasse du chapeau, rubans au bout), porte-vent vers la
+    // bouche, hautbois (levriad) devant
     const wood = L.wood, iv = L.ivory;
-    k.add(G.tube("drone", [[0.36, 1.12, 0.1], [0.42, 1.45, -0.12], [0.46, 1.8, -0.38]], 0.035, 5, 4), { color: wood, mat: 2, outline: true });
-    k.add(G.cyl(0.06, 0.05, 0.1, 6), { pos: [0.46, 1.84, -0.4], rot: [-0.6, 0, 0], color: iv, mat: 2, outline: false });
+    k.add(G.tube("drone2", [[0.4, 1.12, 0.1], [0.5, 1.6, -0.2], [0.62, 2.18, -0.6]], 0.042, 5, 4), { color: wood, mat: 2, outline: true });
+    k.add(G.cyl(0.075, 0.06, 0.12, 6), { pos: [0.63, 2.23, -0.63], rot: [-0.6, 0, 0], color: iv, mat: 2, outline: false });
+    for (const [dx, col] of [[-0.05, L.bag], [0.05, 0xfbfbf7]]) k.add(G.box(0.06, 0.38, 0.02), { pos: [0.62 + dx, 1.98, -0.66], rot: [0.5, 0, dx * 4], color: col, mat: 1, outline: true });
     k.add(G.tube("blow", [[0.24, 1.2, 0.3], [0.14, 1.38, 0.44], [0.04, p.mouthY, p.mouthZ + 0.02]], 0.026, 5, 4), { color: wood, mat: 2, outline: false });
     k.add(G.tube("chanter", [[0.2, 0.92, 0.36], [0.08, 0.78, 0.5], [0.0, 0.62, 0.58]], 0.035, 5, 4), { color: wood, mat: 2, outline: true });
     k.add(G.cyl(0.045, 0.075, 0.1, 6), { pos: [0.0, 0.58, 0.6], rot: [0.5, 0, 0], color: iv, mat: 2, outline: false });
@@ -1056,12 +1060,12 @@
     p: KORR,
     look: {
       skin: 0xc8875a, earIn: 0xa8503e, cheek: 0xd8645a, brow: 0x1e140c, browW: 1.4, browH: 1.6, nose: 0xb46a44,
-      glowEyes: 0xffe14a, pointyEars: 0.66,
+      glowEyes: 0xffe14a, pointyEars: 0.8,
       shirt: 0xf4efe1, sleeve: 1, pants: 0x1f2a5c, pantsLen: 0.62, socks: 0xf4efe1, shoe: 0xd29a52, sole: 0x7a5228,
       hat: 0x15131a, band: 0x8a2be2, buckle: GOLD, vest: 0x22b23c, trim: 0xffb21a, beard: 0x3a2414,
     },
     champion: { look: { vest: 0x149a30, trim: GOLD, band: GOLD, pants: 0x15131a } },
-    hatScale: 1.18,
+    hatScale: 1.04,
     mood: "mischief",
     motion: { gait: "skip", arms: ["skip", "skip"], idleArms: ["akimbo", "akimbo"] },
     carry: { pos: [0, 2.85, 0.05], arms: ["overhead", "overhead"] },

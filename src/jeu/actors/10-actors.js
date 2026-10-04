@@ -416,10 +416,24 @@
         float lace = mix(max(hole, rib), 0.3, smoothstep(0.2, 0.45, wv));
         ptAlb = mix(ptAlb, ptB, lace);
       } else if (ptPart > 6.5 && ptPart < 7.5) {
-        // pie noir : grosses taches noires sur la robe blanche (une robe par vache), ventre blanc
-        float n = ptNoise3(vRest * vec3(1.25, 1.4, 1.05) + vec3(vFx2.w * 17.0, vFx2.w * 5.0, vFx2.w * 11.0));
-        n -= smoothstep(1.05, 0.7, vRest.y) * 0.4;
-        ptAlb = mix(ptAlb, ptB, ptStep(0.6, n));
+        // pie noir : grosses taches noires bien séparées sur la robe blanche, posées sur le tour du corps
+        // (angle autour de l'axe de la vache × longueur) : une tache au bord irrégulier par cellule, place
+        // et taille tirées au hasard, une robe différente pour chaque vache ; ventre blanc
+        vec2 q = vec2(atan(vRest.x, vRest.y - 1.24) * 0.62, vRest.z) * 1.2 + vec2(vFx2.w * 7.0, vFx2.w * 13.0);
+        vec2 cb = floor(q - 0.5);
+        float sp = -1.0;
+        for (int i = 0; i < 4; i++) {
+          float fi = float(i);
+          vec2 cc = cb + vec2(mod(fi, 2.0), floor(fi * 0.5));
+          vec2 pt = cc + 0.5 + (vec2(ptHash(cc), ptHash(cc + 17.1)) - 0.5) * 0.18;
+          float r = ptHash(cc + 3.9) < 0.14 ? 0.0 : 0.33 + 0.09 * ptHash(cc + 7.3);
+          vec2 d = q - pt;
+          r *= 1.0 + 0.16 * sin(atan(d.y, d.x) * 3.0 + ptHash(cc + 1.3) * 6.28);
+          sp = max(sp, r - length(d));
+        }
+        float sw = max(fwidth(sp), 1e-4);
+        float spot = clamp(sp / sw * 0.5 + 0.5, 0.0, 1.0) * smoothstep(0.8, 0.98, vRest.y);
+        ptAlb = mix(ptAlb, ptB, spot);
       } else if (ptPart > 7.5 && ptPart < 8.5) {
         // camouflage : deux tons de taches par-dessus le vert
         float n1 = ptNoise3(vRest * 3.4 + 3.1), n2 = ptNoise3(vRest * 5.7 + 9.7);
@@ -1405,7 +1419,7 @@
       const spec = this.spec, w = this.w, rig = this.rig, t = this.time;
       if (solid) return;
       const ride = !!spec.mount;
-      let y = 0, pitch = 0, roll = 0, yaw = 0, sx = 1, sy = 1, px = 0, pz = 0, pivotY = 0;
+      let y = 0, pitch = 0, roll = 0, yaw = 0, sx = 1, sy = 1, px = 0, pz = 0, pivotX = 0, pivotY = 0;
       const ph = this.phase;
       const react = this.react, rt = this.reactT;
       // petit bond à chaque pas (en l'air au passage des jambes, écrasé au contact)
@@ -1485,13 +1499,14 @@
           roll += Math.sin(rt * 7 + this.id) * 0.16 * tf * (1 - land);
           pitch += Math.sin(rt * 5.3) * 0.1 * tf * (1 - land) + 0.25 * bounceOut(land);
         } else if (ride) {
-          // la monture bascule sur le flanc (le tracteur se renverse franchement, petit bond d'abord)
-          const tip = spec.tipAngle || 1.35, hop = spec.tipHop || 0.25;
-          const k = clamp(rt / (spec.tipTime || 0.34), 0, 1);
+          // la monture bascule sur le flanc, autour de l'arête du côté où elle tombe (rien ne s'enfonce
+          // dans le sol) ; le tracteur se renverse franchement, après un petit bond
+          const tip = spec.tipAngle || 1.35, hop = spec.tipHop || 0.25, tt = spec.tipTime || 0.34;
+          const k = clamp(rt / tt, 0, 1);
           const side = this.id % 2 ? 1 : -1;
           roll += side * bounceOut(k) * tip;
-          px += side * bounceOut(k) * 0.35 * (spec.dims.w / this.scale) * (tip / 1.35);
-          y += Math.sin(clamp(rt / (0.2 * (spec.tipTime || 0.34) / 0.34), 0, 1) * Math.PI) * hop;
+          pivotX = -side * (spec.dims.w / this.scale) * 0.42;
+          y += Math.sin(clamp(rt / (0.6 * tt), 0, 1) * Math.PI) * hop;
         } else {
           // chute en arrière, rebond, puis couché
           const k = clamp(rt / 0.32, 0, 1);
@@ -1509,7 +1524,7 @@
       _e.set(pitch, yaw, roll, "YXZ");
       rig.quaternion.setFromEuler(_e);
       const sc = this.scale;
-      _v.set(0, pivotY * sc, 0);
+      _v.set(pivotX * sc, pivotY * sc, 0);
       _v2.copy(_v).applyQuaternion(rig.quaternion);
       rig.position.set(px + _v.x - _v2.x, y + _v.y - _v2.y, pz + _v.z - _v2.z);
       rig.scale.set(sx * sc, sy * sc, sx * sc);

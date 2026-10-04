@@ -160,7 +160,7 @@
   // Cavalier sur vache : seau à plumet en guise de casque, bidon de lait en bouclier, aiguillon ;
   // vache bretonne pie noir énorme (robe blanche à grosses taches noires)
   // ---------------------------------------------------------------------------------------------
-  const CSEAT = 1.84;
+  const CSEAT = 1.88;
   const COW = { y: 1.24, z: -0.08, rx: 0.68, ry: 0.54, rz: 1.18 };
   T.vache = {
     label: "Cavalier sur vache",
@@ -178,7 +178,7 @@
     boss: { look: { horn: GOLD, bell: GOLD, blanket: 0x7a1a3a, plume: GOLD } },
     mood: "stern",
     motion: { gait: "ride", arms: ["shield", "lance"] },
-    mount: { kind: "cow", seat: { dy: seatDy(CSEAT, 0.78), dz: -0.22, thigh: -0.45, shin: 0.35, spread: 1.22, foot: 0.3, lean: 0.04 } },
+    mount: { kind: "cow", seat: { dy: seatDy(CSEAT, 0.78), dz: -0.22, thigh: -0.3, shin: 0.3, spread: 1.38, foot: 0.3, lean: 0.04 } },
     carry: { pos: [-0.45, 3.9, -0.1], arms: ["shield", "carryUp"] },
     dims: { w: 1.7, h: 3.7, d: 3.4 },
     height: 3.95,
@@ -246,7 +246,7 @@
     for (const [id, x, z] of [["fl", 0.4, 0.62], ["fr", -0.4, 0.62], ["bl", 0.4, -0.74], ["br", -0.4, -0.74]]) {
       out.push({ name: "leg_" + id, parent: "p_mount", pos: [x, 1.0, z], build: (k, s) => {
         const a = [x, 1.08, z], e = [x * 1.03, 0.52, z + 0.03], b = [x * 1.03, 0.14, z];
-        k.add(A.limbGeo("cowleg2" + id, [a, e, b], 0.18, 0.13, [[0, s.look.cow]], 4, 2), { colors: true, part: PART.pie, pal: PAL.ink, weights: A.limbWeights(a, e, b, "p_leg_" + id, "p_shin_" + id, 0.08), outline: true });
+        k.add(A.limbGeo("cowleg2" + id, [a, e, b], 0.18, 0.13, [[0, s.look.cow]], 4, 2), { colors: true, weights: A.limbWeights(a, e, b, "p_leg_" + id, "p_shin_" + id, 0.08), outline: true });
         k.add(G.cyl(0.13, 0.15, 0.16, 5), { bone: "p_shin_" + id, pos: [x * 1.03, 0.08, z + 0.01], color: s.look.hoof, mat: 1, outline: false });
       } });
       out.push({ name: "shin_" + id, parent: "p_leg_" + id, pos: [x * 1.03, 0.52, z + 0.03] });
@@ -260,8 +260,8 @@
     // pis rose et ses trayons
     k.add(G.sphere(0.2, 6, 4), { pos: [0, 0.8, -0.58], scale: [1.1, 0.7, 1.0], color: L.udder, mat: 1, outline: false });
     for (const [dx, dz] of [[0.08, 0.07], [-0.08, 0.07], [0.08, -0.08], [-0.08, -0.08]]) k.add(G.cone(0.035, 0.12, 3), { pos: [dx, 0.66, -0.58 + dz], rot: [Math.PI, 0, 0], color: L.udder, mat: 1, outline: false });
-    // selle de cuir (sangle sous le ventre)
-    k.add(G.rbox(0.82, 0.1, 0.7, 0.05, 1), { pos: [0, CSEAT - 0.05, -0.2], color: L.saddle, mat: 1, outline: true });
+    // selle de cuir étroite (les jambes du cavalier débordent de chaque côté) et sangle sous le ventre
+    k.add(G.rbox(0.46, 0.12, 0.66, 0.05, 1), { pos: [0, CSEAT - 0.06, -0.2], color: L.saddle, mat: 1, outline: true });
     k.add(G.cyl(COW.rx + 0.015, COW.rx + 0.015, 0.12, 12, true, -1.9, 3.8), { pos: [0, COW.y, -0.2], rot: [Math.PI / 2, 0, 0], scale: [1, 1, COW.ry / COW.rx], color: L.saddle, mat: 1, outline: false });
     if (L.blanket) {
       // couverture de selle (champion, boss) : drapé sur le dos, franges dorées sur les flancs
@@ -841,13 +841,18 @@
       a.glow = fire * 0.8;
       B.p_flame.scale.set(0.4 + 0.6 * fire, 0.2 + 1.2 * fire * (0.85 + 0.15 * Math.sin(t * 30)), 0.4 + 0.6 * fire);
       // ballon : respiration lente ; dégonflage au K.-O.
-      const env = B.p_env;
+      const env = B.p_env, er = a.rest.p_env;
       if (a.dead) {
-        const k = clamp((a.reactT - 0.05) / 1.1, 0, 1);
-        const e = k * k * (3 - 2 * k);
-        env.scale.set(1 - 0.45 * e + Math.sin(a.reactT * 17) * 0.05 * e, 1 - 0.66 * e, 1 - 0.4 * e + Math.cos(a.reactT * 13) * 0.05 * e);
-        env.rotation.set(0.3 * e, a.reactT * 1.5, 0.45 * e);
+        // 1) il se vide en tombant (froissé, il tremble) ; 2) posé au sol, la toile s'affale derrière la nacelle
+        const rt = a.reactT;
+        const k1 = clamp((rt - 0.05) / 0.9, 0, 1), e1 = k1 * k1 * (3 - 2 * k1);
+        const k2 = clamp((rt - 1.0) / 0.35, 0, 1), e2 = k2 * k2 * (3 - 2 * k2);
+        const wob = Math.sin(rt * 17) * 0.06 * (1 - e2);
+        env.scale.set(1 - 0.32 * e1 + wob, 1 - 0.3 * e1 - 0.05 * e2, 1 - 0.3 * e1 - 0.52 * e2 + wob);
+        env.rotation.set(-1.42 * e2 + Math.sin(rt * 11) * 0.12 * e1 * (1 - e2), rt * 1.2 * (1 - e2), 0.25 * e1 * (1 - e2));
+        env.position.set(er.x, er.y - 2.25 * e2, er.z - 0.75 * e2);
       } else {
+        env.position.copy(er);
         const br = 1 + Math.sin(t * 1.3 + a.id) * 0.015 + fire * 0.02;
         env.scale.set(br, 1 + (br - 1) * 0.5, br);
         env.rotation.set(0, Math.sin(t * 0.3 + a.id) * 0.08, 0);
