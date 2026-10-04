@@ -1,7 +1,8 @@
 // « Pas touche à mes trésors » — repères des entrées et aperçu des vagues (PTMT.view, partie « trajets »).
 //
-// Tout ici s'écrit dans le lot de sprites « repères » de la vue (un seul appel de dessin, caché par ce
-// qui est devant lui), réécrit à chaque image sans allocation :
+// Tout ici s'écrit dans les lots de sprites de la vue, réécrits à chaque image sans allocation : le lot
+// « repères » (un seul appel de dessin, caché par ce qui est devant lui) et, pour les blasons, celui
+// des surimpressions (toujours devant : un bois ou une tour ne cache jamais une entrée) :
 //  - au-dessus du poteau de chaque entrée, un blason à sa couleur portant sa lettre (state.map.entrances :
 //    letter, color) ; une barrière encore fermée porte sa lettre sur un blason gris et un cadenas ; quand
 //    elle cède, le blason prend sa couleur d'un coup (rebond, halo) ;
@@ -119,7 +120,12 @@
       seen.add(key);
       out.push({ entrance: g.entrance, mode });
       // les nageurs passent aussi par le chemin quand l'eau ne raccourcit rien : leur trait bleu
-      // n'est dessiné que s'il coupe par l'eau (voir build)
+      // n'est dessiné que s'il coupe par l'eau (voir build) ; le chemin à pied est toujours montré
+      const wk = g.entrance + ":walk";
+      if (mode === "swim" && !seen.has(wk)) {
+        seen.add(wk);
+        out.push({ entrance: g.entrance, mode: "walk" });
+      }
     }
     return { index: k, groups: out, low };
   };
@@ -256,7 +262,9 @@
     const next = this.next;
     const active = this.lastEntrances;
     const urgent = next && w.countdown !== undefined && w.countdown < 6;
-    // entrées : blason lettré sur le poteau, chevrons au sol
+    // entrées : blason lettré sur le poteau (lot des surimpressions, toujours devant : un bois ou une
+    // tour ne le cache jamais), chevrons au sol
+    const HB = view.hud || M;
     for (const e of world.entrances || []) {
       const p = e.pole;
       const on = active.includes(e.id) && !st.over;
@@ -265,10 +273,10 @@
       const pop = e.opened >= 0 ? Math.sin(Math.min(1, e.opened / 0.5) * Math.PI) * 0.6 * Math.max(0, 1 - e.opened / 1.2) : 0;
       const B = 2.2 * k * (1 + pop + (on ? 0.06 * Math.sin(time * (urgent ? 9 : 5)) : 0));
       const X = toX(p.x), Z = toZ(p.y), Y = p.top + B * 0.42;
-      if (on || pop > 0) M.put(X, Y, Z, B * 1.9, H.glow, color[0], color[1], color[2], on ? 0.55 + 0.25 * Math.sin(time * 6) : pop, 0, 1, 0, 1);
-      M.put(X, Y, Z, B, H.banner, color[0], color[1], color[2], 1, 0, 0, 0, 1);
-      if (li >= 0) M.put(X, Y + B * 0.03, Z, B * 0.78, H.letter + li, 1, 1, 1, 1, 0, 0, 0, 1);
-      if (!e.open) M.put(X + right.x * B * 0.42, Y - B * 0.36, Z + right.z * B * 0.42, B * 0.5, H.lock, 1, 1, 1, 1, 0, 0, 0, 1);
+      if (on || pop > 0) HB.put(X, Y, Z, B * 1.9, H.glow, color[0], color[1], color[2], on ? 0.55 + 0.25 * Math.sin(time * 6) : pop, 0, 1, 0, 1);
+      HB.put(X, Y, Z, B, H.banner, color[0], color[1], color[2], 1, 0, 0, 0, 1);
+      if (li >= 0) HB.put(X, Y + B * 0.03, Z, B * 0.78, H.letter + li, 1, 1, 1, 1, 0, 0, 0, 1);
+      if (!e.open) HB.put(X + right.x * B * 0.42, Y - B * 0.36, Z + right.z * B * 0.42, B * 0.5, H.lock, 1, 1, 1, 1, 0, 0, 0, 1);
       if (!e.open) continue;
       // chevrons au sol : trois par case de l'entrée, de bord vers l'intérieur
       const rot = Math.atan2(-e.ix, -e.iy);
