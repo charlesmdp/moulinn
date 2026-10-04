@@ -54,22 +54,22 @@ et une **couleur de famille** au sol (brun-vert, bleu-blanc, rouge-orange). Le n
 
 | Clé | Nom | Rôle | PV | Vitesse | Capacité |
 | --- | --- | --- | --- | --- | --- |
-| `fermier` | Agriculteur en colère | paysan | 40 | 1,0 | — |
-| `quad` | Voleur en quad | voleur rapide | 70 | 1,6 | — |
-| `cowboy` | Cow-boy au lasso | guerrier | 120 | 0,75 | lasso : attrape une gemme tombée à 1,5 case |
-| `vache` | Cavalier sur vache | chevalier | 170 | 0,7 | bouclier 5 |
-| `druide` | Druide | mage | 100 | 1,0 | bulle de 100 qui se reforme après 4 s sans coup |
-| `bigoudene` | Bigoudène aux crêpes | prêtre | 120 | 1,0 | crêpe : + 30 PV à l'allié le plus blessé, toutes les 3 s |
-| `chasseur` | Chasseur camouflé | ninja | 100 | 1,5 | fumigène : invisible 5 s au premier coup |
-| `rugbyman` | Rugbyman | assassin | 110 | 1,5 | esquive un projectile sur deux (pas les zones, pas le jet) |
-| `sonneur` | Sonneur de biniou | barde | 110 | 1,0 | toutes les 8 s : alliés proches × 2 de vitesse pendant 3 s |
-| `pompier` | Pompier | paladin | 220 | 0,85 | insensible à tous les effets |
-| `canard` | Cavalier sur canard | valkyrie | 90 | 1,2 | **nage** : coupe par l'eau |
-| `cycliste` | Cycliste du peloton | essaim | 50 | 1,9 | arrive en **peloton** (12 à 20) ; + 30 % de vitesse groupé |
-| `korrigan` | Korrigan | **nouveau, rusé** | 120 | 1,2 | touché, il **disparaît et réapparaît 1,8 case plus loin** (toutes les 3,5 s) |
-| `touriste` | Touriste au flash | **nouveau, rusé** | 110 | 1,0 | toutes les 5 s, **éblouit** la tour la plus proche (1,6 case) : elle ne tire plus pendant 2 s |
-| `tracteur` | Tracteur du voisin | **nouveau, tank** | 420 | 0,55 | bouclier 3 ; détruit, **trois agriculteurs sautent de la cabine** |
-| `montgolfiere` | Montgolfière | **nouveau, surprise** | 300 | 0,55 | **vole en ligne droite** au-dessus de tout, du bord de la carte à la cachette, puis repart vers le bord le plus proche |
+| `fermier` | Agriculteur en colère | paysan | 40 | 0,9 | — |
+| `quad` | Voleur en quad | voleur rapide | 70 | 1,45 | — |
+| `cowboy` | Cow-boy au lasso | guerrier | 120 | 0,68 | lasso : attrape une gemme tombée à 1,5 case |
+| `vache` | Cavalier sur vache | chevalier | 170 | 0,63 | bouclier 5 |
+| `druide` | Druide | mage | 100 | 0,9 | bulle de 60 qui se reforme après 5 s sans coup |
+| `bigoudene` | Bigoudène aux crêpes | prêtre | 120 | 0,9 | crêpe : + 30 PV à l'allié le plus blessé, toutes les 3 s |
+| `chasseur` | Chasseur camouflé | ninja | 100 | 1,35 | fumigène : invisible 5 s au premier coup |
+| `rugbyman` | Rugbyman | assassin | 110 | 1,35 | esquive un projectile sur deux (pas les zones, pas le jet) |
+| `sonneur` | Sonneur de biniou | barde | 110 | 0,9 | toutes les 8 s : alliés proches × 2 de vitesse pendant 3 s |
+| `pompier` | Pompier | paladin | 220 | 0,77 | insensible à tous les effets |
+| `canard` | Cavalier sur canard | valkyrie | 90 | 1,08 | **nage** : coupe par l'eau |
+| `cycliste` | Cycliste du peloton | essaim | 45 | 1,6 | arrive en **peloton** (jusqu'à 20) ; + 30 % de vitesse groupé |
+| `korrigan` | Korrigan | **nouveau, rusé** | 120 | 1,08 | touché, il **disparaît et réapparaît 1,8 case plus loin** (toutes les 3,5 s) |
+| `touriste` | Touriste au flash | **nouveau, rusé** | 110 | 0,9 | toutes les 5 s, **éblouit** la tour la plus proche (1,6 case) : elle ne tire plus pendant 2 s |
+| `tracteur` | Tracteur du voisin | **nouveau, tank** | 420 | 0,5 | bouclier 3 ; détruit, **trois agriculteurs sautent de la cabine** |
+| `montgolfiere` | Montgolfière | **nouveau, surprise** | 260 | 0,5 | **vole en ligne droite** au-dessus de tout, du bord de la carte à la cachette, puis repart vers le bord le plus proche |
 
 Champion : PV × 3,5, taille × 1,3, capacités renforcées, couronne / liseré doré. Boss : champion × 2,
 taille × 1,6, nommé. Lisibilité (exigence) : on doit reconnaître chaque ennemi **d'un coup d'œil vu
@@ -145,8 +145,8 @@ game.tileInfo(i, j) ; game.canBuild(i, j, f) ; game.towerInfo(id) ; game.upgrade
 game.nextWave() ; game.upcoming(n) ; game.describeEnemy(type) ; game.enemyInfo(id)
 ```
 
-Déplacement : **continu**. Chaque ennemi suit un champ d'écoulement (distances calculées à 8 voisins
-vers son but) et garde sa **voie** : un réel `lane` dans [−1, 1] (− 1 / + 1 : le long d'un bord, 0 : au
+Déplacement : **continu**. Chaque ennemi suit un champ d'écoulement (distances par « marche rapide »,
+solution de l'équation eikonale sur la grille : la pente suit l'axe des routes larges) et garde sa **voie** : un réel `lane` dans [−1, 1] (− 1 / + 1 : le long d'un bord, 0 : au
 milieu) qui dérive lentement ; il se décale dans la largeur de la route, contourne les buttes, s'écarte
 de ses voisins. Les montgolfières volent en ligne droite (`flying: true`, altitude 1,6 case).
 
