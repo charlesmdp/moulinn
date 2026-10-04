@@ -64,18 +64,25 @@
     firstWaveDelay: 25, // la première vague attend le joueur (ou ce délai)
     waveGap: 24, // secondes entre deux vagues (compte à rebours)
     waveGapLate: 20, // à partir de la mission 8
+    towerStep: 20, // chaque tour d'une famille déjà posée rend la suivante 20 or plus chère (comme Cursed Treasure)
+    goldMul: 1.3, // primes des ennemis (compense les tours de plus en plus chères)
   };
   D.mana = { start: 40, max: 100, regen: 1, perManaTower: 0.4 };
 
   /* ------------------------------------------------------------------ tours */
   // xp : expérience cumulée nécessaire pour ACHETER le niveau suivant ; cost : prix de ce niveau (or).
-  // Trois façons d'attaquer (attack) :
-  //  - "shot" (sanglier) : un projectile à la suite (rate tirs/s, dmg par coup), multi : cibles à la fois ;
+  // Façons d'attaquer (attack), et ce que change chaque spécialisation dès le niveau 4 :
+  //  - "shot" (sanglier) : un projectile à la suite (rate tirs/s, dmg par coup) ; multi : autant de
+  //    cibles à la fois (sanglier chasseur) ; splash : grosse châtaigne en cloche (laie baliste) ;
   //  - "charges" (cygne) : réserve de `charges` boules (dmg chacune), lâchées en rafale (une toutes les
-  //    `burst` s) ; une charge revient toutes les `reload` s, l'une après l'autre ;
-  //  - "beam" (berger, dragon) : jet continu sur une cible tant qu'elle reste à portée, `dps` qui monte
-  //    jusqu'à × `heatMax` en `heatTime` s sur la même cible ; beams : jets simultanés ; chain : le jet
-  //    rebondit sur une seconde cible proche (pct des dégâts).
+  //    `burst` s) ; une charge revient toutes les `reload` s, l'une après l'autre ; nova : chaque charge
+  //    part en onde de glace autour du nid (cygne des glaces) ; volley : toutes les charges d'un coup,
+  //    chacune sur un ennemi différent (cygne noir) ;
+  //  - "beam" (berger, dragon bleu) : jet continu sur une cible tant qu'elle reste à portée, `dps` qui
+  //    monte jusqu'à × `heatMax` en `heatTime` s sur la même cible ; chain : le jet rebondit sur
+  //    `count` cibles proches (pct des dégâts) ; un esquiveur qui se dérobe fait retomber la chauffe ;
+  //  - "cone" (dragon rouge) : cône de flammes d'ouverture `cone` (radians) qui brûle tout ce qui est
+  //    devant lui, chauffe tant qu'il souffle ; beams : têtes (cônes) simultanées.
   // Effets : splash (rayon, cases), slow {pct, t}, crit {chance, mult}, stun {chance, t}, fear {chance, t},
   // freeze {chance, t}, burn {dps, t}, radiance {pct, t}, corpse (part des PV max qui explose autour d'un
   // ennemi tué), mana (mana par coup), disarm (chance de retirer la capacité), pierce (ignore bouclier).
@@ -98,17 +105,17 @@
       specs: {
         A: {
           name: "Sanglier chasseur",
-          blurb: "Tire plus vite et porte des coups critiques (dégâts × 2,5) ; au niveau 7, vise deux ennemis à la fois.",
+          blurb: "Lance deux bogues à la fois sur deux ennemis différents, avec des coups critiques ; au niveau 7, trois à la fois.",
           levels: [
-            { level: 4, name: "Sanglier chasseur", cost: 130, dmg: 28, range: 3.0, rate: 1.7, shot: "chestnut", speed: 10, crit: { chance: 0.2, mult: 2.5 } },
-            { level: 5, name: "Sanglier chasseur", cost: 150, dmg: 35, range: 3.05, rate: 1.85, shot: "chestnut", speed: 10, crit: { chance: 0.22, mult: 2.5 } },
-            { level: 6, name: "Sanglier chasseur", cost: 180, dmg: 43, range: 3.1, rate: 2.0, shot: "chestnut", speed: 10.5, crit: { chance: 0.25, mult: 2.5 } },
-            { level: 7, name: "Grand Solitaire", cost: 260, dmg: 50, range: 3.25, rate: 2.1, shot: "chestnut", speed: 11, crit: { chance: 0.3, mult: 3 }, multi: 2 },
+            { level: 4, name: "Sanglier chasseur", cost: 130, dmg: 24, range: 3.0, rate: 1.5, shot: "chestnut", speed: 10, crit: { chance: 0.15, mult: 2.5 }, multi: 2 },
+            { level: 5, name: "Sanglier chasseur", cost: 150, dmg: 30, range: 3.05, rate: 1.6, shot: "chestnut", speed: 10, crit: { chance: 0.18, mult: 2.5 }, multi: 2 },
+            { level: 6, name: "Sanglier chasseur", cost: 180, dmg: 37, range: 3.1, rate: 1.7, shot: "chestnut", speed: 10.5, crit: { chance: 0.22, mult: 2.5 }, multi: 2 },
+            { level: 7, name: "Grand Solitaire", cost: 260, dmg: 44, range: 3.25, rate: 1.8, shot: "chestnut", speed: 11, crit: { chance: 0.3, mult: 3 }, multi: 3 },
           ],
         },
         B: {
           name: "Laie baliste",
-          blurb: "Grosse châtaigne en cloche qui explose : dégâts de zone, grande portée, tir lent.",
+          blurb: "Grosse châtaigne lancée en cloche qui explose sur tout un groupe : dégâts de zone, grande portée, tir lent ; au niveau 7, elle étourdit.",
           levels: [
             { level: 4, name: "Laie baliste", cost: 140, dmg: 36, range: 3.6, rate: 0.75, shot: "bigChestnut", speed: 6, splash: 0.9 },
             { level: 5, name: "Laie baliste", cost: 160, dmg: 46, range: 3.65, rate: 0.75, shot: "bigChestnut", speed: 6, splash: 0.95 },
@@ -125,29 +132,29 @@
       role: "Garde des boules d'eau en réserve et les lâche d'un coup sur les ennemis (zone, ralentit), puis se recharge.",
       color: "#f4f1e6",
       base: [
-        { level: 1, name: "Cygneau", cost: 70, dmg: 10, range: 2.6, charges: 2, reload: 1.4, burst: 0.25, shot: "waterOrb", speed: 8, splash: 0.5, slow: { pct: 0.3, t: 1.6 } },
-        { level: 2, name: "Cygne", cost: 60, dmg: 13, range: 2.7, charges: 2, reload: 1.25, burst: 0.24, shot: "waterOrb", speed: 8, splash: 0.55, slow: { pct: 0.33, t: 1.7 } },
-        { level: 3, name: "Cygne majestueux", cost: 90, dmg: 17, range: 2.8, charges: 3, reload: 1.1, burst: 0.22, shot: "waterOrb", speed: 8.5, splash: 0.6, slow: { pct: 0.36, t: 1.8 } },
+        { level: 1, name: "Cygneau", cost: 70, dmg: 18, range: 2.6, charges: 2, reload: 3.0, burst: 0.3, shot: "waterOrb", speed: 8, splash: 0.55, slow: { pct: 0.3, t: 1.8 } },
+        { level: 2, name: "Cygne", cost: 60, dmg: 24, range: 2.7, charges: 2, reload: 2.8, burst: 0.28, shot: "waterOrb", speed: 8, splash: 0.6, slow: { pct: 0.33, t: 1.9 } },
+        { level: 3, name: "Cygne majestueux", cost: 90, dmg: 30, range: 2.8, charges: 3, reload: 2.6, burst: 0.26, shot: "waterOrb", speed: 8.5, splash: 0.65, slow: { pct: 0.36, t: 2 } },
       ],
       specs: {
         A: {
           name: "Cygne des glaces",
-          blurb: "Boules de glace : ralentissent beaucoup plus et font parfois reculer de peur ; au niveau 7, gèlent sur place.",
+          blurb: "Chaque charge part en onde de glace autour du nid : tous les ennemis à portée sont touchés, très ralentis, parfois effrayés ; au niveau 7, gelés sur place.",
           levels: [
-            { level: 4, name: "Cygne des glaces", cost: 140, dmg: 21, range: 2.9, charges: 3, reload: 1.0, burst: 0.2, shot: "iceOrb", speed: 9, splash: 0.6, slow: { pct: 0.45, t: 2 }, fear: { chance: 0.1, t: 1.4 } },
-            { level: 5, name: "Cygne des glaces", cost: 160, dmg: 26, range: 2.95, charges: 3, reload: 0.95, burst: 0.2, shot: "iceOrb", speed: 9, splash: 0.62, slow: { pct: 0.48, t: 2 }, fear: { chance: 0.12, t: 1.4 } },
-            { level: 6, name: "Cygne des glaces", cost: 190, dmg: 32, range: 3.0, charges: 4, reload: 0.9, burst: 0.18, shot: "iceOrb", speed: 9.5, splash: 0.65, slow: { pct: 0.5, t: 2.2 }, fear: { chance: 0.14, t: 1.5 } },
-            { level: 7, name: "Cygne royal des glaces", cost: 270, dmg: 40, range: 3.15, charges: 4, reload: 0.8, burst: 0.16, shot: "iceOrb", speed: 10, splash: 0.7, slow: { pct: 0.55, t: 2.4 }, fear: { chance: 0.15, t: 1.5 }, freeze: { chance: 0.15, t: 1.2 } },
+            { level: 4, name: "Cygne des glaces", cost: 140, dmg: 20, range: 2.7, charges: 3, reload: 2.6, burst: 0.5, nova: true, shot: "iceNova", slow: { pct: 0.45, t: 2 }, fear: { chance: 0.08, t: 1.4 } },
+            { level: 5, name: "Cygne des glaces", cost: 160, dmg: 25, range: 2.75, charges: 3, reload: 2.5, burst: 0.5, nova: true, shot: "iceNova", slow: { pct: 0.48, t: 2 }, fear: { chance: 0.1, t: 1.4 } },
+            { level: 6, name: "Cygne des glaces", cost: 190, dmg: 31, range: 2.8, charges: 4, reload: 2.4, burst: 0.45, nova: true, shot: "iceNova", slow: { pct: 0.5, t: 2.2 }, fear: { chance: 0.12, t: 1.5 } },
+            { level: 7, name: "Cygne royal des glaces", cost: 270, dmg: 38, range: 2.95, charges: 4, reload: 2.2, burst: 0.45, nova: true, shot: "iceNova", slow: { pct: 0.55, t: 2.4 }, fear: { chance: 0.12, t: 1.5 }, freeze: { chance: 0.15, t: 1.2 } },
           ],
         },
         B: {
           name: "Cygne noir",
-          blurb: "Boules d'eau sombre : chaque coup rend du mana et peut désarmer (bouclier, bulle, soin, fumigène, esquive, flash… perdus).",
+          blurb: "Lâche toutes ses charges d'un coup, chacune sur un ennemi différent : boules d'eau sombre qui rendent du mana et peuvent désarmer (bouclier, bulle, soin, fumigène, esquive, flash… perdus).",
           levels: [
-            { level: 4, name: "Cygne noir", cost: 140, dmg: 24, range: 2.9, charges: 3, reload: 1.0, burst: 0.2, shot: "darkOrb", speed: 9, splash: 0.7, slow: { pct: 0.25, t: 1.5 }, mana: 0.6, disarm: 0.18 },
-            { level: 5, name: "Cygne noir", cost: 160, dmg: 30, range: 2.95, charges: 3, reload: 0.95, burst: 0.2, shot: "darkOrb", speed: 9, splash: 0.72, slow: { pct: 0.25, t: 1.5 }, mana: 0.7, disarm: 0.22 },
-            { level: 6, name: "Cygne noir", cost: 190, dmg: 37, range: 3.0, charges: 4, reload: 0.9, burst: 0.18, shot: "darkOrb", speed: 9.5, splash: 0.75, slow: { pct: 0.25, t: 1.5 }, mana: 0.8, disarm: 0.26 },
-            { level: 7, name: "Cygne noir enchanteur", cost: 270, dmg: 45, range: 3.15, charges: 5, reload: 0.8, burst: 0.16, shot: "darkOrb", speed: 10, splash: 0.85, slow: { pct: 0.3, t: 1.6 }, mana: 1.0, disarm: 0.35 },
+            { level: 4, name: "Cygne noir", cost: 140, dmg: 34, range: 2.9, charges: 3, reload: 2.6, burst: 0.6, volley: true, shot: "darkOrb", speed: 9, splash: 0.6, slow: { pct: 0.25, t: 1.5 }, mana: 0.6, disarm: 0.18 },
+            { level: 5, name: "Cygne noir", cost: 160, dmg: 42, range: 2.95, charges: 3, reload: 2.5, burst: 0.6, volley: true, shot: "darkOrb", speed: 9, splash: 0.62, slow: { pct: 0.25, t: 1.5 }, mana: 0.7, disarm: 0.22 },
+            { level: 6, name: "Cygne noir", cost: 190, dmg: 52, range: 3.0, charges: 4, reload: 2.4, burst: 0.55, volley: true, shot: "darkOrb", speed: 9.5, splash: 0.65, slow: { pct: 0.25, t: 1.5 }, mana: 0.8, disarm: 0.26 },
+            { level: 7, name: "Cygne noir enchanteur", cost: 270, dmg: 62, range: 3.15, charges: 5, reload: 2.2, burst: 0.5, volley: true, shot: "darkOrb", speed: 10, splash: 0.75, slow: { pct: 0.3, t: 1.6 }, mana: 1.0, disarm: 0.35 },
           ],
         },
       },
@@ -156,7 +163,7 @@
       name: "Berger australien",
       terrain: "rock",
       attack: "beam",
-      role: "Crache un jet de feu continu sur une cible tant qu'elle reste à portée : plus il la tient, plus ça brûle. Perce les boucliers. Devient dragon.",
+      role: "Crache un jet de feu continu sur une cible tant qu'elle reste à portée : plus il la tient, plus ça brûle. Perce les boucliers. Devient dragon : cône de flammes (rouge) ou jet qui rebondit (bleu).",
       color: "#b5482a",
       base: [
         { level: 1, name: "Chiot berger", cost: 90, dps: 13, range: 3.0, heatMax: 2.2, heatTime: 3, beam: "fire", pierce: true },
@@ -166,22 +173,22 @@
       specs: {
         A: {
           name: "Dragon merle rouge",
-          blurb: "Son jet embrase tout autour de la cible et fait brûler ; au niveau 7, deux jets à la fois.",
+          blurb: "Souffle un cône de flammes qui brûle tout ce qui se trouve devant lui (zone) et chauffe tant qu'il souffle ; au niveau 7, deux têtes, deux cônes.",
           levels: [
-            { level: 4, name: "Dragon merle rouge", cost: 160, dps: 30, range: 3.3, heatMax: 2.5, heatTime: 3, beam: "dragonFire", pierce: true, splash: 0.7, splashPct: 0.4, burn: { dps: 8, t: 2 } },
-            { level: 5, name: "Dragon merle rouge", cost: 180, dps: 37, range: 3.35, heatMax: 2.5, heatTime: 3, beam: "dragonFire", pierce: true, splash: 0.75, splashPct: 0.4, burn: { dps: 10, t: 2 } },
-            { level: 6, name: "Dragon merle rouge", cost: 210, dps: 45, range: 3.4, heatMax: 2.5, heatTime: 2.8, beam: "dragonFire", pierce: true, splash: 0.8, splashPct: 0.4, burn: { dps: 12, t: 2 } },
-            { level: 7, name: "Grand dragon rouge", cost: 300, dps: 50, range: 3.5, heatMax: 2.6, heatTime: 2.6, beam: "dragonFire", pierce: true, splash: 0.9, splashPct: 0.45, burn: { dps: 16, t: 2.5 }, beams: 2 },
+            { level: 4, name: "Dragon merle rouge", cost: 160, dps: 19, range: 3.0, heatMax: 2.2, heatTime: 3, cone: 0.95, beam: "dragonFire", pierce: true, burn: { dps: 6, t: 2 } },
+            { level: 5, name: "Dragon merle rouge", cost: 180, dps: 24, range: 3.05, heatMax: 2.2, heatTime: 3, cone: 0.95, beam: "dragonFire", pierce: true, burn: { dps: 8, t: 2 } },
+            { level: 6, name: "Dragon merle rouge", cost: 210, dps: 29, range: 3.1, heatMax: 2.3, heatTime: 2.8, cone: 1.0, beam: "dragonFire", pierce: true, burn: { dps: 10, t: 2 } },
+            { level: 7, name: "Grand dragon rouge", cost: 300, dps: 33, range: 3.2, heatMax: 2.4, heatTime: 2.6, cone: 1.05, beam: "dragonFire", pierce: true, burn: { dps: 14, t: 2.5 }, beams: 2 },
           ],
         },
         B: {
           name: "Dragon merle bleu",
-          blurb: "Son feu bleu fait rayonner la cible (+25 % de tous les dégâts subis) ; un ennemi vaincu explose sur ses voisins ; au niveau 7, le jet rebondit.",
+          blurb: "Son jet de feu bleu rebondit sur un second ennemi et fait rayonner ses cibles (+25 % de tous les dégâts subis) ; un ennemi vaincu explose sur ses voisins ; au niveau 7, le jet rebondit trois fois.",
           levels: [
-            { level: 4, name: "Dragon merle bleu", cost: 160, dps: 32, range: 3.5, heatMax: 2.4, heatTime: 3, beam: "blueFire", pierce: true, radiance: { pct: 0.25, t: 1.5 }, corpse: 0.3 },
-            { level: 5, name: "Dragon merle bleu", cost: 180, dps: 39, range: 3.55, heatMax: 2.4, heatTime: 3, beam: "blueFire", pierce: true, radiance: { pct: 0.28, t: 1.5 }, corpse: 0.35 },
-            { level: 6, name: "Dragon merle bleu", cost: 210, dps: 47, range: 3.6, heatMax: 2.4, heatTime: 2.8, beam: "blueFire", pierce: true, radiance: { pct: 0.31, t: 1.5 }, corpse: 0.4 },
-            { level: 7, name: "Grand dragon bleu", cost: 300, dps: 56, range: 3.75, heatMax: 2.5, heatTime: 2.6, beam: "blueFire", pierce: true, radiance: { pct: 0.4, t: 1.8 }, corpse: 0.5, chain: { range: 1.8, pct: 0.6 } },
+            { level: 4, name: "Dragon merle bleu", cost: 160, dps: 28, range: 3.5, heatMax: 2.4, heatTime: 3, beam: "blueFire", pierce: true, radiance: { pct: 0.25, t: 1.5 }, corpse: 0.3, chain: { count: 1, range: 1.5, pct: 0.6 } },
+            { level: 5, name: "Dragon merle bleu", cost: 180, dps: 34, range: 3.55, heatMax: 2.4, heatTime: 3, beam: "blueFire", pierce: true, radiance: { pct: 0.28, t: 1.5 }, corpse: 0.35, chain: { count: 1, range: 1.55, pct: 0.6 } },
+            { level: 6, name: "Dragon merle bleu", cost: 210, dps: 41, range: 3.6, heatMax: 2.4, heatTime: 2.8, beam: "blueFire", pierce: true, radiance: { pct: 0.31, t: 1.5 }, corpse: 0.4, chain: { count: 1, range: 1.6, pct: 0.65 } },
+            { level: 7, name: "Grand dragon bleu", cost: 300, dps: 48, range: 3.75, heatMax: 2.5, heatTime: 2.6, beam: "blueFire", pierce: true, radiance: { pct: 0.4, t: 1.8 }, corpse: 0.5, chain: { count: 3, range: 1.8, pct: 0.7 } },
           ],
         },
       },
@@ -192,7 +199,7 @@
     const f = D.FAMILIES[family];
     if (!f) return null;
     const lv = level <= 3 ? f.base[level - 1] : f.specs[spec] ? f.specs[spec].levels[level - 4] : null;
-    return lv ? Object.assign({ attack: f.attack }, lv) : null;
+    return lv ? Object.assign({ attack: lv.cone ? "cone" : f.attack }, lv) : null;
   };
 
   /* ------------------------------------------------------------------ ennemis */
@@ -252,8 +259,8 @@
       name: "Rugbyman",
       ct: "Assassin",
       hp: 110, speed: 1.35, gold: 15, xp: 6, threat: 12, tier: 3,
-      ability: { kind: "evade", chance: 0.5 },
-      blurb: "Il esquive un projectile sur deux. Les zones et le jet de feu du berger ne s'esquivent pas.",
+      ability: { kind: "evade", chance: 0.5, every: 1.2 },
+      blurb: "Il esquive un projectile sur deux et se dérobe au jet de feu (la chauffe retombe à zéro). Seules les zones l'attrapent à coup sûr.",
     },
     sonneur: {
       name: "Sonneur de biniou",
@@ -340,7 +347,7 @@
   D.SPELLS = {
     cut: { name: "Couper", cost: 30, blurb: "Dégage une case boisée : on peut ensuite y construire.", unlock: 1 },
     frenzy: { name: "Frénésie", cost: 60, blurb: "Toutes les tours tirent deux fois plus vite pendant 5 s.", unlock: 2, t: 5, mult: 2 },
-    meteor: { name: "Météore", cost: 90, blurb: "Une météore s'écrase après 0,8 s : 150 dégâts autour du point visé.", unlock: 3, dmg: 150, r: 1.4, delay: 0.8 },
+    meteor: { name: "Météore", cost: 90, blurb: "Une météore s'écrase après 0,8 s : 150 dégâts autour du point visé.", unlock: 2, dmg: 150, r: 1.4, delay: 0.8 },
   };
 
   /* ------------------------------------------------------------------ compétences */

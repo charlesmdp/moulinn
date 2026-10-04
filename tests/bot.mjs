@@ -118,9 +118,11 @@ export function makeBot(P, game, opts = {}) {
   /** Dégâts par seconde estimés (zone et effets comptés grossièrement). */
   function dps(st) {
     if (!st) return 0;
-    if (st.attack === "beam") return st.dps * (1 + st.heatMax) * 0.5 * (st.beams || 1) * (st.splash ? 1.35 : 1) * (st.chain ? 1.4 : 1) * (st.radiance ? 1.15 : 1);
+    const heat = (1 + (st.heatMax || 1)) * 0.5;
+    if (st.attack === "cone") return st.dps * heat * (st.beams || 1) * 2.2; // tous ceux qui sont devant
+    if (st.attack === "beam") return st.dps * heat * (st.beams || 1) * (st.chain ? 1 + (st.chain.count || 1) * st.chain.pct : 1) * (st.radiance ? 1.15 : 1);
     const zone = st.splash ? 1 + st.splash : 1;
-    if (st.attack === "charges") return (st.dmg / st.reload) * zone * (st.slow ? 1.15 : 1);
+    if (st.attack === "charges") return (st.dmg / st.reload) * (st.nova ? 2.6 : zone) * (st.slow ? 1.15 : 1);
     const crit = st.crit ? 1 + st.crit.chance * (st.crit.mult - 1) : 1;
     return st.dmg * st.rate * crit * (st.multi || 1) * zone;
   }
@@ -175,7 +177,11 @@ export function makeBot(P, game, opts = {}) {
     }
     // Une tour a l'expérience pour monter mais l'or manque : on économise pour elle (une tour de
     // niveau 4 à 7 vaut bien mieux qu'une tour de plus au niveau 1), sauf au tout début.
-    const saving = best && s.towers.length >= wanted ? bestCost : 0;
+    // Une nouvelle tour coûte de plus en plus cher (+20 par tour de la famille) : quand une amélioration
+    // rapporte plus de dégâts par pièce d'or qu'une tour de plus, on économise pour elle.
+    let newValue = 0;
+    if (free) newValue = (dps(D.towerLevel(free.family, 1)) * 0.8) / free.cost;
+    const saving = best && (s.towers.length >= wanted || bestValue >= newValue) && s.towers.length >= 4 ? bestCost : 0;
     const reserve = Math.max(s.towers.length >= 6 ? 40 : 0, saving);
     if (free && s.gold >= free.cost + reserve) {
       if (game.build(free.i, free.j, free.family).ok) {

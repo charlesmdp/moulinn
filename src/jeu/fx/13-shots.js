@@ -670,6 +670,33 @@
     if (_.debris) _.debris("ice", tv[1].set(x, y, z), n(5), { speed: 3.5, up: 3.5, size: 0.22, spread: 0.3, floor: g });
   };
 
+  /**
+   * Onde de glace du cygne des glaces : un anneau de givre part du nid jusqu'au bout de sa portée
+   * (o.radius, en cases), éclats qui filent vers l'extérieur, givre au sol. p = sol au pied du nid.
+   */
+  B.iceNova = function (p, o) {
+    const c = C(),
+      L = pal();
+    const R1 = Math.max(1.5, (o.radius || 2.6) * TILE);
+    const x = p.x,
+      g = p.y,
+      z = p.z;
+    flash(x, g + 1.3, z, 3.2, L.iceW, 0.22, 0.95);
+    ring(x, g, z, 1.2, R1 * 2, 0.5, L.iceW, 1, 0.35);
+    ring(x, g, z, 0.8, R1 * 1.7, 0.65, L.ice, 0.8, 0.25, c.ripple);
+    decal(x, g, z, R1 * 2.05, c.frost, L.ice, 0.55, 1.4, 0.35);
+    for (let i = 0, k = n(26); i < k; i++) {
+      const a = R(0, 6.28),
+        sp = (R1 / 0.45) * R(0.65, 1);
+      em({ x: x + Math.cos(a) * 0.7, y: g + R(0.2, 0.6), z: z + Math.sin(a) * 0.7, vx: Math.cos(a) * sp, vy: R(0.4, 1.8), vz: Math.sin(a) * sp, drag: 3.2, life: R(0.35, 0.55), s0: R(0.28, 0.42), s1: 0.08, cell: rnd() < 0.5 ? c.shard : c.crystal, r: L.iceW[0], g: L.iceW[1], b: L.iceW[2], a: 1, a1: 0, add: 0.35, rot: R(0, 6), spin: R(-8, 8), floor: g + 0.05 });
+    }
+    for (let i = 0, k = n(10); i < k; i++) {
+      const a = R(0, 6.28),
+        d = R(0.4, 0.95) * R1;
+      em({ x: x + Math.cos(a) * d, y: g + R(0.3, 1.2), z: z + Math.sin(a) * d, vy: R(0.2, 0.8), life: R(0.4, 0.7), s0: 0.05, s1: 0.45, cell: c.twinkle, r: 1, g: 1, b: 1, a: 1, a1: 0, add: 1, curve: 2, spin: 4, delay: R(0.05, 0.25) });
+    }
+  };
+
   B.darkOrbHit = function (p, o) {
     const c = C(),
       L = pal();

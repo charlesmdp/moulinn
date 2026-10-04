@@ -3,7 +3,8 @@
 //   const a = PTMT.fx.area(kind, position, radius); a.update(position, radius, t01); a.release();
 //     kind : 'groundFire' | 'blizzard' | 'polarStorm' | 'vortex' | 'maelstrom' | 'frenzy' | 'freezeZone'
 //     t01 : progression de la durée de vie (apparition au début, disparition à la fin)
-//   const c = PTMT.fx.cone(kind, origin, yaw, angleRad, range); c.update(origin, yaw, pulse01); c.release();
+//   const c = PTMT.fx.cone(kind, origin, yaw, angleRad, range); c.update(origin, yaw, pulse01[, groundY]); c.release();
+//   (groundY : hauteur du sol sous la gueule ; le secteur se pose au sol et les flammes plongent vers lui)
 //     kind : 'flame' (souffle de dragon) | 'waterCone' (tsunami) ; yaw 0 = vers +Z
 //   const t = PTMT.fx.telegraph(kind, position, radius | { length, width, yaw }); t.update(position, shape); t.release();
 //     kind : famille 'fire' | 'ice' | 'water' | 'gold' (ou nom d'effet : couleur de sa famille)
@@ -566,19 +567,27 @@
       this.range = Math.max(0.5, range || 6);
       this.pulse = 1;
       this.age = 0;
+      this.groundY = null;
+      this.slope = 0;
       this.update(origin, yaw, 1);
       this.decal.visible = true;
       _.S.live.add(this);
     }
-    /** Origine (monde), direction (yaw, 0 = +Z) et intensité pulsée 0..1. */
-    update(origin, yaw, pulse01) {
+    /**
+     * Origine (monde), direction (yaw, 0 = +Z), intensité pulsée 0..1 et, si donnée, hauteur du sol : le
+     * secteur se pose au sol et le jet plonge de la gueule vers la poitrine des ennemis au bout de la portée.
+     */
+    update(origin, yaw, pulse01, groundY) {
       if (!this.active) return this;
       if (origin) this.origin.copy(origin);
       if (yaw !== undefined && yaw !== null) this.yaw = yaw;
       if (pulse01 !== undefined && pulse01 !== null) this.pulse = Math.max(0, Math.min(1, pulse01));
+      if (groundY !== undefined && groundY !== null) this.groundY = groundY;
       this.dir.set(Math.sin(this.yaw), 0, Math.cos(this.yaw));
       const o = this.origin;
-      this.decal.position.set(o.x, o.y + 0.06 - (this.kind === "flame" ? 0 : 0), o.z);
+      const gy = this.groundY === null ? o.y : Math.min(o.y, this.groundY);
+      this.slope = Math.max(0, (o.y - (gy + 0.9)) / this.range);
+      this.decal.position.set(o.x, gy + 0.06, o.z);
       // vP.y = avant : le plan est tourné pour que -Z local (vP.y > 0) pointe vers yaw
       this.decal.rotation.set(0, this.yaw + Math.PI, 0);
       this.decal.scale.set(this.range, 1, this.range);
@@ -606,7 +615,7 @@
   }
   function coneVel(out, c, speed, spreadUp) {
     const a = c.yaw + R(-0.5, 0.5) * c.angle * 0.92;
-    out.set(Math.sin(a) * speed, R(-0.05, spreadUp) * speed, Math.cos(a) * speed);
+    out.set(Math.sin(a) * speed, (R(-0.05, spreadUp) - (c.slope || 0)) * speed, Math.cos(a) * speed);
     return out;
   }
   function flameCone(c, dt, I) {

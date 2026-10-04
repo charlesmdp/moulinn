@@ -20,7 +20,7 @@
   "use strict";
   const PTMT = (globalThis.PTMT = globalThis.PTMT || {});
   const S = (PTMT.sim = PTMT.sim || {});
-  const SPELLS = [null, ["cut"], ["cut", "frenzy"]];
+  const SPELLS = [null, ["cut"]];
   const M = (S.MAPS = [null]);
   const add = (m) => {
     m.lairs = m.lairs || [{ at: null, gems: 5, style: "moulin" }];

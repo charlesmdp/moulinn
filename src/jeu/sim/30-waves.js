@@ -45,18 +45,18 @@
   // présentés), type fétiche (vagues à thème), boss, multiplicateur de PV de la mission.
   const BASE = ["fermier", "quad", "cowboy", "vache", "chasseur", "sonneur"];
   const LV = {
-    4: { intro: [["druide", 3]], pool: BASE, boss: ["druide"], hp: 1.0 },
-    5: { intro: [["cycliste", 3], ["bigoudene", 9]], pool: [...BASE, "druide"], heavy: "cycliste", boss: ["bigoudene"], hp: 1.05 },
-    6: { intro: [["rugbyman", 3]], pool: [...BASE, "druide", "bigoudene", "cycliste"], boss: ["rugbyman"], hp: 1.0 },
-    7: { intro: [], pool: [...BASE, "druide", "bigoudene", "cycliste", "rugbyman"], heavy: "chasseur", boss: ["chasseur", "chasseur"], hp: 1.05 },
-    8: { intro: [["pompier", 3]], pool: [...BASE, "druide", "bigoudene", "cycliste", "rugbyman"], boss: ["pompier"], hp: 1.8 },
-    9: { intro: [["canard", 3]], pool: [...BASE, "druide", "bigoudene", "cycliste", "rugbyman", "pompier"], heavy: "canard", boss: ["canard", "vache"], hp: 0.95 },
-    10: { intro: [["korrigan", 3]], pool: [...BASE, "druide", "bigoudene", "cycliste", "rugbyman", "pompier", "canard"], heavy: "korrigan", boss: ["korrigan"], hp: 2.0 },
-    11: { intro: [["montgolfiere", 6]], pool: [...BASE, "druide", "bigoudene", "cycliste", "rugbyman", "pompier", "canard", "korrigan"], heavy: "montgolfiere", boss: ["montgolfiere", "druide"], hp: 1.3 },
-    12: { intro: [["touriste", 3]], pool: [...BASE, "druide", "bigoudene", "cycliste", "rugbyman", "pompier", "canard", "korrigan", "montgolfiere"], heavy: "touriste", boss: ["touriste", "rugbyman"], hp: 1.75 },
-    13: { intro: [["tracteur", 6]], pool: [...BASE, "druide", "bigoudene", "cycliste", "rugbyman", "pompier", "canard", "korrigan", "montgolfiere", "touriste"], heavy: "tracteur", boss: ["tracteur", "bigoudene"], hp: 0.95 },
-    14: { intro: [], pool: [...BASE, "druide", "bigoudene", "cycliste", "rugbyman", "pompier", "canard", "korrigan", "montgolfiere", "touriste", "tracteur"], boss: ["vache", "korrigan", "touriste"], hp: 2.2 },
-    15: { intro: [], pool: [...BASE, "druide", "bigoudene", "cycliste", "rugbyman", "pompier", "canard", "korrigan", "montgolfiere", "touriste", "tracteur"], boss: ["tracteur", "montgolfiere", "pompier"], hp: 1.9 },
+    4: { intro: [["druide", 3]], pool: BASE, boss: ["druide"], hp: 0.9 },
+    5: { intro: [["cycliste", 3], ["bigoudene", 9]], pool: [...BASE, "druide"], heavy: "cycliste", boss: ["bigoudene"], hp: 0.95 },
+    6: { intro: [["rugbyman", 3]], pool: [...BASE, "druide", "bigoudene", "cycliste"], boss: ["rugbyman"], hp: 0.9 },
+    7: { intro: [], pool: [...BASE, "druide", "bigoudene", "cycliste", "rugbyman"], heavy: "chasseur", boss: ["chasseur", "chasseur"], hp: 0.88 },
+    8: { intro: [["pompier", 3]], pool: [...BASE, "druide", "bigoudene", "cycliste", "rugbyman"], boss: ["pompier"], hp: 1.7 },
+    9: { intro: [["canard", 3]], pool: [...BASE, "druide", "bigoudene", "cycliste", "rugbyman", "pompier"], heavy: "canard", boss: ["canard", "vache"], hp: 0.85 },
+    10: { intro: [["korrigan", 3]], pool: [...BASE, "druide", "bigoudene", "cycliste", "rugbyman", "pompier", "canard"], heavy: "korrigan", boss: ["korrigan"], hp: 1.75 },
+    11: { intro: [["montgolfiere", 6]], pool: [...BASE, "druide", "bigoudene", "cycliste", "rugbyman", "pompier", "canard", "korrigan"], heavy: "montgolfiere", boss: ["montgolfiere", "druide"], hp: 1.0 },
+    12: { intro: [["touriste", 3]], pool: [...BASE, "druide", "bigoudene", "cycliste", "rugbyman", "pompier", "canard", "korrigan", "montgolfiere"], heavy: "touriste", boss: ["touriste", "rugbyman"], hp: 1.5 },
+    13: { intro: [["tracteur", 6]], pool: [...BASE, "druide", "bigoudene", "cycliste", "rugbyman", "pompier", "canard", "korrigan", "montgolfiere", "touriste"], heavy: "tracteur", boss: ["tracteur", "bigoudene"], hp: 1.1 },
+    14: { intro: [], pool: [...BASE, "druide", "bigoudene", "cycliste", "rugbyman", "pompier", "canard", "korrigan", "montgolfiere", "touriste", "tracteur"], boss: ["vache", "korrigan", "touriste"], hp: 1.95 },
+    15: { intro: [], pool: [...BASE, "druide", "bigoudene", "cycliste", "rugbyman", "pompier", "canard", "korrigan", "montgolfiere", "touriste", "tracteur"], boss: ["tracteur", "montgolfiere", "pompier"], hp: 1.5 },
   };
   S.WAVE_LEVELS = LV;
 
@@ -112,7 +112,8 @@
       // PV : multiplicateur propre à la mission (atteint sur les huit premières vagues), puis montée
       // de plus en plus raide au fil des vagues.
       const levelHp = cfg ? 1 + (cfg.hp - 1) * Math.min(1, 0.3 + w / 8) : level === 3 ? 1.05 : 1;
-      const curve = level <= 3 ? 1 + 0.03 * w : 1 + 0.035 * w + 0.0011 * w * w;
+      // Montée nette, vague après vague (le propriétaire trouvait les ennemis trop égaux d'une vague à l'autre).
+      const curve = level <= 3 ? 1 + 0.08 * w : 1 + 0.06 * w + 0.0012 * w * w;
       // Fin de mission : les PV accélèrent encore (d'autant plus que la mission est longue), pour que
       // les dernières vagues restent dangereuses même avec des tours au niveau 7.
       const late = level <= 3 ? 1 : 1 + (n >= 40 ? 1.0 : n >= 30 ? 0.45 : 0.3) * Math.pow(Math.max(0, w / Math.max(1, n - 1) - 0.45) / 0.55, 2);

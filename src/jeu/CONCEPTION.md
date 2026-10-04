@@ -18,6 +18,26 @@ La v4 répond aux retours du propriétaire après avoir joué la v3 :
 - garder les **bonnes surprises** (les canards qui coupent par l'eau) et **en inventer d'autres** ;
 - « ton UX est super » : on garde l'interface, on l'enrichit.
 
+**v4.1** (retours sur la v4) :
+
+- **flèches** : plus de pointillés sur tout le trajet de la prochaine vague (trop d'indices, surtout
+  avec la marée) ; seules les entrées par où elle arrive s'animent (blason, chevrons au sol) ;
+- **compétences** : après une victoire, « Continuer » ouvre l'écran des compétences ;
+- **rugbyman** : il se dérobe aussi au jet de feu (une fois sur deux, toutes les 1,2 s) ; le jet ne
+  fait rien pendant 0,45 s et sa chauffe retombe à zéro ;
+- **prix** : chaque tour d'une famille coûte `towerStep` = 20 or de plus que la précédente (la
+  revente fait baisser le prix) ; prix affichés à droite de la carte (`game.buildCosts()`) ; primes
+  des ennemis × `goldMul` = 1,3, un peu plus pour les vagues aux PV relevés ;
+- **résistance** : les PV des ennemis montent de vague en vague (1 + 0,08 w jusqu'à la mission 3,
+  puis 1 + 0,06 w + 0,0012 w², × la poussée des dernières vagues) ; `upcoming()` donne `hpMul`,
+  affiché sur la frise ;
+- **cygnes** : recharge deux fois plus lente (3 s au niveau 1), boules plus fortes ;
+- **pause** : le temps s'arrête tant que le menu de construction, le panneau d'une tour ou celui
+  d'une case boisée est ouvert ;
+- **zone** : le dragon rouge souffle un **cône de flammes** (attaque `cone`) ; Météore dès la
+  mission 2 ;
+- **spécialisations** : chaque voie change la façon d'attaquer dès le niveau 4 (voir 1.1).
+
 ## 0. Cursed Treasure : ce qui compte pour la v4
 
 - Cartes ≈ 16 × 16 cases. Les **routes font 2 à 4 cases de large** ; les plateaux constructibles
@@ -40,9 +60,9 @@ Page `/jeu/` uniquement. Vue du dessus fixe, carte de **20 × 13 cases** entièr
 
 | Famille | Terrain | Attaque | Niveaux 1–3 | Spéc. A (4–6 → 7) | Spéc. B (4–6 → 7) |
 | --- | --- | --- | --- | --- | --- |
-| `boar` **Sanglier** (bauge) | herbe | **tir** (`shot`) : bogues de châtaigne à la suite, une cible | marcassin, jeune sanglier, sanglier des talus | Sanglier chasseur (coups critiques) → **Grand Solitaire** (critiques + **deux cibles à la fois**) | Laie baliste (grosse châtaigne en cloche, zone) → **Catapulte** (zone + étourdit) |
-| `swan` **Cygne** (nid) | eau | **charges** (`charges`) : garde 2 à 5 boules d'eau, les lâche en rafale sur une ou plusieurs cibles, puis chaque charge se recharge | cygneau (2 charges), cygne (2), cygne majestueux (3) | Cygne des glaces (boules de glace : ralentit fort, peur) → **Cygne royal** (gel) | Cygne noir (boules sombres : vol de mana, désarme) → **Cygne noir enchanteur** |
-| `dog` **Berger australien → dragon** (autel de braise) | roche | **jet continu** (`beam`) : flamme ininterrompue sur une cible tant qu'elle reste à portée ; **plus il la tient, plus ça chauffe** (dégâts × 2,2 à × 2,6 au bout de 3 s) ; perce les boucliers | chiot berger, berger, berger de feu | Dragon merle rouge (le jet embrase autour de la cible et la fait brûler) → **Grand dragon rouge** (deux jets) | Dragon merle bleu (rayonnement : la cible prend + 25 % de tous les dégâts ; explosion des vaincus) → **Grand dragon bleu** (le jet rebondit sur une 2ᵉ cible) |
+| `boar` **Sanglier** (bauge) | herbe | **tir** (`shot`) : bogues de châtaigne à la suite, une cible | marcassin, jeune sanglier, sanglier des talus | Sanglier chasseur (**deux bogues à la fois** sur deux ennemis, `multi` = 2, critiques) → **Grand Solitaire** (trois à la fois) | Laie baliste (grosse châtaigne en cloche qui **explose sur un groupe**, `splash`) → **Catapulte** (zone + étourdit) |
+| `swan` **Cygne** (nid) | eau | **charges** (`charges`) : garde 2 à 5 boules d'eau, les lâche en rafale sur une ou plusieurs cibles, puis chaque charge se recharge (3 s au niveau 1, 2,2 s au niveau 7) | cygneau (2 charges), cygne (2), cygne majestueux (3) | Cygne des glaces : **chaque charge part en onde de glace autour du nid** (`nova` : tous les ennemis à portée, ralentit fort, peur) → **Cygne royal** (gel) | Cygne noir : **toutes les charges d'un coup, chacune sur un ennemi différent** (`volley` ; vol de mana, désarme) → **Cygne noir enchanteur** |
+| `dog` **Berger australien → dragon** (autel de braise) | roche | **jet continu** (`beam`) : flamme ininterrompue sur une cible tant qu'elle reste à portée ; **plus il la tient, plus ça chauffe** (dégâts × 2,2 à × 2,6 au bout de 3 s) ; perce les boucliers | chiot berger, berger, berger de feu | Dragon merle rouge : **cône de flammes** (attaque `cone`, ouverture `cone` ≈ 55°) qui brûle tout ce qui est devant lui et chauffe tant qu'il souffle → **Grand dragon rouge** (deux têtes, deux cônes) | Dragon merle bleu : le jet **rebondit sur un second ennemi** (`chain`), rayonnement (+ 25 % de tous les dégâts subis), explosion des vaincus → **Grand dragon bleu** (trois rebonds) |
 
 Lisibilité (exigence) : chaque tour **remplit sa case** (≈ 85 % de 3,6 m), a une **silhouette de
 famille** qu'on reconnaît à 40 px dès le niveau 1 (bauge de bois au toit de branchages pour le
@@ -61,7 +81,7 @@ et une **couleur de famille** au sol (brun-vert, bleu-blanc, rouge-orange). Le n
 | `druide` | Druide | mage | 100 | 0,9 | bulle de 60 qui se reforme après 5 s sans coup |
 | `bigoudene` | Bigoudène aux crêpes | prêtre | 120 | 0,9 | crêpe : + 30 PV à l'allié le plus blessé, toutes les 3 s |
 | `chasseur` | Chasseur camouflé | ninja | 100 | 1,35 | fumigène : invisible 5 s au premier coup |
-| `rugbyman` | Rugbyman | assassin | 110 | 1,35 | esquive un projectile sur deux (pas les zones, pas le jet) |
+| `rugbyman` | Rugbyman | assassin | 110 | 1,35 | esquive un projectile sur deux (pas les zones) et se dérobe au jet de feu (la chauffe retombe) |
 | `sonneur` | Sonneur de biniou | barde | 110 | 0,9 | toutes les 8 s : alliés proches × 2 de vitesse pendant 3 s |
 | `pompier` | Pompier | paladin | 220 | 0,77 | insensible à tous les effets |
 | `canard` | Cavalier sur canard | valkyrie | 90 | 1,08 | **nage** : coupe par l'eau |
@@ -101,7 +121,7 @@ Toute surprise est **annoncée** dans l'aperçu des vagues (icône et texte) ava
 
 Couper (30 mana : dégage une case boisée), Frénésie (60 : tours × 2 pendant 5 s), Météore (90 :
 150 dégâts dans un rayon de 1,4 case après 0,8 s). Mana : départ 40, plafond 100, + 1 par seconde,
-+ 0,4 par tour posée sur un menhir.
++ 0,4 par tour posée sur un menhir. Mission 1 : Couper seul ; Frénésie et Météore dès la mission 2.
 
 ## 2. Carte
 
@@ -143,6 +163,7 @@ game.build(i, j, family) ; game.upgrade(id, spec) ; game.sell(id)
 game.cast("cut" | "frenzy" | "meteor", { x, y }) ; game.callWave() ; game.setSpeed(1|2|3) ; game.setPaused(b)
 game.tileInfo(i, j) ; game.canBuild(i, j, f) ; game.towerInfo(id) ; game.upgradeable()
 game.nextWave() ; game.upcoming(n) ; game.describeEnemy(type) ; game.enemyInfo(id)
+game.buildCosts() → { boar, swan, dog }   // prix de la prochaine tour (+ towerStep par tour posée)
 ```
 
 Déplacement : **continu**. Chaque ennemi suit un champ d'écoulement (distances par « marche rapide »,
@@ -162,8 +183,9 @@ de ses voisins. Les montgolfières volent en ligne droite (`flying: true`, altit
   gems: [{ id, color: 0..5, lair, slot, where: "lair" | "ground" | "carried" | "lost", x, y, carrier, returnIn }],
   gemCount: { total, lair, ground, carried, lost },
   wave: { index, total, countdown, running, spawning, nextEntrances: [ids] },
-  towers: [{ id, family, level, spec, i, j, x, y, aim, range, high, onMana, attack: "shot" | "charges" | "beam",
-             targetId, ammo, ammoMax, beams: [{ targetId, heat (0..1) }], dazzled (s restantes) }],
+  towers: [{ id, family, level, spec, i, j, x, y, aim, range, high, onMana, attack: "shot" | "charges" | "beam" | "cone",
+             targetId, ammo, ammoMax, beams: [{ targetId, heat (0..1), chainIds }],
+             cones: [{ slot, yaw, heat, targetId, range, angle }], dazzled (s restantes) }],
   enemies: [{ id, type, champion, boss, name, x, y, dir, hp, hpMax, barrier, barrierMax, speed, moving,
               carrying, water, flying, alt, lane, goal: "gem" | "lair" | "exit",
               fx: { slow, fear, freeze, burn, radiance, haste, invisible, stun, disarmed, wading } }],
@@ -174,8 +196,8 @@ de ses voisins. Les montgolfières volent en ligne droite (`flying: true`, altit
 ```
 
 `game.upcoming(n)` → `[{ index, startsIn (s), groups: [{ type, champion, boss, count, name, entrance,
-letter, flying, swims }], entrances: [ids], notes: [{ kind: "tideLow" | "tideHigh" | "gate" | "secret",
-entrance? }] }]` (la première est la prochaine vague).
+letter, flying, swims }], entrances: [ids], hpMul, notes: [{ kind: "tideLow" | "tideHigh" | "gate" |
+"secret", entrance? }] }]` (la première est la prochaine vague ; `hpMul` : PV des ennemis de la vague).
 
 Événements (`type` + champs, le type d'ennemi s'appelle `enemyType`) : ceux de la v3 (`spawn`,
 `attack`, `shot`, `impact`, `fizzle`, `hit`, `kill`, `steal {enemyId, gemId, lairId}`, `drop`,
@@ -185,13 +207,18 @@ entrance? }] }]` (la première est la prochaine vague).
 `lose`) et :
 
 - `beamOn {towerId, targetId, kind}`, `beamOff {towerId}` (jet continu ; la chaleur est dans l'état) ;
+- `coneOn {towerId, slot, kind}`, `coneOff {towerId, slot}` (cône du dragon rouge) ;
+- `nova {towerId, x, y, r, kind, ids}` (onde de glace du cygne des glaces) ;
+- `hit {…, evaded: true, beam: true}` : le rugbyman se dérobe au jet ;
 - `flash {enemyId, towerIds}` (touriste), `dazzleEnd {towerId}` ;
 - `blink {enemyId, fromX, fromY, x, y}` (korrigan) ;
 - `split {enemyId, x, y, spawned: [ids]}` (tracteur) ;
 - `tide {state}`, `gateOpen {entranceId}`.
 
-Projectiles : `chestnut`, `bigChestnut` (cloche), `waterOrb`, `iceOrb`, `darkOrb` (cygne, en rafale).
-Jets : `fire` (berger 1–3), `dragonFire` (rouge), `blueFire` (bleu).
+Projectiles : `chestnut`, `bigChestnut` (cloche), `waterOrb`, `darkOrb` (cygne, en rafale) ; onde
+`iceNova` (cygne des glaces, `PTMT.fx.burst("iceNova", sol, { radius })`).
+Jets : `fire` (berger 1–3), `blueFire` (bleu, tronçons de rebond) ; cône `flame` du dragon rouge
+(`PTMT.fx.cone("flame", gueule, yaw, ouverture, portée)`, posé au sol avec `update(…, groundY)`).
 
 ## 4. Rendu (`PTMT.view`) — agent « Monde »
 
@@ -200,7 +227,8 @@ rendre : routes larges peintes et **bords de plateaux nets** (comme les falaises
 cachettes (`PTMT.models.lair`), buttes au milieu des routes (`PTMT.models.highGround`), estran
 animé selon `state.tide`, barrières (`PTMT.models.barrier`) qui s'ouvrent, montgolfières en altitude
 avec ombre au sol et ligne de route pointillée, jets (`PTMT.fx.beam`), charges des cygnes, tours
-éblouies, **lettres et couleurs des entrées**, **aperçu du trajet** de la prochaine vague.
+éblouies, **lettres et couleurs des entrées** ; v4.1 : seules les entrées de la prochaine vague
+s'animent (plus d'aperçu du trajet).
 
 ## 5. Tours — agent « Tours »
 
@@ -249,7 +277,9 @@ On garde tout (le propriétaire aime l'UX). En plus : **frise des vagues** faço
 (blocs des prochaines vagues qui glissent vers un repère « maintenant » : portraits × nombre,
 couronnes, lettre et couleur d'entrée, notes de surprise ; toucher le premier bloc appelle la vague),
 **fiche d'ennemi** au toucher (nom, capacité, PV), panneau de tour adapté aux charges et au jet,
-gemmes groupées par cachette, encyclopédie et icônes des nouveautés.
+gemmes groupées par cachette, encyclopédie et icônes des nouveautés. v4.1 : panneau des prix à droite
+de la carte (rangée sous le bandeau sur téléphone), pause automatique des menus de tour, écran des
+compétences après une victoire, PV × … sur la frise.
 
 ## 9. Règles communes
 

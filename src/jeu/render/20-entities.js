@@ -1216,12 +1216,16 @@
     for (let k = 0; k < v.beams.length; k++) {
       const b = v.beams[k];
       if (!b) continue;
-      try {
-        b.fx.release();
-        if (b.chain) b.chain.release();
-      } catch (e) {}
+      this.dropBeam(b);
       v.beams[k] = null;
       if (v.model.setBeam) v.model.setBeam(false, 0, k);
+    }
+    for (let k = 0; v.cones && k < v.cones.length; k++) {
+      if (!v.cones[k]) continue;
+      try {
+        v.cones[k].release();
+      } catch (e) {}
+      v.cones[k] = null;
     }
   };
   /** Gueule (bouche) slot de la tour, dans le monde. */
@@ -1254,21 +1258,28 @@
         seen[slot] = true;
         let h = v.beams[slot];
         if (h && h.kind !== kind) {
-          h.fx.release();
-          if (h.chain) h.chain.release();
+          this.dropBeam(h);
           h = v.beams[slot] = null;
         }
-        if (!h) h = v.beams[slot] = { kind, fx: this.newBeam(kind), chain: null };
+        if (!h) h = v.beams[slot] = { kind, fx: this.newBeam(kind), chain: null, chains: [] };
         const from = this.muzzlePos(v, slot, _v1);
         const to = this.chest(tgt, 0.55, _v2);
         h.fx.set(from, to, b.heat || 0, time);
-        if (b.chainId !== null && b.chainId !== undefined && this.enemies.has(b.chainId)) {
-          if (!h.chain) h.chain = this.newBeam(kind);
-          h.chain.set(to, this.chest(this.enemies.get(b.chainId), 0.55, _v3), (b.heat || 0) * 0.85, time);
-        } else if (h.chain) {
-          h.chain.release();
-          h.chain = null;
+        // rebonds : un tronçon de cible en cible (dragon bleu : 1, puis 3 au niveau 7)
+        const ids = b.chainIds && b.chainIds.length ? b.chainIds : b.chainId !== null && b.chainId !== undefined ? [b.chainId] : [];
+        let n = 0;
+        _v4.copy(to);
+        for (const id of ids) {
+          const o = this.enemies.get(id);
+          if (!o) break;
+          if (!h.chains[n]) h.chains[n] = this.newBeam(kind);
+          const next = this.chest(o, 0.55, _v3);
+          h.chains[n].set(_v4, next, (b.heat || 0) * Math.pow(0.85, n + 1), time);
+          _v4.copy(next);
+          n++;
         }
+        while (h.chains.length > n) h.chains.pop().release();
+        h.chain = h.chains[0] || null;
         if (v.model.setBeam) v.model.setBeam(true, b.heat || 0, slot);
         v.beamOn[slot] = true;
         // seconde tête (grand dragon rouge) : vers sa propre cible
@@ -1277,15 +1288,70 @@
     }
     for (let k = 0; k < v.beams.length; k++) {
       if (seen[k] || !v.beams[k]) continue;
-      v.beams[k].fx.release();
-      if (v.beams[k].chain) v.beams[k].chain.release();
+      this.dropBeam(v.beams[k]);
       v.beams[k] = null;
     }
-    for (let k = 0; k < 2; k++)
-      if (!seen[k] && v.beamOn[k]) {
+    if (tw.attack !== "cone")
+      for (let k = 0; k < 2; k++)
+        if (!seen[k] && v.beamOn[k]) {
+          v.beamOn[k] = false;
+          if (v.model.setBeam) v.model.setBeam(false, 0, k);
+        }
+  };
+  /** Rend un jet et tous ses tronçons de rebond. */
+  P.dropBeam = function (h) {
+    try {
+      h.fx.release();
+      for (const c of h.chains || []) c.release();
+      if (h.chain && !(h.chains && h.chains.includes(h.chain))) h.chain.release();
+    } catch (e) {}
+  };
+  /**
+   * Cônes de flammes du dragon rouge (tw.cones : yaw, heat, range, angle) : PTMT.fx.cone("flame") posé
+   * à la gueule, tourné vers la cible ; la gueule reste ouverte (setBeam) ; seconde tête au niveau 7.
+   */
+  P.syncCones = function (v, tw, time) {
+    const list = tw.attack === "cone" && !(tw.dazzled > 0) ? tw.cones || [] : null;
+    const cones = v.cones || (v.cones = []);
+    const seen = this._coneSeen || (this._coneSeen = [false, false]);
+    seen[0] = seen[1] = false;
+    const FX = PTMT.fx;
+    if (list && FX && typeof FX.cone === "function" && FX._ && FX._.S) {
+      for (const c of list) {
+        const slot = c.slot | 0;
+        if (slot > 1) continue;
+        seen[slot] = true;
+        // les flammes partent de la gueule ; le secteur brûlé se pose au niveau de la route qu'il
+        // lèche (le plateau de la tour, plus haut, le cache à son pied)
+        const from = this.muzzlePos(v, slot, _v1);
+        const reach = (c.range || 3) * 0.6;
+        const ground = Math.min(v.top, this.world.groundAt(tw.x + Math.sin(c.yaw) * reach, tw.y + Math.cos(c.yaw) * reach, false)) + 0.04;
+        const range = Math.max(1, (c.range || 3) * TILE - 0.4);
+        let h = cones[slot];
+        if (!h) {
+          try {
+            h = cones[slot] = FX.cone("flame", from, c.yaw, c.angle || 0.9, range);
+          } catch (e) {
+            h = cones[slot] = null;
+          }
+        }
+        if (h) h.update(from, c.yaw, 0.35 + 0.65 * (c.heat || 0), ground);
+        if (v.model.setBeam) v.model.setBeam(true, c.heat || 0, slot);
+        v.beamOn[slot] = true;
+        if (slot === 1 && v.model.aim) v.model.aim(c.yaw, 1);
+      }
+    }
+    for (let k = 0; k < 2; k++) {
+      if (seen[k]) continue;
+      if (cones[k]) {
+        cones[k].release();
+        cones[k] = null;
+      }
+      if (tw.attack === "cone" && v.beamOn[k]) {
         v.beamOn[k] = false;
         if (v.model.setBeam) v.model.setBeam(false, 0, k);
       }
+    }
   };
   P.syncTowers = function (st, dt, time) {
     const seen = this._seenT || (this._seenT = new Set());
@@ -1356,6 +1422,7 @@
       }
       if (v.model.update) v.model.update(dt, time);
       this.syncBeams(v, tw, time);
+      this.syncCones(v, tw, time);
     }
     for (const v of this.towers.values()) if (!seen.has(v.id)) this.removeTower(v);
   };
@@ -1921,7 +1988,7 @@
         if (ev.evaded) {
           act(v, "dodge");
           burst("dodge", this.chest(v, 0.6, _v1), {});
-          this.floatAtWorld(this.chest(v, 1.05, _v1), "Raté !", "miss");
+          this.floatAtWorld(this.chest(v, 1.05, _v1), "Esquive !", "miss");
         } else {
           act(v, "hit");
           if (ev.crit) this.floatAtWorld(this.chest(v, 1.12, _v1), "Critique !", "crit");
@@ -2133,6 +2200,14 @@
         this.flashes.push({ t: -delay, enemyId: ev.enemyId, x: ev.x, y: ev.y, ids: ids.slice(), native: !!(v && v.native), done: false });
         break;
       }
+      case "nova": {
+        // onde de glace : un anneau de givre part du nid jusqu'au bout de sa portée
+        const tv = this.towers.get(ev.towerId);
+        const x = ev.x, y = ev.y;
+        _v1.set(toX(x), tv ? tv.top + 0.1 : this.world.groundAt(x, y) + 0.1, toZ(y));
+        burst("iceNova", _v1, { radius: ev.r || 2.6 }) || burst("iceOrbHit", _v1, { radius: (ev.r || 2.6) * 1.6 });
+        break;
+      }
       case "dazzleEnd": {
         const tv = this.towers.get(ev.towerId);
         if (tv && tv.dazzled) {
@@ -2146,8 +2221,7 @@
         const tv = this.towers.get(ev.towerId);
         const k = ev.slot | 0;
         if (tv && tv.beams[k]) {
-          tv.beams[k].fx.release();
-          if (tv.beams[k].chain) tv.beams[k].chain.release();
+          this.dropBeam(tv.beams[k]);
           tv.beams[k] = null;
           tv.beamOn[k] = false;
           tv.model.setBeam && tv.model.setBeam(false, 0, k);

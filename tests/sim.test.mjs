@@ -79,9 +79,16 @@ test("chaque famille a 7 niveaux par spécialisation et sa façon d'attaquer", (
   }
   ok(D.towerLevel("swan", 1).charges >= 2 && D.towerLevel("swan", 1).reload > 0, "le cygne a des charges");
   ok(D.towerLevel("dog", 1).heatMax > 2, "le jet chauffe");
-  eq(D.towerLevel("boar", 7, "A").multi, 2, "Grand Solitaire : deux cibles");
-  eq(D.towerLevel("dog", 7, "A").beams, 2, "Grand dragon rouge : deux jets");
-  ok(D.towerLevel("dog", 7, "B").chain, "Grand dragon bleu : rebond");
+  // Chaque spécialisation change la façon d'attaquer dès le niveau 4.
+  eq(D.towerLevel("boar", 4, "A").multi, 2, "Sanglier chasseur : deux cibles dès le niveau 4");
+  eq(D.towerLevel("boar", 7, "A").multi, 3, "Grand Solitaire : trois cibles");
+  ok(D.towerLevel("boar", 4, "B").splash > 0, "Laie baliste : zone");
+  ok(D.towerLevel("swan", 4, "A").nova, "Cygne des glaces : onde autour du nid");
+  ok(D.towerLevel("swan", 4, "B").volley, "Cygne noir : volée");
+  eq(D.towerLevel("dog", 4, "A").attack, "cone", "Dragon rouge : cône de flammes");
+  eq(D.towerLevel("dog", 7, "A").beams, 2, "Grand dragon rouge : deux cônes");
+  eq(D.towerLevel("dog", 4, "B").chain.count, 1, "Dragon bleu : rebond dès le niveau 4");
+  eq(D.towerLevel("dog", 7, "B").chain.count, 3, "Grand dragon bleu : trois rebonds");
   eq(Object.keys(D.ENEMIES).length, 16, "seize ennemis");
 });
 test("quinze missions valides : entrées au bord, cachettes 2 × 2 reliées, moulin, menhirs", () => {
@@ -319,33 +326,97 @@ test("berger : jet continu qui chauffe sur la même cible, coupé quand elle sor
   ok(g.drainEvents().some((x) => x.type === "beamOff" && x.towerId === t.id), "jet éteint");
   eq(t.beams.length, 0);
 });
-test("dragons : rouge niveau 7 = deux jets ; bleu niveau 7 = rebond ; Grand Solitaire = deux cibles", () => {
+test("spécialisations : cône du dragon rouge, rebonds du dragon bleu, onde du cygne des glaces, volée du cygne noir, deux bogues du sanglier chasseur", () => {
   {
+    // Dragon rouge : le cône brûle tous ceux qui sont devant, pas ceux qui sont derrière.
     const { g, t, e } = range1(1, "dog");
     t.xp = 1e5;
+    for (let k = 0; k < 3; k++) ok(g.upgrade(t.id, "A").ok);
+    eq(t.attack, "cone");
+    const yaw = Math.atan2(e.x - t.x, e.y - t.y);
+    const front = spawnAt(g, "vache", 0, 0, { hpMul: 1000 });
+    front.x = t.x + Math.sin(yaw) * 1.6 + Math.cos(yaw) * 0.25;
+    front.y = t.y + Math.cos(yaw) * 1.6 - Math.sin(yaw) * 0.25;
+    const back = spawnAt(g, "vache", 0, 0, { hpMul: 1000 });
+    back.x = t.x - Math.sin(yaw) * 1.4;
+    back.y = t.y - Math.cos(yaw) * 1.4;
+    for (const x of [front, back]) freeze(x);
+    run(g, 1);
+    ok(t.cones.length === 1 && t.cones[0].targetId, "un cône allumé");
+    ok(e.hp < e.hpMax && front.hp < front.hpMax, "la cible et son voisin brûlent");
+    eq(back.hp, back.hpMax, "rien derrière la tour");
     while (t.level < 7) ok(g.upgrade(t.id, "A").ok);
-    const e2 = spawnAt(g, "vache", Math.floor(e.x), Math.floor(e.y), { hpMul: 1000 });
-    freeze(e2);
     run(g, 0.5);
-    eq(t.beams.length, 2, "deux jets");
-    ok(t.beams[0].targetId !== t.beams[1].targetId, "deux cibles");
+    eq(t.cones.length, 2, "deux têtes, deux cônes");
   }
   {
+    // Dragon bleu : rebond dès le niveau 4, trois rebonds au niveau 7.
     const { g, t, e } = range1(1, "dog");
     t.xp = 1e5;
-    while (t.level < 7) ok(g.upgrade(t.id, "B").ok);
-    const e2 = spawnAt(g, "vache", Math.floor(e.x), Math.floor(e.y), { hpMul: 1000 });
-    freeze(e2);
-    e2.x = e.x + 0.5;
+    for (let k = 0; k < 3; k++) ok(g.upgrade(t.id, "B").ok);
+    const others = [];
+    for (let k = 0; k < 3; k++) {
+      const o = spawnAt(g, "vache", 0, 0, { hpMul: 1000 });
+      freeze(o);
+      o.x = e.x + 0.45 * (k + 1);
+      o.y = e.y;
+      others.push(o);
+    }
     run(g, 0.5);
-    ok(t.beams[0].chainId, "rebond");
-    ok(e2.hp < e2.hpMax && e.hp < e.hpMax, "les deux brûlent");
-    ok(e.t.rad > 0, "rayonnement");
+    eq(t.beams[0].chainIds.length, 1, "un rebond au niveau 4");
+    // la cible du jet (n'importe lequel des quatre) et celle du rebond rayonnent
+    ok(g.enemyById(t.beams[0].targetId).t.rad > 0, "rayonnement de la cible");
+    ok(g.enemyById(t.beams[0].chainIds[0]).t.rad > 0, "rayonnement du rebond");
+    while (t.level < 7) ok(g.upgrade(t.id, "B").ok);
+    run(g, 0.5);
+    const ids = t.beams[0].chainIds;
+    eq(ids.length, 3, "trois rebonds au niveau 7");
+    eq(new Set([t.beams[0].targetId, ...ids]).size, 4, "quatre ennemis différents");
+    ok(ids.every((id) => g.enemyById(id).hp < g.enemyById(id).hpMax), "les trois rebonds brûlent");
+    ok([e, ...others].every((o) => o.hp < o.hpMax), "les quatre brûlent");
   }
   {
+    // Cygne des glaces : une charge = une onde qui touche tous les ennemis à portée.
+    const { g, t, e } = range1(2, "swan");
+    t.xp = 1e5;
+    for (let k = 0; k < 3; k++) ok(g.upgrade(t.id, "A").ok);
+    t.ammo = t.ammoMax;
+    const o = spawnAt(g, "vache", 0, 0, { hpMul: 1000 });
+    freeze(o);
+    o.x = t.x - 1.2;
+    o.y = t.y + 0.6;
+    let nova = null;
+    for (let k = 0; k < 40 && !nova; k++) {
+      g.tick(D.tick);
+      nova = g.drainEvents().find((x) => x.type === "nova" && x.towerId === t.id) || null;
+    }
+    ok(nova, "onde de glace");
+    ok(nova.ids.includes(e.id) && nova.ids.includes(o.id), "deux ennemis touchés");
+    ok(o.t.slow > 0 && e.t.slow > 0, "tous ralentis");
+  }
+  {
+    // Cygne noir : toutes ses charges d'un coup, chacune sur un ennemi différent.
+    const { g, t, e } = range1(2, "swan");
+    t.xp = 1e5;
+    for (let k = 0; k < 3; k++) ok(g.upgrade(t.id, "B").ok);
+    t.ammo = t.ammoMax;
+    const o = spawnAt(g, "vache", 0, 0, { hpMul: 1000 });
+    freeze(o);
+    o.x = t.x - 1.0;
+    o.y = t.y + 0.8;
+    let volley = null;
+    for (let k = 0; k < 40 && !volley; k++) {
+      g.tick(D.tick);
+      volley = g.drainEvents().find((x) => x.type === "attack" && x.towerId === t.id) || null;
+    }
+    ok(volley && volley.targets.length >= 2, "plusieurs cibles d'un coup");
+    ok(t.ammo < 1.5, "les charges sont parties ensemble");
+  }
+  {
+    // Sanglier chasseur : deux bogues à la fois dès le niveau 4.
     const { g, t, e } = range1(1, "boar");
     t.xp = 1e5;
-    while (t.level < 7) ok(g.upgrade(t.id, "A").ok);
+    for (let k = 0; k < 3; k++) ok(g.upgrade(t.id, "A").ok);
     const e2 = spawnAt(g, "vache", Math.floor(e.x), Math.floor(e.y), { hpMul: 1000 });
     freeze(e2);
     let both = false;
@@ -355,6 +426,34 @@ test("dragons : rouge niveau 7 = deux jets ; bleu niveau 7 = rebond ; Grand Soli
     }
     ok(both, "deux cibles à la fois");
   }
+});
+test("prix des tours : chaque tour d'une famille rend la suivante 20 or plus chère (vendre fait redescendre)", () => {
+  const g = quiet(2);
+  g.state.gold = 5000;
+  const base = g.costFor("boar", 1);
+  const spots = [];
+  for (let j = 0; j < D.H; j++) for (let i = 0; i < D.W; i++) if (g.grid.char(i, j) === ".") spots.push([i, j]);
+  const r1 = g.build(spots[0][0], spots[0][1], "boar");
+  eq(r1.cost, base);
+  eq(g.buildCosts().boar, base + D.economy.towerStep);
+  const r2 = g.build(spots[1][0], spots[1][1], "boar");
+  eq(r2.cost, base + D.economy.towerStep);
+  eq(g.buildCosts().swan, g.costFor("swan", 1), "les autres familles ne bougent pas");
+  eq(D.towerLevel("swan", 1).cost, g.buildCosts().swan, "cygne au prix de base");
+  g.sell(r2.towerId);
+  eq(g.buildCosts().boar, base + D.economy.towerStep, "vendre fait redescendre");
+});
+test("Météore disponible dès la mission 2 (Couper seul en mission 1)", () => {
+  eq(S.MAPS[1].spells.join(","), "cut");
+  ok(S.MAPS[2].spells.includes("meteor") && S.MAPS[2].spells.includes("frenzy"));
+});
+test("les PV montent nettement d'une vague à l'autre", () => {
+  const w2 = S.buildWaves(2, new S.Grid(S.MAPS[2]).entrances);
+  ok(w2[9].hpMul >= 1.6, "mission 2 : × " + w2[9].hpMul.toFixed(2) + " à la dernière vague");
+  const w9 = S.buildWaves(9, new S.Grid(S.MAPS[9]).entrances);
+  ok(w9[29].hpMul / w9[0].hpMul >= 2.5, "mission 9 : × " + (w9[29].hpMul / w9[0].hpMul).toFixed(2) + " entre la première et la dernière vague");
+  const g = S.createGame({ level: 9, seed: 2 });
+  ok(g.upcoming(3).every((w) => w.hpMul > 0), "multiplicateur annoncé dans la frise");
 });
 test("Météore frappe après son délai", () => {
   const g = quiet(3);
@@ -571,7 +670,7 @@ test("chasseur : fumigène au premier coup, invisible donc hors de portée des t
   run(g, D.ENEMIES.chasseur.ability.t + 0.2);
   ok(g.pickTarget(t, 3), "de nouveau visible");
 });
-test("rugbyman : esquive environ la moitié des tirs visés", () => {
+test("rugbyman : esquive environ la moitié des tirs visés, et se dérobe aussi au jet du berger", () => {
   const g = quiet(6);
   let evaded = 0;
   for (let k = 0; k < 400; k++) {
@@ -581,6 +680,18 @@ test("rugbyman : esquive environ la moitié des tirs visés", () => {
     e.dead = true;
   }
   ok(evaded > 150 && evaded < 250, "esquives " + evaded + " / 400");
+  // Face au jet : de temps en temps il se dérobe (« Esquive ! ») et la chauffe retombe.
+  const { g: g2, t, e } = range1(6, "dog");
+  e.dead = true;
+  const r = spawnAt(g2, "rugbyman", Math.floor(e.x), Math.floor(e.y), { hpMul: 100 });
+  freeze(r);
+  let dodges = 0;
+  for (let k = 0; k < 30 * 12; k++) {
+    g2.tick(D.tick);
+    for (const ev of g2.drainEvents()) if (ev.type === "hit" && ev.evaded && ev.enemyId === r.id) dodges++;
+  }
+  ok(dodges >= 2, "esquives du jet : " + dodges);
+  ok(r.hp < r.hpMax, "mais il brûle quand même");
 });
 test("sonneur : double la vitesse des alliés proches", () => {
   const g = quiet(4);

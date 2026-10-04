@@ -166,7 +166,20 @@
     }
     costFor(family, level, spec) {
       const lv = D.towerLevel(family, level, spec);
-      return lv ? Math.round(lv.cost * this.mods.cost[family]) : null;
+      if (!lv) return null;
+      // Comme dans Cursed Treasure : chaque tour de la famille déjà posée ajoute 20 or au prix de la
+      // suivante (vendre en fait redescendre le prix) ; les améliorations ne changent pas.
+      const step = level === 1 ? (D.economy.towerStep || 0) * this.familyCount(family) : 0;
+      return Math.round((lv.cost + step) * this.mods.cost[family]);
+    }
+    familyCount(family) {
+      let n = 0;
+      for (const t of this.state.towers) if (t.family === family) n++;
+      return n;
+    }
+    /** Prix actuel d'une nouvelle tour de chaque famille (panneau des prix). */
+    buildCosts() {
+      return { boar: this.costFor("boar", 1), swan: this.costFor("swan", 1), dog: this.costFor("dog", 1) };
     }
 
     /* ------------------------------------------------------------ requêtes */
@@ -312,7 +325,7 @@
       const k = w.index + 1;
       if (k >= this.waves.length) return null;
       const groups = this.waveGroups(k);
-      return { index: k, total: this.waves.length, countdown: w.countdown, groups, entrances: [...new Set(groups.map((g) => g.entrance))], notes: this.waveNotes(k) };
+      return { index: k, total: this.waves.length, countdown: w.countdown, groups, entrances: [...new Set(groups.map((g) => g.entrance))], notes: this.waveNotes(k), hpMul: this.waves[k].hpMul };
     }
     /** Les n prochaines vagues (frise) : délai estimé, groupes, entrées, surprises annoncées. */
     upcoming(n) {
@@ -321,7 +334,7 @@
       const gap = s.level >= 8 ? D.economy.waveGapLate : D.economy.waveGap;
       for (let k = s.wave.index + 1, c = 0; k < this.waves.length && c < (n || 5); k++, c++) {
         const groups = this.waveGroups(k);
-        out.push({ index: k, startsIn: Math.max(0, s.wave.countdown) + c * gap, groups, entrances: [...new Set(groups.map((g) => g.entrance))], notes: this.waveNotes(k) });
+        out.push({ index: k, startsIn: Math.max(0, s.wave.countdown) + c * gap, groups, entrances: [...new Set(groups.map((g) => g.entrance))], notes: this.waveNotes(k), hpMul: this.waves[k].hpMul });
       }
       return out;
     }
@@ -384,6 +397,7 @@
         ammoMax: 0,
         burstCd: 0,
         beams: [],
+        cones: [],
         dazzled: 0,
       };
       this.restat(t);
@@ -395,6 +409,10 @@
     }
     restat(t) {
       t.st = this.statsFor(t, t.level, t.spec);
+      if (t.attack !== t.st.attack) {
+        this.stopBeams(t);
+        t.attack = t.st.attack;
+      }
       t.range = t.st.range;
       t.ammoMax = t.st.charges || 0;
       t.ammo = Math.min(t.ammo, t.ammoMax);
@@ -417,6 +435,7 @@
       if (!t) return { ok: false, reason: "Tour introuvable" };
       const gold = Math.floor(t.invested * D.economy.sellRatio);
       this.stopBeams(t);
+      this.stopCones(t);
       this.state.gold += gold;
       this.state.towers.splice(this.state.towers.indexOf(t), 1);
       this.emit("sell", { towerId: t.id, gold, i: t.i, j: t.j });
@@ -613,7 +632,7 @@
       let ent = g.entrances[sp.entrance] || g.entrances[0];
       if (!ent.open) ent = g.openEntrances()[0];
       let hp = def.hp * sp.hpMul;
-      let gold = def.gold * (0.85 + 0.15 * Math.min(sp.hpMul, 5)),
+      let gold = def.gold * (D.economy.goldMul || 1) * (0.85 + 0.15 * Math.min(sp.hpMul, 5)),
         xp = def.xp;
       if (sp.champion) {
         hp *= D.champion.hp;
@@ -1232,6 +1251,7 @@
             for (const t of hit) {
               t.dazzled = ab.t * (e.champion ? 1.5 : 1);
               this.stopBeams(t);
+              this.stopCones(t);
             }
             this.emit("flash", { enemyId: e.id, towerIds: hit.map((t) => t.id), x: e.x, y: e.y });
           }
@@ -1410,9 +1430,11 @@
             t.dazzled = 0;
             this.emit("dazzleEnd", { towerId: t.id });
           }
+          if (t.cones.length) this.stopCones(t);
           continue;
         }
         if (t.attack === "beam") this.tickBeam(t, st, dt, F);
+        else if (t.attack === "cone") this.tickCone(t, st, dt, F);
         else this.tickShooter(t, st, dt, F);
       }
     }
@@ -1427,10 +1449,12 @@
         const first = t.windTargets && this.enemyById(t.windTargets[0]);
         if (first && !first.dead) t.aim = Math.atan2(first.x - t.x, first.y - t.y);
         if (t.windup <= 0) {
-          for (const id of t.windTargets) {
-            const target = this.enemyById(id);
-            this.fire(t, st, target && !target.dead ? target : null);
-          }
+          if (st.nova) this.nova(t, st);
+          else
+            for (const id of t.windTargets) {
+              const target = this.enemyById(id);
+              this.fire(t, st, target && !target.dead ? target : null);
+            }
           t.windTargets = null;
         }
         return;
@@ -1442,12 +1466,14 @@
       const ready = charges ? t.ammo >= 1 && t.burstCd <= 0 : t.charge >= 1;
       if (!ready) return;
       const targets = [target];
-      for (let k = 1; k < (st.multi || 1); k++) {
+      // Plusieurs cibles à la fois : sanglier chasseur (multi), volée du cygne noir (une charge par ennemi).
+      const want = st.volley ? Math.floor(t.ammo) : st.multi || 1;
+      for (let k = 1; k < want; k++) {
         const o = this.pickTarget(t, st.range, targets);
         if (o) targets.push(o);
       }
       if (charges) {
-        t.ammo -= 1;
+        t.ammo -= st.volley ? targets.length : 1;
         t.burstCd = st.burst;
       } else t.charge -= 1;
       t.windup = (WINDUP[t.family] * (st.shot === "bigChestnut" ? 1.6 : 1)) / Math.max(1, F * 0.75);
@@ -1479,10 +1505,23 @@
           b = slots[k] = { slot: k, targetId: target.id, heat: 0, time: 0, chainId: null };
           this.emit("beamOn", { towerId: t.id, targetId: target.id, kind: st.beam, slot: k });
         }
+        // Rugbyman : il se dérobe au jet de temps en temps ; la chauffe retombe à zéro.
+        if (target.ability === "evade" && !target.fx.disarmed) {
+          target.t.dodge = (target.t.dodge || 0) - dt;
+          if (target.t.dodge <= 0) {
+            target.t.dodge = D.ENEMIES.rugbyman.ability.every || 1.2;
+            if (this.rnd() < D.ENEMIES.rugbyman.ability.chance) {
+              b.time = 0;
+              b.miss = 0.45;
+              this.emit("hit", { enemyId: target.id, dmg: 0, evaded: true, x: target.x, y: target.y, kind: st.beam, beam: true });
+            }
+          }
+        }
         b.time += dt * F;
         b.heat = Math.min(1, b.time / st.heatTime);
         const mult = (1 + (st.heatMax - 1) * b.heat) * (F > 1 ? 1.6 : 1);
-        const dmg = st.dps * mult * dt;
+        const dmg = b.miss > 0 ? 0 : st.dps * mult * dt;
+        if (b.miss > 0) b.miss -= dt;
         if (k === 0 || !slots[0]) t.aim = Math.atan2(target.x - t.x, target.y - t.y);
         // Effets du jet (rafraîchis chaque pas) : brûlure, rayonnement.
         if (st.burn || st.radiance) this.applyEffects(target, st, t);
@@ -1496,30 +1535,120 @@
             this.hurt(o, dmg * st.splashPct, { towerId: t.id, pierce: true, area: true, beam: true, kind: st.beam });
           }
         }
-        // Grand dragon bleu : le jet rebondit sur un second ennemi.
+        // Dragon bleu : le jet rebondit d'ennemi en ennemi (chain.count fois), à pct des dégâts.
         b.chainId = null;
+        if (!b.chainIds) b.chainIds = [];
+        b.chainIds.length = 0;
         if (st.chain && !target.dead) {
-          let best = null,
-            bd = st.chain.range * st.chain.range;
-          for (const o of this.state.enemies) {
-            if (o.dead || o === target || o.t.invis > 0) continue;
-            const d2 = (o.x - target.x) ** 2 + (o.y - target.y) ** 2;
-            if (d2 < bd) {
-              bd = d2;
-              best = o;
+          let from = target;
+          for (let c = 0; c < (st.chain.count || 1); c++) {
+            let best = null,
+              bd = st.chain.range * st.chain.range;
+            for (const o of this.state.enemies) {
+              if (o.dead || o === target || o.t.invis > 0 || b.chainIds.includes(o.id)) continue;
+              const d2 = (o.x - from.x) ** 2 + (o.y - from.y) ** 2;
+              if (d2 < bd) {
+                bd = d2;
+                best = o;
+              }
             }
-          }
-          if (best) {
-            b.chainId = best.id;
+            if (!best) break;
+            b.chainIds.push(best.id);
             if (st.radiance) this.applyEffects(best, st, t);
             this.hurt(best, dmg * st.chain.pct, { towerId: t.id, pierce: true, beam: true, kind: st.beam });
+            from = best;
           }
+          b.chainId = b.chainIds[0] || null;
         }
       }
       this.publishBeams(t);
     }
+    /** Cygne des glaces : une charge part en onde de glace autour du nid (tous les ennemis à portée). */
+    nova(t, st) {
+      const s = this.state;
+      const r = st.range + 0.15;
+      const hit = [];
+      for (const e of s.enemies) {
+        if (e.dead) continue;
+        if ((e.x - t.x) ** 2 + (e.y - t.y) ** 2 > r * r) continue;
+        hit.push(e);
+      }
+      t.shots++;
+      this.emit("nova", { towerId: t.id, x: t.x, y: t.y, r: st.range, kind: st.shot, ids: hit.map((e) => e.id) });
+      for (const e of hit) {
+        const dealt = this.hurt(e, st.dmg, { towerId: t.id, area: true, kind: st.shot });
+        this.emit("hit", { enemyId: e.id, dmg: dealt, crit: false, absorbed: 0, x: e.x, y: e.y, kind: st.shot });
+        if (!e.dead) this.applyEffects(e, st, t);
+      }
+    }
+    /**
+     * Dragon rouge : cône de flammes. Chaque tête vise sa cible (la mieux placée) et brûle tout ce qui
+     * est dans son cône ; la chaleur monte tant que la tête souffle et retombe vite quand elle s'arrête.
+     * État public t.cones = [{ slot, yaw, heat, targetId, range, angle }].
+     */
+    tickCone(t, st, dt, F) {
+      const n = st.beams || 1;
+      const heads = t.heads || (t.heads = []);
+      const taken = [];
+      const half = (st.cone || 0.9) / 2;
+      const r2 = (st.range + 0.15) ** 2;
+      for (let k = 0; k < n; k++) {
+        const h = heads[k] || (heads[k] = { slot: k, time: 0, heat: 0, yaw: t.aim, targetId: null, on: false });
+        let target = h.targetId ? this.enemyById(h.targetId) : null;
+        if (!target || target.dead || target.t.invis > 0 || (target.x - t.x) ** 2 + (target.y - t.y) ** 2 > r2 || taken.includes(target)) target = this.pickTarget(t, st.range, taken);
+        if (!target) {
+          if (h.on) this.emit("coneOff", { towerId: t.id, slot: k });
+          h.on = false;
+          h.targetId = null;
+          h.time = Math.max(0, h.time - dt * 3);
+          h.heat = Math.min(1, h.time / st.heatTime);
+          continue;
+        }
+        taken.push(target);
+        if (!h.on) this.emit("coneOn", { towerId: t.id, slot: k, kind: st.beam });
+        h.on = true;
+        h.targetId = target.id;
+        h.yaw = Math.atan2(target.x - t.x, target.y - t.y);
+        if (k === 0) t.aim = h.yaw;
+        h.time += dt * F;
+        h.heat = Math.min(1, h.time / st.heatTime);
+        const dmg = st.dps * (1 + (st.heatMax - 1) * h.heat) * (F > 1 ? 1.6 : 1) * dt;
+        const fx = Math.sin(h.yaw),
+          fy = Math.cos(h.yaw);
+        for (const e of this.state.enemies) {
+          if (e.dead || e.t.invis > 0) continue;
+          const dx = e.x - t.x,
+            dy = e.y - t.y;
+          const d2 = dx * dx + dy * dy;
+          if (d2 > r2) continue;
+          const d = Math.sqrt(d2) || 1e-6;
+          // dans le cône (ou tout contre la gueule)
+          if (d > 0.45 && (dx * fx + dy * fy) / d < Math.cos(half)) continue;
+          if (st.burn) this.applyEffects(e, st, t);
+          this.hurt(e, dmg, { towerId: t.id, pierce: true, area: true, beam: true, kind: st.beam });
+        }
+      }
+      for (let k = heads.length - 1; k >= n; k--) heads.pop();
+      this.publishCones(t, st);
+    }
+    publishCones(t, st) {
+      const out = t.cones;
+      out.length = 0;
+      for (const h of t.heads || []) if (h.on) out.push({ slot: h.slot, yaw: h.yaw, heat: h.heat, targetId: h.targetId, range: st.range, angle: st.cone || 0.9 });
+      t.targetId = out[0] ? out[0].targetId : null;
+    }
+    stopCones(t) {
+      for (const h of t.heads || []) {
+        if (h.on) this.emit("coneOff", { towerId: t.id, slot: h.slot });
+        h.on = false;
+        h.targetId = null;
+        h.time = 0;
+        h.heat = 0;
+      }
+      if (t.cones) t.cones.length = 0;
+    }
     publishBeams(t) {
-      t.beams = (t.slots || []).filter(Boolean).map((b) => ({ slot: b.slot, targetId: b.targetId, heat: b.heat, chainId: b.chainId }));
+      t.beams = (t.slots || []).filter(Boolean).map((b) => ({ slot: b.slot, targetId: b.targetId, heat: b.heat, chainId: b.chainId, chainIds: (b.chainIds || []).slice() }));
       t.targetId = t.beams[0] ? t.beams[0].targetId : null;
     }
     endBeam(t, k) {

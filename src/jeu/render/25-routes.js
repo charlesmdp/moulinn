@@ -8,15 +8,11 @@
 //    elle cède, le blason prend sa couleur d'un coup (rebond, halo) ;
 //  - au sol, des chevrons à la couleur de l'entrée filent vers l'intérieur, discrets au repos, vifs et
 //    rapides quand la prochaine vague entre par là ;
-//  - pendant le compte à rebours (pas pendant que la vague entre), l'aperçu du trajet de la prochaine
-//    vague, comme dans Cursed Treasure : pointillés animés à la couleur de l'entrée, de l'entrée à la
-//    cachette visée, le long du VRAI chemin (champ d'écoulement de la simulation, PTMT.sim.Grid, sur
-//    la carte telle qu'elle sera à cette vague : barrière ouverte, passage secret, marée), en tenant
-//    le milieu de la route ; route des nageurs en pointillés bleus quand elle coupe par l'eau ;
-//    montgolfières : ligne droite tiretée vers la cachette la plus proche et petit ballon qui la suit.
+//  - les flèches des entrées par où arrive la prochaine vague s'animent pendant le compte à rebours
+//    (plus vives et plus rapides dans les dernières secondes) ; le reste du trajet n'est pas montré.
 //    La vague vient de view.game.upcoming(1) si la vue connaît la partie, sinon de
 //    PTMT.sim.buildWaves (mêmes vagues, la graine ne dépend que de la mission), sinon de
-//    state.wave.nextEntrances (marcheurs seulement).
+//    state.wave.nextEntrances.
 //
 //   const r = new PTMT.view._Routes(view) ; r.update(state, dt, time) ; r.lastEntrances ; r.dispose()
 (function () {
@@ -31,8 +27,6 @@
   const clamp = (v, a, b) => (v < a ? a : v > b ? b : v);
   const lin = (hex) => (PTMT.color ? PTMT.color(hex) : new THREE.Color(hex).convertSRGBToLinear());
   const LETTERS = "ABCDE";
-  const STEP = 0.1; // pas de rééchantillonnage des trajets (cases)
-  const SWIM_HEX = "#3fb6ff";
   const GREY_HEX = "#a9a59c";
 
   function Routes(view) {
@@ -40,7 +34,6 @@
     this.sig = NaN;
     this.next = null;
     this.paths = [];
-    this.alpha = 0;
     this.lastEntrances = [];
     this.waves = null;
     this.wavesLevel = -1;
@@ -130,111 +123,19 @@
     return { index: k, groups: out, low };
   };
 
-  /* ------------------------------------------------------------------ trajets */
-  /** Grille de la simulation telle qu'elle sera à la vague k (barrières ouvertes, passage secret, marée). */
-  R.gridFor = function (st, k, low) {
-    const S = PTMT.sim;
-    if (!S || !S.Grid || !st.map || !st.map.grid || !st.map.lairs) return null;
-    const secret = st.map.secretWave && k + 1 >= st.map.secretWave;
-    const rows = st.map.grid.map((r) => {
-      let x = typeof r === "string" ? r : r.join("");
-      x = x.replace(/g/g, "E");
-      if (secret) x = x.replace(/s/g, "#");
-      return x;
-    });
-    try {
-      const g = new S.Grid({ id: st.map.id, grid: rows, mana: [], lairs: st.map.lairs.map((L) => ({ at: L.tiles[0], gems: L.total, style: L.style })), gates: [] });
-      g.setTide(!!low);
-      return g;
-    } catch (e) {
-      return null;
-    }
-  };
-  /** Rééchantillonne une polyligne (cases) tous les STEP : positions monde posées sur le sol. */
-  R.resample = function (pts, lift, flat) {
-    const world = this.view.world;
-    let total = 0;
-    for (let k = 2; k < pts.length; k += 2) total += Math.hypot(pts[k] - pts[k - 2], pts[k + 1] - pts[k - 1]);
-    const n = Math.max(2, Math.floor(total / STEP) + 1);
-    const out = new Float32Array(n * 5); // X, Y, Z, dx, dz
-    let seg = 2, segPos = 0, segLen = pts.length > 2 ? Math.hypot(pts[2] - pts[0], pts[3] - pts[1]) : 0;
-    for (let q = 0; q < n; q++) {
-      const s = Math.min(total, q * STEP);
-      while (seg < pts.length - 2 && segPos + segLen < s) {
-        segPos += segLen;
-        seg += 2;
-        segLen = Math.hypot(pts[seg] - pts[seg - 2], pts[seg + 1] - pts[seg - 1]);
-      }
-      const t = segLen > 1e-6 ? clamp((s - segPos) / segLen, 0, 1) : 0;
-      const x = pts[seg - 2] + (pts[seg] - pts[seg - 2]) * t, y = pts[seg - 1] + (pts[seg + 1] - pts[seg - 1]) * t;
-      const dx = pts[seg] - pts[seg - 2], dy = pts[seg + 1] - pts[seg - 1], l = Math.hypot(dx, dy) || 1;
-      out[q * 5] = toX(x);
-      out[q * 5 + 1] = (flat ? Math.max(0, world.groundAt(x, y, true)) : world.groundAt(x, y, true)) + lift;
-      out[q * 5 + 2] = toZ(y);
-      out[q * 5 + 3] = dx / l;
-      out[q * 5 + 4] = dy / l;
-    }
-    return { pts: out, n, len: total };
-  };
-  /** Le trajet passe-t-il par l'eau (ou par l'estran à marée haute) ? */
-  function crossesWater(g, pts) {
-    for (let k = 0; k < pts.length; k += 2) {
-      const c = g.char(Math.floor(pts[k]), Math.floor(pts[k + 1]));
-      if (c === "~" || c === "w" || (c === "m" && !g.lowTide)) return true;
-    }
-    return false;
-  }
+  /**
+   * Entrées par lesquelles arrive la prochaine vague. Les trajets complets ne sont plus dessinés :
+   * des pointillés sur tout le chemin en disaient trop (et brouillaient la marée) ; seules les
+   * flèches des entrées concernées s'animent, comme dans Cursed Treasure.
+   */
   R.build = function (st, next) {
     this.paths.length = 0;
     this.lastEntrances = [];
     if (!next || !next.groups.length) return;
-    const g = this.gridFor(st, next.index, next.low);
     const ents = st.map.entrances || [];
-    const lairs = st.map.lairs || [];
-    const sources = [];
-    for (const L of lairs) if ((L.stock === undefined ? L.total : L.stock) > 0) sources.push({ lair: L.id, x: L.x, y: L.y });
-    for (const gem of st.gems || []) if (gem.where === "ground") sources.push({ lair: -1, x: gem.x, y: gem.y });
     for (const grp of next.groups) {
       const e = ents[grp.entrance];
-      if (!e) continue;
-      if (!this.lastEntrances.includes(e.id)) this.lastEntrances.push(e.id);
-      const color = this.col(e.color || "#ffffff");
-      if (grp.mode === "fly") {
-        // montgolfière : du bord, tout droit vers la source la plus proche (à vol d'oiseau)
-        const sx = e.x - Math.sin(e.dir) * 0.4, sy = e.y - Math.cos(e.dir) * 0.4;
-        let best = null, bd = Infinity;
-        for (const s of sources) {
-          const d = Math.hypot(s.x - sx, s.y - sy);
-          if (d < bd) {
-            bd = d;
-            best = s;
-          }
-        }
-        if (!best) continue;
-        const r = this.resample([sx, sy, best.x, best.y], 0.1, true);
-        this.paths.push(Object.assign(r, { mode: "fly", color, entrance: e.id, tx: best.x, ty: best.y }));
-        continue;
-      }
-      if (!g) continue;
-      const mode = grp.mode === "swim" ? "swim" : "walk";
-      const mid = e.tiles[Math.floor((e.tiles.length - 1) / 2)] || [Math.floor(e.x), Math.floor(e.y)];
-      let bestF = null, bd = Infinity, target = null;
-      for (const L of lairs) {
-        if ((L.stock === undefined ? L.total : L.stock) <= 0) continue;
-        const f = g.toLair(L.id, mode);
-        const d = Math.min(g.at(f, mid[0], mid[1]), g.at(f, Math.floor(e.x), Math.floor(e.y)));
-        if (d < bd) {
-          bd = d;
-          bestF = f;
-          target = L;
-        }
-      }
-      if (!bestF || bd >= 1e8) continue;
-      const line = MK.walkLine(g, bestF, e.x, e.y, 0, mode, 140, []);
-      if (line.length < 4) continue;
-      if (mode === "swim" && !crossesWater(g, line)) continue;
-      const r = this.resample(line, 0.1, false);
-      this.paths.push(Object.assign(r, { mode, color: mode === "swim" ? this.col(SWIM_HEX) : color, entrance: e.id, tx: target.x, ty: target.y }));
+      if (e && !this.lastEntrances.includes(e.id)) this.lastEntrances.push(e.id);
     }
   };
 
@@ -291,48 +192,6 @@
           M.put(toX(x), world.groundAt(x, y, true) + 0.08, toZ(y), (on ? 2.3 : 1.9) * Math.min(1.35, k), H.chevron, color[0], color[1], color[2], a, rot, 0, 1, 1);
         }
       }
-    }
-    // aperçu des trajets de la prochaine vague (masqué pendant que la vague entre)
-    const want = next && !w.spawning && this.paths.length ? 1 : 0;
-    this.alpha += (want - this.alpha) * Math.min(1, dt * (want ? 2.5 : 6));
-    if (this.alpha < 0.02) return;
-    const busy = (st.enemies || []).length > 0 ? 0.7 : 1;
-    const gap = view.mobile ? 0.52 : 0.46;
-    const speed = urgent ? 1.6 : 1.1;
-    const dot = 0.95 * k, chev = 1.45 * k;
-    for (const P of this.paths) {
-      const pts = P.pts, n = P.n, len = P.len;
-      const col = P.color;
-      const fly = P.mode === "fly";
-      const phase = (time * speed) % gap;
-      // numéro de chaque point compté depuis le départ du défilement : le motif (un chevron tous
-      // les quatre points) avance avec eux sans sauter quand la phase reboucle
-      let idx = -Math.floor((time * speed) / gap);
-      for (let s = phase; s < len; s += gap, idx++) {
-        const q = Math.min(n - 1, Math.round(s / STEP));
-        const o = q * 5;
-        const fade = clamp(s / 0.6, 0, 1) * clamp((len - s) / 0.9, 0, 1);
-        const a = this.alpha * busy * fade;
-        if (a < 0.02) continue;
-        const dx = pts[o + 3], dz = pts[o + 4];
-        if (fly) {
-          M.put(pts[o], pts[o + 1], pts[o + 2], dot * 1.5, H.dash, col[0], col[1], col[2], a * 0.95, Math.atan2(-dz, dx), 0, 1, 1);
-        } else if ((idx & 3) === 3) {
-          M.put(pts[o], pts[o + 1], pts[o + 2], chev, H.chevron, col[0], col[1], col[2], a, Math.atan2(-dx, -dz), 0, 1, 1);
-        } else {
-          M.put(pts[o], pts[o + 1], pts[o + 2], dot, H.dot, col[0], col[1], col[2], a * 0.95, 0, 0, 1, 1);
-        }
-      }
-      // montgolfière : petit ballon qui parcourt la ligne
-      if (fly && len > 0.5) {
-        const s = ((time * 0.45) % 1) * len;
-        const o = Math.min(n - 1, Math.round(s / STEP)) * 5;
-        M.put(pts[o], pts[o + 1] + 1.6 * k, pts[o + 2], 1.7 * k, H.balloon, col[0], col[1], col[2], this.alpha, 0, 0, 0, 1);
-      }
-      // cachette visée : anneau pulsé à la couleur de l'entrée
-      const pr = (time * 0.8 + P.entrance * 0.3) % 1;
-      const tx = toX(P.tx), tz = toZ(P.ty), ty = world.groundAt(P.tx, P.ty, false) + 0.12;
-      M.put(tx, ty, tz, (3.2 + pr * 4.5) * Math.min(1.3, k), H.ring, col[0], col[1], col[2], this.alpha * busy * (1 - pr) * 0.9, 0, 0, 1, 1);
     }
   };
   R.dispose = function () {

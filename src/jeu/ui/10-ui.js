@@ -18,8 +18,9 @@
 // Côté simulation (v4) : vagues numérotées à partir de 0 (state.wave.index vaut -1 avant la
 // première) ; game.upcoming(n) nourrit la frise (groupes avec entrée, lettre, couleur, vol, nage ;
 // notes de surprise : marée, barrière, passage secret) ; game.enemyInfo(id) la fiche d'ennemi ;
-// towerInfo(id) (attack "shot" | "charges" | "beam", next / specs { A, B } et leur check { ok, reason }) le
-// panneau de tour, complété en direct par l'état de la tour (ammo, beams[].heat, dazzled) ;
+// towerInfo(id) (attack "shot" | "charges" | "beam" | "cone", next / specs { A, B } et leur check { ok, reason })
+// le panneau de tour, complété en direct par l'état de la tour (ammo, beams[].heat, cones[].heat, dazzled) ;
+// game.buildCosts() le panneau des prix (prochaine tour de chaque famille : +20 or par tour posée) ;
 // state.map.lairs (nom, décor, stock) et state.gems[].lair les gemmes par cachette ;
 // state.spells[k] = { cost, unlocked, ready, active, left }. Les événements win / lose portent
 // ev.record (résultat déjà enregistré par l'intégrateur : { firstWin, points, unlocked, best }) ;
@@ -35,11 +36,14 @@
 // d'or). Seules les positions bougent à chaque image (transform) ; un bloc n'est construit qu'une fois.
 //
 // Trois mises en page (attribut data-layout) : « desk » (ordinateur : bandeau haut, bandeau bas avec
-// la frise à gauche, les sorts et la vitesse à droite), « portrait » (téléphone debout : bandeau haut
-// sur trois rangs dont la frise, menus en feuille au bas de l'écran), « landscape » (téléphone couché :
-// deux colonnes à gauche et à droite, frise en bas entre elles). Le HUD ne couvre que ces bandes
+// la frise à gauche, les sorts et la vitesse à droite, colonne des prix à droite de la carte),
+// « portrait » (téléphone debout : bandeau haut sur quatre rangs dont les prix et la frise, menus en
+// feuille au bas de l'écran), « landscape » (téléphone couché : deux colonnes à gauche et à droite,
+// prix au bas de celle de gauche, frise en bas entre elles). Le HUD ne couvre que ces bandes
 // (insets) ; menus et panneaux s'ouvrent par-dessus la carte. Le DOM n'est réécrit que quand une
-// valeur affichée change.
+// valeur affichée change. Le menu de construction, le panneau de tour et celui d'une case boisée
+// arrêtent le temps tant qu'ils sont ouverts (pause automatique, reprise à la fermeture) ; une
+// victoire mène à l'écran des compétences.
 (function () {
   "use strict";
   const PTMT = (globalThis.PTMT = globalThis.PTMT || {});
@@ -89,7 +93,7 @@
     barrier: (a) => ["barrier", "Bulle", `bulle de ${a.value || 100} PV qui se reforme`],
     heal: (a) => ["heal", "Soigneuse", `+${a.value || 30} PV à un allié toutes les ${a.every || 3} s`],
     smoke: (a) => ["smoke", "Fumigène", `invisible ${a.t || 5} s au premier coup`],
-    evade: (a) => ["evade", "Esquive", `évite ${pc(a.chance || 0.5)} des projectiles`],
+    evade: (a) => ["evade", "Esquive", `évite ${pc(a.chance || 0.5)} des projectiles et se dérobe au jet de feu (la chauffe retombe)`],
     haste: (a) => ["haste", "Biniou", `vitesse × ${a.mult || 2} pour les alliés proches`],
     immune: () => ["immune", "Immunisé", "aucun effet ne le touche"],
     swim: () => ["swim", "Nageur", "coupe par l'eau"],
@@ -108,6 +112,21 @@
     shot: { icon: "shot", name: "Tir", text: "Une bogue après l'autre, sur une cible." },
     charges: { icon: "charges", name: "Charges", text: "Lâche ses boules d'un coup, puis les recharge une à une." },
     beam: { icon: "beam", name: "Jet de feu", text: "Brûle sans arrêt : plus il tient sa cible, plus ça chauffe." },
+    cone: { icon: "burn", name: "Cône de flammes", text: "Brûle tout ce qui se trouve devant lui ; plus il souffle, plus ça chauffe." },
+  };
+  /** Façon d'attaquer d'une tour, précisée par sa spécialisation (le mode seul ne dit pas tout). */
+  const attackOf = (mode, st) => {
+    st = st || {};
+    if (mode === "shot" && (st.multi || 1) > 1) return { icon: "shot", name: "Tir multiple", text: `${st.multi} bogues à la fois, sur ${st.multi} ennemis différents.` };
+    if (mode === "shot" && st.splash) return { icon: "splash", name: "Tir en cloche", text: "Une grosse châtaigne qui explose sur tout un groupe." };
+    if (mode === "charges" && st.nova) return { icon: "freeze", name: "Onde de glace", text: "Chaque boule part en onde de glace autour du nid : tous les ennemis à portée sont touchés." };
+    if (mode === "charges" && st.volley) return { icon: "charges", name: "Salve", text: "Lâche toutes ses boules d'un coup, chacune sur un ennemi différent." };
+    if (mode === "beam" && st.chain) {
+      const n = st.chain.count || 1;
+      return { icon: "beam", name: "Jet qui rebondit", text: `Brûle sans arrêt et rebondit sur ${n > 1 ? n + " ennemis proches" : "un second ennemi"}.` };
+    }
+    if (mode === "cone" && (st.beams || 1) > 1) return { icon: "burn", name: "Deux cônes de flammes", text: "Deux têtes : deux cônes qui brûlent tout ce qui est devant eux." };
+    return ATTACK[mode] || ATTACK.shot;
   };
   // Surprises annoncées par la frise (icône, mot court).
   const NOTE = {
@@ -229,6 +248,65 @@
     this.ringEl = h("div", { class: "pt-ering", hidden: true }, h("i", {}));
     this.flyEl = h("div", { class: "pt-fly" });
     this.hud.append(this.ringEl, this.marksEl, this.flyEl, this.topEl, this.bottomEl);
+    this.buildPrices();
+  };
+
+  /* ------------------------------------------------------------------ prix des gardiens */
+  // Façon Cursed Treasure : le prix de la prochaine tour de chaque famille, qui monte de 20 or à
+  // chaque tour posée (et redescend quand on en revend une). Colonne à droite de la carte sur
+  // ordinateur (hors de la zone de jeu : la caméra cadre la carte à sa gauche), rangée compacte sous
+  // le bandeau sur téléphone debout, bas de la colonne de gauche sur téléphone couché.
+  P.buildPrices = function () {
+    const D = this.D();
+    const TP = PTMT.towerPortraits;
+    const step = (D.economy && D.economy.towerStep) || 0;
+    this.priceCards = {};
+    const list = h("div", { class: "pt-prices-l" });
+    for (const f of FAMS) {
+      const F = D.FAMILIES && D.FAMILIES[f];
+      if (!F) continue;
+      const num = h("b", { class: "pt-num" }, "");
+      const card = h(
+        "div",
+        { class: "pt-pc", "data-f": f },
+        h("span", { class: "pt-tp", "data-f": f, html: TP ? TP.get(f, 1) : "" }),
+        h("span", { class: "pt-pc-t" }, h("b", {}, (D.BRANCHES && D.BRANCHES[f] && D.BRANCHES[f].name) || F.name), h("small", {}, ico(F.terrain), TERRAIN[F.terrain] || "")),
+        h("span", { class: "pt-price" }, ico("gold"), num),
+      );
+      card._num = num;
+      this.priceCards[f] = card;
+      list.append(card);
+    }
+    this.pricesEl = h("aside", { class: "pt-prices", "aria-label": "Prix des gardiens" }, h("div", { class: "pt-prices-h" }, h("b", {}, "Gardiens"), step ? h("small", {}, "+" + step + NB + "or par tour posée") : null), list);
+    this.hud.append(this.pricesEl);
+  };
+  /** Range le panneau des prix selon la mise en page. */
+  P.placePricesHost = function () {
+    if (!this.pricesEl) return;
+    const host = this.layout === "desk" ? this.hud : this.topEl;
+    if (this.pricesEl.parentNode !== host) host.append(this.pricesEl);
+  };
+  /** Prix à jour (chaque image, écrit seulement quand un prix ou « assez d'or » change). */
+  P.updatePrices = function (s) {
+    if (!this.pricesEl || !this.priceCards) return;
+    const costs = call(this.game, "buildCosts");
+    if (!costs) return;
+    const D = this.D();
+    const step = (D.economy && D.economy.towerStep) || 0;
+    const g = Math.floor(s.gold);
+    for (const f of FAMS) {
+      const card = this.priceCards[f];
+      const c = costs[f];
+      if (!card || c === null || c === undefined) continue;
+      this.put("price:" + f, c + (c > g ? "p" : ""), (v, old) => {
+        const before = old !== undefined ? parseInt(old, 10) : c;
+        card._num.textContent = String(c);
+        card.classList.toggle("poor", c > g);
+        const F = D.FAMILIES[f];
+        card.title = fr(`${F.name} : ${c} or pour le prochain (${(TERRAIN[F.terrain] || "").toLowerCase()} ou butte). Chaque tour posée rend la suivante ${step} or plus chère ; en revendre une fait baisser le prix.` + (c > g ? ` Il manque ${c - g} or.` : ""));
+        if (before !== c) this.bump(card, c > before ? "bad" : "good");
+      });
+    }
   };
 
   /* ------------------------------------------------------------------ frise des vagues */
@@ -314,6 +392,8 @@
     kids.push(body);
     const bonus = first ? h("b", { class: "pt-num" }, "+0") : null;
     if (first) kids.push(h("span", { class: "pt-fz-call" }, ico("horn"), bonus));
+    // les ennemis deviennent plus résistants de vague en vague : PV × … (dès × 1,1)
+    if (w.hpMul >= 1.1) kids.push(h("span", { class: "pt-fz-hp pt-num", title: fr(`Ennemis plus résistants : PV × ${f1(w.hpMul)}`) }, "PV×" + f1(w.hpMul)));
     const boss = units.some((u) => u.boss);
     const cls = "pt-fz-b" + (first ? " first" : "") + (boss ? " boss" : "") + (notes.length ? " surprise" : "") + (multi ? " multi" : "");
     const el = first
@@ -448,6 +528,7 @@
     this.el.classList.toggle("pt-touch", this.mobile);
     this._insets = null;
     this.fzK = null;
+    if (changed || (this.pricesEl && !this.pricesEl.parentNode)) this.placePricesHost();
     if (changed) {
       this.last.mana = null;
       this.last.fzNow = undefined;
@@ -477,6 +558,11 @@
       st.setProperty("--pt-right", this._insets.right + "px");
       this._insets.bottom = Math.ceil(H - this.fzEl.getBoundingClientRect().top);
     } else this._insets = { top: Math.ceil(a.bottom), bottom: Math.ceil(H - b.top), left: 0, right: 0 };
+    // Ordinateur : la colonne des prix borde la carte à droite (la caméra cadre la carte à sa gauche).
+    if (this.layout === "desk" && this.pricesEl && this.pricesEl.parentNode === this.hud) {
+      const r = this.pricesEl.getBoundingClientRect();
+      if (r.width > 0) this._insets.right = Math.ceil(W - r.left + 4);
+    }
     st.setProperty("--pt-top", this._insets.top + "px");
     st.setProperty("--pt-bottom", this._insets.bottom + "px");
     st.setProperty("--pt-left", this._insets.left + "px");
@@ -966,7 +1052,7 @@
         h(
           "div",
           { class: "pt-card pt-tfam", "data-f": fam },
-          h("div", { class: "pt-tfam-h" }, h("span", { class: "pt-branch-ic", html: icons().get(fam) }), h("div", {}, h("h2", {}, F.name), h("small", {}, "Se pose sur : ", TERRAIN[F.terrain] || F.terrain, " (et les buttes)")), h("span", { class: "pt-fact" }, ico("gold"), base.cost + " or")),
+          h("div", { class: "pt-tfam-h" }, h("span", { class: "pt-branch-ic", html: icons().get(fam) }), h("div", {}, h("h2", {}, F.name), h("small", {}, "Se pose sur : ", TERRAIN[F.terrain] || F.terrain, " (et les buttes)")), h("span", { class: "pt-fact", title: fr(`${base.cost} or pour le premier, puis ${(D.economy && D.economy.towerStep) || 0} or de plus pour chaque ${F.name.toLowerCase()} déjà posé`) }, ico("gold"), base.cost + " or" + ((D.economy && D.economy.towerStep) ? " +" + D.economy.towerStep : ""))),
           this.attackGuide(fam),
           h("div", { class: "pt-tlvs" }, lv(1), lv(2), lv(3)),
           h("div", { class: "pt-tspecs" }, spec("A"), spec("B")),
@@ -982,6 +1068,7 @@
     const F = D.FAMILIES[fam];
     const mode = F.attack || (fam === "swan" ? "charges" : fam === "dog" ? "beam" : "shot");
     const A = ATTACK[mode];
+    const spec = (k) => (F.specs && F.specs[k] ? F.specs[k].name : k);
     const L1 = D.towerLevel(fam, 1) || {};
     const top = (k) => {
       let best = null;
@@ -994,14 +1081,14 @@
     let text, demo;
     if (mode === "charges") {
       const T = top("charges");
-      text = `Garde ${L1.charges || 2} à ${T.charges || 5} boules d'eau en réserve et les lâche en rafale dès qu'un ennemi approche ; puis chaque boule revient, l'une après l'autre (${f1(L1.reload || 1.4)} s au début). Les boules éclaboussent autour de la cible et la ralentissent.`;
+      text = `Garde ${L1.charges || 2} à ${T.charges || 5} boules d'eau en réserve et les lâche en rafale dès qu'un ennemi approche ; puis chaque boule revient, l'une après l'autre (${f1(L1.reload || 1.4)} s au début). Les boules éclaboussent autour de la cible et la ralentissent. Au niveau 4, le ${spec("A")} change chaque boule en onde de glace autour du nid (tous les ennemis à portée) ; le ${spec("B")} lâche toutes ses boules d'un coup, chacune sur un ennemi différent.`;
       demo = h("span", { class: "pt-ag-demo pt-pips-c" }, [1, 1, 0.45].map((f) => h("i", { class: f >= 1 ? "full" : "", style: `--f:${f}` }, h("b", {}))));
     } else if (mode === "beam") {
       const T = top("heatMax");
-      text = `Crache un jet de flammes continu sur une cible tant qu'elle reste à portée. Plus il la tient, plus ça chauffe : les dégâts montent jusqu'à × ${f1(L1.heatMax || 2.2)} au bout de ${f1(L1.heatTime || 3)} s (× ${f1(T.heatMax || 2.6)} pour les grands dragons). Le feu perce les boucliers.`;
+      text = `Crache un jet de flammes continu sur une cible tant qu'elle reste à portée. Plus il la tient, plus ça chauffe : les dégâts montent jusqu'à × ${f1(L1.heatMax || 2.2)} au bout de ${f1(L1.heatTime || 3)} s (× ${f1(T.heatMax || 2.6)} pour les grands dragons). Le feu perce les boucliers ; le rugbyman s'y dérobe parfois (la chauffe retombe). Au niveau 4, le ${spec("A")} souffle un cône de flammes qui brûle tout ce qui est devant lui ; le jet du ${spec("B")} rebondit sur un second ennemi (trois au niveau 7).`;
       demo = h("span", { class: "pt-ag-demo pt-heat on max" }, h("span", { class: "pt-heat-bar" }, h("i", { class: "pt-heat-fill", style: "transform:scaleX(1)" }), h("i", { class: "pt-heat-x0" }, "×1"), h("i", { class: "pt-heat-x1" }, "×" + f1(L1.heatMax || 2.2))));
     } else {
-      text = `Lance des bogues de châtaigne l'une après l'autre sur une seule cible (${nf(L1.dmg || 10)} dégâts × ${f1(L1.rate || 1.1)} par seconde au début). Le Grand Solitaire vise deux ennemis à la fois ; la Catapulte frappe en zone.`;
+      text = `Lance des bogues de châtaigne l'une après l'autre sur une seule cible (${nf(L1.dmg || 10)} dégâts × ${f1(L1.rate || 1.1)} par seconde au début). Au niveau 4, le ${spec("A")} lance deux bogues à la fois sur deux ennemis (trois au niveau 7) ; la ${spec("B")} lance une grosse châtaigne en cloche qui explose sur tout un groupe.`;
       demo = h("span", { class: "pt-ag-demo pt-ag-shot" }, [0, 1, 2].map(() => h("span", { class: "pt-i", html: icons().get("shot") })));
     }
     return h("div", { class: "pt-ag", "data-a": mode }, h("div", { class: "pt-ag-h" }, ico(A.icon), h("b", {}, A.name), demo), h("p", {}, text));
@@ -1043,6 +1130,7 @@
     this.last = Object.create(null);
     this.sel = null;
     this.aim = null;
+    this.autoPaused = false;
     this.popLayer.textContent = "";
     this.bannerLayer.textContent = "";
     this.flyEl.textContent = "";
@@ -1126,6 +1214,7 @@
   /** Quitte le HUD (appelé en changeant d'écran). */
   P.leaveLevel = function (keepMode) {
     this.closeSel();
+    this.autoPaused = false;
     this.cancelAim();
     this.tutoEnd();
     this.game = null;
@@ -1195,6 +1284,8 @@
       this.refreshFrieze(s);
     }
     this.placeFrieze(s, dt);
+    // Prix des gardiens
+    this.updatePrices(s);
     // Sorts
     for (const k of SPELLS) this.updateSpell(k, s);
     // Vitesse, pause
@@ -1204,7 +1295,8 @@
       this.speedCycle.lastChild.textContent = "×" + v;
       this.speedCycle.dataset.v = v;
     });
-    this.put("paused", !!s.paused, (v) => {
+    this.put("paused", !!s.paused + (s.paused && this.autoPaused ? "a" : ""), () => {
+      const v = !!s.paused;
       this.pauseBtn.classList.toggle("on", v);
       this.pauseBtn.innerHTML = icons().get(v ? "play" : "pause");
       this.pauseBtn.title = v ? "Reprendre (Espace)" : "Pause (Espace)";
@@ -1372,7 +1464,29 @@
   P.togglePause = function () {
     if (!this.game) return;
     const s = this.game.state;
+    // le joueur reprend la main : la pause automatique d'un menu ouvert ne sera pas levée à sa fermeture
+    this.autoPaused = false;
     call(this.game, "setPaused", !s.paused);
+  };
+  /**
+   * Pause automatique : le temps s'arrête tant que le menu de construction, le panneau d'une tour ou
+   * celui d'une case boisée est ouvert (on améliore, on choisit une voie, on revend sans stress) ; il
+   * repart à la fermeture, sauf si le joueur avait mis la pause lui-même. La fiche d'un ennemi ne
+   * l'arrête pas (on le regarde avancer).
+   */
+  P.holdTime = function (on) {
+    const g = this.game;
+    if (!g || !g.state) return;
+    if (on) {
+      if (!g.state.paused && !g.state.over) {
+        this.autoPaused = true;
+        call(g, "setPaused", true);
+      }
+    } else if (this.autoPaused) {
+      this.autoPaused = false;
+      if (this.modal) this.modal.resume = true;
+      else if (!g.state.over && g.state.paused) call(g, "setPaused", false);
+    }
   };
   P.callWave = function () {
     if (!this.game) return;
@@ -1402,7 +1516,7 @@
     const st = b.dataset.state;
     const D = this.D();
     const def = (D.SPELLS && D.SPELLS[k]) || { name: k };
-    if (st === "locked") return this.refuse(b, def.name + " se débloque dans une prochaine mission");
+    if (st === "locked") return this.refuse(b, def.name + (def.unlock > this.level ? " se débloque à la mission " + def.unlock : " n'est pas disponible dans cette mission"));
     if (this.aim === k) return this.cancelAim();
     if (st === "low") return this.refuse(b, s.mana < +b._cost.textContent ? `Pas assez de mana pour ${def.name} (${b._cost.textContent})` : `${def.name} n'est pas encore prêt`);
     if (st === "active") return this.refuse(b, "Frénésie déjà en cours");
@@ -1511,6 +1625,7 @@
     if (!this.sel) return;
     const s = this.sel;
     this.sel = null;
+    this.holdTime(false);
     s.el.classList.add("pt-out");
     setTimeout(() => s.el.remove(), 160);
     this.v("showRange", null);
@@ -1534,6 +1649,7 @@
     this.selT = 0.25;
     this.popLayer.append(el);
     this.placeSel(true);
+    this.holdTime(sel.kind !== "enemy");
     return el;
   };
   P.placeSel = function (measure) {
@@ -1908,7 +2024,17 @@
     const has = (k) => st[k] !== undefined || N[k] !== undefined;
     const sec = (v) => f1(v) + NB + "s";
     mode = mode || st.attack || "shot";
-    if (mode === "beam") {
+    const deg = (a) => Math.round((a * 180) / Math.PI) + "°";
+    if (mode === "cone") {
+      row("burn", "Flammes", nf(st.dps) + "/s", N.dps ? nf(N.dps) + "/s" : null, "Dégâts par seconde à chaque ennemi pris dans le cône");
+      if (st.heatMax) {
+        const nx = [];
+        if (N.heatMax && N.heatMax !== st.heatMax) nx.push("× " + f1(N.heatMax));
+        if (N.heatTime && N.heatTime !== st.heatTime) nx.push("en " + sec(N.heatTime));
+        row("heat", "Chauffe", "× " + f1(st.heatMax) + " en " + sec(st.heatTime), nx.join(" ") || null, `Plus il souffle, plus ça brûle : × ${f1(st.heatMax)} au bout de ${f1(st.heatTime)} s, soit ${nf(st.dps * st.heatMax)} dégâts/s à chaque ennemi du cône`);
+      }
+      row("splash", "Ouverture", deg(st.cone || 0.9), N.cone && N.cone !== st.cone ? deg(N.cone) : null, "Largeur du cône de flammes : tout ce qui s'y trouve brûle");
+    } else if (mode === "beam") {
       row("burn", "Feu", nf(st.dps) + "/s", N.dps ? nf(N.dps) + "/s" : null, "Dégâts par seconde du jet, dès qu'il touche");
       if (st.heatMax) {
         const nx = [];
@@ -1918,16 +2044,20 @@
       }
     } else if (mode === "charges") {
       const nb = (n) => n + " boule" + (n > 1 ? "s" : "");
-      row("charges", "Charges", nb(st.charges || 0), N.charges ? nb(N.charges) : null, "Boules d'eau gardées en réserve et lâchées d'un coup sur les ennemis");
-      row("damage", "Par boule", nf(st.dmg), N.dmg ? nf(N.dmg) : null, "Dégâts de chaque boule (en zone)");
+      row("charges", "Charges", nb(st.charges || 0), N.charges ? nb(N.charges) : null, st.nova ? "Boules gardées en réserve : chacune part en onde de glace" : st.volley ? "Boules lâchées toutes à la fois, chacune sur un ennemi différent" : "Boules d'eau gardées en réserve et lâchées d'un coup sur les ennemis");
+      if (st.nova) row("freeze", "Par onde", nf(st.dmg), N.dmg ? nf(N.dmg) : null, "Dégâts de chaque onde, à tous les ennemis à portée");
+      else row("damage", "Par boule", nf(st.dmg), N.dmg ? nf(N.dmg) : null, "Dégâts de chaque boule (en zone)");
       if (st.reload) row("rate", "Recharge", sec(st.reload), N.reload ? sec(N.reload) : null, "Une boule revient toutes les " + sec(st.reload) + ", l'une après l'autre");
     } else {
       row("damage", "Dégâts × cadence", nf(st.dmg) + " × " + f1(st.rate), N.dmg ? nf(N.dmg) + " × " + f1(N.rate) : null, "Dégâts par bogue × bogues par seconde");
     }
     if (st.range) row("range", "Portée", f1(st.range), N.range ? f1(N.range) : null, "Portée en cases");
     if ((st.multi || 1) > 1 || (N.multi || 1) > 1) row("shot", "Cibles", (st.multi || 1) + " à la fois", N.multi ? N.multi + " à la fois" : null, "Vise plusieurs ennemis à la fois");
-    if ((st.beams || 1) > 1 || (N.beams || 1) > 1) row("beam", "Jets", (st.beams || 1) + " à la fois", N.beams ? N.beams + " à la fois" : null, "Crache plusieurs jets sur des ennemis différents");
-    if (has("chain")) row("beam", "Rebond", st.chain ? pc(st.chain.pct) : "—", N.chain ? pc(N.chain.pct) : null, "Le jet rebondit sur un second ennemi proche (part des dégâts)");
+    if ((st.beams || 1) > 1 || (N.beams || 1) > 1) row("beam", mode === "cone" ? "Têtes" : "Jets", (st.beams || 1) + (mode === "cone" ? " cône" + ((st.beams || 1) > 1 ? "s" : "") : " à la fois"), N.beams ? N.beams + (mode === "cone" ? " cônes" : " à la fois") : null, mode === "cone" ? "Chaque tête souffle son propre cône, vers un ennemi différent" : "Crache plusieurs jets sur des ennemis différents");
+    if (has("chain")) {
+      const ch = (c) => (c ? ((c.count || 1) > 1 ? c.count + " × " : "") + pc(c.pct) : "—");
+      row("beam", "Rebond", ch(st.chain), N.chain ? ch(N.chain) : null, st.chain ? `Le jet rebondit sur ${(st.chain.count || 1) > 1 ? st.chain.count + " ennemis proches" : "un second ennemi proche"} (${pc(st.chain.pct)} des dégâts)` : "Le jet rebondit sur un ennemi proche");
+    }
     if (st.splash) {
       if (mode === "beam") row("splash", "Embrase", pc(st.splashPct || 0.4) + " autour", N.splashPct ? pc(N.splashPct) + " autour" : null, `Les flammes lèchent les ennemis à ${f1(st.splash)} case de la cible`);
       else row("splash", "Zone", f1(st.splash), N.splash ? f1(N.splash) : null, "Rayon des dégâts de zone (cases)");
@@ -1947,14 +2077,14 @@
   };
   /** Bloc « façon d'attaquer » du panneau de tour, avec sa jauge en direct (charges, chauffe). */
   P.attackBlock = function (mode, st) {
-    const A = ATTACK[mode] || ATTACK.shot;
+    const A = attackOf(mode, st);
     const live = { mode };
     const kids = [h("div", { class: "pt-atk-h" }, ico(A.icon), h("b", {}, A.name), h("small", {}, A.text))];
     if (mode === "charges") {
       live.pips = h("span", { class: "pt-pips-c" });
       live.ammoTxt = h("small", { class: "pt-atk-v" }, "");
       kids.push(h("div", { class: "pt-atk-live" }, live.pips, live.ammoTxt));
-    } else if (mode === "beam") {
+    } else if (mode === "beam" || mode === "cone") {
       live.heatFill = h("i", { class: "pt-heat-fill" });
       live.heatTxt = h("b", { class: "pt-num" }, "");
       live.heatCap = h("small", { class: "pt-atk-v" }, "");
@@ -2005,7 +2135,7 @@
       }
     }
     if (L.heatEl) {
-      const beams = t.beams || [];
+      const beams = (L.mode === "cone" ? t.cones : t.beams) || [];
       let heat = 0;
       for (const b of beams) heat = Math.max(heat, b.heat || 0);
       const hv = Math.round(heat * 40) / 40;
@@ -2017,7 +2147,7 @@
         const st = sel.st || {};
         L.heatFill.style.transform = `scaleX(${firing ? hv.toFixed(3) : 0})`;
         L.heatTxt.textContent = firing ? "× " + f1(1 + ((st.heatMax || 2) - 1) * hv) : "";
-        L.heatCap.textContent = firing ? (beams.length > 1 ? "Deux jets en feu" : hv >= 1 ? "Brûlant !" : "Ça chauffe…") : "Attend une cible";
+        L.heatCap.textContent = firing ? (beams.length > 1 ? (L.mode === "cone" ? "Deux cônes en feu" : "Deux jets en feu") : hv >= 1 ? "Brûlant !" : "Ça chauffe…") : "Attend une cible";
         L.heatEl.classList.toggle("on", firing);
         L.heatEl.classList.toggle("max", firing && hv >= 1);
       }
@@ -2458,6 +2588,9 @@
     if (to === "skills") {
       this.justUnlocked = fresh;
       this.showSkills();
+      const pr = this.prog();
+      const free = pr ? call(pr, "pointsFree", this.loadP()) || 0 : 0;
+      if (free > 0) this.toast(free > 1 ? `${free} points de compétence à placer` : "1 point de compétence à placer", "good", "skillPoint");
     }
   };
   /**
@@ -2508,7 +2641,7 @@
           "div",
           { class: "pt-row" },
           h("button", { class: "pt-btn pt-wood", onclick: () => this.restart() }, ico("restart"), "Rejouer"),
-          h("button", { class: "pt-btn pt-go pt-big", "data-focus": "", onclick: () => this.quit() }, ico("map"), "Continuer"),
+          h("button", { class: "pt-btn pt-go pt-big", "data-focus": "", title: "Placer les points de compétence, puis retour aux missions", onclick: () => this.quit("skills") }, ico("skills"), "Continuer"),
         ),
       );
     } else {
@@ -2568,12 +2701,18 @@
     else show();
   };
   P.pausedBanner = function (on) {
-    if (on && !this.pauseEl && this.mode === "game") {
-      this.pauseEl = h("div", { class: "pt-pausebar" }, ico("pause"), h("span", {}, "Pause"), h("small", {}, this.layout === "desk" ? "Espace pour reprendre · tu peux construire" : "Tu peux construire"));
-      this.bannerLayer.append(this.pauseEl);
-    } else if (!on && this.pauseEl) {
+    // pause automatique (menu ouvert) : bandeau discret ; pause du joueur : bandeau complet
+    const kind = on ? (this.autoPaused ? "auto" : "user") : null;
+    if (this.pauseEl && this.pauseEl.dataset.k !== kind) {
       this.pauseEl.remove();
       this.pauseEl = null;
+    }
+    if (kind && !this.pauseEl && this.mode === "game") {
+      this.pauseEl =
+        kind === "auto"
+          ? h("div", { class: "pt-pausebar auto", "data-k": kind }, ico("pause"), h("span", {}, "Temps arrêté"), h("small", {}, "Il repart quand tu fermes le menu"))
+          : h("div", { class: "pt-pausebar", "data-k": kind }, ico("pause"), h("span", {}, "Pause"), h("small", {}, this.layout === "desk" ? "Espace pour reprendre · tu peux construire" : "Tu peux construire"));
+      this.bannerLayer.append(this.pauseEl);
     }
   };
   P.toast = function (text, kind, icon) {

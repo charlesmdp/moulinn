@@ -4930,6 +4930,276 @@ html.pt-over-enemy .ptmt-stage canvas {
     transform: none;
   }
 }
+/* ── Prix des gardiens (façon Cursed Treasure : +20 or par tour posée) ── */
+.pt-prices {
+  position: absolute;
+  z-index: 2;
+  top: calc(var(--pt-top) + 12px);
+  right: calc(10px + var(--safe-r));
+  width: 138px;
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  padding: 8px 7px 9px;
+  border-radius: 16px;
+  background: var(--planks-v);
+  border: 3px solid var(--edge);
+  box-shadow: inset 0 2px 0 rgba(255, 240, 210, 0.45), 0 4px 0 rgba(40, 20, 5, 0.3), 0 8px 18px rgba(30, 14, 4, 0.3);
+  pointer-events: auto;
+}
+.pt-prices-h {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  line-height: 1.05;
+  text-align: center;
+}
+.pt-prices-h b {
+  font-family: var(--f-title);
+  font-weight: 400;
+  font-size: 18px;
+  color: #fffaf0;
+  text-shadow: 0 2px 0 var(--edge), 1px 0 0 var(--edge), -1px 0 0 var(--edge), 0 -1px 0 var(--edge);
+}
+.pt-prices-h small {
+  margin-top: 2px;
+  font-size: 11px;
+  font-weight: 800;
+  color: #fff3c8;
+  text-shadow: 0 1px 0 var(--edge);
+}
+.pt-prices-l {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.pt-pc {
+  display: grid;
+  grid-template-columns: 40px 1fr;
+  grid-template-rows: auto auto;
+  align-items: center;
+  column-gap: 7px;
+  row-gap: 3px;
+  padding: 5px 6px;
+  border-radius: 12px;
+  background: linear-gradient(#fffaf0, #f3e2bc);
+  border: 2.5px solid var(--wood-3);
+  box-shadow: inset 0 2px 0 #fff, 0 3px 0 var(--wood-3);
+}
+.pt-pc[data-f="boar"] {
+  border-color: #5a3a1c;
+}
+.pt-pc[data-f="swan"] {
+  border-color: #1d5a9a;
+}
+.pt-pc[data-f="dog"] {
+  border-color: #9a3a14;
+}
+.pt-pc .pt-tp {
+  grid-row: 1 / span 2;
+  width: 40px;
+  height: 40px;
+  border-width: 2.5px;
+  border-radius: 11px;
+}
+.pt-pc-t {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  line-height: 1.05;
+}
+.pt-pc-t b {
+  font-family: var(--f-title);
+  font-weight: 400;
+  font-size: 13.5px;
+  color: var(--ink);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.pt-pc-t small {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  font-size: 10.5px;
+  font-weight: 800;
+  color: var(--ink-2);
+}
+.pt-pc-t small .pt-i {
+  --is: 13px;
+}
+.pt-pc .pt-price {
+  justify-self: start;
+  padding: 1px 7px 1px 2px;
+}
+.pt-pc .pt-price b {
+  font-size: 16px;
+}
+.pt-pc .pt-price .pt-i {
+  --is: 18px;
+}
+.pt-pc.poor .pt-price {
+  background: linear-gradient(#ffd2c8, #ff9a86);
+  border-color: var(--bad-edge);
+  color: var(--bad-edge);
+}
+.pt-pc.poor .pt-tp {
+  filter: saturate(0.45) brightness(0.95);
+}
+.pt.pt-narrow[data-layout="desk"] .pt-prices {
+  width: 104px;
+}
+.pt.pt-narrow[data-layout="desk"] .pt-pc {
+  grid-template-columns: 1fr;
+  justify-items: center;
+  text-align: center;
+}
+.pt.pt-narrow[data-layout="desk"] .pt-pc .pt-tp {
+  grid-row: auto;
+}
+.pt.pt-narrow[data-layout="desk"] .pt-pc-t small {
+  display: none;
+}
+.pt.pt-narrow[data-layout="desk"] .pt-pc .pt-price {
+  justify-self: center;
+}
+/* téléphone debout : une rangée sous le bandeau, avant la frise */
+.pt[data-layout="portrait"] .pt-prices {
+  position: static;
+  order: 6;
+  flex-basis: 100%;
+  width: auto;
+  flex-direction: row;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: none;
+  box-shadow: none;
+}
+.pt[data-layout="portrait"] .pt-prices-h,
+.pt[data-layout="landscape"] .pt-prices-h b {
+  display: none;
+}
+.pt[data-layout="portrait"] .pt-prices-l {
+  flex-direction: row;
+  gap: 8px;
+}
+.pt[data-layout="portrait"] .pt-pc,
+.pt[data-layout="landscape"] .pt-pc {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 6px 2px 2px;
+  border-radius: 999px;
+  border-width: 2px;
+  box-shadow: inset 0 1px 0 #fff, 0 2px 0 var(--wood-3);
+}
+.pt[data-layout="portrait"] .pt-pc .pt-tp,
+.pt[data-layout="landscape"] .pt-pc .pt-tp {
+  width: 26px;
+  height: 26px;
+  border-width: 2px;
+  border-radius: 50%;
+}
+.pt[data-layout="portrait"] .pt-pc-t,
+.pt[data-layout="landscape"] .pt-pc-t {
+  display: none;
+}
+.pt[data-layout="portrait"] .pt-pc .pt-price,
+.pt[data-layout="landscape"] .pt-pc .pt-price {
+  padding: 0;
+  border: 0;
+  background: none;
+  gap: 1px;
+}
+.pt[data-layout="portrait"] .pt-pc .pt-price b {
+  font-size: 15px;
+}
+.pt[data-layout="portrait"] .pt-pc .pt-price .pt-i,
+.pt[data-layout="landscape"] .pt-pc .pt-price .pt-i {
+  --is: 15px;
+}
+.pt[data-layout="portrait"] .pt-pc.poor,
+.pt[data-layout="landscape"] .pt-pc.poor {
+  background: linear-gradient(#ffe2da, #ffb4a4);
+  border-color: var(--bad-edge);
+}
+/* téléphone couché : bas de la colonne de gauche */
+.pt[data-layout="landscape"] .pt-prices {
+  position: static;
+  margin-top: auto;
+  width: auto;
+  gap: 3px;
+  padding: 4px 3px 5px;
+  border-width: 2px;
+  border-radius: 10px;
+}
+.pt[data-layout="landscape"] .pt-prices-h small {
+  margin: 0;
+  font-size: 9.5px;
+}
+.pt[data-layout="landscape"] .pt-prices-l {
+  gap: 3px;
+}
+.pt[data-layout="landscape"] .pt-pc {
+  justify-content: space-between;
+  padding: 1px 6px 1px 1px;
+}
+.pt[data-layout="landscape"] .pt-pc .pt-tp {
+  width: 22px;
+  height: 22px;
+}
+.pt[data-layout="landscape"] .pt-pc .pt-price b {
+  font-size: 13px;
+}
+.pt.pt-tiny[data-layout="portrait"] .pt-prices-l,
+.pt.pt-tiny[data-layout="portrait"] .pt-prices {
+  gap: 5px;
+}
+/* pause automatique (menu de tour ou de construction ouvert) : bandeau discret */
+.pt-pausebar.auto {
+  padding: 4px 13px 4px 8px;
+  border-color: #cfe8ff;
+  background: rgba(24, 34, 52, 0.82);
+}
+.pt-pausebar.auto > span {
+  font-size: 15px;
+}
+.pt-pausebar.auto .pt-i {
+  --is: 20px;
+}
+.pt-pausebar.auto small {
+  font-size: 12px;
+}
+.pt[data-layout="portrait"] .pt-pausebar.auto small {
+  display: none;
+}
+/* frise : résistance des ennemis de la vague */
+.pt-fz-hp {
+  position: absolute;
+  top: -9px;
+  right: 8px;
+  z-index: 1;
+  padding: 1px 5px;
+  border-radius: 999px;
+  background: linear-gradient(#ffb0a0, #e0523a);
+  border: 1.5px solid var(--bad-edge);
+  color: #fffaf0;
+  font-size: 10.5px;
+  line-height: 12px;
+  text-shadow: 0 1px 0 var(--bad-edge);
+  pointer-events: none;
+}
+.pt[data-layout="portrait"] .pt-fz-hp,
+.pt[data-layout="landscape"] .pt-fz-hp {
+  top: -7px;
+  font-size: 9px;
+  line-height: 10px;
+  padding: 0 4px;
+}
 @keyframes pt-burst {
   0% {
     opacity: 0;

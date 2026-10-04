@@ -25,6 +25,34 @@ l'atelier.
 
 ## Nouveautés de cette série
 
+- **« Pas touche à mes trésors » v4.1**, d'après les retours sur la v4 :
+  - **plus de flèches sur tout le trajet** : seules les entrées par où arrive
+    la prochaine vague s'animent (blason à la couleur de l'entrée, chevrons au
+    sol) ; on ne voit plus d'avance le chemin, ni le raccourci de la marée ;
+  - **écran des compétences après chaque victoire** : « Continuer » y mène
+    (les nouveaux points sont signalés), puis retour à la carte des missions ;
+  - le **rugbyman esquive aussi le jet de feu** du berger : il se dérobe de
+    temps en temps (« Esquive ! ») et la chauffe du jet retombe à zéro ;
+  - **prix des tours à droite de la carte** (rangée sous le bandeau sur
+    téléphone) et, comme dans Cursed Treasure, **chaque tour d'une famille
+    coûte 20 or de plus** que la précédente (en revendre une fait baisser le
+    prix) ; les primes des ennemis sont relevées en conséquence ;
+  - **ennemis de plus en plus résistants** au fil des vagues (leurs PV × … sont
+    affichés sur les blocs de la frise) ;
+  - **cygnes** : recharge deux fois plus lente, boules plus fortes ;
+  - **le temps s'arrête** tant que le menu de construction, le panneau d'une
+    tour ou celui d'une case boisée est ouvert (bandeau « Temps arrêté ») ; il
+    repart à la fermeture ;
+  - **attaque de zone** façon tour de feu : le **dragon rouge souffle un cône
+    de flammes** qui brûle tout ce qui est devant lui (deux têtes, deux cônes
+    au niveau 7) ; le sort **Météore** est disponible dès la mission 2 ;
+  - **spécialisations vraiment différentes dès le niveau 4** : Sanglier
+    chasseur (deux bogues à la fois, trois au niveau 7) ou Laie baliste
+    (grosse châtaigne qui explose sur un groupe) ; Cygne des glaces (chaque
+    boule part en onde de glace autour du nid) ou Cygne noir (toutes ses
+    boules d'un coup, chacune sur un ennemi différent) ; Dragon rouge (cône de
+    flammes) ou Dragon bleu (jet qui rebondit sur un second ennemi, trois au
+    niveau 7).
 - **« Pas touche à mes trésors » v4** (adresse `/jeu/`), d'après les retours
   sur la v3 :
   - **routes larges** (deux à quatre cases) où les ennemis se baladent :
@@ -52,8 +80,8 @@ l'atelier.
     **ennemis reconnaissables d'en haut** (la vache est d'abord une vache pie
     noir, le cavalier assis bien haut dessus) ;
   - **frise des vagues** façon Cursed Treasure (portraits × nombre, lettre et
-    couleur de l'entrée, surprises annoncées), aperçu du trajet de la
-    prochaine vague sur la carte, fiche d'un ennemi au toucher, panneau de
+    couleur de l'entrée, surprises annoncées), entrées de la prochaine vague
+    signalées sur la carte, fiche d'un ennemi au toucher, panneau de
     tour selon sa façon d'attaquer (jauge de chauffe du jet de feu, charges du
     cygne), gemmes regroupées par cachette ;
   - **difficulté recalibrée** : quinze cartes redessinées, économie et vagues
@@ -171,37 +199,48 @@ du moulin : la carte entière se voit du dessus, sans déplacer la caméra.
     (dégâts × 2,2 à × 2,6), et le feu traverse les boucliers.
   Une tour posée sur un **menhir** accélère la régénération du mana ; les
   cases boisées se dégagent avec le sort **Couper**.
+- **Prix** : chaque tour d'une famille coûte 20 or de plus que la précédente
+  (en revendre une fait baisser le prix), comme dans Cursed Treasure ; les
+  prix du moment sont affichés à droite de la carte (sous le bandeau sur
+  téléphone).
 - **Niveaux 1 à 7** : chaque tour gagne de l'expérience en combattant, puis on
-  achète le niveau suivant. Au niveau 4, elle se spécialise, au niveau 7 elle
-  évolue encore :
+  achète le niveau suivant. Au niveau 4, elle se spécialise et change vraiment
+  de façon d'attaquer ; au niveau 7 elle évolue encore :
   - Marcassin → Jeune sanglier → Sanglier des talus, puis Sanglier chasseur
-    (coups critiques) → Grand Solitaire (deux cibles à la fois), ou Laie
-    baliste (grosse châtaigne en cloche, zone) → Catapulte à châtaignes ;
-  - Cygneau → Cygne → Cygne majestueux, puis Cygne des glaces (ralentit, fait
-    reculer de peur) → Cygne royal des glaces (gel), ou Cygne noir (rend du
+    (deux bogues à la fois sur deux ennemis, coups critiques) → Grand
+    Solitaire (trois à la fois), ou Laie baliste (grosse châtaigne en cloche
+    qui explose sur un groupe) → Catapulte à châtaignes (étourdit) ;
+  - Cygneau → Cygne → Cygne majestueux, puis Cygne des glaces (chaque boule
+    part en onde de glace autour du nid : tous les ennemis à portée,
+    ralentis, parfois effrayés) → Cygne royal des glaces (gel), ou Cygne noir
+    (toutes ses boules d'un coup, chacune sur un ennemi différent ; rend du
     mana, désarme) → Cygne noir enchanteur ;
   - Chiot berger → Berger australien → Berger de feu, puis il devient dragon :
-    Dragon merle rouge (le jet embrase autour de la cible et la fait brûler) →
-    Grand dragon rouge (deux têtes, deux jets), ou Dragon merle bleu
-    (rayonnement, explosion des vaincus) → Grand dragon bleu (le jet rebondit).
+    Dragon merle rouge (cône de flammes qui brûle tout ce qui est devant lui)
+    → Grand dragon rouge (deux têtes, deux cônes), ou Dragon merle bleu (le
+    jet rebondit sur un second ennemi ; rayonnement, explosion des vaincus) →
+    Grand dragon bleu (trois rebonds).
 - **Seize ennemis** (même rôle que ceux de Cursed Treasure, et cinq de plus) :
   agriculteur en colère, voleur en quad, cow-boy au lasso (attrape les gemmes
   tombées), cavalier sur vache (bouclier), druide (bulle qui se reforme),
   bigoudène aux crêpes (soigne), chasseur camouflé (fumigène : invisible),
-  rugbyman (esquive un tir sur deux), sonneur de biniou (accélère ses
+  rugbyman (esquive un tir sur deux et se dérobe au jet de feu), sonneur de
+  biniou (accélère ses
   voisins), pompier (insensible aux effets), cavalier sur canard (coupe par
   l'eau), cyclistes (en peloton, plus rapides groupés), korrigan (touché, il
   disparaît et réapparaît plus loin), touriste au flash (éblouit les tours),
   tracteur (blindé ; trois agriculteurs sautent de la cabine) et montgolfière
   (vole en ligne droite au-dessus de tout). Chacun a sa version champion, et
-  chaque mission se termine par un ou plusieurs boss nommés.
+  chaque mission se termine par un ou plusieurs boss nommés. Les ennemis
+  deviennent plus résistants de vague en vague (PV × … sur la frise).
 - **Surprises**, toujours annoncées dans la frise des vagues : marée (à marée
   basse, l'estran devient un raccourci ; un ennemi surpris par la marée
   montante patauge jusqu'à la terre), barrières qui cèdent (une nouvelle
   entrée s'ouvre à une vague donnée), passage secret, canards qui remontent
   un ruisseau jusqu'à une cachette, montgolfières.
 - **Trois sorts** payés en mana : Couper, Frénésie (les tours attaquent deux
-  fois plus vite pendant 5 s), Météore.
+  fois plus vite pendant 5 s), Météore (dégâts de zone au point visé) ;
+  Frénésie et Météore à partir de la mission 2.
 - **Quinze missions** reprenant la progression de Cursed Treasure (5 à 50
   vagues) : Le chemin du moulin, Le Gué, Les Deux Prés, La Croix, Le Hallier,
   Le Vieux Fort (marée), Les Yeux du serpent (deux cachettes), Le Labyrinthe
@@ -215,17 +254,20 @@ du moulin : la carte entière se voit du dessus, sans déplacer la caméra.
 - **Compétences** : 3 points par mission gagnée, à répartir dans trois
   branches (Sanglier : or et Couper ; Cygne : mana et Frénésie ; Berger :
   gemmes et Météore), 21 compétences de 1 à 5 rangs, redistribuables.
+  L'écran des compétences s'ouvre après chaque victoire.
 - **Interface de jeu vidéo** : logo, écran titre, carte des missions (gemmes
   sauvées, couronne « Brillant », nombre de cachettes), compétences,
   encyclopédie des ennemis et des tours (façon d'attaquer expliquée), fiche
   « Nouvel ennemi ! » à la première apparition d'un type, bandeau du boss,
   **frise des vagues** façon Cursed Treasure (les prochaines vagues glissent
   vers le repère : portraits × nombre, lettre et couleur de l'entrée,
-  surprises ; toucher la première l'appelle et rapporte de l'or), **aperçu
-  du trajet** de la prochaine vague sur la carte, **fiche d'un ennemi** au
-  toucher, panneau de tour selon sa façon d'attaquer (jauge de chauffe,
-  charges en direct), gemmes regroupées par cachette, annonces des surprises,
-  icônes dessinées pour tout. Police des titres : Lilita One (licence SIL
+  surprises, PV × … des ennemis ; toucher la première l'appelle et rapporte
+  de l'or), **entrées de la prochaine vague** qui s'animent sur la carte (le
+  reste du trajet n'est pas montré), **prix des tours** à droite de la carte,
+  **fiche d'un ennemi** au toucher, panneau de tour selon sa façon d'attaquer
+  (jauge de chauffe du jet ou du cône, charges en direct) qui **arrête le
+  temps** tant qu'il est ouvert, gemmes regroupées par cachette, annonces des
+  surprises, icônes dessinées pour tout. Police des titres : Lilita One (licence SIL
   OFL, jointe dans `/jeu/OFL-LilitaOne.txt`).
 
 Commandes :
@@ -233,7 +275,7 @@ Commandes :
 | | Ordinateur | Téléphone et tablette |
 | --- | --- | --- |
 | Construire | cliquer une case de terrain, puis la tour | toucher une case, puis la tour |
-| Améliorer, spécialiser, vendre | cliquer la tour | toucher la tour |
+| Améliorer, spécialiser, vendre (le temps s'arrête) | cliquer la tour | toucher la tour |
 | Couper une forêt | cliquer la case boisée (ou sort Couper puis la case) | pareil, en touchant |
 | Sorts | Q, W, E (puis la cible pour Couper et Météore) | gros boutons ronds en bas |
 | Pause | Espace | bouton pause |
