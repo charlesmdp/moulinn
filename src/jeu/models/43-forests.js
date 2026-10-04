@@ -11,8 +11,12 @@
 //     nénuphars sur l'eau ; high : comme grass, sur un tertre moussu. Chaque case est différente (seed).
 //
 //   const scatter = PTMT.models.scatter(entries)
-//     entries : [{ kind: "flowers" | "tuft" | "pebbles" | "mushrooms" | "gorse" | "daisies" | "foxglove", x, y, z, seed }]
+//     entries : [{ kind: "flowers" | "tuft" | "pebbles" | "mushrooms" | "gorse" | "daisies" | "foxglove"
+//                       | "seaweed" | "shells" | "rockpool", x, y, z, seed }]
 //     → { object, update(dt, time), dispose() }
+//     Estran (cases de marée, à poser au sol de la case) : "seaweed" goémon couché (lanières de varech,
+//     laitue de mer), "shells" coquillages (pétoncles, moules, bigorneaux, parfois un crabe),
+//     "rockpool" flaque de rocher (eau claire, rochers sombres, étoile de mer, anémone).
 //
 // Toute la carte tient en un maillage par lot (un appel de dessin, plus son ombre) : chaque sommet
 // connaît le pied de sa plante et sa case ; une petite texture d'états (une colonne par case) pilote le
@@ -23,7 +27,7 @@
   if (!PTMT || typeof THREE === "undefined" || !PTMT.models || !PTMT.models.props) return;
   const K = PTMT.models.kit;
   const P = PTMT.models.props;
-  const { TAU, clamp, lerp, easeInOut } = K.math;
+  const { TAU, clamp, easeInOut } = K.math;
   const T = P.T;
 
   /* ------------------------------------------------------------------ pièces de plantes */
@@ -657,7 +661,78 @@
     }
     A.put(T.flower(5, 0.22, 0.04, "#3f7a2a", "#2c5e1e"), [0, 0.02, 0], [0, rnd() * TAU, 0], 1, {});
   };
-  const SMALL_VAR = { flowers: 4, tuft: 4, pebbles: 3, mushrooms: 3, gorse: 3, daisies: 3, foxglove: 3 };
+  /* --- estran (cases de marée) : à sec à marée basse, sous l'eau à marée haute */
+  // Goémon : lanières de varech couchées sur le sable mouillé, vésicules, touffes de laitue de mer.
+  SMALL.seaweed = (A, rnd, v) => {
+    // Lanières plates et ramifiées (deux tronçons qui se coudent), luisantes, vésicules par paires.
+    const n = 5 + (v % 3);
+    const browns = ["#3e3410", "#4e4214", "#5a4c18", "#352c0e"];
+    const a0 = rnd() * TAU;
+    for (let i = 0; i < n; i++) {
+      const a = a0 + (i / n) * TAU + (rnd() - 0.5) * 0.6;
+      let x = Math.cos(a) * 0.05,
+        z = Math.sin(a) * 0.05,
+        dir = a;
+      for (let s = 0; s < 2; s++) {
+        const len = (s ? 0.22 : 0.28) + rnd() * 0.1;
+        const cx = x + (Math.cos(dir) * len) / 2,
+          cz = z + (Math.sin(dir) * len) / 2;
+        A.put(T.blob(460 + ((i + s) % 5), 0, 0.12), [cx, 0.035, cz], [0, -dir, 0], [len * 0.58, 0.03, s ? 0.085 : 0.11], { c: s ? "#6a5a1c" : browns[(i + v) % 4], vj: 0.14, vs: 8, sway: 0.1, rim: 0.5, emit: 0.04 });
+        if (s === 0) A.put(T.octa(0.045), [cx + Math.cos(dir + 1.4) * 0.06, 0.06, cz + Math.sin(dir + 1.4) * 0.06], [rnd(), rnd(), 0], [1, 0.75, 1], { c: "#8a7424", emit: 0.06 });
+        x += Math.cos(dir) * len * 0.9;
+        z += Math.sin(dir) * len * 0.9;
+        dir += (rnd() - 0.5) * 1.1;
+      }
+    }
+    // Laitue de mer (vert vif) sur certaines touffes.
+    if (v !== 1) A.put(T.petals(5, 0.17, 0.03), [(rnd() - 0.5) * 0.25, 0.03, (rnd() - 0.5) * 0.25], [0, rnd() * TAU, 0], [1, 1, 0.8], { c: "#4fc83a", emit: 0.12, rim: 0.2 });
+  };
+  // Coquillages : coquilles Saint-Jacques et pétoncles clairs, moules bleu-noir, bigorneaux ; parfois un crabe.
+  SMALL.shells = (A, rnd, v) => {
+    const n = 4 + (v % 2);
+    const pale = ["#fff6ea", "#ffd2c4", "#ffe2a8", "#f4f0ff"];
+    for (let i = 0; i < n; i++) {
+      const x = (rnd() - 0.5) * 0.6,
+        z = (rnd() - 0.5) * 0.6;
+      const k = (i + v) % 3;
+      if (k === 0) A.put(T.petals(7, 0.1, 0.035), [x, 0.02, z], [0, rnd() * TAU, 0], [1, 1, 0.85], { c: pale[i % 4], emit: 0.15, rim: 0.3 });
+      else if (k === 1) A.put(T.blob(470 + i, 0, 0.1), [x, 0.03, z], [0, rnd() * TAU, 0], [0.11, 0.045, 0.06], { c: "#1c2236", rim: 0.4, emit: 0.04 });
+      else A.put(T.cone(0.045, 0.07, 6), [x, 0.0, z], [0.4, rnd() * TAU, 0], 1, { c: "#8a5a3a", rim: 0.3 });
+    }
+    if (v === 2) {
+      // Petit crabe rouge-orangé (carapace, pinces, pattes).
+      const cx = (rnd() - 0.5) * 0.3,
+        cz = (rnd() - 0.5) * 0.3,
+        yaw = rnd() * TAU;
+      const M = new THREE.Matrix4().makeRotationY(yaw).setPosition(cx, 0, cz);
+      A.put(T.blob(480, 0, 0.1), [0, 0.05, 0], 0, [0.13, 0.05, 0.1], { c: "#e2521e", emit: 0.1, rim: 0.4 }, M);
+      for (const s of [-1, 1]) {
+        A.put(T.blob(481, 0, 0.1), [s * 0.12, 0.05, 0.12], 0, [0.05, 0.035, 0.045], { c: "#f06a2a", emit: 0.1 }, M);
+        for (let l = 0; l < 3; l++) A.put(T.box(0.12, 0.018, 0.018), [s * 0.16, 0.03, -0.05 + l * 0.05], [0, s * (0.3 - l * 0.25), s * -0.3], 1, { c: "#c8401a" }, M);
+      }
+    }
+  };
+  // Flaque de rocher : cuvette d'eau claire entourée de rochers sombres et algues, étoile de mer.
+  SMALL.rockpool = (A, rnd, v) => {
+    const r = 0.38 + (v % 2) * 0.08;
+    A.put(T.disc(r, 14), [0, 0.035, 0], 0, [1, 1, 0.85], { c: v % 2 ? "#48c2cc" : "#3eb0c8", emit: 0.22, rim: 0 });
+    A.put(T.disc(r * 0.55, 10), [r * 0.15, 0.04, -r * 0.1], 0, [1, 1, 0.8], { c: "#8ee6ee", emit: 0.3 });
+    const n = 6;
+    for (let i = 0; i < n; i++) {
+      const a = (i / n) * TAU + rnd() * 0.4;
+      const s = 0.13 + rnd() * 0.08;
+      A.put(T.rock(520 + ((i + v * 3) % 8), 0, 0.3), [Math.cos(a) * (r + 0.05), s * 0.25, Math.sin(a) * (r + 0.05) * 0.85], [0, rnd() * TAU, 0], [s * 1.3, s * 0.75, s], {
+        c: i % 2 ? "#4a4a46" : "#5a5850",
+        vj: 0.12,
+        rim: 0.7,
+        dark: 0.35,
+        moss: ["#4a6a24", 0.55, 0.9],
+      });
+    }
+    A.put(T.flower(5, 0.11, 0.0, v % 3 === 1 ? "#c82a8a" : "#ff6a1a", v % 3 === 1 ? "#e85ab0" : "#ff9a3a"), [-r * 0.25, 0.05, r * 0.2], [0, rnd() * TAU, 0], 1, { emit: 0.25 });
+    A.put(T.dome(0.05, 7, 2), [r * 0.35, 0.04, r * 0.3], 0, [1, 0.7, 1], { c: "#d81e3a", emit: 0.2, rim: 0.4 });
+  };
+  const SMALL_VAR = { flowers: 4, tuft: 4, pebbles: 3, mushrooms: 3, gorse: 3, daisies: 3, foxglove: 3, seaweed: 3, shells: 3, rockpool: 3 };
   const smallCache = new Map();
   function small(kind, v) {
     const k = kind + ":" + v;

@@ -20,9 +20,8 @@
   if (!PTMT || typeof THREE === "undefined" || !PTMT.models || !PTMT.models.props) return;
   const K = PTMT.models.kit;
   const P = PTMT.models.props;
-  const { TAU, clamp } = K.math;
+  const { TAU } = K.math;
   const T = P.T;
-  const HALF = P.TILE / 2;
 
   const C = {
     granite: "#b8af9c",
@@ -57,7 +56,6 @@
     m.setPosition(e.x, e.y, e.z);
     return m;
   }
-  const W0 = new THREE.Matrix4();
   function worldAt(e) {
     return new THREE.Matrix4().makeTranslation(e.x, e.y, e.z);
   }
