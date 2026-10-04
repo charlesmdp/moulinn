@@ -9,31 +9,28 @@
   html, body { margin: 0; height: 100%; background: #1f3319; color: var(--ink); font: 12px/1.3 system-ui, -apple-system, "Segoe UI", sans-serif; overflow: hidden; }
   #stage { position: fixed; inset: 0; }
   #stage canvas { display: block; width: 100%; height: 100%; }
-  #ui { position: fixed; left: 6px; top: 6px; max-width: min(560px, calc(100vw - 12px)); max-height: calc(100vh - 12px); overflow: auto; background: var(--panel); border-radius: 10px; padding: 6px 8px; z-index: 5; }
+  #ui { position: fixed; left: 6px; top: 6px; max-width: min(600px, calc(100vw - 12px)); max-height: calc(100vh - 12px); overflow: auto; background: var(--panel); border-radius: 10px; padding: 6px 8px; z-index: 5; }
   #ui h1 { font-size: 13px; margin: 0 0 4px; color: var(--accent); }
   #ui .row { display: flex; flex-wrap: wrap; gap: 3px; margin: 3px 0; align-items: center; }
   #ui button, #ui select { font: inherit; font-size: 11px; border: 0; border-radius: 5px; padding: 3px 6px; background: #3a4431; color: var(--ink); cursor: pointer; }
   #ui button.on { background: var(--accent); color: #2a2206; font-weight: 600; }
   #ui .lbl { color: var(--muted); margin-right: 2px; }
   #stats { color: var(--muted); font: 11px/1.35 ui-monospace, Menlo, monospace; white-space: pre; margin-top: 4px; }
-  #bars { position: fixed; left: 0; right: 0; pointer-events: none; z-index: 2; }
-  .bar { position: fixed; left: 0; right: 0; background: rgba(20, 16, 10, 0.55); border: 0 solid rgba(255, 220, 140, 0.35); }
+  .bar { position: fixed; left: 0; right: 0; background: rgba(20, 16, 10, 0.55); border: 0 solid rgba(255, 220, 140, 0.35); z-index: 2; pointer-events: none; }
   body.clean #ui { display: none; }
 </style>
 </head>
 <body>
 <div id="stage"></div>
 <div id="ui">
-  <h1>Pas touche à mes trésors — banc du monde</h1>
+  <h1>Pas touche à mes trésors — banc du monde (v4)</h1>
   <div class="row"><span class="lbl">Mission</span><select id="mission"></select>
     <span class="lbl">Qualité</span><select id="quality"><option>high</option><option>low</option></select>
     <button id="pause">Pause</button><button data-speed="1" class="on">×1</button><button data-speed="2">×2</button><button data-speed="3">×3</button>
   </div>
-  <div class="row"><span class="lbl">Jeu</span><button id="wave">Vague</button><button id="meteor">Météore</button><button id="frenzy">Frénésie</button><button id="cut">Couper</button><button id="secret">Passage secret</button><button id="return">Retour gemme</button></div>
-  <div class="row"><span class="lbl">Viser</span><button data-build="boar">Sanglier</button><button data-build="swan">Cygne</button><button data-build="dog">Berger</button><button data-aim="meteor">Viser météore</button><button data-aim="cut">Viser coupe</button><button id="range">Portée</button><button id="hints">Flèches</button></div>
-  <div class="row"><span class="lbl">Événements</span>
-    <button data-ev="attack">attack</button><button data-ev="crit">critique</button><button data-ev="evaded">raté</button><button data-ev="kill">kill</button><button data-ev="heal">heal</button><button data-ev="smoke">smoke</button><button data-ev="haste">haste</button><button data-ev="barrierBreak">barrière</button><button data-ev="disarm">disarm</button><button data-ev="fear">fear</button><button data-ev="freeze">freeze</button><button data-ev="corpseBomb">corpseBomb</button><button data-ev="upgrade">upgrade</button><button data-ev="build">build</button><button data-ev="sell">sell</button><button data-ev="steal">steal</button><button data-ev="drop">drop</button><button data-ev="escape">escape</button>
-  </div>
+  <div class="row"><span class="lbl">Partie</span><button id="wave">Appeler la vague</button><button id="tide">Marée</button><button id="gate">Barrière</button><button id="secret">Passage secret</button><button id="meteor">Météore</button><button id="frenzy">Frénésie</button><button id="cut">Couper</button></div>
+  <div class="row"><span class="lbl">Ennemis</span><button data-spawn="montgolfiere">Montgolfière</button><button data-spawn="korrigan">Korrigan</button><button data-spawn="touriste">Touriste</button><button data-spawn="tracteur">Tracteur</button><button data-spawn="canard">Canard</button><button data-spawn="cycliste">Peloton</button><button data-spawn="*">Au hasard</button><button id="kill">Tuer</button></div>
+  <div class="row"><span class="lbl">Tours</span><button id="towers">+ 6 tours</button><button id="beams">Bergers/dragons</button><button id="swans">Cygnes</button><button id="lvlup">Niveau +1</button><button data-build="boar">Sanglier</button><button data-build="swan">Cygne</button><button data-build="dog">Berger</button><button data-aim="meteor">Viser météore</button><button data-aim="cut">Viser coupe</button><button id="range">Portée</button><button id="hints">Flèches</button></div>
   <div id="stats"></div>
 </div>
 <script src="../../static/assets/engine-0.40e246fcf208.js"></script>
@@ -46,20 +43,21 @@
   "use strict";
   const KNOWN = {
     core: ["00-ptmt.js"],
-    sim: ["00-data.js", "10-maps.js"],
-    models: ["10-kit.js", "20-boar.js", "21-swan.js", "22-dog.js", "40-props.js"],
+    sim: ["00-data.js", "10-maps.js", "20-path.js", "30-waves.js", "50-game.js", "90-progress.js"],
+    models: ["10-kit.js", "20-boar.js", "21-swan.js", "22-dog.js", "40-props.js", "41-gems.js", "42-landmarks.js", "43-forests.js", "44-decor.js"],
     fx: ["05-kit.js", "10-fx.js", "11-areas.js", "12-props.js", "13-shots.js", "14-world.js"],
     actors: ["10-actors.js", "11-types.js", "12-overlay.js", "13-mounts.js"],
-    render: ["10-map.js", "20-entities.js", "30-camera.js"],
+    render: ["10-map.js", "15-places.js", "20-entities.js", "25-routes.js", "30-camera.js"],
   };
-  const SIM_ONLY = new Set(["00-data.js", "10-maps.js"]);
   // ?ext=<adresse d'un autre dossier jeu/>&extdirs=actors,models : ces dossiers viennent d'ailleurs
   // (par exemple le dépôt principal servi en lecture seule), pour essayer l'intégration ;
-  // &extmerge=fx : pour ces dossiers-là, les fichiers présents seulement ici sont chargés en plus.
+  // &extmerge=fx : pour ces dossiers-là, les fichiers présents seulement ici sont chargés en plus ;
+  // &skip=models,actors : dossiers à ne pas charger (formes de secours).
   const Q = new URLSearchParams(location.search);
   const EXT = Q.get("ext");
   const EXTDIRS = new Set((Q.get("extdirs") || "").split(",").filter(Boolean));
   const EXTMERGE = new Set((Q.get("extmerge") || "").split(",").filter(Boolean));
+  const SKIP = new Set((Q.get("skip") || "").split(",").filter(Boolean));
   const localOf = (dir) => "../" + dir + "/";
   const baseOf = (dir) => (EXT && EXTDIRS.has(dir) ? EXT.replace(/\/?$/, "/") + dir + "/" : localOf(dir));
   async function listDir(dir, local) {
@@ -85,9 +83,9 @@
   window.__loadGame = async function () {
     const loaded = [];
     for (const dir of ["core", "sim", "models", "fx", "actors", "render"]) {
+      if (SKIP.has(dir)) continue;
       let files = await listDir(dir);
       if (!files) files = KNOWN[dir];
-      if (dir === "sim") files = files.filter((f) => SIM_ONLY.has(f));
       let list = files.map((f) => [f, baseOf(dir) + f]);
       if (EXT && EXTDIRS.has(dir) && EXTMERGE.has(dir)) {
         const mine = (await listDir(dir, true)) || KNOWN[dir];
@@ -111,461 +109,7 @@
   const mobile = params.has("mobile");
   let quality = params.get("quality") || (mobile ? "low" : "high");
   const seed = +(params.get("seed") || 7);
-  const TILE = 3.6;
-
-  /* ------------------------------------------------------------------ simulation factice */
-  const WALK = "#=ELs";
-  const ENEMY_TYPES = Object.keys(D.ENEMIES);
-  class FakeSim {
-    constructor(map, opts) {
-      this.map = map;
-      this.rng = P.rng(opts.seed || 1);
-      this.grid = map.grid.slice();
-      this.events = [];
-      this.nid = 1;
-      this.t = 0;
-      this.spawnQueue = [];
-      this.entrances = [];
-      for (let j = 0; j < 13; j++)
-        for (let i = 0; i < 20; i++) {
-          const c = this.grid[j][i];
-          if (c === "E") this.entrances.push({ id: this.entrances.length, i, j, dir: this.exitDir(i, j) });
-          if (c === "L") this.lair = { i, j };
-        }
-      const gems = [];
-      for (let k = 0; k < (map.gems || 5); k++) gems.push({ id: k + 1, color: k % 6, where: "lair", x: this.lair.i + 0.5, y: this.lair.j + 0.5, carrier: null, returnIn: 0 });
-      this.state = {
-        level: map.id, map: { w: 20, h: 13, grid: this.grid, name: map.name, entrances: this.entrances.map((e) => ({ id: e.id, i: e.i, j: e.j })), lair: this.lair },
-        time: 0, speed: 1, paused: false, over: null, gold: 500, mana: 80, manaMax: 100, gems,
-        wave: { index: 1, total: map.waves, countdown: 12, running: true, nextEntrances: [0] },
-        towers: [], enemies: [], projectiles: [], areas: [], frenzy: false, spells: {},
-      };
-      this.frenzyT = 0;
-      this.spawnRate = opts.rate || 1.2;
-      this.spawnAcc = 2;
-      this.maxEnemies = opts.enemies !== undefined && !isNaN(opts.enemies) ? opts.enemies : 26;
-      this.placeTowers(opts.towers !== undefined && !isNaN(opts.towers) ? opts.towers : 14);
-    }
-    exitDir(i, j) {
-      if (i === 0) return [-1, 0];
-      if (i === 19) return [1, 0];
-      if (j === 0) return [0, -1];
-      return [0, 1];
-    }
-    walkable(i, j, swim) {
-      if (i < 0 || j < 0 || i >= 20 || j >= 13) return false;
-      const c = this.grid[j][i];
-      return WALK.includes(c) && c !== "s" ? true : swim && (c === "~" || c === "w");
-    }
-    bfs(si, sj, ti, tj, swim) {
-      const key = (i, j) => j * 20 + i;
-      const prev = new Map([[key(si, sj), -1]]);
-      const q = [[si, sj]];
-      while (q.length) {
-        const [i, j] = q.shift();
-        if (i === ti && j === tj) break;
-        for (const [di, dj] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
-          const ni = i + di, nj = j + dj, k = key(ni, nj);
-          if (prev.has(k) || !this.walkable(ni, nj, swim)) continue;
-          prev.set(k, key(i, j));
-          q.push([ni, nj]);
-        }
-      }
-      if (!prev.has(key(ti, tj))) return null;
-      const path = [];
-      for (let k = key(ti, tj); k !== -1; k = prev.get(k)) path.unshift([(k % 20) + 0.5, Math.floor(k / 20) + 0.5]);
-      return path;
-    }
-    tileOf(e) {
-      let i = Math.floor(e.x), j = Math.floor(e.y);
-      i = Math.max(0, Math.min(19, i));
-      j = Math.max(0, Math.min(12, j));
-      if (!this.walkable(i, j, e.type === "canard")) {
-        // hors carte ou sur un bord : case marchable la plus proche
-        let best = null, bd = 1e9;
-        for (let jj = 0; jj < 13; jj++) for (let ii = 0; ii < 20; ii++) if (this.walkable(ii, jj, e.type === "canard")) {
-          const d = (ii + 0.5 - e.x) ** 2 + (jj + 0.5 - e.y) ** 2;
-          if (d < bd) (bd = d), (best = [ii, jj]);
-        }
-        return best;
-      }
-      return [i, j];
-    }
-    placeTowers(n) {
-      const cand = [];
-      for (let j = 0; j < 13; j++)
-        for (let i = 0; i < 20; i++) {
-          const info = D.TILES[this.grid[j][i]];
-          if (!info || !info.build || info.forest) continue;
-          let near = false;
-          for (let dj = -1; dj <= 1; dj++) for (let di = -1; di <= 1; di++) {
-            const c = this.grid[j + dj] && this.grid[j + dj][i + di];
-            if (c && "#=EL".includes(c)) near = true;
-          }
-          if (near) cand.push([i, j, info.build]);
-        }
-      for (let k = cand.length - 1; k > 0; k--) {
-        const r = Math.floor(this.rng() * (k + 1));
-        [cand[k], cand[r]] = [cand[r], cand[k]];
-      }
-      for (const [i, j, build] of cand.slice(0, n)) {
-        const family = build[Math.floor(this.rng() * build.length)];
-        const level = 1 + Math.floor(this.rng() * 7);
-        this.addTower(i, j, family, level, level >= 4 ? (this.rng() < 0.5 ? "A" : "B") : null, false);
-      }
-    }
-    addTower(i, j, family, level, spec, ev) {
-      const tw = { id: this.nid++, family, level, spec, i, j, x: i + 0.5, y: j + 0.5, high: this.grid[j][i] === "H", xp: 0, xpNext: 10, kills: 0, aim: 0, lastShot: 0, cooldown: this.rng(), targetId: null };
-      this.state.towers.push(tw);
-      if (ev) this.events.push({ type: "build", towerId: tw.id });
-      return tw;
-    }
-    stats(tw) {
-      return D.towerLevel(tw.family, tw.level, tw.spec) || D.towerLevel(tw.family, 1, null);
-    }
-    spawn(type, champion, boss, entrance) {
-      const E = entrance || this.entrances[Math.floor(this.rng() * this.entrances.length)];
-      const def = D.ENEMIES[type];
-      const hpMax = def.hp * (champion ? D.champion.hp : 1) * (boss ? D.boss.hp * D.champion.hp : 1);
-      const e = {
-        id: this.nid++, type, champion: !!champion, boss: !!boss, x: E.i + 0.5 + E.dir[0] * 2.5, y: E.j + 0.5 + E.dir[1] * 2.5, dir: 0,
-        hp: hpMax, hpMax, barrier: type === "druide" ? (champion ? D.champion.barrier : 100) : 0, barrierMax: type === "druide" ? (champion ? D.champion.barrier : 100) : 0,
-        moving: true, speed: def.speed, carrying: null, goal: "gem", water: false,
-        fx: { slow: 0, fear: 0, freeze: 0, burn: 0, radiance: 0, haste: 0, invisible: 0, stun: 0, disarmed: 0 },
-        path: [], pi: 0, entrance: E, t: 0, smoked: false,
-      };
-      this.state.enemies.push(e);
-      this.events.push({ type: "spawn", enemyId: e.id });
-      this.plan(e, [[E.i + 0.5, E.j + 0.5]]);
-      return e;
-    }
-    /** Chemin vers la gemme la plus proche (au sol ou au repaire), ou vers la sortie. */
-    plan(e, prefix) {
-      const swim = e.type === "canard";
-      const from = prefix ? [Math.floor(prefix[0][0]), Math.floor(prefix[0][1])] : this.tileOf(e);
-      if (!from) return;
-      let best = null;
-      if (e.carrying === null) {
-        const targets = [];
-        for (const g of this.state.gems) if (g.where === "ground") targets.push({ i: Math.floor(g.x), j: Math.floor(g.y), x: g.x, y: g.y, gem: g });
-        if (this.state.gems.some((g) => g.where === "lair")) targets.push({ i: this.lair.i, j: this.lair.j, x: this.lair.i + 0.5, y: this.lair.j + 0.5, lair: true });
-        if (!targets.length) targets.push({ i: this.lair.i, j: this.lair.j, x: this.lair.i + 0.5, y: this.lair.j + 0.5, lair: true, empty: true });
-        for (const t of targets) {
-          const p = this.bfs(from[0], from[1], t.i, t.j, swim);
-          if (p && (!best || p.length < best.p.length)) best = { p, t };
-        }
-      }
-      if (!best) {
-        // sortie la plus proche
-        for (const E of this.entrances) {
-          const p = this.bfs(from[0], from[1], E.i, E.j, swim);
-          if (p && (!best || p.length < best.p.length)) best = { p, t: { exit: E } };
-        }
-        if (best) best.p.push([best.t.exit.i + 0.5 + best.t.exit.dir[0] * 3, best.t.exit.j + 0.5 + best.t.exit.dir[1] * 3]);
-      } else if (best.t.gem) best.p.push([best.t.x, best.t.y]);
-      if (!best) return;
-      e.path = (prefix ? prefix.slice(0, 0) : [[e.x, e.y]]).concat(best.p);
-      e.pi = 0;
-      e.target = best.t;
-      e.goal = best.t.exit ? "exit" : best.t.lair ? "lair" : "gem";
-    }
-    step(dt) {
-      const st = this.state;
-      this.t += dt;
-      st.time = this.t;
-      // apparitions
-      this.spawnAcc += dt * this.spawnRate;
-      while (this.spawnAcc >= 1 && st.enemies.length < this.maxEnemies) {
-        this.spawnAcc -= 1;
-        const type = ENEMY_TYPES[Math.floor(this.rng() * ENEMY_TYPES.length)];
-        const r = this.rng();
-        this.spawn(type, r < 0.12, r > 0.985);
-      }
-      if (this.spawnAcc > 3) this.spawnAcc = 3;
-      // Frénésie
-      if (this.frenzyT > 0) {
-        this.frenzyT -= dt;
-        st.frenzy = this.frenzyT > 0;
-      }
-      // ennemis
-      for (const e of st.enemies.slice()) this.moveEnemy(e, dt);
-      // tours
-      for (const tw of st.towers) this.towerStep(tw, dt);
-      // projectiles
-      for (const p of st.projectiles.slice()) {
-        const tgt = st.enemies.find((q) => q.id === p.targetId);
-        if (tgt && !p.arc) {
-          p.tx = tgt.x;
-          p.ty = tgt.y;
-        }
-        p.p = Math.min(1, p.p + (dt * p.speed) / Math.max(0.5, p.dist));
-        p.x = p.sx + (p.tx - p.sx) * p.p;
-        p.y = p.sy + (p.ty - p.sy) * p.p;
-        if (p.p >= 1) {
-          st.projectiles.splice(st.projectiles.indexOf(p), 1);
-          this.impact(p, tgt);
-        }
-      }
-      // zones
-      for (const a of st.areas.slice()) {
-        a.t -= dt;
-        if (a.kind === "burn") for (const e of st.enemies) if ((e.x - a.x) ** 2 + (e.y - a.y) ** 2 < a.r * a.r) e.fx.burn = 0.6;
-        if (a.t <= 0) {
-          st.areas.splice(st.areas.indexOf(a), 1);
-          if (a.kind === "meteorWarn") {
-            this.events.push({ type: "meteorImpact", x: a.x, y: a.y, r: a.r });
-            for (const e of st.enemies.slice()) if ((e.x - a.x) ** 2 + (e.y - a.y) ** 2 < a.r * a.r) this.damage(e, 150, null, true);
-          }
-        }
-      }
-      // gemmes au sol : retour au moulin après un moment
-      for (const g of st.gems)
-        if (g.where === "ground") {
-          g.returnIn -= dt;
-          if (g.returnIn <= 0) this.gemReturn(g);
-        }
-      // compte à rebours de la vague
-      st.wave.countdown -= dt;
-      if (st.wave.countdown <= 0) {
-        st.wave.countdown = 14;
-        st.wave.index = Math.min(st.wave.total, st.wave.index + 1);
-        st.wave.nextEntrances = [Math.floor(this.rng() * this.entrances.length)];
-        this.events.push({ type: "waveStart", index: st.wave.index });
-      }
-    }
-    moveEnemy(e, dt) {
-      const st = this.state;
-      for (const k in e.fx) if (typeof e.fx[k] === "number" && e.fx[k] > 0) e.fx[k] = Math.max(0, e.fx[k] - dt);
-      e.t += dt;
-      const def = D.ENEMIES[e.type];
-      if (e.type === "bigoudene" && e.t % 3 < dt) {
-        const hurt = st.enemies.filter((q) => q !== e && q.hp < q.hpMax && (q.x - e.x) ** 2 + (q.y - e.y) ** 2 < 4).sort((a, b) => a.hp / a.hpMax - b.hp / b.hpMax)[0];
-        if (hurt) {
-          hurt.hp = Math.min(hurt.hpMax, hurt.hp + 30);
-          this.events.push({ type: "heal", fromId: e.id, toId: hurt.id, amount: 30 });
-        }
-      }
-      if (e.type === "sonneur" && e.t % 8 < dt) {
-        for (const q of st.enemies) if ((q.x - e.x) ** 2 + (q.y - e.y) ** 2 < 4) q.fx.haste = 3;
-        this.events.push({ type: "haste", enemyId: e.id });
-      }
-      if (e.type === "druide" && e.barrierMax && e.barrier <= 0 && e.t % 6 < dt) e.barrier = e.barrierMax;
-      let sp = def.speed * (e.fx.slow > 0 ? 0.6 : 1) * (e.fx.haste > 0 ? 2 : 1);
-      if (e.fx.freeze > 0 || e.fx.stun > 0) sp = 0;
-      e.speed = sp;
-      e.moving = sp > 0;
-      let dist = sp * dt;
-      while (dist > 0 && e.pi < e.path.length) {
-        const [tx, ty] = e.path[e.pi];
-        const dx = tx - e.x, dy = ty - e.y, d = Math.hypot(dx, dy);
-        if (d <= dist) {
-          e.x = tx;
-          e.y = ty;
-          dist -= d;
-          e.pi++;
-        } else {
-          e.x += (dx / d) * dist;
-          e.y += (dy / d) * dist;
-          e.dir = Math.atan2(dx, dy);
-          dist = 0;
-        }
-      }
-      const ch = this.grid[Math.floor(e.y)] && this.grid[Math.floor(e.y)][Math.floor(e.x)];
-      e.water = ch === "~" || ch === "w";
-      if (e.pi >= e.path.length) this.arrive(e);
-    }
-    arrive(e) {
-      const st = this.state;
-      if (e.goal === "exit") {
-        if (e.carrying !== null) {
-          const g = st.gems.find((q) => q.id === e.carrying);
-          g.where = "lost";
-          g.carrier = null;
-          this.events.push({ type: "escape", enemyId: e.id, gemId: g.id });
-        }
-        st.enemies.splice(st.enemies.indexOf(e), 1);
-        return;
-      }
-      if (e.goal === "lair") {
-        const g = st.gems.find((q) => q.where === "lair");
-        if (g) {
-          g.where = "carried";
-          g.carrier = e.id;
-          e.carrying = g.id;
-          this.events.push({ type: "steal", enemyId: e.id, gemId: g.id });
-        }
-      } else if (e.goal === "gem" && e.target && e.target.gem && e.target.gem.where === "ground") {
-        const g = e.target.gem;
-        g.where = "carried";
-        g.carrier = e.id;
-        e.carrying = g.id;
-        this.events.push({ type: "pickup", gemId: g.id, enemyId: e.id });
-        for (const q of st.enemies) if (q.carrying === null && q.goal === "gem" && q.target && q.target.gem === g) this.plan(q);
-      }
-      this.plan(e);
-    }
-    towerStep(tw, dt) {
-      const st = this.state;
-      const s = this.stats(tw);
-      tw.cooldown -= dt * (st.frenzy ? 2 : 1);
-      const ch = this.grid[tw.j][tw.i];
-      const range = s.range * (ch === "H" ? 1.3 : 1);
-      let best = null, bd = range * range;
-      for (const e of st.enemies) {
-        if (e.fx.invisible > 0) continue;
-        const d = (e.x - tw.i - 0.5) ** 2 + (e.y - tw.j - 0.5) ** 2;
-        if (d < bd) (bd = d), (best = e);
-      }
-      tw.targetId = best ? best.id : null;
-      if (best) tw.aim = Math.atan2(best.x - tw.i - 0.5, best.y - tw.j - 0.5);
-      if (tw.pending !== undefined) {
-        tw.pending -= dt;
-        if (tw.pending <= 0) {
-          tw.pending = undefined;
-          const tgt = st.enemies.find((q) => q.id === tw.pendingTarget);
-          if (tgt) {
-            const arc = s.shot === "bigChestnut";
-            const p = { id: this.nid++, kind: s.shot, fromTowerId: tw.id, targetId: tgt.id, sx: tw.i + 0.5, sy: tw.j + 0.5, x: tw.i + 0.5, y: tw.j + 0.5, tx: tgt.x, ty: tgt.y, p: 0, arc, speed: s.speed, dist: Math.hypot(tgt.x - tw.i - 0.5, tgt.y - tw.j - 0.5), splash: s.splash || 0, stats: s };
-            st.projectiles.push(p);
-            this.events.push({ type: "shot", towerId: tw.id, projectileId: p.id });
-          }
-        }
-      }
-      if (best && tw.cooldown <= 0 && tw.pending === undefined) {
-        tw.cooldown = 1 / s.rate;
-        tw.pending = 0.12;
-        tw.pendingTarget = best.id;
-        this.events.push({ type: "attack", towerId: tw.id, targetId: best.id });
-      }
-    }
-    impact(p, tgt) {
-      const st = this.state, s = p.stats;
-      this.events.push({ type: "impact", projectileId: p.id, kind: p.kind, x: p.tx, y: p.ty, r: s.splash || 0, towerId: p.fromTowerId });
-      const hitOne = (e, dmg, direct) => {
-        if (direct && e.type === "rugbyman" && this.rng() < 0.5) {
-          this.events.push({ type: "hit", enemyId: e.id, dmg: 0, crit: false, evaded: true, x: e.x, y: e.y, kind: p.kind });
-          return;
-        }
-        let crit = false;
-        if (s.crit && this.rng() < s.crit.chance) {
-          dmg *= s.crit.mult;
-          crit = true;
-        }
-        if (s.slow) e.fx.slow = s.slow.t;
-        if (s.freeze && this.rng() < s.freeze.chance) {
-          e.fx.freeze = s.freeze.t;
-          this.events.push({ type: "freeze", enemyId: e.id });
-        }
-        if (s.fear && this.rng() < s.fear.chance) {
-          e.fx.fear = s.fear.t;
-          this.events.push({ type: "fear", enemyId: e.id });
-        }
-        if (s.radiance) e.fx.radiance = s.radiance.t;
-        if (s.stun && this.rng() < s.stun.chance) e.fx.stun = s.stun.t;
-        if (s.disarm && this.rng() < s.disarm) {
-          e.fx.disarmed = 5;
-          this.events.push({ type: "disarm", enemyId: e.id });
-        }
-        if (s.burn) e.fx.burn = s.burn.t;
-        this.events.push({ type: "hit", enemyId: e.id, dmg, crit, evaded: false, x: e.x, y: e.y, kind: p.kind });
-        if (e.type === "chasseur" && !e.smoked) {
-          e.smoked = true;
-          e.fx.invisible = 5;
-          this.events.push({ type: "smoke", enemyId: e.id });
-        }
-        this.damage(e, dmg, p.fromTowerId);
-      };
-      if (s.splash) {
-        for (const e of st.enemies.slice()) if ((e.x - p.tx) ** 2 + (e.y - p.ty) ** 2 < s.splash * s.splash) hitOne(e, s.dmg, false);
-        if (p.kind === "dragonFire" && this.rng() < 0.45) st.areas.push({ id: this.nid++, kind: "burn", x: p.tx, y: p.ty, r: s.splash, t: 3 });
-      } else if (tgt && st.enemies.includes(tgt)) hitOne(tgt, s.dmg, true);
-    }
-    damage(e, dmg, towerId) {
-      const st = this.state;
-      if (!st.enemies.includes(e)) return;
-      if (e.barrier > 0) {
-        const a = Math.min(e.barrier, dmg);
-        e.barrier -= a;
-        dmg -= a;
-        if (e.barrier <= 0) this.events.push({ type: "barrierBreak", enemyId: e.id });
-      }
-      e.hp -= dmg;
-      if (e.hp > 0) return;
-      this.kill(e, towerId);
-    }
-    kill(e, towerId) {
-      const st = this.state;
-      const def = D.ENEMIES[e.type];
-      const gold = Math.round(def.gold * (e.champion ? D.champion.gold : 1) * (e.boss ? D.boss.gold : 1));
-      st.enemies.splice(st.enemies.indexOf(e), 1);
-      this.events.push({ type: "kill", enemyId: e.id, gold, towerId, x: e.x, y: e.y });
-      const tw = st.towers.find((t) => t.id === towerId);
-      if (tw && tw.family === "dog" && tw.spec === "B") {
-        this.events.push({ type: "corpseBomb", x: e.x, y: e.y, r: 1.2 });
-        for (const q of st.enemies.slice()) if ((q.x - e.x) ** 2 + (q.y - e.y) ** 2 < 1.44) this.damage(q, e.hpMax * 0.3, towerId);
-      }
-      if (e.carrying !== null) {
-        const g = st.gems.find((q) => q.id === e.carrying);
-        g.where = "ground";
-        g.carrier = null;
-        g.x = e.x;
-        g.y = e.y;
-        g.returnIn = 18;
-        this.events.push({ type: "drop", gemId: g.id, x: e.x, y: e.y });
-        for (const q of st.enemies) if (q.carrying === null) this.plan(q);
-      }
-    }
-    gemReturn(g) {
-      g.where = "lair";
-      g.x = this.lair.i + 0.5;
-      g.y = this.lair.j + 0.5;
-      this.events.push({ type: "gemReturn", gemId: g.id });
-      for (const q of this.state.enemies) if (q.carrying === null) this.plan(q);
-    }
-    drain() {
-      const e = this.events;
-      this.events = [];
-      return e;
-    }
-    // --- commandes du banc
-    castMeteor(x, y) {
-      if (x === undefined) {
-        const e = this.state.enemies[Math.floor(this.rng() * this.state.enemies.length)];
-        x = e ? e.x : 10;
-        y = e ? e.y : 6.5;
-      }
-      this.events.push({ type: "cast", spell: "meteor", x, y });
-      this.state.areas.push({ id: this.nid++, kind: "meteorWarn", x, y, r: D.SPELLS.meteor.r, t: D.SPELLS.meteor.delay });
-    }
-    frenzy() {
-      this.frenzyT = D.SPELLS.frenzy.t;
-      this.state.frenzy = true;
-      this.events.push({ type: "cast", spell: "frenzy" });
-      this.events.push({ type: "frenzy" });
-    }
-    cut(i, j) {
-      if (i === undefined) {
-        const list = [];
-        for (let jj = 0; jj < 13; jj++) for (let ii = 0; ii < 20; ii++) if (D.TILES[this.grid[jj][ii]] && D.TILES[this.grid[jj][ii]].forest) list.push([ii, jj]);
-        if (!list.length) return;
-        [i, j] = list[Math.floor(this.rng() * list.length)];
-      }
-      const info = D.TILES[this.grid[j][i]];
-      if (!info || !info.forest) return;
-      this.grid[j] = this.grid[j].slice(0, i) + info.cutTo + this.grid[j].slice(i + 1);
-      this.events.push({ type: "cast", spell: "cut", x: i + 0.5, y: j + 0.5 });
-      this.events.push({ type: "cut", i, j });
-    }
-    openSecret() {
-      let any = false;
-      for (let j = 0; j < 13; j++)
-        if (this.grid[j].includes("s")) {
-          this.grid[j] = this.grid[j].replaceAll("s", "#");
-          any = true;
-        }
-      if (any) this.events.push({ type: "secretOpen" });
-    }
-  }
+  const num = (k, d) => (params.has(k) ? +params.get(k) : d);
 
   /* ------------------------------------------------------------------ rendu */
   const stage = document.getElementById("stage");
@@ -575,6 +119,7 @@
   renderer.toneMappingExposure = +(params.get("exposure") || 1.0);
   stage.appendChild(renderer.domElement);
   renderer.info.autoReset = false;
+  if (P.models && P.models.ctConfig) P.models.ctConfig({ mobile: mobile || quality === "low" });
   if (P.actors && P.actors.load) {
     try {
       P.actors.mobile = mobile;
@@ -583,7 +128,7 @@
       console.warn("Personnages indisponibles", e);
     }
   }
-  let scene, view, sim, mapN = +(params.get("map") || 1);
+  let scene, view, game, mapN = +(params.get("map") || 1);
   const insets = (params.get("insets") || "0,0,0,0").split(",").map(Number);
   const INS = { top: insets[0] || 0, bottom: insets[1] || 0, left: insets[2] || 0, right: insets[3] || 0 };
   function showBars() {
@@ -601,24 +146,81 @@
       document.body.appendChild(b);
     }
   }
+
+  /* ------------------------------------------------------------------ partie du banc */
+  const rng = P.rng(seed * 31 + 7);
+  const FAM_OF = { grass: "boar", rock: "dog", water: "swan", high: null };
+  /** Cases constructibles au bord des routes (8 voisins), mélangées. */
+  function buildSpots() {
+    const g = game.grid, out = [];
+    for (let j = 0; j < 13; j++)
+      for (let i = 0; i < 20; i++) {
+        const info = game.tileInfo(i, j);
+        if (!info || !info.buildable.length || info.towerId) continue;
+        let near = false;
+        for (let dj = -1; dj <= 1; dj++) for (let di = -1; di <= 1; di++) if (g.passable(i + di, j + dj, "walk") || g.char(i + di, j + dj) === "E" || g.char(i + di, j + dj) === "g") near = true;
+        if (near) out.push([i, j, info]);
+      }
+    for (let k = out.length - 1; k > 0; k--) {
+      const r = Math.floor(rng() * (k + 1));
+      [out[k], out[r]] = [out[r], out[k]];
+    }
+    return out;
+  }
+  /** Monte une tour au niveau voulu (expérience offerte). */
+  function raise(id, level, spec) {
+    for (let guard = 0; guard < 8; guard++) {
+      const t = game.towerById(id);
+      if (!t || t.level >= level) return;
+      t.xp = 1e9;
+      game.upgrade(id, t.level === 3 ? spec : t.spec);
+    }
+  }
+  /** Pose n tours (familles selon le terrain ; force : famille imposée si possible). */
+  function placeTowers(n, force, levels) {
+    game.state.gold = 1e7;
+    let made = 0;
+    for (const [i, j, info] of buildSpots()) {
+      if (made >= n) break;
+      let fam = force && info.buildable.includes(force) ? force : force ? null : info.buildable[Math.floor(rng() * info.buildable.length)];
+      if (!fam) continue;
+      const r = game.build(i, j, fam);
+      if (!r.ok) continue;
+      const lv = levels ? levels[made % levels.length] : 1 + Math.floor(rng() * 7);
+      raise(r.towerId, lv, rng() < 0.5 ? "A" : "B");
+      made++;
+    }
+    return made;
+  }
+  function openEntrance() {
+    return game.grid.entrances.find((e) => e.open) || game.grid.entrances[0];
+  }
+  function spawn(type, opts) {
+    const o = opts || {};
+    const ents = game.grid.openEntrances();
+    const e = o.entrance !== undefined ? game.grid.entrances[o.entrance] : ents[Math.floor(rng() * ents.length)];
+    return game.spawn({ type, champion: !!o.champion, boss: !!o.boss, entrance: e ? e.id : 0, hpMul: o.hpMul || 1 });
+  }
   function build(n) {
     if (view) view.dispose();
     mapN = n;
     scene = new THREE.Scene();
+    game = P.sim.createGame({ level: n, seed });
+    game.state.gold = 1e7;
     const t0 = performance.now();
-    view = P.view.create({ renderer, scene, map: P.sim.MAPS[n], mobile, quality });
+    view = P.view.create({ renderer, scene, map: P.sim.MAPS[n], mobile, quality, game });
     view.buildMs = performance.now() - t0;
     view.resize(innerWidth, innerHeight, INS);
-    const num = (k, d) => (params.has(k) ? +params.get(k) : d);
-    sim = new FakeSim(P.sim.MAPS[n], { seed: seed + n, towers: num("towers", 14), enemies: num("enemies", 26), rate: num("rate", 1.2) });
-    window.view = view;
-    window.sim = sim;
     const f = params.get("focus");
     if (f) {
       const [x, y, z] = f.split(",").map(Number);
       view.cam.focus = { x, y, zoom: z || 3 };
       view.resize(innerWidth, innerHeight, INS);
     }
+    const nt = num("towers", 0);
+    if (nt) placeTowers(nt);
+    window.view = view;
+    window.game = game;
   }
   const sel = document.getElementById("mission");
   for (let n = 1; n < P.sim.MAPS.length; n++) {
@@ -644,37 +246,73 @@
   const ui = document.getElementById("ui");
   ui.querySelectorAll("[data-speed]").forEach((b) => (b.onclick = () => {
     speed = +b.dataset.speed;
+    game.setSpeed(speed);
     ui.querySelectorAll("[data-speed]").forEach((x) => x.classList.toggle("on", x === b));
   }));
   document.getElementById("pause").onclick = (e) => {
     paused = !paused;
     e.target.classList.toggle("on", paused);
   };
-  document.getElementById("wave").onclick = () => {
-    for (let k = 0; k < 8; k++) sim.spawnQueue.push(k);
-    for (let k = 0; k < 8; k++) {
-      const t = ENEMY_TYPES[Math.floor(Math.random() * ENEMY_TYPES.length)];
-      sim.spawn(t, k === 7, false);
-    }
-    sim.events.push({ type: "waveStart", index: sim.state.wave.index });
+  const enemyAt = () => game.state.enemies[Math.floor(rng() * game.state.enemies.length)];
+  const actions = {
+    wave: () => game.callWave(),
+    tide: () => game.setTide(game.state.tide !== "low"),
+    gate: () => {
+      const e = game.grid.entrances.find((q) => !q.open);
+      if (e) game.openGate(e);
+    },
+    secret: () => game.openSecret(),
+    meteor: (x, y) => {
+      const e = enemyAt();
+      game.state.mana = game.state.manaMax;
+      game.cast("meteor", { x: x !== undefined ? x : e ? e.x : 10, y: y !== undefined ? y : e ? e.y : 6.5 });
+    },
+    frenzy: () => {
+      game.state.mana = game.state.manaMax;
+      game.cast("frenzy", {});
+    },
+    cut: (i, j) => {
+      game.state.mana = game.state.manaMax;
+      if (i === undefined) {
+        const list = [];
+        for (let jj = 0; jj < 13; jj++) for (let ii = 0; ii < 20; ii++) if (game.grid.tile(ii, jj).cutTo) list.push([ii, jj]);
+        if (!list.length) return;
+        [i, j] = list[Math.floor(rng() * list.length)];
+      }
+      game.cast("cut", { x: i + 0.5, y: j + 0.5 });
+    },
+    kill: () => {
+      const e = enemyAt();
+      if (e) game.hurt(e, 1e9, { pierce: true, kind: "banc" });
+    },
+    towers: () => placeTowers(6),
+    beams: () => placeTowers(4, "dog", [2, 4, 7, 7]),
+    swans: () => placeTowers(3, "swan", [1, 3, 7]),
+    lvlup: () => {
+      for (const t of game.state.towers) raise(t.id, Math.min(7, t.level + 1), rng() < 0.5 ? "A" : "B");
+    },
   };
-  document.getElementById("meteor").onclick = () => sim.castMeteor();
-  document.getElementById("frenzy").onclick = () => sim.frenzy();
-  document.getElementById("cut").onclick = () => sim.cut();
-  document.getElementById("secret").onclick = () => sim.openSecret();
-  document.getElementById("return").onclick = () => {
-    const g = sim.state.gems.find((q) => q.where === "ground");
-    if (g) sim.gemReturn(g);
-  };
+  for (const k of Object.keys(actions)) {
+    const b = document.getElementById(k);
+    if (b) b.onclick = () => actions[k]();
+  }
+  ui.querySelectorAll("[data-spawn]").forEach((b) => (b.onclick = () => {
+    const t = b.dataset.spawn;
+    if (t === "cycliste") for (let k = 0; k < 8; k++) spawn("cycliste");
+    else if (t === "*") {
+      const keys = Object.keys(D.ENEMIES);
+      spawn(keys[Math.floor(rng() * keys.length)]);
+    } else spawn(t);
+  }));
   document.getElementById("range").onclick = (e) => {
     rangeOn = !rangeOn;
     e.target.classList.toggle("on", rangeOn);
-    view.showRange(rangeOn && sim.state.towers[0] ? sim.state.towers[0].id : null);
+    view.showRange(rangeOn && game.state.towers[0] ? game.state.towers[0].id : null);
   };
   document.getElementById("hints").onclick = (e) => {
     hintsOn = !hintsOn;
     e.target.classList.toggle("on", hintsOn);
-    view.setUpgradeHints(hintsOn ? sim.state.towers.slice(0, 4).map((t) => t.id) : []);
+    view.setUpgradeHints(hintsOn ? game.state.towers.slice(0, 4).map((t) => t.id) : []);
   };
   ui.querySelectorAll("[data-build]").forEach((b) => (b.onclick = () => {
     buildFam = buildFam === b.dataset.build ? null : b.dataset.build;
@@ -690,27 +328,6 @@
     ui.querySelectorAll("[data-build],[data-aim]").forEach((x) => x.classList.toggle("on", x.dataset.aim === aim && !!aim));
     if (!aim) view.target(null);
   }));
-  const rndEnemy = () => sim.state.enemies[Math.floor(Math.random() * sim.state.enemies.length)];
-  const rndTower = () => sim.state.towers[Math.floor(Math.random() * sim.state.towers.length)];
-  ui.querySelectorAll("[data-ev]").forEach((b) => (b.onclick = () => fire(b.dataset.ev)));
-  function fire(k) {
-    const e = rndEnemy(), tw = rndTower(), st = sim.state;
-    switch (k) {
-      case "attack": if (tw) sim.events.push({ type: "attack", towerId: tw.id }); break;
-      case "crit": if (e) sim.events.push({ type: "hit", enemyId: e.id, dmg: 50, crit: true, evaded: false, x: e.x, y: e.y }); break;
-      case "evaded": if (e) sim.events.push({ type: "hit", enemyId: e.id, dmg: 0, crit: false, evaded: true, x: e.x, y: e.y }); break;
-      case "kill": if (e) sim.kill(e, tw && tw.id); break;
-      case "heal": { const o = st.enemies.find((q) => q !== e); if (e && o) sim.events.push({ type: "heal", fromId: e.id, toId: o.id, amount: 30 }); break; }
-      case "upgrade": if (tw) { tw.level = Math.min(7, tw.level + 1); if (tw.level >= 4 && !tw.spec) tw.spec = Math.random() < 0.5 ? "A" : "B"; sim.events.push({ type: "upgrade", towerId: tw.id, level: tw.level, spec: tw.spec }); } break;
-      case "build": { sim.placeTowers(1); const t = st.towers[st.towers.length - 1]; sim.events.push({ type: "build", towerId: t.id }); break; }
-      case "sell": if (tw) { st.towers.splice(st.towers.indexOf(tw), 1); sim.events.push({ type: "sell", towerId: tw.id, gold: 40 }); } break;
-      case "steal": { const g = st.gems.find((q) => q.where === "lair"); const c = st.enemies.find((q) => q.carrying === null); if (g && c) { g.where = "carried"; g.carrier = c.id; c.carrying = g.id; sim.events.push({ type: "steal", enemyId: c.id, gemId: g.id }); sim.plan(c); } break; }
-      case "drop": { const c = st.enemies.find((q) => q.carrying !== null); if (c) sim.kill(c, null); break; }
-      case "escape": { const c = st.enemies.find((q) => q.carrying !== null); if (c) { const g = st.gems.find((q) => q.id === c.carrying); g.where = "lost"; g.carrier = null; sim.events.push({ type: "escape", enemyId: c.id, gemId: g.id }); st.enemies.splice(st.enemies.indexOf(c), 1); } break; }
-      case "corpseBomb": if (e) sim.events.push({ type: "corpseBomb", x: e.x, y: e.y, r: 1.2 }); break;
-      default: if (e) { if (k === "freeze") e.fx.freeze = 1.2; if (k === "fear") e.fx.fear = 1.4; if (k === "disarm") e.fx.disarmed = 5; if (k === "haste") e.fx.haste = 3; if (k === "smoke") e.fx.invisible = 5; sim.events.push({ type: k, enemyId: e.id }); }
-    }
-  }
   renderer.domElement.addEventListener("pointermove", (ev) => {
     const hit = view.pick(ev.clientX, ev.clientY);
     if (buildFam) view.preview(hit ? hit.i : null, hit ? hit.j : null, buildFam);
@@ -720,11 +337,11 @@
     const hit = view.pick(ev.clientX, ev.clientY);
     if (!hit) return;
     if (buildFam) {
-      if (view.canBuild(hit.i, hit.j, buildFam)) sim.addTower(hit.i, hit.j, buildFam, 1, null, true);
+      if (view.canBuild(hit.i, hit.j, buildFam)) game.build(hit.i, hit.j, buildFam);
       return;
     }
-    if (aim === "meteor") sim.castMeteor(hit.x, hit.y);
-    else if (aim === "cut") sim.cut(hit.i, hit.j);
+    if (aim === "meteor") actions.meteor(hit.x, hit.y);
+    else if (aim === "cut") actions.cut(hit.i, hit.j);
     else if (hit.towerId) view.showRange(hit.towerId);
     else view.showRange(null);
     console.log("pick", JSON.stringify(hit));
@@ -734,23 +351,21 @@
   let last = performance.now(), time = 0, fps = 0, frames = 0, fpsT = 0, cpu = 0;
   const statsEl = document.getElementById("stats");
   function tick(dt) {
-    const d = paused ? 0 : dt * speed;
-    if (d > 0) {
-      const n = Math.max(1, Math.ceil(d / (1 / 60)));
-      for (let k = 0; k < n; k++) sim.step(d / n);
-    }
-    time += d;
-    view.sync(sim.state, sim.drain(), d, time);
+    if (!paused) game.step(dt);
+    time += dt;
+    view.sync(game.state, game.drainEvents(), paused ? 0 : dt * game.state.speed, time);
   }
-  // pré-simulation (captures) : l'état avance sans rendu
-  const pre = +(params.get("t") || 0);
-  view.clock = "game";
-  for (let k = 0; k < pre * 30; k++) tick(1 / 30);
-  view.clock = null;
-  if (params.get("frenzy")) sim.frenzy();
-  if (params.get("cutall")) for (let k = 0; k < 6; k++) sim.cut();
-  if (params.get("range")) view.showRange(sim.state.towers[0] && sim.state.towers[0].id);
-  if (params.get("hints")) view.setUpgradeHints(sim.state.towers.slice(0, 4).map((t) => t.id));
+  /** Avance rapide (le décor suit le temps simulé). */
+  function run(seconds) {
+    view.clock = "game";
+    for (let k = 0; k < seconds * 30; k++) tick(1 / 30);
+    view.clock = null;
+  }
+  const pre = num("t", 0);
+  if (pre) run(pre);
+  if (params.get("frenzy")) actions.frenzy();
+  if (params.get("range")) view.showRange(game.state.towers[0] && game.state.towers[0].id);
+  if (params.get("hints")) view.setUpgradeHints(game.state.towers.slice(0, 4).map((t) => t.id));
   if (params.get("preview")) {
     const [fam, i, j] = params.get("preview").split(",");
     view.preview(+i, +j, fam);
@@ -759,8 +374,10 @@
     const [sp, x, y] = params.get("target").split(",");
     view.target(sp, +x, +y);
   }
+  // ?still : pas de boucle continue (captures du rendu logiciel) ; __bench.frame() dessine une image
+  const still = params.has("still");
   function frame(now) {
-    requestAnimationFrame(frame);
+    if (!still) requestAnimationFrame(frame);
     const dt = Math.min(0.1, (now - last) / 1000);
     last = now;
     const c0 = performance.now();
@@ -776,29 +393,34 @@
       fpsT = 0;
       const i = renderer.info;
       statsEl.textContent =
-        `mission ${mapN} ${P.sim.MAPS[mapN].name} · ${quality}${mobile ? " · mobile" : ""}\n` +
+        `mission ${mapN} ${P.sim.MAPS[mapN].name} · ${quality}${mobile ? " · mobile" : ""} · marée ${game.state.tide || "—"}\n` +
         `images/s ${fps.toFixed(0)} · processeur ${cpu.toFixed(1)} ms · appels ${i.render.calls} · triangles ${(i.render.triangles / 1000).toFixed(0)} k\n` +
-        `tours ${sim.state.towers.length} · ennemis ${sim.state.enemies.length} · projectiles ${sim.state.projectiles.length} · zones ${sim.state.areas.length}\n` +
+        `tours ${game.state.towers.length} · ennemis ${game.state.enemies.length} · projectiles ${game.state.projectiles.length} · vague ${game.state.wave.index + 1}/${game.state.wave.total} (${game.state.wave.countdown.toFixed(0)} s)\n` +
         `géométries ${i.memory.geometries} · textures ${i.memory.textures} · construction ${view.buildMs.toFixed(0)} ms (peinture ${view.world.timings.paint.toFixed(0)} ms)\n` +
         `chargés : ${loaded.length} scripts`;
-      window.__stats = { fps, cpu, calls: i.render.calls, triangles: i.render.triangles, enemies: sim.state.enemies.length, towers: sim.state.towers.length, build: view.buildMs, paint: view.world.timings.paint };
     }
   }
-  requestAnimationFrame(frame);
-  /** Pilotage par script (captures) : mission, simulation accélérée, événements, cadrage. */
+  if (!still) requestAnimationFrame(frame);
+  /** Pilotage par script (captures) : mission, simulation accélérée, scénarios, cadrage. */
   window.__bench = {
     build(n, opts) {
       if (opts && opts.quality) quality = opts.quality;
       build(n);
       sel.value = n;
     },
-    run(seconds) {
-      // le décor suit le temps simulé pendant l'avance rapide
-      view.clock = "game";
-      for (let k = 0; k < seconds * 30; k++) tick(1 / 30);
-      view.clock = null;
+    run,
+    actions,
+    spawn,
+    placeTowers,
+    raise,
+    /** Une image dessinée tout de suite (mode ?still). */
+    frame(dt) {
+      tick(dt === undefined ? 1 / 30 : dt);
+      renderer.info.reset();
+      view.render();
+      const i = renderer.info;
+      return { calls: i.render.calls, triangles: i.render.triangles };
     },
-    fire,
     focus(x, y, zoom) {
       view.cam.focus = x === null ? null : { x, y, zoom: zoom || 3 };
       view.resize(innerWidth, innerHeight, INS);
@@ -811,8 +433,8 @@
       showBars();
       view.resize(innerWidth, innerHeight, INS);
     },
-    get sim() {
-      return sim;
+    get game() {
+      return game;
     },
     get view() {
       return view;
@@ -832,7 +454,7 @@
       cpuRender += performance.now() - b;
     }
     const i = renderer.info;
-    return { calls: i.render.calls, triangles: i.render.triangles, geometries: i.memory.geometries, textures: i.memory.textures, syncMs: +(cpuSync / n).toFixed(2), renderCpuMs: +(cpuRender / n).toFixed(2), towers: sim.state.towers.length, enemies: sim.state.enemies.length, projectiles: sim.state.projectiles.length, buildMs: +view.buildMs.toFixed(0), paintMs: +view.world.timings.paint.toFixed(0), scripts: loaded.length };
+    return { calls: i.render.calls, triangles: i.render.triangles, geometries: i.memory.geometries, textures: i.memory.textures, syncMs: +(cpuSync / n).toFixed(2), renderCpuMs: +(cpuRender / n).toFixed(2), towers: game.state.towers.length, enemies: game.state.enemies.length, projectiles: game.state.projectiles.length, buildMs: +view.buildMs.toFixed(0), paintMs: +view.world.timings.paint.toFixed(0), scripts: loaded.length };
   };
   setTimeout(() => (document.title = "prête"), 400);
 })().catch((e) => {
