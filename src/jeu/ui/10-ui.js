@@ -106,8 +106,8 @@
   // Façons d'attaquer des tours : icône, nom, explication courte.
   const ATTACK = {
     shot: { icon: "shot", name: "Tir", text: "Une bogue après l'autre, sur une cible." },
-    charges: { icon: "charges", name: "Charges", text: "Garde des boules d'eau et les lâche d'un coup, puis chacune revient." },
-    beam: { icon: "beam", name: "Jet de feu", text: "Brûle sa cible sans arrêt tant qu'elle reste à portée : plus il la tient, plus ça chauffe." },
+    charges: { icon: "charges", name: "Charges", text: "Lâche ses boules d'un coup, puis les recharge une à une." },
+    beam: { icon: "beam", name: "Jet de feu", text: "Brûle sans arrêt : plus il tient sa cible, plus ça chauffe." },
   };
   // Surprises annoncées par la frise (icône, mot court).
   const NOTE = {
@@ -1724,7 +1724,7 @@
     if (sel.fxKey !== fk) {
       sel.fxKey = fk;
       sel.fxEl.textContent = "";
-      for (const k of on) sel.fxEl.append(h("span", { class: "pt-efx-i", "data-k": k, title: FX[k] }, h("span", { class: "pt-i", html: icons().status(k) }), h("small", {}, k === "slow" ? "−" + Math.round(fx.slow * 100) + NB + "%" : FX[k])));
+      for (const k of on) sel.fxEl.append(h("span", { class: "pt-efx-i", "data-k": k, title: FX[k] }, h("span", { class: "pt-i", html: icons().status(k) }), h("small", {}, k === "slow" ? "Ralenti −" + Math.round(fx.slow * 100) + NB + "%" : FX[k])));
       sel.fxEl.hidden = !on.length;
       if (sel.abEl) sel.abEl.classList.toggle("off", !!fx.disarmed);
       this.placeSel(true);
@@ -1911,7 +1911,12 @@
     mode = mode || st.attack || "shot";
     if (mode === "beam") {
       row("burn", "Feu", nf(st.dps) + "/s", N.dps ? nf(N.dps) + "/s" : null, "Dégâts par seconde du jet, dès qu'il touche");
-      if (st.heatMax) row("heat", "Chauffe", "× " + f1(st.heatMax), N.heatMax ? "× " + f1(N.heatMax) : null, `Plus il tient sa cible, plus ça brûle : × ${f1(st.heatMax)} au bout de ${f1(st.heatTime)} s, soit ${nf(st.dps * st.heatMax)} dégâts/s`);
+      if (st.heatMax) {
+        const nx = [];
+        if (N.heatMax && N.heatMax !== st.heatMax) nx.push("× " + f1(N.heatMax));
+        if (N.heatTime && N.heatTime !== st.heatTime) nx.push("en " + sec(N.heatTime));
+        row("heat", "Chauffe", "× " + f1(st.heatMax) + " en " + sec(st.heatTime), nx.join(" ") || null, `Plus il tient sa cible, plus ça brûle : × ${f1(st.heatMax)} au bout de ${f1(st.heatTime)} s, soit ${nf(st.dps * st.heatMax)} dégâts/s`);
+      }
     } else if (mode === "charges") {
       const nb = (n) => n + " boule" + (n > 1 ? "s" : "");
       row("charges", "Charges", nb(st.charges || 0), N.charges ? nb(N.charges) : null, "Boules d'eau gardées en réserve et lâchées d'un coup sur les ennemis");
@@ -2060,7 +2065,7 @@
           h("span", { class: "pt-spec-l" }, o.spec),
           h("span", { class: "pt-tp", "data-f": t.family, html: TP ? TP.get(t.family, 4, o.spec) : "" }),
           h("b", { class: "pt-speccard-n" }, o.name),
-          h("small", {}, o.blurb),
+          h("small", { title: o.blurb }, o.blurb),
           price,
           reason,
         );
@@ -2085,7 +2090,7 @@
     const sellTxt = h("b", { class: "pt-num" }, v.sell !== null ? "+" + v.sell : "");
     const armed = keep && this.sel && this.sel.kind === "tower" && this.sel.id === id && this.sel.sellArm && performance.now() - this.sel.sellArm <= 2500;
     const sell = h("button", { class: "pt-btn pt-red pt-sell" + (armed ? " armed" : ""), title: "Revendre la tour", onclick: (e) => this.doSell(t.id, e.currentTarget) }, ico("sell"), h("span", { class: "pt-sell-l" }, armed ? "Confirmer ?" : "Vendre"), h("span", { class: "pt-price" }, ico("gold"), sellTxt));
-    const body = h("div", { class: "pt-sel-in pt-tw", "data-a": v.attack, style: `--acc:${accent}` }, head, daz, atk.el, xp, stats, actions, h("div", { class: "pt-tw-f" }, sell));
+    const body = h("div", { class: "pt-sel-in pt-tw" + (v.specs ? " choose" : ""), "data-a": v.attack, style: `--acc:${accent}` }, head, daz, atk.el, xp, stats, actions, h("div", { class: "pt-tw-f" }, sell));
     const prevSell = keep && this.sel && this.sel.kind === "tower" && this.sel.id === id ? this.sel.sellArm : 0;
     this.openSel({ kind: "tower", id, i: t.i !== undefined ? t.i : i, j: t.j !== undefined ? t.j : j }, body, "pt-tower" + (v.specs ? " wide" : ""));
     const sel = this.sel;
@@ -2859,6 +2864,10 @@
         /** Écran opaque par-dessus la scène 3D (compétences, encyclopédie) : son rendu peut s'arrêter. */
         get covered() {
           return ui.mode === "skills" || ui.mode === "bestiary" || (ui.mode === "map" && !ui.hasStage());
+        },
+        /** Ennemi dont la fiche est ouverte (pour le mettre en valeur dans la scène), sinon null. */
+        get selectedEnemy() {
+          return ui.sel && ui.sel.kind === "enemy" ? ui.sel.id : null;
         },
         el: ui.el,
         _ui: ui,

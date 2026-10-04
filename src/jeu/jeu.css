@@ -4268,6 +4268,30 @@ html.pt-over-enemy .ptmt-stage canvas {
   --is: 32px;
 }
 
+/* Choix de la voie (niveau 3) : panneau compact pour que les deux cartes tiennent à l'écran */
+.pt-tw.choose .pt-stats {
+  grid-template-columns: 1fr 1fr;
+  gap: 2px 12px;
+}
+.pt-tw.choose .pt-atk-h small,
+.pt-tw.choose .pt-kills {
+  display: none;
+}
+.pt-tw.choose .pt-speccard {
+  padding: 8px 6px 6px;
+}
+.pt-tw.choose .pt-speccard .pt-tp {
+  width: 48px;
+  height: 48px;
+}
+.pt-tw.choose .pt-speccard small {
+  display: -webkit-box;
+  -webkit-line-clamp: 4;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  font-size: 11.5px;
+}
+
 /* ── Encyclopédie et missions : nouveautés de la v4 ────────────────────── */
 .pt-ecard {
   position: relative;

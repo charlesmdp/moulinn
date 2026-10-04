@@ -10,7 +10,8 @@
 // baliste (B) → catapulte à châtaignes (B7).
 // Cygne : cygneau gris ébouriffé sur son nid (1), cygne blanc (2), cygne majestueux aux ailes levées
 // (3), cygne des glaces (A) → cygne royal couronné de glace (A7), cygne noir au bec rouge (B) → cygne
-// noir enchanteur aux runes violettes (B7).
+// noir enchanteur aux runes violettes (B7). Ses charges flottent en haut à gauche : deux ou trois
+// boules d'eau, de glace ou d'eau sombre (il les garde et les lâche d'un coup).
 // Berger australien merle (yeux vairons bleu et marron, taches cuivrées, poitrail blanc) : chiot (1),
 // adulte à crinière de flammes (2), berger de feu aux petites cornes (3), dragon merle rouge (A) →
 // grand dragon rouge (A7), dragon merle bleu à l'œil rayonnant (B) → grand dragon bleu (B7).
@@ -176,6 +177,24 @@
     out.push(P("M11 58Q18 56 25 58.5Q32 61 40 58.5Q48 56 55 58.5", "none", { stroke: "#d8f1ff", w: 1.8, rim: false }));
     return out;
   }
+  /**
+   * Charges du cygne (façon d'attaquer) : boules gardées en réserve, en arc dans le coin libre en haut à
+   * gauche. kind : "water" (eau), "ice" (glace), "dark" (eau sombre du cygne noir).
+   */
+  function orbs(n, kind) {
+    const col = { water: ["#3f9be8", "#cfe9ff"], ice: ["#bff0ff", "#ffffff"], dark: ["#6a5cd0", "#d8ccff"] }[kind || "water"];
+    const at = [
+      [6.5, 12.5],
+      [13, 7],
+      [21, 4],
+    ];
+    const out = [];
+    for (let k = 0; k < Math.min(n, at.length); k++) {
+      const [x, y] = at[k];
+      out.push(C(x, y, 4.2, col[0], { w: 1.8 }), C(x - 1.3, y - 1.4, 1.3, col[1], hi(0.9)));
+    }
+    return out;
+  }
   /** Cygneau gris ébouriffé, assis dans son nid de brindilles. */
   function cygnet() {
     // Contour festonné (duvet) : arcs bombés vers l'extérieur entre n points d'une ellipse.
@@ -320,13 +339,13 @@
     boarA7: () => boar({ fur: "#a3a9b1", dark: "#6f7680", mane: "#eef1f4", tusk: 3, brows: "old", beard: true, scars: true, maneSize: 1.8, snout: "#d9a3a0" }),
     boarB: () => [place64(boar({ fur: "#9a6a40", dark: "#65411f", eyes: "soft", maneSize: 0.4 }), 32, 39.5, 0.82), ballista()],
     boarB7: () => [catapult(), place64(boar({ fur: "#8a5a32", dark: "#5a3a20", eyes: "normal", tusk: 1, strap: true, brows: true, maneSize: 0.9 }), 32, 39.5, 0.82)],
-    swan1: () => cygnet(),
-    swan2: () => swan({}),
-    swan3: () => swan({ wings: "raised" }),
-    swanA: () => swan({ body: "#d8f3ff", shade: "#a6daf5", beak: "#8fd0ff", knob: "#2b5d8a", eye: "#1ec8ff", wings: "folded", frost: true, water: "#7fd0f5" }),
-    swanA7: () => swan({ body: "#d8f3ff", shade: "#a6daf5", beak: "#8fd0ff", knob: "#2b5d8a", eye: "#1ec8ff", wings: "royal", frost: true, crown: true, water: "#7fd0f5", aura: "#bff0ff" }),
-    swanB: () => swan({ body: "#34303e", shade: "#221f2a", beak: "#e8413a", beakBand: "#fffaf0", knob: "#e8413a", eye: "#ff5a4a", curls: "#8a6ccf", water: "#4f8fd0" }),
-    swanB7: () => swan({ body: "#34303e", shade: "#221f2a", beak: "#e8413a", beakBand: "#fffaf0", knob: "#e8413a", eye: "#d08cff", curls: "#8a6ccf", runes: "#d08cff", wings: "raised", water: "#6a5cd0", aura: "#b980ff" }),
+    swan1: () => [cygnet(), orbs(2)],
+    swan2: () => [swan({}), orbs(2)],
+    swan3: () => [swan({ wings: "raised" }), orbs(3)],
+    swanA: () => [swan({ body: "#d8f3ff", shade: "#a6daf5", beak: "#8fd0ff", knob: "#2b5d8a", eye: "#1ec8ff", wings: "folded", frost: true, water: "#7fd0f5" }), orbs(3, "ice")],
+    swanA7: () => [swan({ body: "#d8f3ff", shade: "#a6daf5", beak: "#8fd0ff", knob: "#2b5d8a", eye: "#1ec8ff", wings: "royal", frost: true, crown: true, water: "#7fd0f5", aura: "#bff0ff" }), orbs(3, "ice")],
+    swanB: () => [swan({ body: "#34303e", shade: "#221f2a", beak: "#e8413a", beakBand: "#fffaf0", knob: "#e8413a", eye: "#ff5a4a", curls: "#8a6ccf", water: "#4f8fd0" }), orbs(3, "dark")],
+    swanB7: () => [swan({ body: "#34303e", shade: "#221f2a", beak: "#e8413a", beakBand: "#fffaf0", knob: "#e8413a", eye: "#d08cff", curls: "#8a6ccf", runes: "#d08cff", wings: "raised", water: "#6a5cd0", aura: "#b980ff" }), orbs(3, "dark")],
     dog1: () => dog(Object.assign({ puppy: true }, MERLE)),
     dog2: () => dog(Object.assign({ flames: 1 }, MERLE)),
     dog3: () => dog(Object.assign({ flames: 2, horns: 1, fins: true, brows: true }, MERLE)),

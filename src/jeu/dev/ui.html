@@ -5,10 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
 <title>Banc d'essai de l'interface</title>
 <link rel="icon" href="data:,">
-<link rel="stylesheet" href="../jeu.css">
 <style>
-  /* Police servie depuis src/ (le jeton {{asset:jeu-font}} n'est remplacé qu'au build). */
-  @font-face { font-family: "Lilita One"; src: url("../fonts/lilita-one-latin.woff2") format("woff2"); font-display: swap; }
   #bench { position: fixed; left: 8px; top: 50%; transform: translateY(-50%); z-index: 100; display: flex; flex-direction: column; gap: 3px; max-height: 96vh; overflow: auto; padding: 6px; border-radius: 10px; background: rgba(20, 24, 18, 0.82); font: 11px/1.2 system-ui, sans-serif; pointer-events: auto; }
   #bench button { font: inherit; border: 0; border-radius: 5px; padding: 3px 6px; background: #3a4431; color: #f4efe1; cursor: pointer; text-align: left; }
   #bench button.on { background: #7a8a2a; }
@@ -52,6 +49,17 @@
 </script>
 <script src="../ui/10-ui.js"></script>
 <script>
+// Feuille du jeu : le jeton {{asset:jeu-font}} n'est remplacé qu'au build ; le banc la charge et fait
+// le même remplacement (police servie depuis src/), puis démarre une fois les styles en place.
+window.benchStyles = fetch("../jeu.css")
+  .then((r) => r.text())
+  .then((css) => {
+    const st = document.createElement("style");
+    st.textContent = css.split("{{asset:jeu-font}}").join("../fonts/lilita-one-latin.woff2");
+    document.head.appendChild(st);
+  });
+</script>
+<script>
 // Banc d'essai de l'interface : une VRAIE partie (simulation v4 de sim/*.js) tourne derrière
 // l'interface, sur une carte 2D dessinée sur canvas (20 × 13 cases colorées par terrain, tournée de 90°
 // en portrait comme la caméra du jeu) qui sait désigner une case, une tour ou un ennemi. Progression
@@ -60,13 +68,14 @@
 // barrière, passage secret, montgolfières, flash…).
 //   ?screen=title|map|skills|bestiary|game  &level=9  &seed=3  &tab=towers  &focus=9
 //   &auto (défense automatique)  &ff=120 (avance de 120 s de jeu)  &wave=22 (saute à la vague 22)  &gold=2000
-//   &rich (or illimité : le robot améliore ses tours jusqu'au niveau 7)
+//   &rich (or illimité : le robot améliore ses tours jusqu'au niveau 7)  &towers (tours de démonstration)
 //   &speed=2  &turbo=40 (40 pas de simulation par image : partie complète accélérée)
 //   &sel=tower:boar|swan|dog|ID  &sel=build:i,j  &enemy[=type]  &modal=pause|newEnemy|win|winb|lose
 //   &tide &gate &secret &balloons &flash &korrigan &tracteur &steal (surprises au démarrage)
-//   &paused  &fresh (progression neuve)  &clean (sans ce panneau)  &portraits=fichier.js
+//   &paused  &fresh (progression neuve)  &seenall (seize ennemis déjà rencontrés : pas de fiche « Nouvel
+//   ennemi ! » qui met en pause)  &clean (sans ce panneau)  &portraits=fichier.js
 //   ?set=icons|skills|gems|towers|logo|lairs (galeries des dessins)  &only=nom,nom  &dark
-(function () {
+window.benchStyles.then(function () {
   "use strict";
   const Q = new URLSearchParams(location.search);
   const D = PTMT.sim.DATA;
@@ -120,7 +129,7 @@
     for (let k = 1; k <= 14; k++) store.levels[k] = { won: true, bestGems: k % 4 ? 5 : 3, gemsTotal: 5, brilliant: k % 4 !== 0 && k % 3 !== 0 };
     store.unlocked = 15;
     store.skills = { goldVault: 3, heights: 2, cutStudy: 2, manaStock: 2, manaPool: 1, training: 3, hotGems: 1, meteorStudy: 1, sawmill: 2, frenzyStudy: 1, manaSpring: 2 };
-    for (const t of seenAll) store.seen[t] = true;
+    for (const t of Q.has("seenall") ? Object.keys(D.ENEMIES) : seenAll) store.seen[t] = true;
   }
   store = P.sanitize(store);
   P.load = () => P.sanitize(JSON.parse(JSON.stringify(store)));
@@ -430,6 +439,31 @@
       g.emit("flash", { enemyId: 0, towerIds: [t.id], x: t.x, y: t.y });
     },
     steal: (g) => { const L = g.state.map.lairs.find((x) => x.stock > 0); if (L) spawn(g, "quad", 1, { x: L.x, y: L.y }); },
+    /** Tours de démonstration, montées directement à leur niveau (expérience et or offerts). */
+    towers: (g) => {
+      const s = g.state;
+      const plan = [["dog", 5, "A"], ["swan", 4, "A"], ["boar", 7, "A"], ["dog", 7, "B"], ["swan", 6, "B"], ["boar", 4, "B"], ["dog", 2, null], ["swan", 3, null]];
+      const near = (i, j) => { let n = 0; for (let b = j - 2; b <= j + 2; b++) for (let a = i - 2; a <= i + 2; a++) { const ch = s.map.grid[b] && s.map.grid[b][a]; if (ch === "#" || ch === "=" || ch === "L" || ch === "m") n++; } return n; };
+      for (const [fam, lv, spec] of plan) {
+        let best = null, bs = 0;
+        for (let j = 0; j < 13; j++)
+          for (let i = 0; i < 20; i++) {
+            const info = g.tileInfo(i, j);
+            if (!info || info.towerId || !info.buildable.includes(fam)) continue;
+            const sc = near(i, j);
+            if (sc > bs) { bs = sc; best = info; }
+          }
+        if (!best) continue;
+        s.gold += 5000;
+        const r = g.build(best.i, best.j, fam);
+        if (!r.ok) continue;
+        const t = g.towerById(r.towerId);
+        while (t.level < lv) { t.xp = 1e4; s.gold += 5000; if (!g.upgrade(t.id, t.level === 3 ? spec : null).ok) break; }
+        t.xp = 0;
+        t.kills = 10 * lv;
+      }
+      s.gold = Math.min(s.gold, 180);
+    },
   };
   head("Écrans");
   btn("Titre", () => ui.showTitle()); btn("Missions", () => ui.showMap()); btn("Compétences", () => ui.showSkills()); btn("Encyclopédie", () => ui.showBestiary());
@@ -443,6 +477,7 @@
   btn("Sauter 5 vagues", need((g) => jumpWave(g.state.wave.index + 1 + 5)));
   btn("Appeler la vague", () => game && ui._ui.callWave());
   btn("Or +500", need((g) => (g.state.gold += 500)));
+  btn("Tours de démonstration", need(T.towers));
   head("Surprises");
   btn("Marée", need(T.tide)); btn("Barrière", need(T.gate)); btn("Passage secret", need(T.secret));
   btn("Montgolfières", need(T.balloons)); btn("Korrigans", need(T.korrigan)); btn("Tracteur", need(T.tracteur));
@@ -463,6 +498,7 @@
   else if (screen === "bestiary") ui.showBestiary(Q.get("tab") || "enemies");
   else if (screen === "game") {
     startGame(lv);
+    if (Q.has("towers")) T.towers(game);
     if (Q.get("speed")) game.setSpeed(+Q.get("speed"));
     if (Q.get("gold")) game.state.gold += +Q.get("gold");
     if (Q.get("ff")) fastForward(+Q.get("ff"));
@@ -492,7 +528,7 @@
       }
     }, +(Q.get("delay") || 350));
   }
-})();
+});
 </script>
 </body>
 </html>
