@@ -2,23 +2,28 @@
 //
 // Une mission (PTMT.sim.MAPS[n], 20 × 13 cases) devient une scène peinte vue d'avion :
 //  - un relief en un seul maillage (≈ 8 × 8 sous-divisions par case) calculé par un noyau de
-//    mélange entre cases voisines : chemins en creux (0 m) bordés de petites falaises, plateaux
-//    d'herbe et de roche (+0,45 m), buttes (+1,3 m) aux flancs rocheux, lit des étangs (−0,9 m)
-//    et berges en pente douce, talus et rochers des cases X ; les bords ondulent (bruit de
-//    déformation) pour éviter l'effet « quadrillage » ;
+//    mélange entre cases voisines : routes larges en creux (0 m) bordées de petites falaises nettes,
+//    plateaux d'herbe et de roche (+0,45 m), buttes (+1,3 m, ou socle posé au niveau de la route
+//    quand le modèle PTMT.models.highGround existe), lit des étangs (−0,9 m) et berges en pente
+//    douce, estran (−0,42 m : sable mouillé que la marée recouvre), talus et rochers des cases X ;
+//    les bords ondulent (bruit de déformation) pour éviter l'effet « quadrillage » ;
 //  - un tablier décoratif de 4 cases autour de la carte (forêt sombre, champs du bocage, chemins
 //    et rivières qui sortent de la carte) : l'écran est rempli quel que soit son format ;
 //  - une grande texture peinte sur canvas au chargement, ALIGNÉE sur le relief : les régions sont
-//    tracées par « marching squares » sur les mêmes champs que les hauteurs (herbe riche, terre
-//    battue aux ornières, granit aux fissures de braise, strates des buttes, sable des berges,
-//    cours pavées, cercles de runes) ; une texture d'émission (braises, runes) animée dans le
-//    shader ; une petite texture de détail garde du grain sur les grands écrans ;
+//    tracées par « marching squares » sur les mêmes champs que les hauteurs (herbe riche, grandes
+//    surfaces de terre battue marquées des ornières, sentes et empreintes laissées par les vrais
+//    trajets des ennemis, granit aux fissures de braise, sable mouillé de l'estran, sable des
+//    berges, cercles de runes) ; une texture d'émission (braises, runes) animée dans le shader ;
+//    une petite texture de détail garde du grain sur les grands écrans ;
 //  - les ombres du relief (et, en qualité « low », celles du décor fixe) précalculées dans une
 //    texture légère, recalculée si le soleil tourne avec l'écran (portrait) ;
-//  - l'eau animée (shader : vaguelettes, reflets, écume des berges, courant des rivières) ;
-//  - ponts de bois, forêts à couper, tablier boisé, décor des cases X, repaire, menhirs, portes et
-//    passage secret : modèles de l'agent Décor (PTMT.models.*) s'ils existent, sinon formes de
-//    secours dessinées ici ;
+//  - l'eau animée (shader : vaguelettes, reflets, écume des berges, courant des rivières) et la
+//    marée : sur l'estran, l'eau se retire du côté de la terre vers le large en ≈ 2 s (ligne
+//    d'écume qui recule, flaques qui restent) puis revient ;
+//  - ponts de bois, forêts à couper, tablier boisé, décor des cases X, menhirs et passage secret :
+//    modèles de l'agent Décor (PTMT.models.*) s'ils existent, sinon formes de secours dessinées
+//    ici ; cachettes, moulin, entrées, barrières et buttes : render/15-places.js ; les maillages
+//    immobiles sont ensuite regroupés par matière (render/18-batch.js : moins d'appels de dessin) ;
 //  - des surimpressions calculées dans les shaders du sol et de l'eau, qui épousent le relief :
 //    grille discrète des cases constructibles, mode construction (cases libres, à couper, case
 //    visée verte ou rouge), disque de portée à liseré net, réticules des sorts.
@@ -33,8 +38,8 @@
   const MK = (VIEW._map = VIEW._map || {});
 
   const TILE = 3.6, MW = 20, MH = 13, APRON = 4;
-  const WATER_Y = -0.25, BED_Y = -0.9, DECK_Y = 0.16;
-  MK.K = { TILE, MW, MH, APRON, WATER_Y, BED_Y, DECK_Y };
+  const WATER_Y = -0.25, BED_Y = -0.9, DECK_Y = 0.16, TIDE_Y = -0.42, HIGH_Y = 1.3;
+  MK.K = { TILE, MW, MH, APRON, WATER_Y, BED_Y, DECK_Y, TIDE_Y, HIGH_Y };
 
   const clamp = (v, a, b) => (v < a ? a : v > b ? b : v);
   const smooth01 = (t) => (t <= 0 ? 0 : t >= 1 ? 1 : t * t * (3 - 2 * t));
@@ -66,21 +71,22 @@
   // poids de classes lissés (noyau de rayon ROUND : arrondi des coins, contour à 0,5 sur la limite
   // des cases) donnent la FORME de chaque région ; un profil propre à la classe donne la RAIDEUR
   // (petite falaise des chemins et des buttes, berge en pente douce de l'eau, talus arrondis).
-  const C = { ROAD: 0, GRASS: 1, ROCK: 2, WATER: 3, HIGH: 4, MILL: 5, TALUS: 6, CLIFF: 7, BOULD: 8, FLAT: 9, WILD: 10, FIELD: 11, SECRET: 12 };
-  const NC = 13;
-  const LEVEL = [0, 0.45, 0.45, BED_Y, 1.3, 0.22, 1.8, 2.5, 0.85, 0.45, 0.62, 0.45, 0];
-  const ROUND = [0.2, 0.16, 0.3, 0.36, 0.22, 0.16, 0.28, 0.22, 0.3, 0.16, 0.3, 0.12, 0.2];
-  const AMP = [0.015, 0.06, 0.09, 0.12, 0.07, 0.02, 0.22, 0.35, 0.28, 0.05, 0.3, 0.04, 0.02];
+  const C = { ROAD: 0, GRASS: 1, ROCK: 2, WATER: 3, HIGH: 4, MILL: 5, TALUS: 6, CLIFF: 7, BOULD: 8, FLAT: 9, WILD: 10, FIELD: 11, SECRET: 12, TIDE: 13 };
+  const NC = 14;
+  const LEVEL = [0, 0.45, 0.45, BED_Y, HIGH_Y, 0.45, 1.8, 2.5, 0.85, 0.45, 0.62, 0.45, 0, TIDE_Y];
+  const ROUND = [0.2, 0.16, 0.3, 0.36, 0.22, 0.16, 0.28, 0.22, 0.3, 0.16, 0.3, 0.12, 0.2, 0.26];
+  const AMP = [0.015, 0.06, 0.09, 0.12, 0.07, 0.02, 0.22, 0.35, 0.28, 0.05, 0.3, 0.04, 0.02, 0.025];
   MK.C = C;
   MK.LEVEL = LEVEL;
   const DECOR_CLASS = { talus: C.TALUS, cliff: C.CLIFF, boulders: C.BOULD, pond_rocks: C.BOULD };
   function classOfChar(ch) {
     switch (ch) {
-      case "#": case "E": case "L": return C.ROAD;
+      case "#": case "E": case "L": case "g": return C.ROAD;
       case "s": return C.SECRET;
       case "=": case "~": case "w": return C.WATER;
       case "^": case "r": return C.ROCK;
       case "H": case "h": return C.HIGH;
+      case "m": return C.TIDE;
       default: return C.GRASS;
     }
   }
@@ -91,7 +97,9 @@
     return ROUND[a] > ROUND[b] ? ROUND[a] : ROUND[b];
   }
   const ss = (a, b, x) => smooth01((x - a) / (b - a));
-  const WALK = "#=ELs";
+  // cases où l'on marche (estran et barrières compris : chemins qui sortent, ornières, orientation)
+  const WALK = "#=ELsgm";
+  const ROADLIKE = "#=ELsg";
 
   /* ------------------------------------------------------------------ champ de la carte */
   function Field(map, opts) {
@@ -100,6 +108,9 @@
     // décor fourni (PTMT.models.decorBatch) : ses talus et falaises ont leur propre relief, les cases X
     // restent au niveau de l'herbe ; sinon le relief monte ici pour les formes de secours
     this.flatX = !!(opts && opts.flatX);
+    // buttes fournies (PTMT.models.highGround) : le socle de granit est un modèle posé au niveau de la
+    // route ; le relief reste à plat sous lui (au niveau de la route si elle le touche, sinon du plateau)
+    this.flatH = !!(opts && opts.flatH);
     this.A = A;
     this.EW = EW;
     this.EH = EH;
@@ -120,11 +131,20 @@
             const kind = this.mill.has(key) ? "mill" : (map.decor && map.decor[key]) || byBiome[map.biome] || "talus";
             this.kind[e] = kind;
             c = kind === "mill" ? C.MILL : DECOR_CLASS[kind] !== undefined ? DECOR_CLASS[kind] : C.FLAT;
-          } else c = classOfChar(ch);
+          } else if ((ch === "H" || ch === "h") && this.flatH) c = this.roadNear(i, j) ? C.ROAD : C.GRASS;
+          else c = classOfChar(ch);
         } else c = this.apronClass(i, j);
         this.cls[e] = c;
       }
   }
+  /** Une case de route (ou de pont, d'entrée…) touche-t-elle la case (i, j) par un côté ? */
+  Field.prototype.roadNear = function (i, j) {
+    for (const [di, dj] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+      const c = this.charAt(i + di, j + dj);
+      if (c && ROADLIKE.includes(c)) return true;
+    }
+    return false;
+  };
   Field.prototype.charAt = function (i, j) {
     return i >= 0 && j >= 0 && i < MW && j < MH ? this.grid[j][i] : null;
   };
@@ -144,7 +164,7 @@
   Field.prototype.apronClass = function (i, j) {
     const ci = clamp(i, 0, MW - 1), cj = clamp(j, 0, MH - 1);
     const ch = this.grid[cj][ci];
-    if (ch === "E") {
+    if (ch === "E" || ch === "g") {
       const d = this.exitDir(ci, cj);
       if (d && ((d[0] && j === cj && Math.sign(i - ci) === d[0]) || (d[1] && i === ci && Math.sign(j - cj) === d[1]))) return C.ROAD;
     }
@@ -197,16 +217,18 @@
         amp += cw[c] * AMP[c];
       }
     void hs;
-    // Couches : plateau de base, chemins creusés (falaise raide), cour du moulin, eau (berge
+    // Couches : plateau de base, routes creusées (petite falaise nette), cour du moulin, estran
+    // (sable mouillé en pente douce vers la route, rive rocheuse sous les plateaux), eau (berge
     // douce, plus raide contre un chemin), buttes, blocs, talus et falaises des cases X.
     const road = cw[C.ROAD] + cw[C.SECRET];
-    const pRoad = ss(0.38, 0.62, road);
+    const pRoad = ss(0.42, 0.58, road);
     let h = 0.45 + cw[C.WILD] * 0.17;
     h += (0 - h) * pRoad;
-    h += (0.22 - h) * ss(0.3, 0.7, cw[C.MILL]);
+    h += (LEVEL[C.MILL] - h) * ss(0.3, 0.7, cw[C.MILL]);
+    h += (TIDE_Y - h) * ss(0.3, 0.7, cw[C.TIDE]);
     const pw = ss(0.08, 0.92, cw[C.WATER]) * (1 - 0.65 * ss(0.3, 0.6, road));
     h += (BED_Y - h) * pw;
-    h += (1.3 - h) * ss(0.16, 0.42, cw[C.HIGH]);
+    h += (HIGH_Y - h) * ss(0.16, 0.42, cw[C.HIGH]);
     if (!this.flatX) {
       h += (0.85 - h) * ss(0.2, 0.8, cw[C.BOULD]);
       h += (1.8 - h) * ss(0.18, 0.82, cw[C.TALUS]);
@@ -245,7 +267,7 @@
     const A = this.A;
     const nx = this.EW * F + 1, ny = this.EH * F + 1, n = nx * ny;
     const f = { F, nx, ny, h: new Float32Array(n) };
-    const names = ["road", "secret", "water", "rock", "high", "mill", "talus", "cliff", "bould", "flat", "wild", "field", "grass"];
+    const names = ["road", "secret", "water", "rock", "high", "mill", "talus", "cliff", "bould", "flat", "wild", "field", "grass", "tide"];
     for (const k of names) f[k] = new Float32Array(n);
     const cw = new Float32Array(NC);
     for (let gy = 0; gy < ny; gy++) {
@@ -267,9 +289,52 @@
         f.wild[k] = cw[C.WILD];
         f.field[k] = cw[C.FIELD];
         f.grass[k] = cw[C.GRASS];
+        f.tide[k] = cw[C.TIDE];
       }
     }
+    if (this.hasTide()) this.tideOrder(f);
     return f;
+  };
+  Field.prototype.hasTide = function () {
+    for (let j = 0; j < MH; j++) if (this.grid[j].includes("m")) return true;
+    return false;
+  };
+  /**
+   * Ordre de découvrement de l'estran (grille fine, 0..1) : distance à l'eau permanente, rapportée à
+   * 1,6 case. À marée descendante, le sable sort d'abord loin de l'eau (côté terre), puis la ligne
+   * d'eau recule vers le large ; à marée montante, l'inverse. Distance de chanfrein en deux passes.
+   */
+  Field.prototype.tideOrder = function (f) {
+    const nx = f.nx, ny = f.ny, n = nx * ny, F = f.F;
+    const d = new Float32Array(n);
+    for (let k = 0; k < n; k++) d[k] = f.water[k] > 0.5 && f.tide[k] < 0.5 ? 0 : 1e6;
+    const a = 1, b = Math.SQRT2;
+    for (let y = 0; y < ny; y++)
+      for (let x = 0; x < nx; x++) {
+        const k = y * nx + x;
+        let v = d[k];
+        if (x > 0) v = Math.min(v, d[k - 1] + a);
+        if (y > 0) {
+          v = Math.min(v, d[k - nx] + a);
+          if (x > 0) v = Math.min(v, d[k - nx - 1] + b);
+          if (x < nx - 1) v = Math.min(v, d[k - nx + 1] + b);
+        }
+        d[k] = v;
+      }
+    for (let y = ny - 1; y >= 0; y--)
+      for (let x = nx - 1; x >= 0; x--) {
+        const k = y * nx + x;
+        let v = d[k];
+        if (x < nx - 1) v = Math.min(v, d[k + 1] + a);
+        if (y < ny - 1) {
+          v = Math.min(v, d[k + nx] + a);
+          if (x < nx - 1) v = Math.min(v, d[k + nx + 1] + b);
+          if (x > 0) v = Math.min(v, d[k + nx - 1] + b);
+        }
+        d[k] = v;
+      }
+    const order = (f.tideOrder = new Float32Array(n));
+    for (let k = 0; k < n; k++) order[k] = clamp(d[k] / (1.6 * F), 0, 1);
   };
   MK.Field = Field;
 
@@ -370,6 +435,121 @@
   }
   MK.regionPath = regionPath;
   MK.contourSegs = contourSegs;
+
+  /* ------------------------------------------------------------------ trajets types */
+  /** Flaque de l'estran en (x, y) cases : le même bruit sert à la peinture et au masque de l'eau. */
+  MK.puddleV = (x, y) => vnoise(x * 1.9 + 3.3, y * 1.9 + 8.1, 51) * 0.75 + vnoise(x * 5.3, y * 5.3, 52) * 0.25;
+  MK.puddle = (x, y) => MK.puddleV(x, y) > 0.66;
+  const RADIUS = 0.2;
+  /**
+   * Trajets types des ennemis (polylignes en cases) : depuis chaque entrée (barrières comprises),
+   * quelques marcheurs virtuels suivent le champ d'écoulement de la simulation (PTMT.sim.Grid) vers
+   * chaque cachette en gardant leur voie dans la largeur de la route, exactement comme les vrais
+   * (même pente, même voie, même glissement le long des bords). Leurs traces deviennent ornières,
+   * sentes et empreintes. Sans simulation chargée : aucun trajet.
+   */
+  MK.walkLine = function (g, f, x, y, lane, mode, maxLen, out, wobble) {
+    const GW = g.w;
+    const lane0 = lane;
+    const tmp = { x: 0, y: 0 };
+    out = out || [];
+    out.length = 0;
+    out.push(x, y);
+    let len = 0, lx = x, ly = y;
+    const dt = 0.06;
+    for (let s = 0; s < 2400 && len < maxLen; s++) {
+      const ti = Math.floor(x), tj = Math.floor(y);
+      if (!g.inside(ti, tj)) {
+        // départ un peu hors de la carte (montgolfières, bords) : on entre droit
+        const p = g.nearestPassable(x, y, mode);
+        if (!p) break;
+        const dx = p[0] - x, dy = p[1] - y, d = Math.hypot(dx, dy) || 1;
+        x += (dx / d) * dt;
+        y += (dy / d) * dt;
+        continue;
+      }
+      const idx = tj * GW + ti;
+      if (!g.passable(ti, tj, mode) || f.D[idx] >= 1e8) break;
+      if (f.D[idx] === 0) break;
+      if (wobble) lane = clamp(lane0 + wobble * Math.sin(len * 0.42 + lane0 * 5.1) + wobble * 0.5 * Math.sin(len * 1.13 + 1.7), -1, 1);
+      let fx, fy;
+      if (g.flowAt(f, x, y, tmp)) {
+        fx = tmp.x;
+        fy = tmp.y;
+      } else break;
+      let lat = 0, nx = -fy, ny = fx;
+      const tfx = f.F[idx * 2], tfy = f.F[idx * 2 + 1];
+      if (tfx || tfy) {
+        nx = -tfy;
+        ny = tfx;
+        const off = (x - ti - 0.5) * nx + (y - tj - 0.5) * ny;
+        const Lp = f.Lp[idx], Ln = f.Ln[idx];
+        const hw = (Lp + Ln) / 2;
+        const target = (Lp - Ln) / 2 + lane * Math.max(0, hw - 0.42);
+        lat = clamp((target - off) * 1.6, -0.9, 0.9);
+      }
+      let vx = fx + nx * lat, vy = fy + ny * lat;
+      let l = Math.hypot(vx, vy) || 1;
+      if (lat && !g.passable(Math.floor(x + (vx / l) * 0.45), Math.floor(y + (vy / l) * 0.45), mode)) {
+        vx = fx;
+        vy = fy;
+        l = 1;
+      }
+      let x1 = x + (vx / l) * dt, y1 = y + (vy / l) * dt;
+      if (!g.passable(Math.floor(x1), Math.floor(y1), mode)) {
+        if (g.passable(Math.floor(x1), Math.floor(y), mode)) y1 = y;
+        else if (g.passable(Math.floor(x), Math.floor(y1), mode)) x1 = x;
+        else break;
+      }
+      const i = Math.floor(x1), j = Math.floor(y1);
+      if (!g.passable(i - 1, j, mode)) x1 = Math.max(x1, i + RADIUS);
+      if (!g.passable(i + 1, j, mode)) x1 = Math.min(x1, i + 1 - RADIUS);
+      if (!g.passable(i, j - 1, mode)) y1 = Math.max(y1, j + RADIUS);
+      if (!g.passable(i, j + 1, mode)) y1 = Math.min(y1, j + 1 - RADIUS);
+      const moved = Math.hypot(x1 - x, y1 - y);
+      if (moved < dt * 0.05) break;
+      x = x1;
+      y = y1;
+      len += moved;
+      if (Math.hypot(x - lx, y - ly) >= 0.12) {
+        out.push(x, y);
+        lx = x;
+        ly = y;
+      }
+    }
+    if (out[out.length - 2] !== x || out[out.length - 1] !== y) out.push(x, y);
+    return out;
+  };
+  MK.trafficLines = function (map) {
+    const S = PTMT.sim;
+    if (!S || !S.Grid || !S.DATA || !map || !map.grid) return [];
+    let g;
+    try {
+      // les barrières comptent comme des entrées (la route existe déjà derrière elles)
+      g = new S.Grid(Object.assign({}, map, { grid: map.grid.map((r) => r.replace(/g/g, "E")), gates: [] }));
+    } catch (e) {
+      return [];
+    }
+    const out = [];
+    const rng = PTMT.rng(((map.id || 1) * 131) | 0);
+    for (const e of g.entrances) {
+      const w = e.tiles.length;
+      // ornières de charrette (0) sur une voie au hasard, sente tassée (1) au milieu, empreintes (2)
+      const plan = w <= 1 ? [[0, -0.3], [2, 0.35]] : [[0, -0.55 + rng() * 0.3], [1, (rng() - 0.5) * 0.3], [2, 0.5 + rng() * 0.3], [0, 0.4 + rng() * 0.3]];
+      for (const L of g.lairs) {
+        const f = g.toLair(L.id, "walk");
+        // départ : le milieu de l'entrée, au bord de la carte
+        const sx = e.x, sy = e.y;
+        if (g.at(f, Math.floor(sx), Math.floor(sy)) >= 1e8) continue;
+        for (const [kind, lane] of plan) {
+          const pts = MK.walkLine(g, f, sx + (rng() - 0.5) * 0.3, sy + (rng() - 0.5) * 0.3, lane, "walk", 90, [], kind === 1 ? 0.15 : 0.25 + rng() * 0.15);
+          if (pts.length < 6) continue;
+          out.push({ pts, kind });
+        }
+      }
+    }
+    return out;
+  };
 
   /* ------------------------------------------------------------------ peinture */
   function makeCanvas(w, h) {
@@ -886,30 +1066,129 @@
       }
     }
 
-    // 7. Chemins : faces des petites falaises, terre battue, ombre au pied, ornières, cailloux,
-    //    herbe qui déborde du plateau.
+    // 7. Estran (cases de marée) : sable mouillé, rides parallèles à la ligne d'eau, goémon,
+    //    coquillages, laisse de mer sur le haut de plage et flaques qui restent à marée basse.
+    if (fine.tideOrder) {
+      const ord = fine.tideOrder;
+      const sand = region(fine.tide, 0.3);
+      c.fillStyle = "#b29c70";
+      c.fill(sand);
+      c.save();
+      c.clip(sand);
+      c.globalAlpha = 0.45;
+      c.fillStyle = P_SAND;
+      c.fillRect(0, 0, W, H);
+      c.globalAlpha = 1;
+      // sable plus sombre et plus mouillé vers le large
+      for (let i = 0; i < EW * EH * 2; i++) {
+        const gx = rng() * EW - A, gy = rng() * EH - A;
+        if (at(fine.tide, gx, gy) < 0.2) continue;
+        const o = at(ord, gx, gy);
+        softDot(c, px(gx), px(gy), T * (0.25 + rng() * 0.45), o < 0.45 ? "rgba(70,66,52,0.22)" : "rgba(214,196,150,0.18)");
+      }
+      // rides : traits ondulés perpendiculaires à la pente de l'ordre de découvrement
+      c.lineCap = "round";
+      const step = 0.16;
+      for (let gy = -1; gy < MH + 1; gy += step)
+        for (let gx = -1; gx < MW + 1; gx += step) {
+          const x = gx + (rng() - 0.5) * step, y = gy + (rng() - 0.5) * step;
+          if (at(fine.tide, x, y) < 0.45) continue;
+          const dx = at(ord, x + 0.1, y) - at(ord, x - 0.1, y), dy = at(ord, x, y + 0.1) - at(ord, x, y - 0.1);
+          const l = Math.hypot(dx, dy);
+          const ux = l > 1e-4 ? -dy / l : 1, uy = l > 1e-4 ? dx / l : 0;
+          const len = T * (0.1 + rng() * 0.12);
+          const X = px(x), Y = px(y);
+          c.strokeStyle = rng() < 0.5 ? "rgba(84,72,50,0.32)" : "rgba(236,222,186,0.35)";
+          c.lineWidth = Math.max(1, T * 0.014);
+          c.beginPath();
+          c.moveTo(X - ux * len, Y - uy * len);
+          c.quadraticCurveTo(X + (uy * T * 0.02), Y - (ux * T * 0.02), X + ux * len, Y + uy * len);
+          c.stroke();
+        }
+      // flaques (même bruit que le masque de l'eau : elles restent pleines à marée basse)
+      const pud = derive((k) => (fine.tide[k] > 0.55 ? MK.puddleV((k % nx) / F - A, Math.floor(k / nx) / F - A) : 0));
+      c.fillStyle = "rgba(52,70,70,0.5)";
+      c.fill(region(pud, 0.66));
+      c.strokeStyle = "rgba(240,232,206,0.45)";
+      c.lineWidth = Math.max(1, T * 0.012);
+      c.stroke(segsPath(contour(pud, 0.665)));
+      // goémon (lanières sombres) et coquillages
+      for (let i = 0; i < EW * EH * 3; i++) {
+        const gx = rng() * EW - A, gy = rng() * EH - A;
+        if (at(fine.tide, gx, gy) < 0.5) continue;
+        const X = px(gx), Y = px(gy);
+        if (rng() < 0.55) {
+          c.strokeStyle = rng() < 0.5 ? "rgba(70,62,24,0.75)" : "rgba(92,84,30,0.7)";
+          c.lineWidth = Math.max(1, T * (0.012 + rng() * 0.01));
+          let a = rng() * 6.28, x = X, y = Y;
+          c.beginPath();
+          c.moveTo(x, y);
+          for (let q = 0; q < 4; q++) {
+            a += (rng() - 0.5) * 1.2;
+            x += Math.cos(a) * T * 0.04;
+            y += Math.sin(a) * T * 0.04;
+            c.lineTo(x, y);
+          }
+          c.stroke();
+        } else {
+          c.fillStyle = rng() < 0.6 ? "rgba(255,248,236,0.9)" : "rgba(255,196,180,0.85)";
+          c.beginPath();
+          c.ellipse(X, Y, T * 0.012, T * 0.009, rng() * 3, 0, Math.PI * 2);
+          c.fill();
+        }
+      }
+      c.restore();
+      // laisse de mer : liseré de goémon sec le long du haut de plage
+      const wrack = contour(derive((k) => fine.tide[k] * (ord[k] > 0.55 ? 1 : 0)), 0.3);
+      c.lineCap = "round";
+      for (let i = 0; i < wrack.length; i += 4) {
+        if (rng() < 0.3) continue;
+        c.strokeStyle = rng() < 0.5 ? "rgba(60,50,24,0.7)" : "rgba(96,84,40,0.6)";
+        c.lineWidth = Math.max(1.2, T * 0.02);
+        c.beginPath();
+        c.moveTo(wrack[i], wrack[i + 1]);
+        c.lineTo(wrack[i + 2] + (rng() - 0.5) * T * 0.05, wrack[i + 3] + (rng() - 0.5) * T * 0.05);
+        c.stroke();
+      }
+    }
+
+    // 8. Routes larges : faces des petites falaises (nettes, pierreuses), grande surface de terre
+    //    battue aux tons variés, ombre au pied des falaises, traces des vrais trajets des ennemis
+    //    (ornières de charrettes, sentes tassées, empreintes), cailloux, herbe sur les parties peu
+    //    fréquentées, herbe qui déborde du plateau.
     {
-      const others = (k) => clamp(fine.high[k] + fine.talus[k] + fine.cliff[k] + fine.water[k] * 2, 0, 1);
+      const others = (k) => clamp(fine.high[k] + fine.talus[k] + fine.cliff[k] + fine.water[k] * 2 + fine.tide[k] * 2, 0, 1);
       const face = derive((k) => fine.road[k] * (1 - others(k)));
-      const facePath = region(face, 0.34);
-      c.fillStyle = "#7a5534";
+      const facePath = region(face, 0.3);
+      c.fillStyle = "#6e4c30";
       c.fill(facePath);
       c.save();
       c.clip(facePath);
-      for (let i = 0; i < 2600; i++) {
-        const x = rng() * W, y = rng() * H;
-        const v = at(face, x / T - A, y / T - A);
-        if (v < 0.34 || v > 0.64) continue;
-        const r = T * (0.012 + rng() * 0.022);
-        c.fillStyle = rng() < 0.6 ? "rgba(168,148,118,0.75)" : "rgba(58,36,20,0.6)";
+      // pierres de la paroi (grosses, sombres en bas, claires en haut)
+      for (let i = 0; i < EW * EH * 14; i++) {
+        const gx = rng() * EW - A, gy = rng() * EH - A;
+        const v = at(face, gx, gy);
+        if (v < 0.3 || v > 0.62) continue;
+        const k = (v - 0.3) / 0.32;
+        const x = px(gx), y = px(gy), r = T * (0.018 + rng() * 0.026);
+        c.fillStyle = k < 0.5 ? (rng() < 0.6 ? "rgba(150,132,108,0.85)" : "rgba(118,98,76,0.85)") : rng() < 0.5 ? "rgba(96,74,52,0.8)" : "rgba(64,44,28,0.75)";
         c.beginPath();
-        c.ellipse(x, y, r, r * 0.7, rng() * 3, 0, Math.PI * 2);
+        c.ellipse(x, y, r, r * 0.72, rng() * 3, 0, Math.PI * 2);
         c.fill();
       }
       c.restore();
       const floor = region(fine.road, 0.6);
       c.fillStyle = P_DIRT;
       c.fill(floor);
+      c.save();
+      c.clip(floor);
+      // grandes nuances de la terre battue : plaques tassées claires, zones humides plus sombres
+      for (let i = 0; i < EW * EH * 0.9; i++) {
+        const gx = rng() * EW - A, gy = rng() * EH - A;
+        if (at(fine.road, gx, gy) < 0.5) continue;
+        const r = T * (0.5 + rng() * 1.1), q = rng();
+        softDot(c, px(gx), px(gy), r, q < 0.45 ? "rgba(236,204,150,0.2)" : q < 0.8 ? "rgba(132,92,52,0.16)" : "rgba(150,120,70,0.14)");
+      }
       // passage secret : sentier envahi
       c.save();
       c.clip(region(fine.secret, 0.5));
@@ -918,66 +1197,98 @@
       c.fillRect(0, 0, W, H);
       c.globalAlpha = 1;
       c.restore();
-      // ombre au pied des falaises
-      c.save();
-      c.clip(floor);
-      c.strokeStyle = "rgba(70,40,16,0.4)";
-      c.lineWidth = T * 0.13;
-      c.stroke(segsPath(contour(face, 0.6)));
-      c.strokeStyle = "rgba(70,40,16,0.3)";
-      c.lineWidth = T * 0.05;
-      c.stroke(segsPath(contour(face, 0.6)));
-      c.restore();
-      // ornières : deux bandes sombres le long de l'axe du chemin (virages arrondis)
-      const ruts = makeCanvas(W, H), r = ruts.getContext("2d");
-      const road = (i, j) => field.clsAt(i, j) === C.ROAD || field.charAt(i, j) === "=";
-      const axis = new Path2D();
-      for (let j = -A; j < MH + A; j++)
-        for (let i = -A; i < MW + A; i++) {
-          if (field.clsAt(i, j) !== C.ROAD) continue;
-          const n = road(i, j - 1), e2 = road(i + 1, j), s2 = road(i, j + 1), w2 = road(i - 1, j);
-          const cnt = n + e2 + s2 + w2;
-          const cx = px(i + 0.5), cy = px(j + 0.5), h = T / 2;
-          const bend = cnt === 2 && !(n && s2) && !(e2 && w2);
-          if (bend) {
-            // quart de cercle centré sur le coin commun aux deux côtés reliés
-            const kx = e2 ? 1 : -1, ky = s2 ? 1 : -1;
-            const ox = cx + kx * h, oy = cy + ky * h;
-            const a0 = kx > 0 ? Math.PI : 0, a1 = ky > 0 ? -Math.PI / 2 : Math.PI / 2;
-            let d = a1 - a0;
-            while (d > Math.PI) d -= Math.PI * 2;
-            while (d <= -Math.PI) d += Math.PI * 2;
-            axis.moveTo(ox + Math.cos(a0) * h, oy + Math.sin(a0) * h);
-            axis.arc(ox, oy, h, a0, a0 + d, d < 0);
-            continue;
-          }
-          if (n) { axis.moveTo(cx, cy); axis.lineTo(cx, cy - h); }
-          if (s2) { axis.moveTo(cx, cy); axis.lineTo(cx, cy + h); }
-          if (e2) { axis.moveTo(cx, cy); axis.lineTo(cx + h, cy); }
-          if (w2) { axis.moveTo(cx, cy); axis.lineTo(cx - h, cy); }
+      // ombre au pied des falaises (franche contre la paroi, puis fondue)
+      c.strokeStyle = "rgba(60,34,14,0.42)";
+      c.lineWidth = T * 0.16;
+      c.stroke(segsPath(contour(face, 0.62)));
+      c.strokeStyle = "rgba(52,28,10,0.38)";
+      c.lineWidth = T * 0.06;
+      c.stroke(segsPath(contour(face, 0.62)));
+      // traces des trajets : sentes, ornières, empreintes (les couloirs les plus suivis s'usent)
+      const tracks = opts.tracks || [];
+      const busy = new Uint8Array(nx * ny);
+      const mark = (x, y, r) => {
+        const gx0 = Math.round((x + A) * F), gy0 = Math.round((y + A) * F), rr = Math.ceil(r * F);
+        for (let yy = gy0 - rr; yy <= gy0 + rr; yy++)
+          for (let xx = gx0 - rr; xx <= gx0 + rr; xx++) if (xx >= 0 && yy >= 0 && xx < nx && yy < ny) busy[yy * nx + xx] = 1;
+      };
+      const linePath = (pts, off) => {
+        const P2 = new Path2D();
+        for (let k = 0; k < pts.length; k += 2) {
+          const k0 = Math.max(0, k - 2), k1 = Math.min(pts.length - 2, k + 2);
+          let tx = pts[k1] - pts[k0], ty = pts[k1 + 1] - pts[k0 + 1];
+          const l = Math.hypot(tx, ty) || 1;
+          tx /= l;
+          ty /= l;
+          const X = px(pts[k] - ty * off), Y = px(pts[k + 1] + tx * off);
+          if (k) P2.lineTo(X, Y);
+          else P2.moveTo(X, Y);
         }
-      r.lineCap = r.lineJoin = "round";
-      r.strokeStyle = "rgba(96,62,30,1)";
-      r.lineWidth = T * 0.5;
-      r.stroke(axis);
-      r.globalCompositeOperation = "destination-out";
-      r.lineWidth = T * 0.3;
-      r.stroke(axis);
-      c.save();
-      c.clip(floor);
-      c.globalAlpha = 0.3;
-      c.drawImage(ruts, 0, 0);
-      c.globalAlpha = 1;
-      // bande d'herbe clairsemée au milieu
-      c.strokeStyle = "rgba(120,150,60,0.18)";
-      c.lineWidth = T * 0.07;
-      c.stroke(axis);
-      c.restore();
-      // cailloux
-      for (let i = 0; i < EW * EH * 3; i++) {
-        const x = rng() * W, y = rng() * H;
-        if (at(fine.road, x / T - A, y / T - A) < 0.75) continue;
-        const rr = T * (0.015 + rng() * 0.03);
+        return P2;
+      };
+      c.lineCap = c.lineJoin = "round";
+      // usure générale des couloirs (bande large, à peine plus sombre)
+      for (const t of tracks) {
+        c.strokeStyle = "rgba(120,82,44,0.05)";
+        c.lineWidth = T * 0.7;
+        c.stroke(linePath(t.pts, 0));
+      }
+      tracks.forEach((t, n) => {
+        const pts = t.pts;
+        for (let k = 0; k < pts.length; k += 6) mark(pts[k], pts[k + 1], 0.32);
+        const kind = t.kind;
+        if (kind === 0) {
+          // ornières : deux sillons sombres et doux (essieu d'une charrette, ≈ 1 m), interrompus par
+          // endroits (sol plus dur, flaques séchées)
+          const r3 = PTMT.rng(field.seed + 57 * n);
+          for (const s of [-1, 1]) {
+            c.setLineDash([T * (0.9 + r3() * 1.4), T * (0.12 + r3() * 0.3), T * (0.4 + r3() * 0.8), T * (0.2 + r3() * 0.4)]);
+            c.lineDashOffset = r3() * T * 3;
+            c.strokeStyle = "rgba(96,62,30,0.12)";
+            c.lineWidth = T * 0.075;
+            c.stroke(linePath(pts, s * 0.14));
+            c.strokeStyle = "rgba(78,48,22,0.22)";
+            c.lineWidth = T * 0.024;
+            c.stroke(linePath(pts, s * 0.14));
+          }
+          c.setLineDash([]);
+        } else if (kind === 1) {
+          // sente tassée : bande claire et lisse
+          c.strokeStyle = "rgba(244,218,170,0.16)";
+          c.lineWidth = T * 0.36;
+          c.stroke(linePath(pts, 0));
+        } else {
+          // empreintes (pas, sabots), alternées de part et d'autre de la trace
+          const r2 = PTMT.rng(field.seed + 31 * n);
+          let acc = 0, side = 1;
+          for (let k = 2; k < pts.length; k += 2) {
+            const dx = pts[k] - pts[k - 2], dy = pts[k + 1] - pts[k - 1];
+            acc += Math.hypot(dx, dy);
+            if (acc < 0.16) continue;
+            acc = 0;
+            side = -side;
+            const l = Math.hypot(dx, dy) || 1;
+            const X = px(pts[k] - (dy / l) * 0.05 * side), Y = px(pts[k + 1] + (dx / l) * 0.05 * side);
+            c.fillStyle = "rgba(86,56,28,0.34)";
+            c.beginPath();
+            c.ellipse(X, Y, T * 0.026, T * 0.016, Math.atan2(dy, dx), 0, Math.PI * 2);
+            c.fill();
+            if (r2() < 0.3) {
+              c.fillStyle = "rgba(240,220,180,0.3)";
+              c.beginPath();
+              c.ellipse(X + T * 0.01, Y - T * 0.01, T * 0.014, T * 0.008, Math.atan2(dy, dx), 0, Math.PI * 2);
+              c.fill();
+            }
+          }
+        }
+      });
+      // cailloux (moins nombreux sur les couloirs les plus suivis)
+      for (let i = 0; i < EW * EH * 4; i++) {
+        const gx = rng() * EW - A, gy = rng() * EH - A;
+        if (at(fine.road, gx, gy) < 0.75) continue;
+        const gk = Math.round((gy + A) * F) * nx + Math.round((gx + A) * F);
+        if (busy[gk] && rng() < 0.7) continue;
+        const x = px(gx), y = px(gy), rr = T * (0.015 + rng() * 0.03);
         c.fillStyle = "rgba(90,60,30,0.45)";
         c.beginPath();
         c.ellipse(x + rr * 0.3, y + rr * 0.4, rr, rr * 0.7, 0, 0, Math.PI * 2);
@@ -987,14 +1298,51 @@
         c.ellipse(x, y, rr, rr * 0.7, 0, 0, Math.PI * 2);
         c.fill();
       }
+      // herbe qui repousse là où l'on passe peu (touffes, petites fleurs)
+      if (tracks.length)
+        for (let i = 0; i < EW * EH * 5; i++) {
+          const gx = rng() * EW - A, gy = rng() * EH - A;
+          if (at(fine.road, gx, gy) < 0.8) continue;
+          const gk = Math.round((gy + A) * F) * nx + Math.round((gx + A) * F);
+          if (busy[gk] || !inMap(gx, gy)) continue;
+          const x = px(gx), y = px(gy);
+          c.strokeStyle = rng() < 0.5 ? "rgba(92,140,48,0.8)" : "rgba(120,160,60,0.75)";
+          c.lineWidth = Math.max(1, T * 0.012);
+          for (let q = 0; q < 4; q++) {
+            c.beginPath();
+            c.moveTo(x, y);
+            c.lineTo(x + (q - 1.5) * T * 0.016 + (rng() - 0.5) * T * 0.01, y - T * (0.035 + rng() * 0.035));
+            c.stroke();
+          }
+          if (rng() < 0.15) {
+            c.fillStyle = rng() < 0.5 ? "#fff6d8" : "#ffe14a";
+            c.beginPath();
+            c.arc(x + T * 0.01, y - T * 0.05, T * 0.012, 0, Math.PI * 2);
+            c.fill();
+          }
+        }
+      // pied des cachettes : terre piétinée tout autour
+      for (const L of opts.lairs || []) {
+        const g = c.createRadialGradient(px(L.x), px(L.y), T * 0.5, px(L.x), px(L.y), T * 1.45);
+        g.addColorStop(0, "rgba(96,64,36,0.32)");
+        g.addColorStop(1, "rgba(96,64,36,0)");
+        c.fillStyle = g;
+        c.fillRect(px(L.x) - T * 1.5, px(L.y) - T * 1.5, T * 3, T * 3);
+      }
+      c.restore();
+      // liseré sombre au haut des falaises (le bord du plateau se lit net)
+      c.strokeStyle = "rgba(48,32,18,0.55)";
+      c.lineWidth = Math.max(1.2, T * 0.022);
+      c.stroke(segsPath(contour(face, 0.3)));
       // herbe qui retombe sur le bord des falaises
-      const lip = contour(face, 0.36);
+      const lip = contour(face, 0.32);
       const cols = ["#5c9434", "#6fa83d", "#86bd4a", "#4c8330"];
       c.lineCap = "round";
       for (let i = 0; i < lip.length; i += 4) {
         const x0 = lip[i], y0 = lip[i + 1], x1 = lip[i + 2], y1 = lip[i + 3];
         const gx = x0 / T - A, gy = y0 / T - A;
         if (!inMap(gx, gy) && rng() < 0.5) continue;
+        if (at(fine.rock, gx, gy) > 0.3 && rng() < 0.7) continue;
         // direction vers le chemin (gradient du champ)
         const dx = at(face, gx + 0.05, gy) - at(face, gx - 0.05, gy), dy = at(face, gx, gy + 0.05) - at(face, gx, gy - 0.05);
         const l = Math.hypot(dx, dy) || 1;
@@ -1012,22 +1360,6 @@
         }
       }
     }
-
-    // 8. Parvis pavé devant le moulin (case L).
-    for (let j = 0; j < MH; j++)
-      for (let i = 0; i < MW; i++) {
-        if (field.grid[j][i] !== "L") continue;
-        const x = px(i + 0.5), y = px(j + 0.5);
-        c.save();
-        c.beginPath();
-        c.arc(x, y, T * 0.46, 0, Math.PI * 2);
-        c.fillStyle = P_COBBLE;
-        c.fill();
-        c.strokeStyle = "rgba(70,56,40,0.7)";
-        c.lineWidth = Math.max(1.5, T * 0.03);
-        c.stroke();
-        c.restore();
-      }
 
     // 9. Menhirs : cercle de pierres gravé de runes (runes lumineuses dans l'émission).
     for (const [mi, mj] of field.map.mana || []) {
@@ -1127,7 +1459,7 @@
     // Masque des sols pour la texture de détail : r herbe, g terre, b roche (grille fine).
     const mask = new Uint8Array(nx * ny * 4);
     for (let k = 0; k < nx * ny; k++) {
-      const dirt = clamp(fine.road[k] + fine.mill[k] + fine.flat[k] * 0.6 + fine.field[k] * 0.5 + (fine.water[k] > 0.02 && fine.h[k] < 0.3 ? 0.8 : 0), 0, 1);
+      const dirt = clamp(fine.road[k] + fine.mill[k] + fine.flat[k] * 0.6 + fine.field[k] * 0.5 + fine.tide[k] + (fine.water[k] > 0.02 && fine.h[k] < 0.3 ? 0.8 : 0), 0, 1);
       const rock = clamp(fine.rock[k] + fine.cliff[k] + fine.bould[k] * 0.8, 0, 1) * (1 - dirt);
       const grass = clamp(1 - dirt - rock, 0, 1);
       mask[k * 4] = grass * 255;
@@ -1496,12 +1828,15 @@
     TREE_GEO.set(key, g);
     return g;
   };
+  // Horloge des matières d'arbres : partagée par toutes les cartes (les matières sont gardées d'une
+  // carte à l'autre ; une horloge propre à la première carte s'arrêterait avec elle).
+  const TREE_TIME = (MK.treeTime = { value: 0 });
   /** Matière des arbres : couleurs par sommet (et par instance), balancement au vent. */
-  MK.treeMaterial = function (key, uTime) {
+  MK.treeMaterial = function (key) {
     return PTMT.mat("view:tree:" + key, () => {
       const m = new THREE.MeshLambertMaterial({ vertexColors: true });
       m.onBeforeCompile = (sh) => {
-        sh.uniforms.uTime = uTime;
+        sh.uniforms.uTime = TREE_TIME;
         sh.vertexShader = sh.vertexShader
           .replace("#include <common>", "#include <common>\nattribute float sway;\nuniform float uTime;")
           .replace(
@@ -1537,15 +1872,26 @@
     this.animated = [];
     this.uTime = { value: 0 };
     const t0 = performance.now();
-    const field = (this.field = new Field(this.map, { flatX: typeof (PTMT.models && PTMT.models.decorBatch) === "function" }));
+    const M = PTMT.models || {};
+    this.nativeButte = typeof M.highGround === "function";
+    const field = (this.field = new Field(this.map, { flatX: typeof M.decorBatch === "function", flatH: this.nativeButte }));
     field.buildHeights(this.high ? 8 : 6);
     this.fine = field.buildFine(this.mobile ? 12 : 16);
     this.timings = { field: performance.now() - t0 };
+    // cachettes et entrées de la carte (mêmes numéros, lettres et couleurs que la simulation)
+    this.places = MK.mapPlaces ? MK.mapPlaces(this.map) : { lairs: [], entrances: [] };
+    this.highTop = new Map();
+    // marée : 0 = haute (l'estran est sous l'eau), 1 = basse ; animée vers sa consigne
+    this.tideLevel = 0;
+    this.tideTarget = 0;
     this.ov = MK.makeOverlayUniforms();
     this.disposables.push(this.ov.uTiles.value);
     const tp = performance.now();
     const T = o.texPerTile || (this.mobile ? 52 : this.high ? 72 : 60);
-    this.paint = MK.paint(field, this.fine, T, { mobile: this.mobile });
+    const tt = performance.now();
+    const tracks = MK.trafficLines(this.map);
+    this.timings.tracks = performance.now() - tt;
+    this.paint = MK.paint(field, this.fine, T, { mobile: this.mobile, tracks, lairs: this.places.lairs });
     this.timings.paint = performance.now() - tp;
     this.buildTextures();
     this.buildLights();
@@ -1554,6 +1900,10 @@
     this.buildBridges();
     this.buildBackground();
     this.buildObjects();
+    // maillages immobiles regroupés (render/18-batch.js) : moins d'appels de dessin
+    const tb = performance.now();
+    if (this.batchStatic) this.batchStatic();
+    this.timings.batch = performance.now() - tb;
     this.timings.total = performance.now() - t0;
   }
   const W = World.prototype;
@@ -1565,11 +1915,15 @@
   W.heightAt = function (x, y) {
     return this.field.heightAt(x, y);
   };
-  /** Dessus d'une case (m) : herbe/roche ≈ 0,45, butte ≈ 1,3, eau = surface, pont = tablier. */
+  /** Dessus d'une case (m) : herbe/roche ≈ 0,45, butte ≈ 1,3 (dessus du socle), eau = surface, pont = tablier. */
   W.tileTop = function (i, j) {
     const ch = this.field.charAt(i, j);
     if (ch === "~" || ch === "w") return WATER_Y;
     if (ch === "=") return DECK_Y;
+    if (ch === "H" || ch === "h") {
+      const top = this.highTop.get(i + "," + j);
+      if (top !== undefined) return top;
+    }
     return this.field.heightAt(i + 0.5, j + 0.5);
   };
   /** Sol où l'on marche en (x, y) : tablier des ponts, surface de l'eau pour les nageurs. */
@@ -1601,13 +1955,19 @@
     const mask = new THREE.DataTexture(p.mask, p.maskW, p.maskH, THREE.RGBAFormat);
     mask.magFilter = mask.minFilter = THREE.LinearFilter;
     mask.needsUpdate = true;
-    // profondeur de l'eau : hauteur du relief sur la grille fine (−1,2 … +0,6 m)
-    const f = this.fine, n = f.nx * f.ny;
+    // lit de l'eau (grille fine) : r = hauteur du relief (−1,2 … +0,6 m) ; marée : g = estran,
+    // b = ordre de découvrement (0 au bord de l'eau, 1 côté terre), a = flaques qui restent
+    const f = this.fine, n = f.nx * f.ny, A0 = this.field.A;
     const bed = new Uint8Array(n * 4);
+    const ord = f.tideOrder;
     for (let k = 0; k < n; k++) {
-      const v = clamp((f.h[k] + 1.2) / 1.8, 0, 1) * 255;
-      bed[k * 4] = bed[k * 4 + 1] = bed[k * 4 + 2] = v;
-      bed[k * 4 + 3] = 255;
+      bed[k * 4] = clamp((f.h[k] + 1.2) / 1.8, 0, 1) * 255;
+      if (ord && f.tide[k] > 0.01) {
+        const x = (k % f.nx) / f.F - A0, y = Math.floor(k / f.nx) / f.F - A0;
+        bed[k * 4 + 1] = clamp(f.tide[k] * 1.6, 0, 1) * 255;
+        bed[k * 4 + 2] = ord[k] * 255;
+        bed[k * 4 + 3] = clamp((MK.puddleV(x, y) - 0.64) / 0.05, 0, 1) * 255;
+      } else bed[k * 4 + 3] = 0;
     }
     const bedTex = new THREE.DataTexture(bed, f.nx, f.ny, THREE.RGBAFormat);
     bedTex.magFilter = bedTex.minFilter = THREE.LinearFilter;
@@ -1916,6 +2276,7 @@
         uShallow: { value: lin("#5cc6b8") },
         uDeep: { value: lin("#155a78") },
         uFoam: { value: lin("#f4fbf6") },
+        uTide: { value: this.tideLevel },
       },
       this.ov,
     ));
@@ -1932,7 +2293,7 @@
           gl_Position = projectionMatrix * viewMatrix * w;
         }`,
       fragmentShader: /* glsl */ `
-        uniform float uTime;
+        uniform float uTime, uTide;
         uniform sampler2D uBed, uNoise, uShadowTex;
         uniform vec4 uExtent;
         uniform vec3 uSun, uSunCol, uSky, uShallow, uDeep, uFoam;
@@ -1940,8 +2301,14 @@
         ${MK.OVERLAY_GLSL}
         void main() {
           vec2 uv = (vW.xz - uExtent.xy) / uExtent.zw;
-          float bed = texture2D(uBed, uv).r * 1.8 - 1.2;
+          vec4 bt = texture2D(uBed, uv);
+          float bed = bt.r * 1.8 - 1.2;
           float depth = max(0.0, -0.25 - bed);
+          // marée : sur l'estran (bt.g), l'eau se retire du côté de la terre (ordre bt.b élevé) vers le
+          // large quand uTide va de 0 (haute) à 1 (basse) ; les flaques (bt.a) restent pleines
+          float front = 1.08 - uTide * 1.1;
+          float dryK = bt.g * smoothstep(front - 0.05, front + 0.03, bt.b) * (1.0 - bt.a);
+          float tideLine = bt.g * (1.0 - smoothstep(0.0, 0.09, abs(bt.b - front + 0.03))) * smoothstep(0.0, 0.04, uTide) * (1.0 - smoothstep(0.96, 1.0, uTide));
           float ph = fract(uTime * 0.12);
           float bl = abs(1.0 - 2.0 * ph);
           vec2 p1 = vW.xz - vFlow * ph * 8.0;
@@ -1973,11 +2340,17 @@
           col *= mix(0.6, 1.0, texture2D(uShadowTex, uv).r);
           float alpha = mix(0.66, 0.94, deep);
           alpha = max(alpha, foam);
+          // estran découvert : plus d'eau ; ligne d'écume qui avance ou recule pendant la marée
+          alpha *= 1.0 - dryK;
+          float tl = tideLine * (0.7 + 0.3 * na.a);
+          col = mix(col, uFoam, clamp(tl * 1.4, 0.0, 0.97));
+          alpha = max(alpha, tl * 0.95);
           vec2 ptOut = max(max(uMapRect.xy - vW.xz, vW.xz - uMapRect.zw), 0.0);
           col *= mix(1.0, 0.5, smoothstep(0.0, 13.0, length(ptOut)));
           vec4 ov = ptOverlay(vW.xz);
           col = mix(col, ov.rgb, ov.a);
-          alpha = max(alpha, ov.a);
+          alpha = max(alpha, ov.a * (1.0 - dryK));
+          if (alpha < 0.004) discard;
           gl_FragColor = vec4(col, alpha);
           #include <tonemapping_fragment>
           #include <encodings_fragment>
@@ -2047,6 +2420,7 @@
     const mat = PTMT.mat("view:bridge", () => new THREE.MeshLambertMaterial({ vertexColors: true }));
     const mesh = new THREE.Mesh(g, mat);
     mesh.name = "Ponts";
+    mesh.userData.batch = "plain";
     mesh.castShadow = this.high;
     mesh.receiveShadow = true;
     this.root.add(mesh);
@@ -2203,7 +2577,7 @@
     }
   }
   MK.tryModel = tryModel;
-  const GEM_HEX = ["#e8324e", "#2fd26c", "#3b7dff", "#a65cff", "#ffc42a", "#eaf7ff"];
+  const GEM_HEX = ["#ff2b45", "#2df27c", "#4290ff", "#c95cff", "#ffa524", "#e8fbff"];
   MK.GEM_HEX = GEM_HEX;
 
   /* ------------------------------------------------------------------ taches d'ombre douces */
@@ -2332,7 +2706,7 @@
       if (!byKey.has(key)) byKey.set(key, []);
       byKey.get(key).push(sl);
     }
-    const mat = MK.treeMaterial("forest", world.uTime);
+    const mat = MK.treeMaterial("forest");
     this.meshes = [];
     for (const [key, arr] of byKey) {
       const [sp, v] = key.split(":");
@@ -2440,16 +2814,19 @@
     }
   };
 
-  /* ------------------------------------------------------------------ arbres, décor, repaire… */
+  /* ------------------------------------------------------------------ arbres, décor, cachettes… */
   W.buildObjects = function () {
     this.buildBlobs();
+    // buttes d'abord : leur dessus sert aux forêts des cases « h » et aux tours
+    if (this.buildButtes) this.buildButtes();
     this.buildForests();
     this.buildApronTrees();
     this.buildButteRocks();
     this.buildDecor();
-    this.buildLair();
+    if (this.buildLairs) this.buildLairs();
+    if (this.buildMill) this.buildMill();
     this.buildMenhirs();
-    this.buildGates();
+    if (this.buildEntrances) this.buildEntrances();
     this.buildSecret();
     this.buildScatter();
   };
@@ -2530,7 +2907,8 @@
           const r = rng();
           const sp = r < 0.42 ? "oak" : r < 0.7 ? "chestnut" : r < 0.93 ? "pine" : "bush";
           const dark = 0.9 - 0.3 * smooth01(out / 3.5);
-          lists[sp].push({ x, y, s: (sp === "bush" ? 1.2 : 0.8) + rng() * 0.35, r: rng() * 6.28, v: (rng() * 2) | 0, k: dark * (0.9 + rng() * 0.15) });
+          // qualité « low » : une seule variante par essence (moins d'appels de dessin)
+          lists[sp].push({ x, y, s: (sp === "bush" ? 1.2 : 0.8) + rng() * 0.35, r: rng() * 6.28, v: this.high ? (rng() * 2) | 0 : 0, k: dark * (0.9 + rng() * 0.15) });
           if (sp !== "bush") this.staticShadowCasters.push({ x, y, r: 0.55, h: 3.2 });
         }
       }
@@ -2547,7 +2925,7 @@
       if (out < 0.3 || at(fine.road, x, y) > 0.1 || at(fine.water, x, y) > 0.1) continue;
       lists.bush.push({ x, y, s: 0.8 + rng() * 0.5, r: rng() * 6.28, v: 0, k: 0.75 + rng() * 0.15 });
     }
-    const mat = MK.treeMaterial("apron", this.uTime);
+    const mat = MK.treeMaterial("apron");
     this.apronMeshes = [];
     for (const sp of Object.keys(lists)) {
       for (const v of [0, 1]) {
@@ -2566,6 +2944,7 @@
         mesh.frustumCulled = false;
         mesh.castShadow = false;
         mesh.name = "Tablier_" + sp;
+        mesh.userData.batch = "tree"; // immobile : regroupé en qualité « low » (render/18-batch.js)
         this.root.add(mesh);
         this.apronMeshes.push(mesh);
       }
@@ -2586,9 +2965,9 @@
       if (acc < 0.34 + rng() * 0.2) continue;
       acc = 0;
       const x = x0 + (rng() - 0.5) * 0.06, y = y0 + (rng() - 0.5) * 0.06;
-      list.push({ x, y, s: 0.55 + rng() * 0.45, r: rng() * 6.28, v: (rng() * 2) | 0 });
+      list.push({ x, y, s: 0.55 + rng() * 0.45, r: rng() * 6.28, v: this.high ? (rng() * 2) | 0 : 0 });
     }
-    const mat = MK.treeMaterial("rocks", this.uTime);
+    const mat = MK.treeMaterial("rocks");
     for (const v of [0, 1]) {
       const arr = list.filter((t) => t.v === v);
       if (!arr.length) continue;
@@ -2606,6 +2985,7 @@
       mesh.castShadow = this.high;
       mesh.receiveShadow = true;
       mesh.name = "Rochers des buttes";
+      mesh.userData.batch = "tree";
       this.root.add(mesh);
     }
   };
@@ -2634,6 +3014,7 @@
       put(new THREE.BoxGeometry(0.4, 0.38, 0.07), "#3d5a78", 0, T(wx * k - 0.35 * (wx > 0 ? 1 : 0), 1.35 * k, 1.17 * k));
     }
   }
+  MK.houseParts = houseParts;
   W.buildDecor = function () {
     const f = this.field, rng = PTMT.rng(f.seed + 606);
     const items = [];
@@ -2732,7 +3113,7 @@
       }
     }
     const g = mergeColored(list);
-    const mat = MK.treeMaterial("decor", this.uTime);
+    const mat = MK.treeMaterial("decor");
     const mesh = new THREE.Mesh(g, mat);
     mesh.castShadow = this.high;
     mesh.receiveShadow = true;
@@ -2744,7 +3125,7 @@
     this.disposables.push(g);
   };
 
-  /* ------------------------------------------------------------------ repaire (moulin) */
+  /* ------------------------------------------------------------------ gemmes de secours */
   function gemGeometry() {
     return PTMT.geo("view:gem", () => {
       // brillant : couronne à 8 facettes, pavillon pointu
@@ -2762,121 +3143,6 @@
     });
   }
   MK.gemMaterial = gemMaterial;
-  function FallbackLair(maxGems) {
-    const g = new THREE.Group();
-    g.name = "Moulin (secours)";
-    const list = [];
-    const back = -1.5 * TILE; // centre du bâtiment : 1,5 case derrière la case L
-    houseParts(list, mat4(0, 0.22, back, 0, 2.1));
-    const body = new THREE.Mesh(mergeColored(list), PTMT.mat("view:merged", () => new THREE.MeshLambertMaterial({ vertexColors: true })));
-    body.geometry.setAttribute("sway", new THREE.BufferAttribute(new Float32Array(body.geometry.attributes.position.count), 1));
-    body.castShadow = body.receiveShadow = true;
-    g.add(body);
-    // roue à aubes sur le côté (une pièce)
-    const wp = [{ g: new THREE.TorusGeometry(1.45, 0.1, 6, 20), color: "#6b4a2e", m: T4(0, 0, 0, 0, Math.PI / 2, 0) }];
-    for (let k = 0; k < 8; k++) {
-      const a = (k / 8) * Math.PI * 2;
-      wp.push({ g: new THREE.BoxGeometry(0.5, 0.12, 0.62), color: "#8a6440", m: T4(0, Math.sin(a) * 1.3, Math.cos(a) * 1.3, -a) });
-      wp.push({ g: new THREE.BoxGeometry(0.08, 0.08, 2.7), color: "#5a3c24", m: T4(0, 0, 0, a) });
-    }
-    wp.push({ g: new THREE.CylinderGeometry(0.22, 0.22, 0.7, 8), color: "#4a3220", m: T4(0, 0, 0, 0, 0, Math.PI / 2) });
-    const wheel = buildMerged(wp, "Roue");
-    wheel.position.set(3.55, 1.7, back);
-    wheel.scale.setScalar(1.3);
-    g.add(wheel);
-    // tas de gemmes devant la porte : un lot instancié (une couleur par gemme)
-    const place = [[0, 0.3, 0], [-0.45, 0.22, 0.15], [0.45, 0.22, 0.12], [-0.2, 0.2, 0.5], [0.25, 0.2, 0.48], [0, 0.62, 0.2], [0.6, 0.2, 0.5], [-0.6, 0.2, 0.52]];
-    const n = Math.max(maxGems || 5, 6);
-    const gmat = PTMT.mat("view:gemInst", () => new THREE.MeshStandardMaterial({ color: 0xffffff, emissive: lin("#3a3a3a"), roughness: 0.2, metalness: 0.05, flatShading: true }));
-    const gems = new THREE.InstancedMesh(gemGeometry(), gmat, n);
-    gems.castShadow = true;
-    const slots = [];
-    for (let k = 0; k < n; k++) {
-      const p = place[k % place.length];
-      gems.setColorAt(k, _c4.set(lin(GEM_HEX[k % GEM_HEX.length])).multiplyScalar(1.35));
-      slots.push(new THREE.Vector3(p[0], p[1] + 0.3, p[2] - 1.2));
-    }
-    const sack = buildMerged([{ g: new THREE.CylinderGeometry(0.8, 0.95, 0.2, 12), color: "#8a6a44", m: T4(0, 0.08, -1.2) }], "Sac");
-    g.add(sack, gems);
-    let alarm = false, count = n;
-    const place2 = (time) => {
-      for (let k = 0; k < n; k++) {
-        const p = place[k % place.length];
-        const lift = alarm ? Math.abs(Math.sin(time * 10 + k)) * 0.15 : 0;
-        _q4.setFromEuler(new THREE.Euler(0.25 * (k % 2 ? 1 : -1), k * 1.3 + time * (0.5 + (alarm ? 3 : 0)), 0.15));
-        _m4.compose(_p4.set(p[0], p[1] + 0.12 + lift, p[2] - 1.2), _q4, _s4.setScalar(k < count ? 1 : 0.0001));
-        gems.setMatrixAt(k, _m4);
-      }
-      gems.instanceMatrix.needsUpdate = true;
-    };
-    place2(0);
-    return {
-      object: g,
-      footprint: [2, 2],
-      gemSlots: slots,
-      setGems(k) {
-        count = k;
-      },
-      alarm(on) {
-        alarm = !!on;
-      },
-      update(dt, time) {
-        wheel.rotation.x -= dt * 0.8;
-        place2(time);
-      },
-    };
-  }
-  W.buildLair = function () {
-    const mill = this.map.mill || [];
-    if (!mill.length) return;
-    let cx = 0, cy = 0;
-    for (const [i, j] of mill) {
-      cx += i + 0.5;
-      cy += j + 0.5;
-    }
-    cx /= mill.length;
-    cy /= mill.length;
-    let li = cx, lj = cy;
-    for (let j = 0; j < MH; j++) for (let i = 0; i < MW; i++) if (this.field.grid[j][i] === "L") (li = i + 0.5), (lj = j + 0.5);
-    // façade vers L, du centre du rectangle vers L, arrondie au quart de tour
-    const dx = li - cx, dy = lj - cy;
-    const yaw = Math.abs(dx) >= Math.abs(dy) ? (dx >= 0 ? Math.PI / 2 : -Math.PI / 2) : dy >= 0 ? 0 : Math.PI;
-    this.lairInfo = { x: li, y: lj, yaw, lx: li, ly: lj, cx, cy };
-    this.makeLair(this.map.gems || 5);
-    this.staticShadowCasters = this.staticShadowCasters || [];
-    this.staticShadowCasters.push({ x: cx, y: cy, r: 1.3, h: 5, a: 1.2 });
-  };
-  W.makeLair = function (maxGems) {
-    if (this.lair) {
-      this.root.remove(objOf(this.lair));
-      this.lair = null;
-    }
-    const L = this.lairInfo;
-    if (!L) return;
-    const native = tryModel("lair", maxGems);
-    const lair = native || FallbackLair(maxGems);
-    this.lairNative = !!native;
-    const o = objOf(lair);
-    // origine = centre de la case L, au niveau du chemin
-    o.position.set(toX(L.lx), 0, toZ(L.ly));
-    o.rotation.y = L.yaw;
-    this.root.add(o);
-    this.lair = lair;
-    this.lairMax = maxGems;
-  };
-  /** Position monde d'une place de gemme du repaire (tas du moulin). */
-  W.lairSlot = function (k, out) {
-    out = out || new THREE.Vector3();
-    const L = this.lair, o = L && objOf(L);
-    if (!o) return out.set(0, 0, 0);
-    const s = L.gemSlots && L.gemSlots.length ? L.gemSlots[k % L.gemSlots.length] : null;
-    if (s) {
-      o.updateMatrixWorld();
-      return out.copy(s).applyMatrix4(o.matrixWorld);
-    }
-    return out.set(toX(this.lairInfo.lx), 0.5, toZ(this.lairInfo.ly));
-  };
-
   /* ------------------------------------------------------------------ menhirs (puits de mana) */
   function FallbackMenhir() {
     const g = new THREE.Group();
@@ -2917,74 +3183,6 @@
     }
   };
 
-  /* ------------------------------------------------------------------ portes d'entrée */
-  const GATE_COLORS = ["#e8453c", "#3c8ee8", "#f2b632", "#8e5ce8"];
-  function FallbackGate(index) {
-    const g = new THREE.Group();
-    const col = GATE_COLORS[index % GATE_COLORS.length];
-    const parts = [];
-    for (const sx of [-1.55, 1.55]) parts.push({ g: new THREE.BoxGeometry(0.28, 2.7, 0.28), color: "#6b4a2e", m: T4(sx, 1.35, 0), shade: 0.3 });
-    parts.push({ g: new THREE.BoxGeometry(3.7, 0.26, 0.34), color: "#4a3220", m: T4(0, 2.6, 0) });
-    parts.push({ g: new THREE.BoxGeometry(1.3, 0.55, 0.08), color: col, m: T4(0, 2.1, 0.08) });
-    parts.push({ g: new THREE.SphereGeometry(0.18, 10, 8), color: "#ffd27a", m: T4(-1.55, 2.95, 0.1) });
-    g.add(buildMerged(parts, "Porte"));
-    // flèches au sol (vague qui arrive par cette entrée) : un lot de trois
-    const arrowMat = new THREE.MeshBasicMaterial({ color: lin(col), transparent: true, opacity: 0.85, depthWrite: false });
-    const sh = new THREE.Shape();
-    sh.moveTo(0, 0.55);
-    sh.lineTo(0.75, -0.2);
-    sh.lineTo(0.45, -0.2);
-    sh.lineTo(0, 0.22);
-    sh.lineTo(-0.45, -0.2);
-    sh.lineTo(-0.75, -0.2);
-    sh.closePath();
-    const ag = new THREE.ShapeGeometry(sh);
-    ag.rotateX(-Math.PI / 2);
-    ag.rotateY(Math.PI);
-    const arrows = new THREE.InstancedMesh(ag, arrowMat, 3);
-    arrows.renderOrder = 5;
-    arrows.frustumCulled = false;
-    arrows.visible = false;
-    g.add(arrows);
-    let on = false;
-    return {
-      object: g,
-      pulse(v) {
-        on = !!v;
-        arrows.visible = on;
-      },
-      update(dt, time) {
-        if (!on) return;
-        for (let k = 0; k < 3; k++) {
-          const t = (time * 0.9 + k / 3) % 1;
-          const sc = Math.sin(t * Math.PI);
-          _m4.compose(_p4.set(0, 0.12, 0.6 + t * 3.2), _q4.identity(), _s4.set(sc, 1, sc));
-          arrows.setMatrixAt(k, _m4);
-        }
-        arrows.instanceMatrix.needsUpdate = true;
-      },
-    };
-  }
-  W.buildGates = function () {
-    this.gates = [];
-    const f = this.field;
-    let index = 0;
-    for (let j = 0; j < MH; j++)
-      for (let i = 0; i < MW; i++) {
-        if (f.grid[j][i] !== "E") continue;
-        const d = f.exitDir(i, j) || [0, -1];
-        const gate = tryModel("gate", index) || FallbackGate(index);
-        const o = objOf(gate);
-        o.position.set(toX(i + 0.5), 0, toZ(j + 0.5));
-        o.rotation.y = Math.atan2(-d[0], -d[1]);
-        this.root.add(o);
-        this.gates.push({ i, j, index, dir: d, model: gate });
-        this.staticShadowCasters = this.staticShadowCasters || [];
-        this.staticShadowCasters.push({ x: i + 0.5 + d[0] * 0.3, y: j + 0.5 + d[1] * 0.3, r: 0.4, h: 2.5, a: 0.6 });
-        index++;
-      }
-  };
-
   /* ------------------------------------------------------------------ passage secret */
   // Fourré dense de ronces et de buissons sur les cases « s » ; open() écarte les buissons de part
   // et d'autre du sentier (1,2 s) quand le passage s'ouvre.
@@ -3003,7 +3201,7 @@
         }
       }
     if (!slots.length) return;
-    const mat = MK.treeMaterial("forest", this.uTime);
+    const mat = MK.treeMaterial("forest");
     const meshes = {};
     for (const sp of ["bramble", "bush"]) {
       const arr = slots.filter((s) => s.sp === sp);
@@ -3031,8 +3229,18 @@
     this.secret = { slots, place, t: -1 };
   };
   /** Ouvre le passage secret (animation). */
-  W.openSecret = function () {
+  W.openSecret = function (animate) {
     if (!this.secret || this.secret.t >= 0) return;
+    if (animate === false) {
+      // vue recréée en cours de partie : le passage est déjà ouvert
+      this.secret.t = 9;
+      this.secret.place(1);
+      if (this.paint && this.paint.openSecret) {
+        this.paint.openSecret();
+        this.tex.color.needsUpdate = true;
+      }
+      return;
+    }
     this.secret.t = 0;
     this.secretRepaint = true;
     for (let j = 0; j < MH; j++)
@@ -3057,6 +3265,12 @@
       const fx = x - Math.floor(x) - 0.5, fy = y - Math.floor(y) - 0.5;
       const nearCenter = Math.abs(fx) < 0.3 && Math.abs(fy) < 0.3;
       const road = at(fine.road, x, y), grass = at(fine.grass, x, y), rock = at(fine.rock, x, y), tal = at(fine.talus, x, y);
+      // estran : goémon, coquillages et flaques de rocher (sous l'eau à marée haute)
+      if (at(fine.tide, x, y) > 0.55) {
+        const q = rng();
+        push(q < 0.45 ? "seaweed" : q < 0.8 ? "shells" : "rockpool", x, y);
+        continue;
+      }
       if (road > 0.3 && road < 0.5) push("tuft", x, y);
       else if (road > 0.05 || at(fine.water, x, y) > 0.05) continue;
       else if (rock > 0.7 && !nearCenter) push("pebbles", x, y);
@@ -3070,15 +3284,30 @@
     }
   };
 
+  /**
+   * Marée : low = true (basse : l'estran sort de l'eau) ou false (haute) ; animate = false pour poser
+   * l'état d'un coup (vue recréée en cours de partie). La ligne d'eau parcourt l'estran en ≈ 2 s.
+   */
+  W.setTide = function (low, animate) {
+    this.tideTarget = low ? 1 : 0;
+    if (animate === false) this.tideLevel = this.tideTarget;
+  };
   W.update = function (dt, time) {
     this.uTime.value = time;
+    TREE_TIME.value = time;
+    if (this.batchDirty && this.batchStatic) this.batchStatic();
+    if (this.updateBatch) this.updateBatch(dt, time);
     this.ov.uOvTime.value = time;
+    if (this.tideLevel !== this.tideTarget) {
+      const d = this.tideTarget - this.tideLevel, step = dt / 2.1;
+      this.tideLevel = Math.abs(d) <= step ? this.tideTarget : this.tideLevel + Math.sign(d) * step;
+    }
+    if (this.waterUniforms) this.waterUniforms.uTide.value = smooth01(this.tideLevel);
     if (this.forests && this.forests.update) this.forests.update(dt, time);
     if (this.decor && this.decor.update) this.decor.update(dt, time);
     if (this.scatter && this.scatter.update) this.scatter.update(dt, time);
-    if (this.lair && this.lair.update) this.lair.update(dt, time);
     if (this.menhirs) for (const m of this.menhirs) m.model.update && m.model.update(dt, time);
-    if (this.gates) for (const g of this.gates) g.model.update && g.model.update(dt, time);
+    if (this.updatePlaces) this.updatePlaces(dt, time);
     if (this.secret && this.secret.t >= 0 && this.secret.t < 1.3) {
       this.secret.t += dt;
       // le sol se repeint quand le fourré s'est écarté (une seule fois)
@@ -3092,6 +3321,8 @@
     for (const a of this.animated) a(dt, time);
   };
   W.dispose = function () {
+    if (this.disposeBatch) this.disposeBatch();
+    if (this.disposePlaces) this.disposePlaces();
     this.root.parent && this.root.parent.remove(this.root);
     for (const d of this.disposables) d && d.dispose && d.dispose();
     this.disposables.length = 0;

@@ -9,7 +9,8 @@
 //
 // Visée : rayon lancé depuis le pixel et avancé pas à pas contre le relief réel (dessus de l'eau
 // et tabliers des ponts compris), puis affiné par dichotomie ; les tours sont testées avant le sol
-// (cylindres), si bien qu'un clic sur la tête d'une tour haute la désigne.
+// (cylindres), si bien qu'un clic sur la tête d'une tour haute la désigne, puis le dessus des buttes
+// posées en modèle (carrés surélevés). Les ennemis sont testés par la vue (render/20-entities.js).
 (function () {
   "use strict";
   const PTMT = (globalThis.PTMT = globalThis.PTMT || {});
@@ -93,9 +94,10 @@
 
   /**
    * Rayon depuis un pixel (clientX, clientY) contre le relief. world : monde de la carte ; towers :
-   * [{ id, i, j, x, z, base, top, r }] (monde). Renvoie { i, j, x, y, towerId? } ou null.
+   * [{ id, i, j, x, z, base, top, r }] (monde) ; tops : dessus surélevés de cases (buttes posées en
+   * modèle) [{ i, j, y }]. Renvoie { i, j, x, y, towerId? } ou null.
    */
-  P.pick = function (clientX, clientY, rect, world, towers) {
+  P.pick = function (clientX, clientY, rect, world, towers, tops) {
     const K = VIEW._map.K;
     const nx = ((clientX - rect.left) / Math.max(1, rect.width)) * 2 - 1;
     const ny = -((clientY - rect.top) / Math.max(1, rect.height)) * 2 + 1;
@@ -149,6 +151,14 @@
         }
       }
     if (tower) return { i: tower.i, j: tower.j, x: tower.i + 0.5, y: tower.j + 0.5, towerId: tower.id };
+    // dessus des buttes : carrés horizontaux d'une case, à leur hauteur
+    if (tops)
+      for (const q of tops) {
+        const t = (q.y - _o.y) / _d.y;
+        if (!(t > 0) || t >= best) continue;
+        const x = toMapX(_o.x + _d.x * t), y = toMapY(_o.z + _d.z * t);
+        if (x >= q.i && x < q.i + 1 && y >= q.j && y < q.j + 1) return { i: q.i, j: q.j, x, y };
+      }
     if (hit === null) return null;
     const x = toMapX(_o.x + _d.x * hit), y = toMapY(_o.z + _d.z * hit);
     if (x < 0 || y < 0 || x >= K.MW || y >= K.MH) return null;
