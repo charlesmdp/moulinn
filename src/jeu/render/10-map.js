@@ -1237,15 +1237,20 @@
         for (let k = 0; k < pts.length; k += 6) mark(pts[k], pts[k + 1], 0.32);
         const kind = t.kind;
         if (kind === 0) {
-          // ornières : deux sillons sombres et doux (essieu d'une charrette, ≈ 1 m)
+          // ornières : deux sillons sombres et doux (essieu d'une charrette, ≈ 1 m), interrompus par
+          // endroits (sol plus dur, flaques séchées)
+          const r3 = PTMT.rng(field.seed + 57 * n);
           for (const s of [-1, 1]) {
-            c.strokeStyle = "rgba(96,62,30,0.14)";
+            c.setLineDash([T * (0.9 + r3() * 1.4), T * (0.12 + r3() * 0.3), T * (0.4 + r3() * 0.8), T * (0.2 + r3() * 0.4)]);
+            c.lineDashOffset = r3() * T * 3;
+            c.strokeStyle = "rgba(96,62,30,0.12)";
             c.lineWidth = T * 0.075;
             c.stroke(linePath(pts, s * 0.14));
-            c.strokeStyle = "rgba(78,48,22,0.3)";
-            c.lineWidth = T * 0.026;
+            c.strokeStyle = "rgba(78,48,22,0.22)";
+            c.lineWidth = T * 0.024;
             c.stroke(linePath(pts, s * 0.14));
           }
+          c.setLineDash([]);
         } else if (kind === 1) {
           // sente tassée : bande claire et lisse
           c.strokeStyle = "rgba(244,218,170,0.16)";
@@ -2295,7 +2300,7 @@
           // large quand uTide va de 0 (haute) à 1 (basse) ; les flaques (bt.a) restent pleines
           float front = 1.08 - uTide * 1.1;
           float dryK = bt.g * smoothstep(front - 0.05, front + 0.03, bt.b) * (1.0 - bt.a);
-          float tideLine = bt.g * (1.0 - smoothstep(0.0, 0.045, abs(bt.b - front))) * smoothstep(0.0, 0.04, uTide) * (1.0 - smoothstep(0.96, 1.0, uTide));
+          float tideLine = bt.g * (1.0 - smoothstep(0.0, 0.09, abs(bt.b - front + 0.03))) * smoothstep(0.0, 0.04, uTide) * (1.0 - smoothstep(0.96, 1.0, uTide));
           float ph = fract(uTime * 0.12);
           float bl = abs(1.0 - 2.0 * ph);
           vec2 p1 = vW.xz - vFlow * ph * 8.0;
@@ -2329,9 +2334,9 @@
           alpha = max(alpha, foam);
           // estran découvert : plus d'eau ; ligne d'écume qui avance ou recule pendant la marée
           alpha *= 1.0 - dryK;
-          float tl = tideLine * (0.55 + 0.45 * na.a);
-          col = mix(col, uFoam, clamp(tl * 1.2, 0.0, 0.95));
-          alpha = max(alpha, tl * 0.9);
+          float tl = tideLine * (0.7 + 0.3 * na.a);
+          col = mix(col, uFoam, clamp(tl * 1.4, 0.0, 0.97));
+          alpha = max(alpha, tl * 0.95);
           vec2 ptOut = max(max(uMapRect.xy - vW.xz, vW.xz - uMapRect.zw), 0.0);
           col *= mix(1.0, 0.5, smoothstep(0.0, 13.0, length(ptOut)));
           vec4 ov = ptOverlay(vW.xz);

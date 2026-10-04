@@ -28,7 +28,7 @@
     <span class="lbl">Qualité</span><select id="quality"><option>high</option><option>low</option></select>
     <button id="pause">Pause</button><button data-speed="1" class="on">×1</button><button data-speed="2">×2</button><button data-speed="3">×3</button>
   </div>
-  <div class="row"><span class="lbl">Partie</span><button id="wave">Appeler la vague</button><button id="tide">Marée</button><button id="gate">Barrière</button><button id="secret">Passage secret</button><button id="meteor">Météore</button><button id="frenzy">Frénésie</button><button id="cut">Couper</button></div>
+  <div class="row"><span class="lbl">Partie</span><button id="wave">Appeler la vague</button><button id="peek">Aperçu : vague suivante</button><button id="tide">Marée</button><button id="gate">Barrière</button><button id="secret">Passage secret</button><button id="meteor">Météore</button><button id="frenzy">Frénésie</button><button id="cut">Couper</button></div>
   <div class="row"><span class="lbl">Ennemis</span><button data-spawn="montgolfiere">Montgolfière</button><button data-spawn="korrigan">Korrigan</button><button data-spawn="touriste">Touriste</button><button data-spawn="tracteur">Tracteur</button><button data-spawn="canard">Canard</button><button data-spawn="cycliste">Peloton</button><button data-spawn="*">Au hasard</button><button id="kill">Tuer</button></div>
   <div class="row"><span class="lbl">Tours</span><button id="towers">+ 6 tours</button><button id="beams">Bergers/dragons</button><button id="swans">Cygnes</button><button id="lvlup">Niveau +1</button><button data-build="boar">Sanglier</button><button data-build="swan">Cygne</button><button data-build="dog">Berger</button><button data-aim="meteor">Viser météore</button><button data-aim="cut">Viser coupe</button><button id="range">Portée</button><button id="hints">Flèches</button></div>
   <div id="stats"></div>
@@ -256,6 +256,14 @@
   const enemyAt = () => game.state.enemies[Math.floor(rng() * game.state.enemies.length)];
   const actions = {
     wave: () => game.callWave(),
+    // aperçu : on annonce la vague d'après sans la lancer (pour voir les trajets des vagues suivantes)
+    peek: () => {
+      const w = game.state.wave;
+      if (w.index + 2 < w.total) {
+        w.index++;
+        game.refreshWavePreview();
+      }
+    },
     tide: () => game.setTide(game.state.tide !== "low"),
     gate: () => {
       const e = game.grid.entrances.find((q) => !q.open);

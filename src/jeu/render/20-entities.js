@@ -997,7 +997,12 @@
       const o = v.model.object;
       tws.push({ id: v.id, i: v.i, j: v.j, x: o.position.x, z: o.position.z, base: v.top, top: v.top + Math.max(1.2, v.model.height || 2) * o.scale.y, r: 1.2 });
     }
-    const hit = this.cam.pick(clientX, clientY, rect, this.world, tws);
+    let tops = null;
+    if (this.world.buttes && this.world.buttes.length) {
+      tops = this._pickH || (this._pickH = this.world.buttes.map((b) => ({ i: b.i, j: b.j, y: 0 })));
+      for (const q of tops) q.y = this.tileTop(q.i, q.j);
+    }
+    const hit = this.cam.pick(clientX, clientY, rect, this.world, tws, tops);
     // ennemis : distance du doigt au segment pieds-tête projeté (pixels CSS du canevas)
     const px = clientX - rect.left, py = clientY - rect.top;
     const thr = 0.45 * TILE * this.cam.pxPerM;
@@ -2391,7 +2396,26 @@
   P.selectEnemy = function (id) {
     this.selEnemy = id === undefined ? null : id;
   };
+  /**
+   * Mode construction sur les buttes posées en modèle (le relief est plat dessous : la surimpression
+   * du sol serait cachée) : coins clairs sur le dessus des buttes libres, case visée verte ou rouge.
+   */
+  P.drawButteMarks = function (time) {
+    const M = this.marks, ps = this.previewState;
+    if (!M || !ps || !ps.family || !this.world.buttes || !this.world.buttes.length) return;
+    const sz = TILE * 0.98;
+    for (const b of this.world.buttes) {
+      const top = this.tileTop(b.i, b.j) + 0.06;
+      const x = toX(b.i + 0.5), z = toZ(b.j + 0.5);
+      if (b.i === ps.i && b.j === ps.j) {
+        const c = ps.ok ? [0.45, 1, 0.35] : [1, 0.3, 0.22];
+        M.put(x, top, z, sz * 0.94, HUD.frame, c[0], c[1], c[2], 0.3 + 0.1 * Math.sin(time * 6), 0, 0, 1, 1);
+        M.put(x, top + 0.01, z, sz, HUD.corners, c[0], c[1], c[2], 1, 0, 0, 1, 1);
+      } else if (this.canBuild(b.i, b.j, ps.family)) M.put(x, top, z, sz, HUD.corners, 0.78, 1, 0.6, 0.7, 0, 0, 1, 1);
+    }
+  };
   P.drawSelection = function (time) {
+    this.drawButteMarks(time);
     const M = this.marks;
     if (!M || this.selEnemy === null || this.selEnemy === undefined) return;
     const v = this.enemies.get(this.selEnemy);
