@@ -2568,7 +2568,7 @@
     }
   }
   MK.tryModel = tryModel;
-  const GEM_HEX = ["#e8324e", "#2fd26c", "#3b7dff", "#a65cff", "#ffc42a", "#eaf7ff"];
+  const GEM_HEX = ["#ff2b45", "#2df27c", "#4290ff", "#c95cff", "#ffa524", "#e8fbff"];
   MK.GEM_HEX = GEM_HEX;
 
   /* ------------------------------------------------------------------ taches d'ombre douces */

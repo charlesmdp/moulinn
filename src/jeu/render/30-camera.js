@@ -9,7 +9,8 @@
 //
 // Visée : rayon lancé depuis le pixel et avancé pas à pas contre le relief réel (dessus de l'eau
 // et tabliers des ponts compris), puis affiné par dichotomie ; les tours sont testées avant le sol
-// (cylindres), si bien qu'un clic sur la tête d'une tour haute la désigne.
+// (cylindres), si bien qu'un clic sur la tête d'une tour haute la désigne, puis le dessus des buttes
+// posées en modèle (carrés surélevés). Les ennemis sont testés par la vue (render/20-entities.js).
 (function () {
   "use strict";
   const PTMT = (globalThis.PTMT = globalThis.PTMT || {});

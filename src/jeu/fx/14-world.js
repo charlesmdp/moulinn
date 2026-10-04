@@ -1,7 +1,7 @@
 // « Pas touche à mes trésors » — effets de carte (PTMT.fx, suite) : coupe des forêts, construction,
 // vente, montée de niveau, soins à la crêpe, air de biniou, fumigène, barrière qui éclate,
 // désarmement, peur, explosion des cadavres, gemmes (reflets, perte, traînée), météore qui tombe,
-// aura de Frénésie, ouverture du passage secret.
+// aura de Frénésie, ouverture du passage secret, pataugeage dans l'estran (wadeSplash).
 //
 //   PTMT.fx.burst(kind, position, opts)   // kinds ci-dessous, s'ajoutent à ceux de 10-fx.js
 //   const m = PTMT.fx.world.meteorFall(cible, délai, rayon) ; m.release()
@@ -23,7 +23,9 @@
   const C = () => PTMT.gfx.CELL;
   const V = () => new THREE.Vector3();
   const tv = [V(), V(), V()];
-  const GEM = ["#e8324e", "#2fd26c", "#3b7dff", "#a65cff", "#ffc42a", "#eaf7ff"];
+  // couleurs des gemmes v4 (rubis, émeraude, saphir, améthyste, topaze orange, diamant), comme
+  // PTMT.models.gem : lueurs des reflets, de la perte et de la traînée
+  const GEM = ["#ff2b45", "#2df27c", "#4290ff", "#c95cff", "#ffa524", "#e8fbff"];
   const col = (hex) => {
     const k = PTMT.color(hex);
     return [k.r, k.g, k.b];
@@ -337,6 +339,16 @@
     for (let i = 0, n = count(10); i < n; i++) {
       const a = R(0, 6.28), sp = R(0.6, 1.8) * r;
       _.emit({ x: p.x, y: p.y + 0.2, z: p.z, vx: Math.cos(a) * sp, vy: R(0.4, 1.4), vz: Math.sin(a) * sp, drag: 2, life: R(0.9, 1.3), s0: 0.6 * r, s1: 1.4 * r, cell: c.puff, r: K.dust[0], g: K.dust[1], b: K.dust[2], a: 0.75, a1: 0, rot: R(0, 6), curve: 1 });
+    }
+  };
+  /** Pataugeage (ennemi surpris par la marée) : rond dans l'eau et gouttes autour des pieds. */
+  B.wadeSplash = function (p, o) {
+    if (!ok()) return;
+    const c = C(), K = _.COL, r = o.radius || 0.6;
+    _.emit({ x: p.x, y: p.y + 0.02, z: p.z, life: 0.7, s0: 0.5 * r, s1: 2.4 * r, cell: c.ripple, mode: 1, r: 1, g: 1, b: 1, a: 0.75, a1: 0, curve: 1 });
+    for (let i = 0, n = count(5); i < n; i++) {
+      const a = R(0, 6.28), sp = R(0.8, 1.8) * r;
+      _.emit({ x: p.x + Math.cos(a) * 0.15, y: p.y + 0.05, z: p.z + Math.sin(a) * 0.15, vx: Math.cos(a) * sp, vy: R(1.8, 3.2), vz: Math.sin(a) * sp, grav: 11, life: R(0.35, 0.55), s0: R(0.1, 0.16), s1: 0.06, cell: c.drop, mode: 2, stretch: 0.04, r: K.waterFoam[0], g: K.waterFoam[1], b: K.waterFoam[2], r1: K.waterLight[0], g1: K.waterLight[1], b1: K.waterLight[2], a: 1, a1: 0.3, floor: p.y });
     }
   };
   /** Esquive : petit nuage et tourbillon d'air. */
