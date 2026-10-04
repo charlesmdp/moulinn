@@ -615,11 +615,11 @@
     if (data && data.ENEMIES && data.ENEMIES[t]) names[t] = data.ENEMIES[t].name;
     names[t + "_boss"] = (data && data.BOSS_NAMES && data.BOSS_NAMES[t]) || BOSS[t];
   }
-  // couleur dominante vue de haut (casquette, quad, chapeau, vache, gui, coiffe, casquette fluo, maillot,
-  // chapeau rond, casque, tête du colvert, maillot jaune, gilet du korrigan, bob, tracteur, ballon) ;
-  // champions : or
+  // couleur dominante (casquette, quad, chapeau, mufle rose de la vache, gui, coiffe, casquette fluo,
+  // maillot, chapeau rond, casque, tête du colvert, maillot jaune, aura du korrigan, chemise du touriste,
+  // tracteur, ballon) : lisible sur fond clair comme sombre ; champions : or
   const accent = {
-    fermier: "#d8302a", quad: "#f0141e", cowboy: "#8a5a2b", vache: "#fbf7ee", druide: "#5aa832", bigoudene: "#2f6be0",
+    fermier: "#d8302a", quad: "#f0141e", cowboy: "#8a5a2b", vache: "#f08aa0", druide: "#5aa832", bigoudene: "#2f6be0",
     chasseur: "#ff6a00", rugbyman: "#1f2a5c", sonneur: "#2a2440", pompier: "#f2b632", canard: "#0c9a40",
     cycliste: "#ffd21a", korrigan: "#8a2be2", touriste: "#14b4c4", tracteur: "#e0181a", montgolfiere: "#e8262a",
   };

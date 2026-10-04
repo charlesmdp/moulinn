@@ -1,17 +1,22 @@
 // « Pas touche à mes trésors » — les ennemis à pied : proportions chibi, tenues, accessoires, démarches.
 //
-// Huit personnages calqués sur les ennemis de Cursed Treasure, à la sauce du bocage breton :
+// Dix personnages, calqués sur les ennemis de Cursed Treasure à la sauce du bocage breton :
 // l'agriculteur en colère (paysan), le cow-boy au lasso (guerrier), le druide (mage), la bigoudène aux
-// crêpes (prêtre), le chasseur camouflé (ninja), le rugbyman (assassin), le sonneur de biniou (barde) et
-// le pompier (paladin). Les trois cavaliers (quad, vache, canard) sont dans 13-mounts.js.
+// crêpes (prêtre), le chasseur camouflé (ninja), le rugbyman (assassin), le sonneur de biniou (barde), le
+// pompier (paladin), et deux rusés : le korrigan (il disparaît dans un pouf violet et réapparaît plus
+// loin) et le touriste au flash (il éblouit les tours). Les cavaliers et les véhicules (quad, vache,
+// canard, cycliste, tracteur, montgolfière) sont dans 13-mounts.js.
 //
 // Tout est modelé dans l'espace de liaison du personnage (debout, face à +Z, gauche du personnage = +X,
 // pieds à y = 0) : grosse tête (≈ 0,9 m de large), corps trapu, bras et jambes « tuyau d'arrosage »
-// pondérés entre deux os, moufles et gros souliers. Vu de haut (≈ 20 à 40 px à l'écran), c'est le
-// couvre-chef, la couleur dominante et l'accessoire qu'on reconnaît : casquette rouge et fourche, grand
-// chapeau et lasso qui tournoie, robe blanche et couronne de gui, haute coiffe de dentelle, casquette
-// orange fluo sur fond de feuillage, cerceaux jaunes et ballon, chapeau rond à rubans et biniou rouge,
-// casque doré et veste rouge. Budget : ≤ 4 000 triangles par variante, contour compris.
+// pondérés entre deux os, moufles et gros souliers ; le tout est agrandi d'office de A.NATIVE (× 1,2).
+// Vu de haut (≈ 30 à 60 px par case), c'est le couvre-chef, la couleur dominante et l'accessoire qu'on
+// reconnaît, d'où des chapeaux agrandis (spec.hatScale) et des accessoires d'identité bien gros :
+// casquette rouge et fourche, grand chapeau et lasso qui tournoie, robe blanche et couronne de gui,
+// haute coiffe de dentelle et plateau de crêpes, casquette orange fluo sur fond de feuillage, cerceaux
+// jaunes et ballon, chapeau rond à rubans et biniou rouge, casque doré et veste rouge, chapeau noir à
+// boucle d'or, longues oreilles et aura violette du korrigan, bob rose et chemise turquoise à fleurs du
+// touriste. Budget : ≤ 4 000 triangles par variante, contour compris.
 //
 // Rang 0 : ordinaire ; rang 1 : champion (couleurs plus riches, dorures, liseré doré sur le couvre-chef) ;
 // rang 2 : boss (champion + grande couronne et cape d'apparat).

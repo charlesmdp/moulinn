@@ -257,9 +257,8 @@
     const L = s.look;
     // corps : robe pie noir calculée dans le shader (taches différentes pour chaque vache)
     k.add(G.sphere(0.5, 11, 7), { pos: [0, COW.y, COW.z], scale: [COW.rx * 2, COW.ry * 2, COW.rz * 2], color: L.cow, part: PART.pie, pal: PAL.ink, mat: 1, outline: true });
-    // pis rose et ses trayons
-    k.add(G.sphere(0.2, 6, 4), { pos: [0, 0.8, -0.58], scale: [1.1, 0.7, 1.0], color: L.udder, mat: 1, outline: false });
-    for (const [dx, dz] of [[0.08, 0.07], [-0.08, 0.07], [0.08, -0.08], [-0.08, -0.08]]) k.add(G.cone(0.035, 0.12, 3), { pos: [dx, 0.66, -0.58 + dz], rot: [Math.PI, 0, 0], color: L.udder, mat: 1, outline: false });
+    // pis rose (on ne le voit que de profil)
+    k.add(G.sphere(0.2, 5, 3), { pos: [0, 0.78, -0.58], scale: [1.1, 0.8, 1.0], color: L.udder, mat: 1, outline: false });
     // selle de cuir étroite (les jambes du cavalier débordent de chaque côté) et sangle sous le ventre
     k.add(G.rbox(0.46, 0.12, 0.66, 0.05, 1), { pos: [0, CSEAT - 0.06, -0.2], color: L.saddle, mat: 1, outline: true });
     k.add(G.cyl(COW.rx + 0.015, COW.rx + 0.015, 0.12, 12, true, -1.9, 3.8), { pos: [0, COW.y, -0.2], rot: [Math.PI / 2, 0, 0], scale: [1, 1, COW.ry / COW.rx], color: L.saddle, mat: 1, outline: false });
