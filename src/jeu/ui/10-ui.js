@@ -1,31 +1,45 @@
 // « Pas touche à mes trésors » — interface complète : écran titre, carte des missions, compétences,
-// encyclopédie, HUD de partie (or, mana, gemmes, vagues et aperçu de la suivante, vitesse, sorts),
-// menu de construction et panneau de tour ancrés sur la carte, fiches « Nouvel ennemi ! », victoire,
-// défaite, pause, tutoriel de la première mission.
+// encyclopédie, HUD de partie (or, mana, gemmes par cachette, frise des vagues, vitesse, sorts), menu
+// de construction et panneau de tour ancrés sur la carte, fiche d'ennemi, fiches « Nouvel ennemi ! »,
+// annonces des surprises, victoire, défaite, pause, tutoriel de la première mission.
 //
 //   const ui = PTMT.ui.create({ root, mobile, progress: PTMT.progress, data: PTMT.sim.DATA, maps: PTMT.sim.MAPS,
 //                              hooks: { playLevel(n), quitLevel(), restartLevel(), setQuality(q) facultatif } });
 //   ui.showTitle() ; ui.showMap(n?) ; ui.showSkills() ; ui.showBestiary(tab?)
 //   ui.enterLevel(game, view)   // HUD d'une partie ; view = { worldToScreen(x, y), showRange(id|null),
-//                               //   preview(i, j, family|null), target(spell|null, x, y) }
-//   ui.mapTap(hit) ; ui.mapHover(hit)      // hit = { i, j, x, y, screenX, screenY } | null
+//                               //   preview(i, j, family|null), target(spell|null, x, y),
+//                               //   selectEnemy(id|null) facultatif (anneau 3D sous l'ennemi suivi) }
+//   ui.mapTap(hit) ; ui.mapHover(hit)      // hit = { i, j, x, y, screenX, screenY, towerId?, enemyId? } | null
 //   ui.events(list) ; ui.frame(dt) ; ui.insets() → { top, bottom, left, right } ; ui.onResize()
 //   ui.mode ("title" | "map" | "skills" | "bestiary" | "game") ; ui.busy (fiche ouverte) ;
 //   ui.covered (écran opaque : la scène 3D derrière n'a pas besoin d'être dessinée)
+//   ui.selectedEnemy (id de l'ennemi dont la fiche est ouverte, ou null)
 //
-// Côté simulation : vagues numérotées à partir de 0 (state.wave.index vaut -1 avant la première),
-// towerInfo(id).next / .specs { A, B } avec leur check { ok, reason }, state.spells[k] = { cost,
-// unlocked, ready, active, left }. Les événements win / lose portent ev.record (résultat déjà
-// enregistré par l'intégrateur : { firstWin, points, unlocked, best }) ; l'interface ne l'enregistre
-// pas. newEnemy : la fiche ne s'ouvre que pour un type absent de progress.seen, puis markSeen + save.
-// Derrière l'écran titre, une scène 3D (canvas dans [data-stage]) reste visible : option showcase,
-// sinon détection automatique ; sans scène, l'écran titre dessine son propre ciel.
+// Côté simulation (v4) : vagues numérotées à partir de 0 (state.wave.index vaut -1 avant la
+// première) ; game.upcoming(n) nourrit la frise (groupes avec entrée, lettre, couleur, vol, nage ;
+// notes de surprise : marée, barrière, passage secret) ; game.enemyInfo(id) la fiche d'ennemi ;
+// towerInfo(id) (attack "shot" | "charges" | "beam", next / specs { A, B } et leur check { ok, reason }) le
+// panneau de tour, complété en direct par l'état de la tour (ammo, beams[].heat, dazzled) ;
+// state.map.lairs (nom, décor, stock) et state.gems[].lair les gemmes par cachette ;
+// state.spells[k] = { cost, unlocked, ready, active, left }. Les événements win / lose portent
+// ev.record (résultat déjà enregistré par l'intégrateur : { firstWin, points, unlocked, best }) ;
+// l'interface ne l'enregistre pas. newEnemy : la fiche ne s'ouvre que pour un type absent de
+// progress.seen, puis markSeen + save. Derrière l'écran titre, une scène 3D (canvas dans [data-stage])
+// reste visible : option showcase, sinon détection automatique ; sans scène, l'écran titre dessine
+// son propre ciel.
 //
-// Trois mises en page (attribut data-layout) : « desk » (ordinateur : bandeau haut + bandeau bas),
-// « portrait » (téléphone debout : bandeaux haut et bas plus hauts, menus en feuille au bas de
-// l'écran), « landscape » (téléphone couché : deux colonnes à gauche et à droite). Le HUD ne couvre que
-// ces bandes (insets) ; menus et panneaux s'ouvrent par-dessus la carte. Le DOM n'est réécrit que
-// quand une valeur affichée change.
+// Frise des vagues (façon Cursed Treasure) : les prochaines vagues sont des blocs qui glissent vers
+// le repère « maintenant » (numéro de vague N / total) au rythme du compte à rebours ; chaque bloc
+// montre ses ennemis (portrait × nombre, couronne du champion, cadre du boss, lettres colorées des
+// entrées, vol ou nage) et les surprises annoncées ; toucher le premier bloc appelle la vague (bonus
+// d'or). Seules les positions bougent à chaque image (transform) ; un bloc n'est construit qu'une fois.
+//
+// Trois mises en page (attribut data-layout) : « desk » (ordinateur : bandeau haut, bandeau bas avec
+// la frise à gauche, les sorts et la vitesse à droite), « portrait » (téléphone debout : bandeau haut
+// sur trois rangs dont la frise, menus en feuille au bas de l'écran), « landscape » (téléphone couché :
+// deux colonnes à gauche et à droite, frise en bas entre elles). Le HUD ne couvre que ces bandes
+// (insets) ; menus et panneaux s'ouvrent par-dessus la carte. Le DOM n'est réécrit que quand une
+// valeur affichée change.
 (function () {
   "use strict";
   const PTMT = (globalThis.PTMT = globalThis.PTMT || {});
@@ -33,7 +47,7 @@
 
   /* ------------------------------------------------------------------ outils */
   // Typographie française : pas de retour à la ligne avant « : » ni à l'intérieur des guillemets.
-  const fr = (t) => (t.indexOf(" :") < 0 && t.indexOf("« ") < 0 && t.indexOf(" »") < 0 ? t : t.replace(/ :/g, "\u00a0:").replace(/« /g, "«\u00a0").replace(/ »/g, "\u00a0»"));
+  const fr = (t) => (/ [:!?;»]|« /.test(t) ? t.replace(/ :/g, "\u00a0:").replace(/ ([!?;])/g, "\u202f$1").replace(/« /g, "«\u00a0").replace(/ »/g, "\u00a0»") : t);
   const h = (tag, attrs, ...kids) => {
     const el = document.createElement(tag);
     if (attrs)
@@ -43,6 +57,7 @@
         if (k === "class") el.className = v;
         else if (k === "html") el.innerHTML = v;
         else if (k === "style") el.style.cssText = v;
+        else if (k === "title" || k === "aria-label") el.setAttribute(k, fr(String(v)));
         else if (k.startsWith("on")) el.addEventListener(k.slice(2), v);
         else el.setAttribute(k, v === true ? "" : v);
       }
@@ -62,20 +77,47 @@
   const FAMS = ["boar", "swan", "dog"];
   const KEYS = { cut: "Q", frenzy: "W", meteor: "E" };
   // Teinte des portraits de secours (quand PTMT.portraits ne connaît pas le type).
-  const TINT = { fermier: "#6f8f3a", quad: "#3f4f78", cowboy: "#a0602d", vache: "#3a3a3a", druide: "#cfd6c4", bigoudene: "#2a4c9a", chasseur: "#56733a", rugbyman: "#2a5cb8", sonneur: "#35508f", pompier: "#c8342a", canard: "#e8b820" };
+  const TINT = {
+    fermier: "#6f8f3a", quad: "#3f4f78", cowboy: "#a0602d", vache: "#3a3a3a", druide: "#cfd6c4", bigoudene: "#2a4c9a", chasseur: "#56733a", rugbyman: "#2a5cb8", sonneur: "#35508f", pompier: "#c8342a", canard: "#e8b820",
+    cycliste: "#f2c21a", korrigan: "#7a4fc0", touriste: "#2fa3a0", tracteur: "#c8342a", montgolfiere: "#e8622f",
+  };
+  // Ennemis ajoutés par la v4 (pastille « Nouveau » de l'encyclopédie).
+  const NEW_V4 = { cycliste: 1, korrigan: 1, touriste: 1, tracteur: 1, montgolfiere: 1 };
   const ABILITY = {
     lasso: (a) => ["lasso", "Lasso", `attrape une gemme tombée jusqu'à ${f1(a.range || 1.5)} case`],
     shield: (a) => ["shield", "Bouclier", `retire ${a.value || 5} dégâts à chaque coup`],
-    barrier: (a) => ["barrier", "Barrière", `bulle de ${a.value || 100} PV qui se reforme`],
+    barrier: (a) => ["barrier", "Bulle", `bulle de ${a.value || 100} PV qui se reforme`],
     heal: (a) => ["heal", "Soigneuse", `+${a.value || 30} PV à un allié toutes les ${a.every || 3} s`],
     smoke: (a) => ["smoke", "Fumigène", `invisible ${a.t || 5} s au premier coup`],
     evade: (a) => ["evade", "Esquive", `évite ${pc(a.chance || 0.5)} des projectiles`],
     haste: (a) => ["haste", "Biniou", `vitesse × ${a.mult || 2} pour les alliés proches`],
     immune: () => ["immune", "Immunisé", "aucun effet ne le touche"],
     swim: () => ["swim", "Nageur", "coupe par l'eau"],
+    peloton: (a) => ["peloton", "Peloton", `+${pc((a.mult || 1.3) - 1)} de vitesse quand ils roulent groupés`],
+    blink: (a) => ["blink", "Pouf !", `touché, réapparaît ${f1(a.dist || 1.8)} case plus loin (toutes les ${f1(a.every || 3.5)} s)`],
+    flash: (a) => ["dazzle", "Flash", `éblouit la tour la plus proche : plus de tir pendant ${f1(a.t || 2)} s (toutes les ${a.every || 5} s)`],
+    split: (a) => ["split", "Tracteur", `bouclier ${a.shield || 3} ; détruit, lâche ${a.value || 3} agriculteurs`],
+    fly: () => ["fly", "Vol", "vole en ligne droite au-dessus de tout, jusqu'à la cachette la plus proche"],
   };
+  /** « au moulin », « à la chapelle », « au vieux puits » : à + nom de cachette. */
+  const aLair = (name) => (/^Le /.test(name) ? "au " + name.slice(3) : /^La /.test(name) ? "à la " + name.slice(3) : /^L'/.test(name) ? "à l'" + name.slice(2) : /^Les /.test(name) ? "aux " + name.slice(4) : "à " + name);
   const speedWord = (v) => (v < 0.8 ? "lent" : v > 1.25 ? "rapide" : "normal");
-  const TERRAIN = { grass: "Herbe", rock: "Roche", water: "Eau", high: "Butte", road: "Chemin", bridge: "Pont", decor: "Talus", thicket: "Fourré" };
+  const TERRAIN = { grass: "Herbe", rock: "Roche", water: "Eau", high: "Butte", road: "Chemin", bridge: "Pont", decor: "Talus", thicket: "Fourré", lair: "Cachette", tide: "Estran", gate: "Barrière" };
+  // Façons d'attaquer des tours : icône, nom, explication courte.
+  const ATTACK = {
+    shot: { icon: "shot", name: "Tir", text: "Une bogue après l'autre, sur une cible." },
+    charges: { icon: "charges", name: "Charges", text: "Garde des boules d'eau et les lâche d'un coup, puis chacune revient." },
+    beam: { icon: "beam", name: "Jet de feu", text: "Brûle sa cible sans arrêt tant qu'elle reste à portée : plus il la tient, plus ça chauffe." },
+  };
+  // Surprises annoncées par la frise (icône, mot court).
+  const NOTE = {
+    tideLow: { icon: "tideLow", word: "Marée basse", tip: "Marée basse : l'estran devient un chemin" },
+    tideHigh: { icon: "tideHigh", word: "Marée haute", tip: "Marée haute : l'estran redevient de l'eau (seuls les nageurs y passent)" },
+    gate: { icon: "gate", word: "Barrière", tip: "La barrière cède : une nouvelle entrée s'ouvre" },
+    secret: { icon: "secret", word: "Passage secret", tip: "Un passage secret s'ouvre dans le fourré" },
+  };
+  // Effets en cours sur un ennemi (clés de enemy.fx) : nom court.
+  const FX = { slow: "Ralenti", freeze: "Gelé", fear: "Apeuré", burn: "Brûle", radiance: "Rayonne", stun: "Étourdi", haste: "Pressé", invisible: "Invisible", disarmed: "Désarmé", wading: "Patauge" };
 
   /* ------------------------------------------------------------------ l'interface */
   function UI(o) {
@@ -145,7 +187,7 @@
 
   P.buildHud = function () {
     const I = icons();
-    // Bandeau du haut : menu, or, mana, gemmes | vague et aperçu de la suivante.
+    // Bandeau du haut : menu, or, mana, gemmes par cachette | mission.
     this.topEl = h("header", { class: "pt-top" });
     this.btnMenu = h("button", { class: "pt-btn pt-sq pt-menu", title: "Menu et pause (Échap)", "aria-label": "Menu", onclick: () => this.openPause() }, ico("menu"));
     this.goldNum = h("b", { class: "pt-num" }, "0");
@@ -153,21 +195,13 @@
     this.manaFill = h("i", { class: "pt-gauge-fill" });
     this.manaNum = h("b", { class: "pt-num" }, "0");
     this.manaEl = h("div", { class: "pt-res pt-mana", title: "Mana : se recharge avec le temps" }, ico("mana"), h("div", { class: "pt-gauge" }, this.manaFill, h("i", { class: "pt-gauge-shine" }), this.manaNum));
-    this.gemsEl = h("div", { class: "pt-res pt-gems", title: "Gemmes : au moulin, au sol, emportées, perdues" });
-    this.waveNum = h("b", { class: "pt-num" }, "1");
-    this.waveTot = h("span", { class: "pt-num" }, "5");
-    this.waveEl = h("div", { class: "pt-res pt-wave", title: "Vague en cours" }, ico("wave"), h("span", { class: "pt-wave-t" }, h("small", {}, "Vague"), h("span", { class: "pt-wave-n" }, this.waveNum, h("i", {}, "/"), this.waveTot)));
-    this.nextTitle = h("span", { class: "pt-next-lbl" }, "Prochaine vague");
-    this.nextTime = h("b", { class: "pt-num pt-next-time" }, "");
-    this.nextFoes = h("div", { class: "pt-foes" });
-    this.nextGates = h("span", { class: "pt-next-gates" });
-    this.callBonus = h("b", { class: "pt-num" }, "");
-    this.callBtn = h("button", { class: "pt-btn pt-go pt-call", title: "Appeler la vague maintenant (Entrée) : bonus d'or", onclick: () => this.callWave() }, ico("horn"), h("span", { class: "pt-call-l" }, "Appeler"), h("span", { class: "pt-call-b" }, "+", this.callBonus));
-    this.nextEl = h("div", { class: "pt-next" }, h("div", { class: "pt-next-h" }, this.nextTitle, this.nextGates, this.nextTime), this.nextFoes, this.callBtn);
-    this.topEl.append(this.btnMenu, this.goldEl, this.manaEl, this.gemsEl, h("div", { class: "pt-sp" }), this.waveEl, this.nextEl);
-    // Bandeau du bas : mission, sorts, vitesse et pause.
-    this.bottomEl = h("footer", { class: "pt-bottom" });
+    this.gemsEl = h("div", { class: "pt-res pt-gems", title: "Gemmes de chaque cachette : à l'abri, tombées au sol, emportées, perdues" });
     this.missionEl = h("div", { class: "pt-mission" });
+    this.topEl.append(this.btnMenu, this.goldEl, this.manaEl, this.gemsEl, h("div", { class: "pt-sp" }), this.missionEl);
+    // Frise des vagues : placée selon la mise en page (bandeau du bas, du haut, ou bande à part).
+    this.buildFrieze();
+    // Bandeau du bas : (frise), sorts, vitesse et pause.
+    this.bottomEl = h("footer", { class: "pt-bottom" });
     this.spellsEl = h("div", { class: "pt-spells" });
     this.spellBtn = {};
     for (const k of SPELLS) {
@@ -190,10 +224,213 @@
     // Sur téléphone : un seul bouton qui fait défiler × 1 → × 2 → × 3 (cible tactile assez grande).
     this.speedCycle = h("button", { class: "pt-btn pt-sq pt-speed-c", title: "Vitesse", "aria-label": "Changer de vitesse", onclick: () => this.setSpeed(((this.game && this.game.state.speed) || 1) % 3 + 1) }, h("span", { class: "pt-speed-ci" }), h("b", { class: "pt-num" }, "×1"));
     this.speedEl = h("div", { class: "pt-speed" }, h("div", { class: "pt-seg" }, this.speedBtns), this.speedCycle, this.pauseBtn);
-    this.bottomEl.append(this.missionEl, this.spellsEl, this.speedEl);
+    this.bottomEl.append(this.spellsEl, this.speedEl);
     this.marksEl = h("div", { class: "pt-marks" });
+    this.ringEl = h("div", { class: "pt-ering", hidden: true }, h("i", {}));
     this.flyEl = h("div", { class: "pt-fly" });
-    this.hud.append(this.marksEl, this.flyEl, this.topEl, this.bottomEl);
+    this.hud.append(this.ringEl, this.marksEl, this.flyEl, this.topEl, this.bottomEl);
+  };
+
+  /* ------------------------------------------------------------------ frise des vagues */
+  P.buildFrieze = function () {
+    this.fzN = h("b", { class: "pt-num" }, "0");
+    this.fzTot = h("span", { class: "pt-num" }, "/" + NB + "0");
+    this.fzNow = h("div", { class: "pt-fz-now", title: "Vague en cours" }, h("small", {}, "Vague"), h("span", { class: "pt-fz-nt" }, this.fzN, this.fzTot));
+    this.fzTrack = h("div", { class: "pt-fz-track" });
+    this.fzMsg = h("div", { class: "pt-fz-msg" });
+    this.fzEl = h("section", { class: "pt-fz", "aria-label": "Vagues à venir" }, this.fzNow, h("div", { class: "pt-fz-rail" }, this.fzTrack, this.fzMsg));
+    this.fzBlocks = [];
+  };
+  /** Range la frise selon la mise en page : bandeau du bas (ordinateur), du haut (téléphone debout), bande à part (couché). */
+  P.placeFriezeHost = function () {
+    const host = this.layout === "portrait" ? this.topEl : this.layout === "landscape" ? this.hud : this.bottomEl;
+    if (this.fzEl.parentNode !== host) {
+      if (host === this.bottomEl) host.insertBefore(this.fzEl, host.firstChild);
+      else host.append(this.fzEl);
+    }
+    this.fzK = null;
+    for (const b of this.fzBlocks) b.w = 0;
+  };
+  /** Unités de la frise : groupes d'un même ennemi (et rang) réunis, quelle que soit l'entrée. */
+  const mergeUnits = (groups) => {
+    const map = new Map();
+    for (const g of groups || []) {
+      const k = g.type + (g.boss ? "!" : g.champion ? "*" : "");
+      let u = map.get(k);
+      if (!u) map.set(k, (u = { type: g.type, champion: !!g.champion, boss: !!g.boss, name: g.name || null, count: 0, ents: [], flying: !!g.flying, swims: !!g.swims }));
+      u.count += g.count || 0;
+      if (g.letter && !u.ents.some((e) => e.letter === g.letter)) u.ents.push({ entrance: g.entrance, letter: g.letter, color: g.color || "#3f9be8" });
+    }
+    const list = [...map.values()];
+    for (const u of list) u.ents.sort((a, b) => (a.letter < b.letter ? -1 : 1));
+    // Boss d'abord, puis les groupes ordinaires (les plus nombreux en tête), puis les champions.
+    return list.sort((a, b) => b.boss - a.boss || a.champion - b.champion || b.count - a.count);
+  };
+  P.entranceById = function (id) {
+    const all = (this.game && this.game.state.map && this.game.state.map.entrances) || [];
+    return all.find((e) => e.id === id) || null;
+  };
+  /** Une unité : portrait × nombre, entrées (lettres colorées), vol ou nage. */
+  P.fzUnit = function (u, multi) {
+    const D = this.D();
+    const E = (D.ENEMIES && D.ENEMIES[u.type]) || {};
+    const nm = u.boss ? u.name || (D.BOSS_NAMES && D.BOSS_NAMES[u.type]) || "Boss" : (u.champion ? "Champion : " : "") + (E.name || u.type);
+    const letters = u.ents.map((e) => e.letter).join(", ");
+    const tip = nm + (u.boss ? "" : " × " + u.count) + (multi && letters ? " · entrée" + (u.ents.length > 1 ? "s " : " ") + letters : "") + (u.flying ? " · vole droit vers les gemmes" : u.swims ? " · coupe par l'eau" : "");
+    return h(
+      "span",
+      { class: "pt-fz-u" + (u.boss ? " boss" : u.champion ? " champ" : ""), title: tip },
+      this.enemyPortrait(u.type, u.champion, u.boss),
+      u.boss && u.count <= 1 ? null : h("b", { class: "pt-num pt-fz-c" }, "×" + u.count),
+      u.flying ? h("span", { class: "pt-fz-m", title: "Vole", html: icons().get("fly") }) : u.swims ? h("span", { class: "pt-fz-m", title: "Nage", html: icons().get("swim") } ) : null,
+      multi && u.ents.length ? h("span", { class: "pt-fz-e" }, u.ents.map((e) => h("i", { style: `--gc:${e.color}` }, e.letter))) : null,
+    );
+  };
+  /** Une surprise annoncée : icône et mot court (barrière : lettre de l'entrée qui s'ouvre). */
+  P.fzNote = function (n) {
+    const N = NOTE[n.kind] || { icon: "warning", word: n.kind, tip: "" };
+    const ent = n.entrance !== undefined ? this.entranceById(n.entrance) : null;
+    const letter = n.letter || (ent && ent.letter) || "";
+    const color = (ent && ent.color) || "#a06bff";
+    return h(
+      "span",
+      { class: "pt-fz-note", "data-k": n.kind, title: N.tip + (letter ? " (entrée " + letter + ")" : "") },
+      ico(N.icon),
+      h("small", {}, N.word, letter ? h("i", { style: `--gc:${color}` }, letter) : null),
+    );
+  };
+  /** Bloc d'une vague. Le premier est un bouton : il appelle la vague (bonus d'or). */
+  P.fzBlock = function (w, first, multi) {
+    const units = mergeUnits(w.groups);
+    const max = this.layout === "desk" ? 5 : 4;
+    const notes = w.notes || [];
+    const kids = [];
+    const cd = first ? h("i", { class: "pt-num pt-fz-cd" }, "") : null;
+    kids.push(h("span", { class: "pt-fz-h" }, h("b", { class: "pt-num" }, String(w.index + 1)), cd));
+    const body = h("span", { class: "pt-fz-body" });
+    for (const u of units.slice(0, max)) body.append(this.fzUnit(u, multi));
+    if (units.length > max) body.append(h("span", { class: "pt-fz-more pt-num", title: units.slice(max).map((u) => u.type).join(", ") }, "+" + (units.length - max)));
+    for (const n of notes) body.append(this.fzNote(n));
+    kids.push(body);
+    const bonus = first ? h("b", { class: "pt-num" }, "+0") : null;
+    if (first) kids.push(h("span", { class: "pt-fz-call" }, ico("horn"), bonus));
+    const boss = units.some((u) => u.boss);
+    const cls = "pt-fz-b" + (first ? " first" : "") + (boss ? " boss" : "") + (notes.length ? " surprise" : "") + (multi ? " multi" : "");
+    const el = first
+      ? h("button", { class: cls, "data-w": w.index + 1, title: `Appeler la vague ${w.index + 1} maintenant (Entrée) : bonus d'or`, onclick: () => this.callWave() }, kids)
+      : h("div", { class: cls, "data-w": w.index + 1 }, kids);
+    return { el, cd, bonus };
+  };
+  /** Liste des vagues à venir (simulation v4, sinon repli sur nextWave). */
+  P.upcomingList = function (s) {
+    if (s.over) return [];
+    const w = s.wave || {};
+    let list = call(this.game, "upcoming", 5);
+    if (!Array.isArray(list)) {
+      const nw = call(this.game, "nextWave");
+      list = nw && nw.groups ? [Object.assign({ startsIn: Math.max(0, nw.countdown || 0), notes: [] }, nw)] : [];
+    }
+    return w.total ? list.filter((x) => x.index < w.total) : list;
+  };
+  /** Structure de la frise (quelques fois par seconde) : blocs ajoutés, remplacés, entrés en jeu. */
+  P.refreshFrieze = function (s) {
+    const w = s.wave || {};
+    const total = w.total || 0;
+    const index = typeof w.index === "number" ? w.index : -1;
+    const cur = clamp(index + 1, 0, total);
+    this.put("fzNow", cur + "/" + total, (v, old) => {
+      this.fzN.textContent = String(cur);
+      this.fzTot.textContent = "/" + NB + (total || "?");
+      this.fzNow.classList.toggle("last", !!total && cur >= total);
+      if (old !== undefined) this.bump(this.fzNow, "good");
+    });
+    const list = this.upcomingList(s);
+    this.nextInfo = list[0] || null;
+    const multi = ((s.map && s.map.entrances) || []).length > 1;
+    const cd0 = Math.max(0, w.countdown || 0);
+    const keep = [];
+    list.forEach((x, k) => {
+      const first = k === 0;
+      const key = x.index + (first ? "f" : "") + ":" + (x.groups || []).map((g) => g.type + (g.champion ? "*" : "") + (g.boss ? "!" : "") + g.count + (g.letter || "")).join(",") + ":" + (x.notes || []).map((n) => n.kind + (n.letter || n.entrance || "")).join(",") + ":" + this.layout + (multi ? "m" : "");
+      let b = this.fzBlocks.find((o) => o.index === x.index);
+      if (!b || b.key !== key) {
+        const made = this.fzBlock(x, first, multi);
+        if (b) {
+          b.el.replaceWith(made.el);
+          if (b.px !== undefined) made.el.style.transform = `translate3d(${b.px}px,0,0)`;
+        } else this.fzTrack.append(made.el);
+        b = Object.assign(b || { index: x.index }, made, { key, w: 0, cdTxt: null, bonusV: null });
+      }
+      b.off = Math.max(0, (x.startsIn || 0) - cd0);
+      keep.push(b);
+    });
+    for (const b of this.fzBlocks) if (!keep.includes(b)) this.fzDrop(b, b.index <= index);
+    this.fzBlocks = keep;
+    const msg = s.over ? (s.over.win ? "Victoire !" : "Défaite…") : !list.length && total ? (cur >= total ? "Dernière vague !" : "") : "";
+    this.put("fzMsg", msg, (v) => {
+      this.fzMsg.textContent = v;
+      this.fzEl.classList.toggle("done", !!v);
+    });
+    // Repères d'entrée de la prochaine vague
+    const nk = list[0] ? list[0].index + ":" + (list[0].entrances || []).join(",") + ":" + ((s.map && s.map.entrances) || []).map((e) => (e.open ? 1 : 0)).join("") : "none";
+    this.put("marksKey", nk, () => this.buildMarks(list[0] || null));
+  };
+  /** Bloc parti : la vague a commencé (il plonge dans le repère) ou il sort de la liste. */
+  P.fzDrop = function (b, entered) {
+    if (!entered) return b.el.remove();
+    b.el.classList.add("pt-fz-in");
+    b.el.style.transform = "translate3d(0px,0,0)";
+    setTimeout(() => b.el.remove(), 450);
+  };
+  /** Positions (chaque image) : le premier bloc approche du repère au rythme du compte à rebours. */
+  P.placeFrieze = function (s, dt) {
+    const blocks = this.fzBlocks;
+    if (!blocks.length) return;
+    const D = this.D();
+    const w = s.wave || {};
+    const cd = Math.max(0, w.countdown || 0);
+    if (!this.fzK) {
+      const eco = D.economy || {};
+      const gap = (s.level >= 8 ? eco.waveGapLate : eco.waveGap) || 24;
+      const tw = this.fzTrack.clientWidth || 300;
+      this.fzK = clamp((tw - 24) / (gap * 4.2), 2.2, 7);
+    }
+    const k = this.fzK;
+    const GAP = this.layout === "desk" ? 10 : 6;
+    let end = -Infinity;
+    for (const b of blocks) {
+      if (!b.w) b.w = b.el.offsetWidth || 80;
+      let x = (cd + b.off) * k;
+      if (x < end + GAP) x = end + GAP;
+      end = x + b.w;
+      if (b.x === undefined) b.x = x;
+      else {
+        const d = x - b.x;
+        b.x = Math.abs(d) < 0.6 ? x : b.x + d * Math.min(1, dt * 7);
+      }
+      const px = Math.round(b.x * 2) / 2;
+      if (px !== b.px) {
+        b.px = px;
+        b.el.style.transform = `translate3d(${px}px,0,0)`;
+      }
+    }
+    // Compte à rebours et bonus d'appel du premier bloc
+    const f = blocks[0];
+    if (f.cd) {
+      const c = Math.ceil(cd);
+      const t = c > 0 ? c + NB + "s" : "";
+      if (f.cdTxt !== t) {
+        f.cdTxt = t;
+        f.cd.textContent = t;
+        f.el.classList.toggle("pt-hot", c > 0 && c <= 5);
+      }
+      const bonus = Math.max(0, Math.floor(cd * ((D.economy && D.economy.earlyCallGoldPerSecond) || 1)));
+      if (f.bonusV !== bonus) {
+        f.bonusV = bonus;
+        f.bonus.textContent = "+" + bonus;
+        f.el.setAttribute("aria-label", `Appeler la vague ${f.index + 1} maintenant : ${bonus} or de bonus`);
+      }
+    }
   };
 
   /* ------------------------------------------------------------------ mise en page */
@@ -210,9 +447,13 @@
     this.el.classList.toggle("pt-tiny", Math.min(W, H) < 380);
     this.el.classList.toggle("pt-touch", this.mobile);
     this._insets = null;
+    this.fzK = null;
     if (changed) {
       this.last.mana = null;
-      this.last.nextkey = null;
+      this.last.fzNow = undefined;
+      this.placeFriezeHost();
+      // Les blocs de la frise se reconstruisent à la taille de la nouvelle mise en page.
+      for (const b of this.fzBlocks) b.key = null;
       if (this.tuto) this.tuto.placed = null;
       if (this.marks) for (const m of this.marks) m.tr = null;
     }
@@ -228,9 +469,14 @@
       H = window.innerHeight;
     const a = this.topEl.getBoundingClientRect(),
       b = this.bottomEl.getBoundingClientRect();
-    if (this.layout === "landscape") this._insets = { top: 0, bottom: 0, left: Math.ceil(a.right), right: Math.ceil(W - b.left) };
-    else this._insets = { top: Math.ceil(a.bottom), bottom: Math.ceil(H - b.top), left: 0, right: 0 };
     const st = this.el.style;
+    if (this.layout === "landscape") {
+      // Deux colonnes ; la frise court en bas, entre elles.
+      this._insets = { top: 0, bottom: 0, left: Math.ceil(a.right), right: Math.ceil(W - b.left) };
+      st.setProperty("--pt-left", this._insets.left + "px");
+      st.setProperty("--pt-right", this._insets.right + "px");
+      this._insets.bottom = Math.ceil(H - this.fzEl.getBoundingClientRect().top);
+    } else this._insets = { top: Math.ceil(a.bottom), bottom: Math.ceil(H - b.top), left: 0, right: 0 };
     st.setProperty("--pt-top", this._insets.top + "px");
     st.setProperty("--pt-bottom", this._insets.bottom + "px");
     st.setProperty("--pt-left", this._insets.left + "px");
@@ -418,6 +664,7 @@
         diff ? h("span", { class: "pt-fact pt-diff", "data-d": diff }, cap(diff)) : null,
         h("span", { class: "pt-fact" }, ico("wave"), (m.waves || "?") + " vagues"),
         h("span", { class: "pt-fact" }, ico("gems"), (m.gems || 5) + " gemmes"),
+        this.lairsFact(m),
         h("span", { class: "pt-fact" }, ico("gold"), (m.gold || 0) + " or"),
       ),
       spells.length ? h("div", { class: "pt-mcard-sp" }, h("small", {}, "Sorts"), spells) : null,
@@ -426,6 +673,18 @@
     );
     this.mapCard.textContent = "";
     this.mapCard.append(card);
+  };
+  /** Pastille « n cachettes » de la fiche de mission : une petite icône par cachette (son décor). */
+  P.lairsFact = function (m) {
+    const lairs = (m && m.lairs) || [];
+    const n = lairs.length || 1;
+    const names = lairs.map((L) => L.name || (this.D().LAIR_NAMES || {})[L.style] || "").filter(Boolean);
+    return h(
+      "span",
+      { class: "pt-fact pt-lairs-f" + (n > 1 ? " multi" : ""), title: n > 1 ? "Plusieurs cachettes à défendre : " + names.join(", ").toLowerCase() : "Une seule cachette : " + (names[0] || "le moulin").toLowerCase() },
+      h("span", { class: "pt-lairs-i" }, (lairs.length ? lairs : [{ style: "moulin" }]).map((L) => h("span", { class: "pt-i", html: icons().lair(L.style) }))),
+      n + " cachette" + (n > 1 ? "s" : ""),
+    );
   };
   P.play = function (k) {
     if (typeof this.hooks.playLevel === "function") this.hooks.playLevel(k);
@@ -660,7 +919,7 @@
     for (const type of Object.keys(D.ENEMIES || {})) {
       const e = D.ENEMIES[type];
       if (!seen[type]) {
-        grid.append(h("div", { class: "pt-card pt-ecard unseen" }, h("span", { class: "pt-ep big", html: icons().get("unknown") }), h("div", { class: "pt-ecard-b" }, h("h3", {}, "???"), h("p", { class: "pt-muted" }, "Pas encore rencontré. Il apparaîtra ici après sa première attaque."))));
+        grid.append(h("div", { class: "pt-card pt-ecard unseen" }, NEW_V4[type] ? h("span", { class: "pt-new" }, "Nouveau") : null, h("span", { class: "pt-ep big", html: icons().get("unknown") }), h("div", { class: "pt-ecard-b" }, h("h3", {}, "???"), h("p", { class: "pt-muted" }, NEW_V4[type] ? "Un nouvel ennemi rôde dans les dernières missions. Il apparaîtra ici après sa première attaque." : "Pas encore rencontré. Il apparaîtra ici après sa première attaque."))));
         continue;
       }
       grid.append(this.enemyCard(type, e));
@@ -672,7 +931,8 @@
     const ab = e.ability && ABILITY[e.ability.kind] ? ABILITY[e.ability.kind](e.ability) : null;
     return h(
       "div",
-      { class: "pt-card pt-ecard" + (big ? " big" : "") },
+      { class: "pt-card pt-ecard" + (big ? " big" : "") + (NEW_V4[type] ? " new" : "") },
+      NEW_V4[type] ? h("span", { class: "pt-new" }, "Nouveau") : null,
       this.enemyPortrait(type, false, false, "big"),
       h(
         "div",
@@ -708,6 +968,7 @@
           { class: "pt-card pt-tfam", "data-f": fam },
           h("div", { class: "pt-tfam-h" }, h("span", { class: "pt-branch-ic", html: icons().get(fam) }), h("div", {}, h("h2", {}, F.name), h("small", {}, "Se pose sur : ", TERRAIN[F.terrain] || F.terrain, " (et les buttes)")), h("span", { class: "pt-fact" }, ico("gold"), base.cost + " or")),
           h("p", {}, F.role),
+          this.attackGuide(fam),
           h("div", { class: "pt-tlvs" }, lv(1), lv(2), lv(3)),
           h("div", { class: "pt-tspecs" }, spec("A"), spec("B")),
         ),
@@ -716,15 +977,51 @@
     return wrap;
   };
 
+  /** Encyclopédie : la façon d'attaquer d'une famille, expliquée avec un petit schéma. */
+  P.attackGuide = function (fam) {
+    const D = this.D();
+    const F = D.FAMILIES[fam];
+    const mode = F.attack || (fam === "swan" ? "charges" : fam === "dog" ? "beam" : "shot");
+    const A = ATTACK[mode];
+    const L1 = D.towerLevel(fam, 1) || {};
+    const top = (k) => {
+      let best = null;
+      for (const sp of ["A", "B"]) {
+        const L = D.towerLevel(fam, 7, sp);
+        if (L && (!best || (L[k] || 0) > (best[k] || 0))) best = L;
+      }
+      return best || {};
+    };
+    let text, demo;
+    if (mode === "charges") {
+      const T = top("charges");
+      text = `Garde ${L1.charges || 2} à ${T.charges || 5} boules d'eau en réserve et les lâche en rafale dès qu'un ennemi approche ; puis chaque boule revient, l'une après l'autre (${f1(L1.reload || 1.4)} s au début). Les boules éclaboussent autour de la cible et la ralentissent.`;
+      demo = h("span", { class: "pt-ag-demo pt-pips-c" }, [1, 1, 0.45].map((f) => h("i", { class: f >= 1 ? "full" : "", style: `--f:${f}` }, h("b", {}))));
+    } else if (mode === "beam") {
+      const T = top("heatMax");
+      text = `Crache un jet de flammes continu sur une cible tant qu'elle reste à portée. Plus il la tient, plus ça chauffe : les dégâts montent jusqu'à × ${f1(L1.heatMax || 2.2)} au bout de ${f1(L1.heatTime || 3)} s (× ${f1(T.heatMax || 2.6)} pour les grands dragons). Le feu perce les boucliers.`;
+      demo = h("span", { class: "pt-ag-demo pt-heat on max" }, h("span", { class: "pt-heat-bar" }, h("i", { class: "pt-heat-fill", style: "transform:scaleX(1)" }), h("i", { class: "pt-heat-x0" }, "×1"), h("i", { class: "pt-heat-x1" }, "×" + f1(L1.heatMax || 2.2))));
+    } else {
+      text = `Lance des bogues de châtaigne l'une après l'autre sur une seule cible (${nf(L1.dmg || 10)} dégâts × ${f1(L1.rate || 1.1)} par seconde au début). Le Grand Solitaire vise deux ennemis à la fois ; la Catapulte frappe en zone.`;
+      demo = h("span", { class: "pt-ag-demo pt-ag-shot" }, [0, 1, 2].map(() => h("span", { class: "pt-i", html: icons().get("shot") })));
+    }
+    return h("div", { class: "pt-ag", "data-a": mode }, h("div", { class: "pt-ag-h" }, ico(A.icon), h("b", {}, A.name), demo), h("p", {}, text));
+  };
   /** Portrait d'ennemi : PTMT.portraits s'il le connaît, sinon disque coloré à l'initiale. */
   P.enemyPortrait = function (type, champion, boss, cls) {
     const src = PTMT.portraits && typeof PTMT.portraits.get === "function" ? PTMT.portraits.get(type, champion || boss) : "";
     const el = h("span", { class: "pt-ep" + (cls ? " " + cls : "") + (champion ? " champ" : "") + (boss ? " boss" : "") });
     if (typeof src === "string" && src.trim().startsWith("<")) el.innerHTML = src;
     else {
+      // Portrait pas encore dessiné : pastille à l'initiale, couleur de l'ennemi (accent des portraits si connue).
+      // Icône de sa capacité quand elle est parlante (vélo, flash, tracteur, montgolfière…), sinon son initiale.
+      const acc = PTMT.portraits && PTMT.portraits.accent && PTMT.portraits.accent[type];
+      const E = (this.D().ENEMIES || {})[type] || {};
+      const ab = E.ability && ABILITY[E.ability.kind] ? ABILITY[E.ability.kind](E.ability)[0] : null;
       el.classList.add("fb");
-      el.style.setProperty("--tint", TINT[type] || "#7a6a5a");
-      el.append(h("span", { class: "pt-ep-fb", html: icons().get("enemy") }));
+      el.style.setProperty("--tint", acc || TINT[type] || "#7a6a5a");
+      if (ab && icons().get(ab)) el.append(h("span", { class: "pt-ep-fb ic", html: icons().get(ab) }));
+      else el.append(h("b", { class: "pt-ep-fb" }, ((E.name || type || "?").replace(/^(Le |La |L')/, "").charAt(0) || "?").toUpperCase()));
     }
     if (boss) el.append(h("span", { class: "pt-ep-badge boss", html: icons().get("boss") }));
     else if (champion) el.append(h("span", { class: "pt-ep-badge", html: icons().get("champion") }));
@@ -770,14 +1067,21 @@
     const perLong = (D.SKILL && D.SKILL.frenzyLong && D.SKILL.frenzyLong.per) || 0.5;
     this.frenzyDur = mods.frenzyTime || ((D.SPELLS && D.SPELLS.frenzy && D.SPELLS.frenzy.t) || 5) + perLong * ((p.skills && p.skills.frenzyLong) || 0);
     this.missionEl.textContent = "";
+    this.missionEl.title = "Mission " + this.level;
     this.missionEl.append(h("span", { class: "pt-mission-n pt-num" }, String(this.level)), h("span", { class: "pt-mission-t" }, s.map && s.map.name ? s.map.name : m.name || "Mission " + this.level));
-    // Pastilles de gemmes
-    this.gemsEl.textContent = "";
-    this.gemEls = (s.gems || []).map((g) => {
-      const el = h("span", { class: "pt-gem", "data-w": g.where, html: icons().gem(g.color, g.where === "lair" ? "lair" : g.where) });
-      this.gemsEl.append(el);
-      return el;
-    });
+    // Gemmes, groupées par cachette
+    this.buildGems(s);
+    // Frise des vagues : repartie de zéro
+    for (const b of this.fzBlocks) b.el.remove();
+    this.fzBlocks = [];
+    this.fzT = 0;
+    this.fzK = null;
+    this.fzMsg.textContent = "";
+    this.fzEl.classList.remove("done");
+    // Annonces : rien d'annoncé encore dans cette partie
+    this.annT = {};
+    this.annWave = {};
+    this.ringEl.hidden = true;
     // Vitesse mémorisée
     const sp = (p.settings && p.settings.speed) || 1;
     if (sp !== 1 && sp !== s.speed) call(game, "setSpeed", sp);
@@ -786,6 +1090,39 @@
     this.frame(0);
     if (this.level === 1 && !this.wasWon) this.tutoStart();
     else this.tuto = null;
+  };
+  /** Pastilles de gemmes, une rangée par cachette (icône du décor quand il y en a plusieurs). */
+  P.buildGems = function (s) {
+    this.gemsEl.textContent = "";
+    const lairs = (s.map && s.map.lairs) || [];
+    const multi = lairs.length > 1;
+    const groups = lairs.length ? lairs.map((L) => ({ L, list: [] })) : [{ L: null, list: [] }];
+    (s.gems || []).forEach((g, i) => (groups[g.lair] || groups[0]).list.push(i));
+    this.gemEls = [];
+    this.lairEls = [];
+    for (const grp of groups) {
+      const L = grp.L;
+      const el = h("span", { class: "pt-lair", "data-style": L ? L.style : "moulin", title: L ? L.name : "" }, multi && L ? h("span", { class: "pt-lair-i", html: icons().lair(L.style) }) : null);
+      for (const i of grp.list) {
+        const g = h("span", { class: "pt-gem", "data-w": "" });
+        this.gemEls[i] = g;
+        el.append(g);
+      }
+      this.gemsEl.append(el);
+      this.lairEls.push(el);
+    }
+    this.gemsEl.classList.toggle("multi", multi);
+    this.gemsEl.dataset.n = String(groups.length);
+  };
+  /** Cachette attaquée : sa rangée clignote un moment. */
+  P.lairAlarm = function (id) {
+    const el = this.lairEls && this.lairEls[id];
+    if (!el) return;
+    el.classList.remove("pt-alarm");
+    void el.offsetWidth;
+    el.classList.add("pt-alarm");
+    clearTimeout(el._alarm);
+    el._alarm = setTimeout(() => el.classList.remove("pt-alarm"), 2600);
   };
   /** Quitte le HUD (appelé en changeant d'écran). */
   P.leaveLevel = function (keepMode) {
@@ -828,35 +1165,37 @@
       this.manaNum.textContent = Math.floor(s.mana) + (this.layout === "landscape" ? "" : NB + "/" + NB + mm);
       this.manaFill.style.transform = `scaleX(${clamp(s.mana / mm, 0, 1).toFixed(3)})`;
     });
-    // Gemmes
+    // Gemmes (rangées par cachette)
     if (s.gems && this.gemEls) {
-      if (s.gems.length !== this.gemEls.length) {
-        this.gemsEl.textContent = "";
-        this.gemEls = s.gems.map((g) => this.gemsEl.appendChild(h("span", { class: "pt-gem", "data-w": "", html: "" })));
-      }
+      if (s.gems.length !== this.gemEls.length || ((s.map && s.map.lairs) || [null]).length !== this.lairEls.length) this.buildGems(s);
+      const lairs = (s.map && s.map.lairs) || [];
       s.gems.forEach((g, i) => {
         this.put("gem" + i, g.where + g.color, (v, old) => {
           const el = this.gemEls[i];
+          if (!el) return;
           el.dataset.w = g.where;
           el.innerHTML = icons().gem(g.color, g.where);
-          el.title = { lair: "Au moulin", ground: "Tombée au sol : reprends-la !", carried: "Emportée par un ennemi", lost: "Perdue" }[g.where] || "";
+          const L = lairs[g.lair];
+          el.title = fr({ lair: L ? "À l'abri : " + L.name.toLowerCase() : "À l'abri", ground: "Tombée au sol : reprends-la !", carried: "Emportée par un ennemi", lost: "Perdue" }[g.where] || "");
           if (old !== undefined) this.bump(el, g.where === "lair" ? "good" : "bad");
         });
       });
+      for (const L of lairs)
+        this.put("lair" + L.id, L.stock + "/" + L.total, () => {
+          const el = this.lairEls[L.id];
+          if (el) el.title = fr(`${L.name} : ${L.stock} gemme${L.stock > 1 ? "s" : ""} sur ${L.total}`);
+        });
     }
-    // Vague (index à partir de 0, -1 avant la première : on affiche le nombre de vagues lancées)
-    const w = s.wave || {};
-    const cur = clamp((typeof w.index === "number" ? w.index : -1) + 1, 0, w.total || 0);
-    this.put("wave", cur + "/" + (w.total || 0), () => {
-      this.waveNum.textContent = String(cur);
-      this.waveTot.textContent = String(w.total || "?");
-      this.nextT = 0;
-    });
-    this.nextT -= dt;
-    if (this.nextT <= 0) {
-      this.nextT = 0.2;
-      this.updateNext(s);
+    // Frise des vagues : structure quelques fois par seconde, positions à chaque image
+    this.fzT = (this.fzT || 0) - dt;
+    const wi = s.wave ? s.wave.index : -1;
+    if (this.fzT <= 0 || wi !== this.fzIdx || !!s.over !== this.fzOver) {
+      this.fzT = 0.25;
+      this.fzIdx = wi;
+      this.fzOver = !!s.over;
+      this.refreshFrieze(s);
     }
+    this.placeFrieze(s, dt);
     // Sorts
     for (const k of SPELLS) this.updateSpell(k, s);
     // Vitesse, pause
@@ -874,15 +1213,17 @@
       if (v && !this.modal) this.pausedBanner(true);
       else this.pausedBanner(false);
     });
-    // Panneaux ancrés, repères d'entrée, tutoriel
+    // Panneaux ancrés (tour : jauges en direct ; ennemi : fiche rafraîchie), repères d'entrée, tutoriel
     if (this.sel) {
       this.placeSel(false);
       this.selT = (this.selT || 0) - dt;
       if (this.selT <= 0) {
-        this.selT = 0.25;
+        this.selT = this.sel.kind === "enemy" ? 0.15 : 0.25;
         this.refreshSel();
       }
+      if (this.sel && this.sel.kind === "tower") this.towerGauges();
     }
+    this.placeRing();
     this.placeMarks();
     if (this.tuto) this.tutoFrame(dt);
     // Fin de partie
@@ -900,74 +1241,28 @@
     el.classList.add("pt-bump", "pt-bump-" + (kind || "up"));
   };
 
-  /** Aperçu de la prochaine vague (portraits × nombres, entrées, compte à rebours, bonus d'appel). */
-  P.updateNext = function (s) {
-    const nw = s.over ? null : call(this.game, "nextWave");
-    const D = this.D();
-    const w = s.wave || {};
-    if (nw && nw.groups) this.nextInfo = nw;
-    if (!nw || !nw.groups || (w.total && nw.index >= w.total)) {
-      const end = s.over ? (s.over.win ? "win" : "lose") : "";
-      this.put("nextkey", "none" + end, () => {
-        this.marksEl.textContent = "";
-        this.nextEl.classList.add("done");
-        this.nextTitle.textContent = end === "win" ? "Victoire !" : end === "lose" ? "Défaite" : w.total && w.index + 1 >= w.total ? "Dernière vague !" : "";
-        this.nextFoes.textContent = "";
-        this.nextGates.textContent = "";
-        this.nextTime.textContent = "";
-      });
-      this.marks = null;
-      return;
-    }
-    const key = nw.index + ":" + nw.groups.map((g) => g.type + (g.champion ? "*" : "") + (g.boss ? "!" : "") + g.count).join(",") + ":" + (nw.entrances || []).join(",");
-    this.put("nextkey", key, () => {
-      this.nextEl.classList.remove("done");
-      this.last.nextcd = null;
-      this.nextFoes.textContent = "";
-      const groups = nw.groups.slice().sort((a, b) => (b.boss ? 1 : 0) - (a.boss ? 1 : 0) || (b.champion ? 1 : 0) - (a.champion ? 1 : 0) || b.count - a.count);
-      const max = this.layout === "landscape" ? 3 : this.layout === "portrait" ? 4 : 5;
-      for (const g of groups.slice(0, max)) {
-        const E = (D.ENEMIES && D.ENEMIES[g.type]) || {};
-        const nm = g.boss ? g.name || (D.BOSS_NAMES && D.BOSS_NAMES[g.type]) || "Boss" : (g.champion ? "Champion : " : "") + (E.name || g.type);
-        this.nextFoes.append(h("span", { class: "pt-foe" + (g.boss ? " boss" : g.champion ? " champ" : ""), title: nm + " × " + g.count }, this.enemyPortrait(g.type, g.champion, g.boss), h("b", { class: "pt-num" }, "×" + g.count)));
-      }
-      if (groups.length > max) this.nextFoes.append(h("span", { class: "pt-foe more" }, "+" + (groups.length - max)));
-      const ents = nw.entrances || [];
-      const all = (s.map && s.map.entrances) || [];
-      this.nextGates.textContent = "";
-      if (all.length > 1) for (const id of ents) this.nextGates.append(h("i", { class: "pt-gate", "data-g": this.gateIndex(id), title: "Entrée " + this.gateLetter(id) }, this.gateLetter(id)));
-      if (nw.groups.some((g) => g.boss)) this.bump(this.nextEl, "bad");
-      this.buildMarks(nw);
-    });
-    const cd = Math.max(0, Math.ceil(nw.countdown || 0));
-    const bonus = Math.max(0, Math.floor((nw.countdown || 0) * (((D.economy || {}).earlyCallGoldPerSecond) || 1)));
-    this.put("nextcd", cd + ":" + bonus + ":" + nw.index, () => {
-      this.nextTitle.textContent = "Vague " + (nw.index + 1);
-      if (cd > 0) this.nextTitle.append(h("span", { class: "pt-next-dans" }, " dans"));
-      this.nextTime.textContent = cd > 0 ? cd + NB + "s" : "";
-      this.callBonus.textContent = String(bonus);
-      this.callBtn.classList.toggle("pt-hot", cd > 0 && cd <= 5);
-    });
-  };
-  P.gateIndex = function (id) {
-    const all = (this.game && this.game.state.map && this.game.state.map.entrances) || [];
-    const k = all.findIndex((e) => e.id === id);
-    return k < 0 ? 0 : k;
-  };
-  P.gateLetter = function (id) {
-    return "ABCDEFGH".charAt(this.gateIndex(id));
-  };
   /** Repères au bord de la carte : entrées par où arrive la prochaine vague. */
   P.buildMarks = function (nw) {
-    this.marksEl.textContent = "";
-    const all = (this.game.state.map && this.game.state.map.entrances) || [];
+    if (this.marks) for (const m of this.marks) m.el.remove();
     this.marks = [];
-    for (const id of nw.entrances || []) {
+    if (!nw || !this.game) return;
+    const all = (this.game.state.map && this.game.state.map.entrances) || [];
+    const ids = nw.entrances || [...new Set((nw.groups || []).map((g) => g.entrance))];
+    for (const id of ids) {
       const e = all.find((x) => x.id === id);
       if (!e) continue;
-      const el = h("div", { class: "pt-mark", "data-g": this.gateIndex(id) }, h("span", { class: "pt-mark-a", html: icons().get("entrance") }), all.length > 1 ? h("b", { class: "pt-num" }, this.gateLetter(id)) : null);
+      // Centre de l'entrée (v4 : x, y ; v3 : case i, j)
+      const x = typeof e.x === "number" ? e.x : (e.i || 0) + 0.5,
+        y = typeof e.y === "number" ? e.y : (e.j || 0) + 0.5;
+      const gate = e.open === false;
+      const el = h(
+        "div",
+        { class: "pt-mark" + (gate ? " gate" : ""), style: `--gc:${e.color || "#3f9be8"}`, title: (gate ? "La barrière " + (e.letter || "") + " va céder" : "Entrée " + (e.letter || "")) + " : la prochaine vague arrive par ici" },
+        h("span", { class: "pt-mark-a", html: icons().get(gate ? "gate" : "entrance") }),
+        all.length > 1 && e.letter ? h("b", { class: "pt-num" }, e.letter) : null,
+      );
       this.marksEl.append(el);
-      this.marks.push({ el, x: e.i + 0.5, y: e.j + 0.5 });
+      this.marks.push({ el, x, y });
     }
   };
   P.placeMarks = function () {
@@ -980,7 +1275,7 @@
     const top = this.insets().top + 70;
     for (const m of this.marks) {
       const p = this.v("worldToScreen", m.x, m.y);
-      if (!p) continue;
+      if (!p || !isFinite(p.x) || !isFinite(p.y)) continue;
       const tr = `translate(${p.x.toFixed(0)}px, ${p.y.toFixed(0)}px)`;
       if (tr !== m.tr) {
         m.tr = tr;
@@ -988,6 +1283,33 @@
         m.el.classList.toggle("below", p.y < top);
       }
     }
+  };
+  /** Anneau sous l'ennemi dont la fiche est ouverte (si la vue ne le dessine pas elle-même). */
+  P.placeRing = function () {
+    const sel = this.sel;
+    const show = sel && sel.kind === "enemy" && !sel.ring3d;
+    if (!show) {
+      if (!this.ringEl.hidden) this.ringEl.hidden = true;
+      return;
+    }
+    const e = (this.game.state.enemies || []).find((x) => x.id === sel.id);
+    const p = e && this.v("worldToScreen", e.x, e.y);
+    if (!p || !isFinite(p.x)) {
+      if (!this.ringEl.hidden) this.ringEl.hidden = true;
+      return;
+    }
+    if (this.ringEl.hidden) this.ringEl.hidden = false;
+    const size = Math.round(this.cellPx() * (e.boss ? 1.25 : e.champion ? 1.05 : 0.85));
+    const tr = `translate(${p.x.toFixed(0)}px, ${p.y.toFixed(0)}px)`;
+    if (tr !== this.ringTr) {
+      this.ringTr = tr;
+      this.ringEl.style.transform = tr;
+    }
+    if (size !== this.ringSize) {
+      this.ringSize = size;
+      this.ringEl.style.setProperty("--rs", size + "px");
+    }
+    this.ringEl.classList.toggle("fly", !!e.flying);
   };
 
   /** État d'un bouton de sort : verrouillé, trop cher (anneau de progression), prêt, actif. */
@@ -1056,11 +1378,14 @@
   P.callWave = function () {
     if (!this.game) return;
     const s = this.game.state;
+    const first = this.fzBlocks[0];
+    const anchor = (first && first.el) || this.fzEl;
     const nw = call(this.game, "nextWave");
-    if (!nw || (s.wave && s.wave.total && nw.index >= s.wave.total)) return this.refuse(this.callBtn, "Plus aucune vague à appeler");
+    if (!nw || (s.wave && s.wave.total && nw.index >= s.wave.total)) return this.refuse(this.fzEl, "Plus aucune vague à appeler");
     const res = call(this.game, "callWave");
-    if (this.act(res, this.callBtn)) {
-      this.bump(this.callBtn, "good");
+    if (this.act(res, anchor)) {
+      this.bump(this.fzNow, "good");
+      this.fzT = 0;
       this.tutoDone("call");
     }
   };
@@ -1151,7 +1476,12 @@
       return this.castAt(this.aim, hit);
     }
     if (!hit) return this.closeSel();
-    const same = this.sel && this.sel.i === hit.i && this.sel.j === hit.j;
+    // Ennemi touché (la vue renvoie enemyId) : sa fiche, sauf si c'est une tour qui a été visée.
+    if (hit.enemyId !== undefined && hit.enemyId !== null && (hit.towerId === undefined || hit.towerId === null)) {
+      if (this.sel && this.sel.kind === "enemy" && this.sel.id === hit.enemyId) return this.closeSel();
+      return this.openEnemy(hit.enemyId);
+    }
+    const same = this.sel && this.sel.kind !== "enemy" && this.sel.i === hit.i && this.sel.j === hit.j;
     const info = call(this.game, "tileInfo", hit.i, hit.j) || {};
     if (info.towerId !== null && info.towerId !== undefined) {
       if (same && this.sel.kind === "tower") return this.closeSel();
@@ -1169,6 +1499,8 @@
       if (!hit) return this.v("target", this.aim, -99, -99);
       return this.aim === "cut" ? this.v("target", "cut", hit.i + 0.5, hit.j + 0.5) : this.v("target", this.aim, hit.x, hit.y);
     }
+    const onEnemy = !!hit && hit.enemyId !== undefined && hit.enemyId !== null;
+    this.put("hoverEnemy", onEnemy, (v) => document.documentElement.classList.toggle("pt-over-enemy", v));
     if (this.sel) return;
     const info = hit ? call(this.game, "tileInfo", hit.i, hit.j) || {} : {};
     const id = info.towerId !== undefined && info.towerId !== null ? info.towerId : null;
@@ -1183,7 +1515,8 @@
     s.el.classList.add("pt-out");
     setTimeout(() => s.el.remove(), 160);
     this.v("showRange", null);
-    this.v("preview", s.i, s.j, null);
+    if (s.kind === "enemy") this.v("selectEnemy", null);
+    else this.v("preview", s.i, s.j, null);
     this.last.hoverTower = undefined;
     this.hideTip();
   };
@@ -1191,7 +1524,9 @@
   P.openSel = function (sel, body, cls) {
     if (this.sel) {
       this.sel.el.remove();
-      this.v("preview", this.sel.i, this.sel.j, null);
+      if (this.sel.kind === "enemy") this.v("selectEnemy", null);
+      else this.v("preview", this.sel.i, this.sel.j, null);
+      this.v("showRange", null);
     }
     const close = h("button", { class: "pt-btn pt-sq pt-wood pt-x", title: "Fermer (Échap)", "aria-label": "Fermer", onclick: () => this.closeSel() }, ico("close"));
     const el = h("div", { class: "pt-sel pt-card " + (cls || ""), role: "dialog" }, h("i", { class: "pt-arrow" }), close, body);
@@ -1217,8 +1552,6 @@
       return;
     }
     if (sel.placed === "sheet" || sel.placed === null) el.classList.remove("pt-sheet");
-    const p = this.v("worldToScreen", sel.i + 0.5, sel.j + 0.5);
-    if (!p) return;
     if (measure || !sel.w) {
       sel.w = el.offsetWidth;
       sel.h = el.offsetHeight;
@@ -1227,6 +1560,17 @@
       H = window.innerHeight;
     const ins = this.insets();
     const pad = this.layout === "landscape" ? 6 : 14;
+    if (sel.kind === "enemy") {
+      // Fiche d'ennemi : posée au coin bas gauche de la carte ; elle ne suit pas l'ennemi (un anneau le désigne).
+      const tr = `translate(${Math.round(ins.left + pad)}px, ${Math.round(Math.max(ins.top + pad, H - ins.bottom - pad - sel.h))}px)`;
+      if (tr === sel.placed) return;
+      sel.placed = tr;
+      el.dataset.side = "none";
+      el.style.transform = tr;
+      return;
+    }
+    const p = this.v("worldToScreen", sel.i + 0.5, sel.j + 0.5);
+    if (!p) return;
     const cell = this.cellPx();
     let x, y, side;
     if (sel.kind === "tower") {
@@ -1281,6 +1625,122 @@
         return;
       }
       this.updateCutBtn();
+    } else if (sel.kind === "enemy") this.refreshEnemy();
+  };
+
+  // ── Fiche d'ennemi ───────────────────────────────────────────────────────
+  // Ouverte en touchant un ennemi (hit.enemyId) : portrait, nom, rôle, PV (bulle, bouclier), vitesse,
+  // effets en cours, gemme portée, capacité en clair. Rafraîchie tant qu'elle est ouverte ; elle se
+  // ferme seule quand l'ennemi disparaît (vaincu ou sorti de la carte).
+  P.openEnemy = function (id) {
+    const info = call(this.game, "enemyInfo", id);
+    if (!info) return this.closeSel();
+    const D = this.D();
+    const E = (D.ENEMIES && D.ENEMIES[info.type]) || {};
+    const ab = E.ability || null;
+    const abi = ab && ABILITY[ab.kind] ? ABILITY[ab.kind](ab) : null;
+    const hpTxt = h("b", { class: "pt-num" }, "");
+    const hpFill = h("i", { class: "pt-hp-fill" });
+    const bubFill = h("i", { class: "pt-hp-bub" });
+    const bubTxt = h("small", { class: "pt-hp-x" }, "");
+    const hp = h("div", { class: "pt-hp" }, h("div", { class: "pt-hp-h" }, ico("heal"), h("span", {}, "Points de vie"), bubTxt, hpTxt), h("div", { class: "pt-hp-bar" }, hpFill, bubFill));
+    const facts = h("div", { class: "pt-facts pt-en-facts" });
+    const fxEl = h("div", { class: "pt-efx" });
+    const carry = h("div", { class: "pt-ecarry", hidden: true });
+    const name = info.boss ? info.name || (D.BOSS_NAMES && D.BOSS_NAMES[info.type]) || E.name : E.name || info.name || info.type;
+    const rank = info.boss ? "Boss" : info.champion ? "Champion" : "";
+    const abText = abi ? h("div", { class: "pt-ability" + (info.fx && info.fx.disarmed ? " off" : "") }, ico(abi[0]), h("span", {}, h("b", {}, abi[1]), info.blurb || E.blurb ? " : " + (info.blurb || E.blurb) : " : " + abi[2])) : info.blurb || E.blurb ? h("p", { class: "pt-en-b" }, info.blurb || E.blurb) : null;
+    const body = h(
+      "div",
+      { class: "pt-sel-in pt-en" },
+      h(
+        "div",
+        { class: "pt-en-h" },
+        this.enemyPortrait(info.type, info.champion, info.boss, "mid"),
+        h("div", { class: "pt-en-n" }, h("h3", {}, name), h("small", {}, rank ? h("b", { class: "pt-en-rank" + (info.boss ? " boss" : "") }, rank) : null, "Rôle : " + (info.role || E.ct || "?"))),
+      ),
+      hp,
+      facts,
+      fxEl,
+      carry,
+      abText,
+    );
+    this.openSel({ kind: "enemy", id, type: info.type }, body, "pt-enemy");
+    const sel = this.sel;
+    sel.hpTxt = hpTxt;
+    sel.hpFill = hpFill;
+    sel.bubFill = bubFill;
+    sel.bubTxt = bubTxt;
+    sel.facts = facts;
+    sel.fxEl = fxEl;
+    sel.carry = carry;
+    sel.abEl = abText && abText.classList.contains("pt-ability") ? abText : null;
+    // La vue peut dessiner son propre anneau sous l'ennemi ; sinon l'interface en place un.
+    sel.ring3d = typeof (this.view && this.view.selectEnemy) === "function";
+    this.v("selectEnemy", id);
+    this.refreshEnemy(info);
+    this.placeSel(true);
+  };
+  P.refreshEnemy = function (pre) {
+    const sel = this.sel;
+    if (!sel || sel.kind !== "enemy") return;
+    const info = pre || call(this.game, "enemyInfo", sel.id);
+    if (!info || info.hp <= 0) return this.closeSel();
+    const D = this.D();
+    const E = (D.ENEMIES && D.ENEMIES[info.type]) || {};
+    // Points de vie (et bulle du druide)
+    const hp = Math.max(0, Math.ceil(info.hp)),
+      max = Math.max(1, Math.ceil(info.hpMax || 1));
+    const t = nf(hp) + NB + "/" + NB + nf(max);
+    if (sel.hpTxt.textContent !== t) {
+      sel.hpTxt.textContent = t;
+      const r = clamp(hp / max, 0, 1);
+      sel.hpFill.style.transform = `scaleX(${r.toFixed(3)})`;
+      sel.hpFill.dataset.l = r < 0.3 ? "low" : r < 0.6 ? "mid" : "";
+    }
+    const bm = info.barrierMax || 0,
+      bv = Math.max(0, Math.ceil(info.barrier || 0));
+    const bt = bm > 0 ? "bulle " + bv : "";
+    if (sel.bubTxt.textContent !== bt) {
+      sel.bubTxt.textContent = bt;
+      sel.bubFill.style.transform = `scaleX(${bm > 0 ? clamp(bv / bm, 0, 1).toFixed(3) : 0})`;
+    }
+    // Faits : vitesse (en cours), bouclier
+    const sp = info.speed || 0;
+    const base = E.speed || sp || 1;
+    const spKey = (sp <= 0 ? "stop" : sp < base * 0.92 ? "slow" : sp > base * 1.08 ? "fast" : "") + ":" + f1(sp) + ":" + (info.shield || 0);
+    if (sel.spKey !== spKey) {
+      sel.spKey = spKey;
+      sel.facts.textContent = "";
+      const word = sp <= 0 ? "Arrêté" : cap(speedWord(sp));
+      sel.facts.append(h("span", { class: "pt-fact" + (sp < base * 0.92 ? " down" : sp > base * 1.08 ? " up" : ""), title: f1(sp) + " case/s" }, ico("haste"), word + " (" + f1(sp) + ")"));
+      if (info.shield > 0) sel.facts.append(h("span", { class: "pt-fact", title: "Chaque coup perd " + info.shield + " dégâts (sauf le feu du berger)" }, ico("shield"), "Bouclier " + info.shield));
+      if (E.gold) sel.facts.append(h("span", { class: "pt-fact", title: "Prime" }, ico("gold"), "+" + E.gold));
+    }
+    // Effets en cours
+    const fx = info.fx || {};
+    const on = Object.keys(FX).filter((k) => (typeof fx[k] === "number" ? fx[k] > 0 : !!fx[k]));
+    const fk = on.join(",") + (fx.slow ? ":" + Math.round(fx.slow * 100) : "");
+    if (sel.fxKey !== fk) {
+      sel.fxKey = fk;
+      sel.fxEl.textContent = "";
+      for (const k of on) sel.fxEl.append(h("span", { class: "pt-efx-i", "data-k": k, title: FX[k] }, h("span", { class: "pt-i", html: icons().status(k) }), h("small", {}, k === "slow" ? "−" + Math.round(fx.slow * 100) + NB + "%" : FX[k])));
+      sel.fxEl.hidden = !on.length;
+      if (sel.abEl) sel.abEl.classList.toggle("off", !!fx.disarmed);
+      this.placeSel(true);
+    }
+    // Gemme portée
+    const ck = info.carrying || 0;
+    if (sel.carryKey !== ck) {
+      sel.carryKey = ck;
+      sel.carry.textContent = "";
+      const gem = ck ? (this.game.state.gems || []).find((g) => g.id === ck) : null;
+      if (gem) {
+        const L = ((this.game.state.map && this.game.state.map.lairs) || [])[gem.lair];
+        sel.carry.append(h("span", { class: "pt-i", html: icons().gem(gem.color, "carried") }), h("span", {}, h("b", {}, "Porte une gemme"), L ? " volée " + aLair(L.name) : "", " : arrête-le !"));
+      }
+      sel.carry.hidden = !gem;
+      this.placeSel(true);
     }
   };
 
@@ -1397,6 +1857,7 @@
     const xp = Math.floor(info.xp !== undefined ? info.xp : t.xp || 0);
     const kills = info.kills !== undefined ? info.kills : t.kills || 0;
     const v = { t, info, stats, xp, xpNext, kills, level: lv, spec, family: t.family, name: info.name || stats.name || "", max: lv >= 7 };
+    v.attack = info.attack || stats.attack || t.attack || (D.FAMILIES[t.family] && D.FAMILIES[t.family].attack) || "shot";
     v.sell = info.sell !== undefined ? info.sell : info.sellValue !== undefined ? info.sellValue : null;
     if (v.sell === null) {
       // Repli : somme des prix payés × part rendue à la revente.
@@ -1436,27 +1897,127 @@
     }
     return v;
   };
-  /** Lignes de caractéristiques (niveau actuel, écart avec le suivant). */
-  P.statRows = function (st, nx) {
+  /**
+   * Lignes de caractéristiques (niveau actuel, écart avec le suivant), selon la façon d'attaquer :
+   * tir (dégâts × cadence), charges (boules, dégâts par boule, recharge), jet de feu (dégâts par
+   * seconde, chauffe), puis portée et effets.
+   */
+  P.statRows = function (st, nx, mode) {
     const rows = [];
     const row = (icon, label, cur, next, title) => rows.push(h("div", { class: "pt-stat", title: title || label }, ico(icon), h("span", { class: "pt-stat-l" }, label), h("b", { class: "pt-num" }, cur), next && next !== cur ? h("em", { class: "pt-num" }, "→ " + next) : null));
     const N = nx || {};
-    if (st.dmg) row("damage", "Dégâts", nf(st.dmg), N.dmg ? nf(N.dmg) : null, st.pierce ? "Dégâts par coup, perce les boucliers" : "Dégâts par coup");
+    const has = (k) => st[k] !== undefined || N[k] !== undefined;
+    const sec = (v) => f1(v) + NB + "s";
+    mode = mode || st.attack || "shot";
+    if (mode === "beam") {
+      row("burn", "Feu", nf(st.dps) + "/s", N.dps ? nf(N.dps) + "/s" : null, "Dégâts par seconde du jet, dès qu'il touche");
+      if (st.heatMax) row("heat", "Chauffe", "× " + f1(st.heatMax), N.heatMax ? "× " + f1(N.heatMax) : null, `Plus il tient sa cible, plus ça brûle : × ${f1(st.heatMax)} au bout de ${f1(st.heatTime)} s, soit ${nf(st.dps * st.heatMax)} dégâts/s`);
+    } else if (mode === "charges") {
+      const nb = (n) => n + " boule" + (n > 1 ? "s" : "");
+      row("charges", "Charges", nb(st.charges || 0), N.charges ? nb(N.charges) : null, "Boules d'eau gardées en réserve et lâchées d'un coup sur les ennemis");
+      row("damage", "Par boule", nf(st.dmg), N.dmg ? nf(N.dmg) : null, "Dégâts de chaque boule (en zone)");
+      if (st.reload) row("rate", "Recharge", sec(st.reload), N.reload ? sec(N.reload) : null, "Une boule revient toutes les " + sec(st.reload) + ", l'une après l'autre");
+    } else {
+      row("damage", "Dégâts × cadence", nf(st.dmg) + " × " + f1(st.rate), N.dmg ? nf(N.dmg) + " × " + f1(N.rate) : null, "Dégâts par bogue × bogues par seconde");
+    }
     if (st.range) row("range", "Portée", f1(st.range), N.range ? f1(N.range) : null, "Portée en cases");
-    if (st.rate) row("rate", "Cadence", f1(st.rate) + "/s", N.rate ? f1(N.rate) + "/s" : null, "Tirs par seconde");
-    if (st.splash) row("splash", "Zone", f1(st.splash), N.splash ? f1(N.splash) : null, "Rayon des dégâts de zone (cases)");
+    if ((st.multi || 1) > 1 || (N.multi || 1) > 1) row("shot", "Cibles", (st.multi || 1) + " à la fois", N.multi ? N.multi + " à la fois" : null, "Vise plusieurs ennemis à la fois");
+    if ((st.beams || 1) > 1 || (N.beams || 1) > 1) row("beam", "Jets", (st.beams || 1) + " à la fois", N.beams ? N.beams + " à la fois" : null, "Crache plusieurs jets sur des ennemis différents");
+    if (has("chain")) row("beam", "Rebond", st.chain ? pc(st.chain.pct) : "—", N.chain ? pc(N.chain.pct) : null, "Le jet rebondit sur un second ennemi proche (part des dégâts)");
+    if (st.splash) {
+      if (mode === "beam") row("splash", "Embrase", pc(st.splashPct || 0.4) + " autour", N.splashPct ? pc(N.splashPct) + " autour" : null, `Les flammes lèchent les ennemis à ${f1(st.splash)} case de la cible`);
+      else row("splash", "Zone", f1(st.splash), N.splash ? f1(N.splash) : null, "Rayon des dégâts de zone (cases)");
+    }
     if (st.slow) row("slow", "Ralentit", "−" + pc(st.slow.pct), N.slow ? "−" + pc(N.slow.pct) : null, `Ralentit de ${pc(st.slow.pct)} pendant ${f1(st.slow.t)} s`);
-    if (st.crit) row("crit", "Critique", pc(st.crit.chance), N.crit ? pc(N.crit.chance) : null, `Coup critique : dégâts × ${f1(st.crit.mult)}`);
-    if (st.stun) row("stun", "Étourdit", pc(st.stun.chance), N.stun ? pc(N.stun.chance) : null, `Étourdit ${f1(st.stun.t)} s`);
-    if (st.fear) row("fear", "Peur", pc(st.fear.chance), N.fear ? pc(N.fear.chance) : null, `L'ennemi recule ${f1(st.fear.t)} s`);
-    if (st.freeze) row("freeze", "Gel", pc(st.freeze.chance), N.freeze ? pc(N.freeze.chance) : null, `Gèle ${f1(st.freeze.t)} s`);
-    if (st.burn) row("burn", "Brûlure", f1(st.burn.dps) + "/s", N.burn ? f1(N.burn.dps) + "/s" : null, `Brûle ${f1(st.burn.t)} s`);
-    if (st.radiance) row("radiance", "Rayonnement", "+" + pc(st.radiance.pct), N.radiance ? "+" + pc(N.radiance.pct) : null, "Dégâts subis en plus par l'ennemi touché");
-    if (st.corpse) row("splash", "Explosion", pc(st.corpse), N.corpse ? pc(N.corpse) : null, "Un ennemi tué explose : part de ses PV max infligée autour");
+    if (has("crit")) row("crit", "Critique", st.crit ? pc(st.crit.chance) + " × " + f1(st.crit.mult) : "—", N.crit ? pc(N.crit.chance) + " × " + f1(N.crit.mult) : null, st.crit ? `Coup critique : ${pc(st.crit.chance)} des tirs font × ${f1(st.crit.mult)} dégâts` : "Coups critiques");
+    if (has("stun")) row("stun", "Étourdit", st.stun ? pc(st.stun.chance) : "—", N.stun ? pc(N.stun.chance) : null, st.stun ? `Étourdit ${f1(st.stun.t)} s` : "Étourdit");
+    if (has("fear")) row("fear", "Peur", st.fear ? pc(st.fear.chance) : "—", N.fear ? pc(N.fear.chance) : null, st.fear ? `L'ennemi recule ${f1(st.fear.t)} s` : "Fait reculer de peur");
+    if (has("freeze")) row("freeze", "Gel", st.freeze ? pc(st.freeze.chance) : "—", N.freeze ? pc(N.freeze.chance) : null, st.freeze ? `Gèle ${f1(st.freeze.t)} s` : "Gèle sur place");
+    if (st.burn) row("burn", "Brûlure", f1(st.burn.dps) + "/s", N.burn ? f1(N.burn.dps) + "/s" : null, `La cible brûle encore ${f1(st.burn.t)} s`);
+    if (st.radiance) row("radiance", "Rayonnement", "+" + pc(st.radiance.pct), N.radiance ? "+" + pc(N.radiance.pct) : null, "La cible prend plus de dégâts de toutes les tours");
+    if (st.corpse) row("splash", "Explosion", pc(st.corpse), N.corpse ? pc(N.corpse) : null, "Un ennemi vaincu explose : part de ses PV max infligée autour");
     if (st.mana) row("manaSteal", "Vol de mana", "+" + f1(st.mana), N.mana ? "+" + f1(N.mana) : null, "Mana rendu à chaque coup");
-    if (st.disarm) row("disarm", "Désarme", pc(st.disarm), N.disarm ? pc(N.disarm) : null, "Chance de retirer la capacité de l'ennemi");
+    if (st.disarm) row("disarm", "Désarme", pc(st.disarm), N.disarm ? pc(N.disarm) : null, "Chance de retirer la capacité de l'ennemi (bouclier, bulle, soin, fumigène, flash…)");
     if (st.pierce) row("pierce", "Perce", "boucliers", null, "Traverse le bouclier des ennemis");
     return rows;
+  };
+  /** Bloc « façon d'attaquer » du panneau de tour, avec sa jauge en direct (charges, chauffe). */
+  P.attackBlock = function (mode, st) {
+    const A = ATTACK[mode] || ATTACK.shot;
+    const live = { mode };
+    const kids = [h("div", { class: "pt-atk-h" }, ico(A.icon), h("b", {}, A.name), h("small", {}, A.text))];
+    if (mode === "charges") {
+      live.pips = h("span", { class: "pt-pips-c" });
+      live.ammoTxt = h("small", { class: "pt-atk-v" }, "");
+      kids.push(h("div", { class: "pt-atk-live" }, live.pips, live.ammoTxt));
+    } else if (mode === "beam") {
+      live.heatFill = h("i", { class: "pt-heat-fill" });
+      live.heatTxt = h("b", { class: "pt-num" }, "");
+      live.heatCap = h("small", { class: "pt-atk-v" }, "");
+      live.heatEl = h(
+        "div",
+        { class: "pt-atk-live pt-heat", title: `Chauffe : × 1 au début, × ${f1(st.heatMax || 2)} au bout de ${f1(st.heatTime || 3)} s sur la même cible` },
+        h("span", { class: "pt-heat-bar" }, live.heatFill, h("i", { class: "pt-heat-x0" }, "×1"), h("i", { class: "pt-heat-x1" }, "×" + f1(st.heatMax || 2))),
+        live.heatTxt,
+        live.heatCap,
+      );
+      kids.push(live.heatEl);
+    }
+    return { el: h("div", { class: "pt-atk", "data-a": mode }, kids), live };
+  };
+  /** Jauges du panneau de tour, à chaque image : éblouie, charges prêtes, chauffe du jet. */
+  P.towerGauges = function () {
+    const sel = this.sel;
+    if (!sel || sel.kind !== "tower" || !sel.live) return;
+    const t = (this.game.state.towers || []).find((x) => x.id === sel.id);
+    if (!t) return;
+    const L = sel.live;
+    const dz = t.dazzled > 0 ? Math.ceil(t.dazzled * 10) / 10 : 0;
+    if (L.dz !== dz) {
+      const was = L.dz;
+      L.dz = dz;
+      L.dazEl.hidden = !dz;
+      if (dz) L.dazT.textContent = f1(dz) + NB + "s";
+      if (!dz !== !was) this.placeSel(true);
+    }
+    if (L.pips) {
+      const max = t.ammoMax || (sel.st && sel.st.charges) || 0;
+      if (max !== L.max) {
+        L.max = max;
+        L.pips.textContent = "";
+        L.pipEls = Array.from({ length: max }, () => L.pips.appendChild(h("i", {}, h("b", {}))));
+        L.ammo = -1;
+      }
+      const a = Math.round(clamp(t.ammo || 0, 0, max) * 20) / 20;
+      if (a !== L.ammo) {
+        L.ammo = a;
+        L.pipEls.forEach((el, k) => {
+          const f = clamp(a - k, 0, 1);
+          el.style.setProperty("--f", f.toFixed(2));
+          el.classList.toggle("full", f >= 1);
+        });
+        const ready = Math.floor(a + 1e-6);
+        L.ammoTxt.textContent = ready + NB + "/" + NB + max + " prête" + (ready > 1 ? "s" : "");
+      }
+    }
+    if (L.heatEl) {
+      const beams = t.beams || [];
+      let heat = 0;
+      for (const b of beams) heat = Math.max(heat, b.heat || 0);
+      const hv = Math.round(heat * 40) / 40;
+      const firing = beams.length > 0 && !(t.dazzled > 0);
+      if (hv !== L.hv || firing !== L.firing || beams.length !== L.nb) {
+        L.hv = hv;
+        L.firing = firing;
+        L.nb = beams.length;
+        const st = sel.st || {};
+        L.heatFill.style.transform = `scaleX(${firing ? hv.toFixed(3) : 0})`;
+        L.heatTxt.textContent = firing ? "× " + f1(1 + ((st.heatMax || 2) - 1) * hv) : "";
+        L.heatCap.textContent = firing ? (beams.length > 1 ? "Deux jets en feu" : hv >= 1 ? "Brûlant !" : "Ça chauffe…") : "Attend une cible";
+        L.heatEl.classList.toggle("on", firing);
+        L.heatEl.classList.toggle("max", firing && hv >= 1);
+      }
+    }
   };
   P.stars = function (level) {
     return h("span", { class: "pt-stars", "aria-label": "Niveau " + level + " sur 7" }, Array.from({ length: 7 }, (_, i) => h("i", { class: i < level ? "on" + (i >= 3 ? " sp" : "") : "", html: icons().get(i < level ? "star" : "starEmpty") })));
@@ -1480,7 +2041,12 @@
       h("div", { class: "pt-tw-n" }, h("h3", {}, v.name || F.name), h("small", {}, F.name + (v.spec ? " · voie " + v.spec : "")), this.stars(v.level)),
     );
     const xp = h("div", { class: "pt-xp" + (v.max ? " max" : "") }, h("div", { class: "pt-xp-h" }, ico("xp"), h("span", {}, "Expérience"), xpTxt), h("div", { class: "pt-bar" }, xpFill), kills);
-    const stats = h("div", { class: "pt-stats" + (v.next ? " deltas" : "") }, this.statRows(v.stats, v.next));
+    const dazT = h("small", { class: "pt-num" }, "");
+    const daz = h("div", { class: "pt-dazzled", hidden: true, title: "Un touriste l'a éblouie d'un coup de flash : elle ne tire plus un moment" }, ico("dazzle"), h("b", {}, "Éblouie !"), dazT);
+    const atk = this.attackBlock(v.attack, v.stats);
+    atk.live.dazEl = daz;
+    atk.live.dazT = dazT;
+    const stats = h("div", { class: "pt-stats" + (v.next ? " deltas" : "") }, this.statRows(v.stats, v.next, v.attack));
     const actions = h("div", { class: "pt-tw-a" });
     if (v.specs) {
       actions.append(h("div", { class: "pt-spec-t" }, "Spécialisation : choisis une voie"));
@@ -1519,7 +2085,7 @@
     const sellTxt = h("b", { class: "pt-num" }, v.sell !== null ? "+" + v.sell : "");
     const armed = keep && this.sel && this.sel.kind === "tower" && this.sel.id === id && this.sel.sellArm && performance.now() - this.sel.sellArm <= 2500;
     const sell = h("button", { class: "pt-btn pt-red pt-sell" + (armed ? " armed" : ""), title: "Revendre la tour", onclick: (e) => this.doSell(t.id, e.currentTarget) }, ico("sell"), h("span", { class: "pt-sell-l" }, armed ? "Confirmer ?" : "Vendre"), h("span", { class: "pt-price" }, ico("gold"), sellTxt));
-    const body = h("div", { class: "pt-sel-in pt-tw", style: `--acc:${accent}` }, head, xp, stats, actions, h("div", { class: "pt-tw-f" }, sell));
+    const body = h("div", { class: "pt-sel-in pt-tw", "data-a": v.attack, style: `--acc:${accent}` }, head, daz, atk.el, xp, stats, actions, h("div", { class: "pt-tw-f" }, sell));
     const prevSell = keep && this.sel && this.sel.kind === "tower" && this.sel.id === id ? this.sel.sellArm : 0;
     this.openSel({ kind: "tower", id, i: t.i !== undefined ? t.i : i, j: t.j !== undefined ? t.j : j }, body, "pt-tower" + (v.specs ? " wide" : ""));
     const sel = this.sel;
@@ -1532,7 +2098,10 @@
     sel.upBtn = body.querySelector(".pt-up");
     sel.upReason = sel.upBtn ? sel.upBtn.nextSibling : null;
     sel.specBtns = [...body.querySelectorAll(".pt-speccard")];
+    sel.live = atk.live;
+    sel.st = v.stats;
     this.updateTowerLive(t, v);
+    this.towerGauges();
     this.placeSel(true);
     this.v("showRange", id);
     if (!keep) this.tutoDone("tower");
@@ -1632,8 +2201,22 @@
     else if (e.enemyId === undefined) kind = "newEnemy";
     return { kind, enemy: t };
   };
+  // Arrivée d'ennemis à surprise : une annonce par vague (et pas plus d'une par minute et par type).
+  const ARRIVAL = {
+    montgolfiere: ["fly", "Montgolfières en approche : elles volent droit vers les gemmes !"],
+    korrigan: ["blink", "Des korrigans arrivent : touchés, ils réapparaissent plus loin !"],
+    tracteur: ["split", "Un tracteur arrive : blindé, il lâche des agriculteurs en cassant"],
+    touriste: ["dazzle", "Des touristes arrivent : leur flash éblouit les tours !"],
+  };
   P.events = function (list) {
     if (!list || !list.length || this.mode !== "game" || !this.game) return;
+    const s = this.game.state;
+    // Types présentés par une fiche « Nouvel ennemi » dans ce lot : pas d'annonce en double.
+    const fresh = new Set();
+    for (const e of list) {
+      const { kind, enemy } = this.evKind(e);
+      if (kind === "newEnemy" && enemy) fresh.add(enemy);
+    }
     for (const e of list) {
       const { kind, enemy } = this.evKind(e);
       switch (kind) {
@@ -1642,6 +2225,7 @@
           break;
         case "waveStart":
           this.waveBanner(e.index);
+          this.fzT = 0;
           this.tutoDone("wave");
           break;
         case "bossArrives":
@@ -1650,29 +2234,63 @@
         case "earlyBonus":
           if (e.gold) this.toast("Vague appelée en avance : +" + e.gold + " or", "gold");
           break;
+        case "spawn": {
+          const A = ARRIVAL[enemy];
+          const w = (s.wave && s.wave.index) || 0;
+          if (A && !fresh.has(enemy) && !(this.annWave[enemy] >= w)) {
+            this.annWave[enemy] = w;
+            this.announce("arrive:" + enemy, 60, A[1], "bad", A[0]);
+          }
+          break;
+        }
         case "kill":
           if (e.gold) this.fly(e.x, e.y, "+" + e.gold, "gold");
+          if (this.sel && this.sel.kind === "enemy" && this.sel.id === e.enemyId) this.closeSel();
           break;
-        case "steal":
-          this.toast("Une gemme a été volée au moulin !", "bad");
+        case "steal": {
+          const L = this.lairName(e.lairId);
+          this.toast("Une gemme a été volée " + (L ? aLair(L) : "") + " !", "bad", "warning");
+          if (e.lairId !== undefined) this.lairAlarm(e.lairId);
           this.bump(this.gemsEl, "bad");
           this.tutoStep("steal");
           break;
+        }
         case "drop":
-          this.fly(e.x, e.y, "Gemme tombée !", "gem");
+          this.fly(e.x, e.y, "Gemme tombée !", "gem");
           this.tutoStep("drop", e);
           break;
         case "escape":
+          if (this.sel && this.sel.kind === "enemy" && this.sel.id === e.enemyId) this.closeSel();
           // Un ennemi sorti sans gemme ne coûte rien : seul un porteur fait perdre une gemme.
           if (e.gemId === null || e.gemId === undefined) break;
           this.toast("Une gemme est perdue…", "bad");
           this.bump(this.gemsEl, "bad");
           break;
-        case "gemReturn":
-          this.toast("Une gemme est revenue au moulin", "good");
+        case "gemReturn": {
+          const L = this.lairName(e.lairId);
+          this.toast("Une gemme est revenue " + (L ? aLair(L) : "à sa cachette"), "good");
           break;
+        }
         case "secretOpen":
-          this.toast("Un passage secret s'est ouvert !", "bad");
+          this.announce("secret", 3, "Un passage secret s'ouvre dans le fourré !", "bad", "secret");
+          break;
+        case "tide":
+          this.announce("tide", 3, e.state === "low" ? "La mer se retire : l'estran devient un chemin !" : "La mer remonte : l'estran redevient de l'eau !", "info", e.state === "low" ? "tideLow" : "tideHigh");
+          break;
+        case "gateOpen": {
+          const ent = this.entranceById(e.entranceId);
+          const letter = e.letter || (ent && ent.letter) || "";
+          this.toast(`La barrière ${letter} cède : nouvelle entrée !`.replace("  ", " "), "bad", "gate");
+          break;
+        }
+        case "flash":
+          this.announce("flash", 8, (e.towerIds || []).length > 1 ? "Flash ! Des tours sont éblouies" : "Flash ! Une tour est éblouie", "bad", "dazzle");
+          break;
+        case "blink":
+          this.announce("blink", 25, "Pouf ! Le korrigan réapparaît plus loin sur sa route", "info", "blink");
+          break;
+        case "split":
+          this.announce("split", 8, "Le tracteur casse : des agriculteurs en sautent !", "info", "split");
           break;
         case "cut":
           if (this.sel && this.sel.kind === "forest" && this.sel.i === e.i && this.sel.j === e.j) this.closeSel();
@@ -1688,9 +2306,23 @@
         case "lose":
           // Résultat déjà enregistré par l'intégrateur : { firstWin, points, unlocked, best }.
           if (e.record) this.record = e.record;
+          this.fzT = 0;
           break;
       }
     }
+  };
+  /** Nom d'une cachette (« Le moulin », « Le vieux puits »…). */
+  P.lairName = function (id) {
+    const L = this.game && this.game.state.map && this.game.state.map.lairs && this.game.state.map.lairs[id];
+    return L ? L.name : "";
+  };
+  /** Annonce courte, au plus une fois par période (cooldown en secondes) pour une même clé. */
+  P.announce = function (key, cooldown, text, kind, icon) {
+    this.annT = this.annT || {};
+    const t0 = this.annT[key];
+    if (t0 !== undefined && this.t - t0 < cooldown) return;
+    this.annT[key] = this.t;
+    this.toast(text, kind, icon);
   };
   /** Premier ennemi d'un type dans la partie : fiche seulement s'il n'a jamais été rencontré. */
   P.newEnemy = function (type) {
@@ -1940,12 +2572,12 @@
       this.pauseEl = null;
     }
   };
-  P.toast = function (text, kind) {
+  P.toast = function (text, kind, icon) {
     this.toastSeen = this.toastSeen || new Map();
     const t0 = this.toastSeen.get(text);
     if (t0 !== undefined && this.t - t0 < 1.5) return;
     this.toastSeen.set(text, this.t);
-    const el = h("div", { class: "pt-toast " + (kind || "info") }, ico(kind === "bad" ? "warning" : kind === "good" ? "check" : kind === "gold" ? "coins" : "info"), h("span", {}, text));
+    const el = h("div", { class: "pt-toast " + (kind || "info") + (icon ? " big-i" : "") }, ico(icon || (kind === "bad" ? "warning" : kind === "good" ? "check" : kind === "gold" ? "coins" : "info")), h("span", {}, text));
     this.toastLayer.append(el);
     while (this.toastLayer.children.length > 3) this.toastLayer.firstChild.remove();
     setTimeout(() => {
@@ -2059,7 +2691,8 @@
     if (!g) return null;
     const H = g.length,
       W = g[0].length;
-    const ent = (this.game.state.map && this.game.state.map.entrances && this.game.state.map.entrances[0]) || { i: 0, j: 0 };
+    const e0 = (this.game.state.map && this.game.state.map.entrances && this.game.state.map.entrances[0]) || { i: 0, j: 0 };
+    const ent = typeof e0.x === "number" ? { i: e0.x - 0.5, j: e0.y - 0.5 } : e0;
     let best = null,
       bd = 1e9;
     for (let j = 0; j < H; j++)
@@ -2096,8 +2729,9 @@
       at = this.tutoTile(".");
       text = "Touche une case d'herbe au bord du chemin et construis un sanglier : il lance des bogues de châtaigne.";
     } else if (step === "steal") {
-      const L = this.game.state.map && this.game.state.map.lair;
-      at = L ? { i: L.i, j: L.j } : null;
+      const map = this.game.state.map || {};
+      const L = (map.lairs && map.lairs[0]) || map.lair || null;
+      at = L ? (typeof L.x === "number" ? { x: L.x, y: L.y } : { i: L.i, j: L.j }) : null;
       text = "Les ennemis viennent voler tes gemmes au moulin et repartent avec. Arrête-les avant la sortie !";
       life = 7;
     } else if (step === "drop") {
@@ -2105,7 +2739,7 @@
       text = "Gemme tombée ! Les autres ennemis vont la chercher : défends-la, elle revient si personne ne la prend.";
       life = 6;
     } else if (step === "call") {
-      at = { el: this.callBtn };
+      at = { el: (this.fzBlocks[0] && this.fzBlocks[0].el) || this.fzEl };
       text = "Prêt ? Appelle la vague sans attendre : chaque seconde d'avance rapporte de l'or.";
       life = 12;
     } else if (step === "cut") {
