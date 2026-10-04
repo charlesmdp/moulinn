@@ -205,36 +205,42 @@ avec ombre au sol et ligne de route pointillée, jets (`PTMT.fx.beam`), charges 
 ## 5. Tours — agent « Tours »
 
 ```js
+PTMT.models.ctConfig({ mobile, outline })
 const t = PTMT.models.ctTower(family, level, spec, { terrain });
-t.object ; t.height ; t.muzzle ; t.update(dt, time) ; t.aim(yaw) ; t.attack() → délai
+t.object ; t.height ; t.footprint ; t.attackKind ("shot" | "charges" | "beam") ; t.update(dt, time)
+t.muzzle (= t.muzzles[0]) ; t.muzzles[1]           // seconde bogue (sanglier A7) ou seconde tête (berger A7)
+t.aim(yaw[, i]) ; t.attack() → délai               // sanglier ; cygne : un appel par boule
 t.setSelected(b) ; t.setFrenzy(b) ; t.celebrate() ; t.dispose()
-t.setCharges(full, max, partial01)        // cygne : boules d'eau qui tournent autour du nid
-t.setBeam(on, heat01)                     // berger/dragon : gueule ouverte, souffle qui s'intensifie
-t.setDazzled(b)                           // ébloui par un flash : étoiles, tête qui tourne
-PTMT.fx.projectile(kind) ; PTMT.fx.burst(kind + "Hit", pos, { radius, h, crit })
-const b = PTMT.fx.beam(kind)              // "fire" | "dragonFire" | "blueFire"
-b.set(fromVec3, toVec3, heat01, time) ; b.release()
+t.setCharges(full, max, partial01)                 // cygne : boules qui tournent au-dessus du nid
+t.setBeam(on, heat01[, i])                         // berger/dragon : gueule ouverte, braseros qui s'emballent
+t.setDazzled(b)                                    // ébloui : étoiles, tête qui oscille
+PTMT.models.ctTowerInfo(family, level, spec, { terrain }) → { height, footprint }
+PTMT.fx.projectile(kind) ; PTMT.fx.shot(kind, from, to)  // chestnut, bigChestnut, waterOrb, iceOrb, darkOrb…
+PTMT.fx.burst(kind + "Hit", sol, { radius, h, crit }) ; PTMT.fx.burst("dazzle", sol, { height })
+const b = PTMT.fx.beam("fire" | "dragonFire" | "blueFire")
+b.set(fromVec3, toVec3, heat01, time) ; b.release()      // ≤ 24 jets à la fois (12 sur téléphone), un appel
 ```
 
 ## 6. Ennemis — agent « Ennemis »
 
 ```js
 await PTMT.actors.load() ; const a = PTMT.actors.create(type, champion, boss)
-a.object ; a.height ; a.carryAnchor ; a.finished ; a.flying (montgolfière : la nacelle est au sol du
-modèle, le rendu la soulève) ; a.update(dt, time, s) ; a.event(name, cibleMonde?) ; a.release()
-// événements en plus : "blink" (korrigan : pouf violet), "flash" (touriste), "split" (tracteur détruit)
+a.object ; a.height ; a.carryAnchor ; a.finished ; a.flying ; a.update(dt, time, s) ; a.event(name, cibleMonde?) ; a.release()
+// s : état v3 + wading (bool) + alt (altitude de vol en mètres)
+// montgolfière : la vue la soulève de alt et dessine son ombre ; korrigan : téléporter puis event("blink", départ) ;
+// touriste : event("flash", tour) (éclair à PTMT.actors.FLASH_AT s) ; tracteur : event("split") puis les fermiers naissent
 PTMT.portraits.get(type, champion) ; .names ; .accent
 ```
 
 ## 7. Décor — agent « Décor »
 
 ```js
-PTMT.models.gem(color)                    // ≈ 1,3 m, couleurs franches, lueur ; états lair/ground/carried/returning
-PTMT.models.lair(maxGems, { style, mill })   // trou sombre 2 × 2 cases, gemSlots, setGems(n), alarm(b)
-PTMT.models.mill()                        // le moulin seul (6 cases derrière la cachette principale)
-PTMT.models.highGround()                  // socle de granit sombre + fanion tricolore (butte)
-PTMT.models.barrier()                     // barrière fermée → .open() la fait céder
-PTMT.models.menhir() ; gate(index) ; forests(entries) ; decorBatch(entries) ; scatter(entries)
+PTMT.models.gem(color)                    // 1,3 m, setState("lair" | "ground" | "carried" | "returning")
+PTMT.models.lair(maxGems, { style, mill }) // centre du bloc 2 × 2 au niveau du chemin ; slotWorld(k, out), setSlots([…]), alarm(b)
+PTMT.models.mill()                        // centre de ses 3 × 2 cases, façade vers +Z (vers la cachette principale)
+PTMT.models.highGround({ seed })          // socle de granit + bannières sur les cases H / h, tour posée à y = 1,3
+PTMT.models.barrier(width)                // +Z vers l'intérieur ; open() → Promise, setOpen(b)
+PTMT.models.menhir() ; gate(index) ; forests(entries) ; decorBatch(entries) ; scatter(entries)  // scatter : seaweed, shells, rockpool (estran)
 ```
 
 ## 8. Interface — agent « Interface »

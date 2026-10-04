@@ -25,12 +25,40 @@ l'atelier.
 
 ## Nouveautés de cette série
 
-- **« Pas touche à mes trésors » refait façon Cursed Treasure** (adresse
-  `/jeu/`) : vue du dessus fixe, quinze missions, gemmes volées que les autres
-  ennemis viennent ramasser, sanglier, cygne et berger australien qui devient
-  dragon, onze ennemis (agriculteurs en colère, voleurs en quad, cavaliers sur
-  vache ou sur canard, cow-boys au lasso…), sorts, compétences, logo et icônes
-  (détails plus bas).
+- **« Pas touche à mes trésors » v4** (adresse `/jeu/`), d'après les retours
+  sur la v3 :
+  - **routes larges** (deux à quatre cases) où les ennemis se baladent :
+    certains tiennent le milieu, d'autres longent les bords ou zigzaguent, ils
+    s'écartent les uns des autres et contournent les buttes posées au milieu du
+    chemin ; on ne les atteint donc pas tous de la même façon ;
+  - **plusieurs cachettes** à partir de la mission 7 (deux ou trois par carte :
+    le moulin, un vieux puits, un dolmen, une chapelle) ; chaque ennemi va à la
+    plus proche qui a encore des gemmes ;
+  - **gemmes grandes et de couleurs franches** (rubis, émeraude, saphir,
+    améthyste, topaze, diamant) ;
+  - **trois façons d'attaquer** : le sanglier tire à la suite, le cygne garde
+    deux à cinq charges et les lâche en rafale puis se recharge une à une, le
+    berger (puis le dragon) crache un **jet de feu continu** qui chauffe tant
+    qu'il tient sa cible ;
+  - **seize ennemis**, dont cinq nouveaux : cyclistes en peloton, korrigan
+    (touché, il disparaît et réapparaît plus loin), touriste au flash (éblouit
+    les tours), tracteur (blindé ; trois agriculteurs sautent de la cabine) et
+    montgolfière (vole en ligne droite au-dessus de tout) ;
+  - **surprises annoncées** : marée (l'estran devient un chemin à marée
+    basse), barrières qui cèdent (une nouvelle entrée s'ouvre), passage secret,
+    canards qui remontent les ruisseaux jusqu'à une cachette ;
+  - **tours lisibles dès le niveau 1** (chaque bête deux fois plus grande, sur
+    un socle à la couleur de sa famille, fanion à étoiles pour le niveau) et
+    **ennemis reconnaissables d'en haut** (la vache est d'abord une vache pie
+    noir, le cavalier assis bien haut dessus) ;
+  - **frise des vagues** façon Cursed Treasure (portraits × nombre, lettre et
+    couleur de l'entrée, surprises annoncées), aperçu du trajet de la
+    prochaine vague sur la carte, fiche d'un ennemi au toucher, panneau de
+    tour selon sa façon d'attaquer (jauge de chauffe du jet de feu, charges du
+    cygne), gemmes regroupées par cachette ;
+  - **difficulté recalibrée** : quinze cartes redessinées, économie et vagues
+    réglées avec un robot joueur ; les dernières vagues des longues missions
+    accélèrent pour rester dangereuses même avec des tours au niveau 7.
 - **Plus de bouton Jeu sur la page d'accueil** : le jeu ne s'ouvre qu'à
   l'adresse `/jeu/`.
 - **Chapeau de paille** : le personnage porte un grand chapeau de paille à la
@@ -39,6 +67,10 @@ l'atelier.
 
 ## Retouches précédentes
 
+- **« Pas touche à mes trésors » v3** : le jeu refait façon Cursed Treasure
+  (vue du dessus fixe, quinze missions, gemmes volées que les autres ennemis
+  viennent ramasser, sanglier, cygne et berger qui devient dragon, onze
+  ennemis, sorts, compétences, logo et icônes).
 - **Plus de gel quand la lumière change** : allumer la lampe torche ou les
   phares du quad, le lever et le coucher du soleil (y compris en faisant
   défiler les heures dans la boule) et l'entrée dans l'onglet Météo ne
@@ -114,59 +146,87 @@ Adresse `/jeu/` uniquement (plus de bouton sur la page d'accueil). Un tower
 defense calqué sur **Cursed Treasure: Don't Touch My Gems!**, dans la campagne
 du moulin : la carte entière se voit du dessus, sans déplacer la caméra.
 
-- **Les gemmes** : cinq gemmes (six avec la compétence Filon) brillent devant
-  le moulin. Chaque ennemi vient en prendre une et repart vers la sortie la
-  plus proche ; s'il sort, elle est perdue. Tué, il la lâche sur place et les
-  autres ennemis sans gemme foncent la chercher par le plus court chemin (en
-  faisant demi-tour s'il le faut) puis repartent avec. Mission perdue quand
-  toutes les gemmes sont parties, gagnée s'il en reste au moins une ;
-  « Brillant » si aucune n'a été perdue.
-- **Trois tours, trois terrains** : le **sanglier** sur l'herbe (bogues de
-  châtaigne, dégâts réguliers), le **cygne** sur l'eau (jet d'eau qui trempe et
-  ralentit), le **berger australien cracheur de feu** sur la roche (boules de
-  feu qui traversent les boucliers). Les **buttes** acceptent les trois et
-  donnent +30 % de portée et +10 % de dégâts ; une tour posée sur un **menhir**
-  accélère la régénération du mana. Les cases boisées se dégagent avec le sort
-  **Couper**.
+- **Les gemmes et les cachettes** : cinq grosses gemmes de couleurs franches
+  (six avec la compétence Filon) brillent dans une cachette, un trou sombre
+  cerclé de pierres devant le moulin. À partir de la mission 7, elles se
+  répartissent entre deux ou trois cachettes (le moulin, un vieux puits, un
+  dolmen, une chapelle). Chaque ennemi va prendre une gemme dans la cachette
+  la plus proche qui en a encore, puis repart vers la sortie la plus proche ;
+  s'il sort, elle est perdue. Tué, il la lâche sur place et les autres ennemis
+  sans gemme foncent la chercher par le plus court chemin (en faisant
+  demi-tour s'il le faut). Mission perdue quand toutes les gemmes sont
+  parties, gagnée s'il en reste au moins une ; « Brillant » si aucune n'a été
+  perdue.
+- **Des routes larges** (deux à quatre cases) : les ennemis s'y étalent,
+  certains au milieu, d'autres le long des bords ou en zigzag, et contournent
+  les **buttes** posées au milieu du chemin (socles de granit à bannières, où
+  toutes les tours se posent avec +30 % de portée et +10 % de dégâts).
+- **Trois tours, trois terrains, trois façons d'attaquer** :
+  - le **sanglier** sur l'herbe **tire** des bogues de châtaigne à la suite ;
+  - le **cygne** sur l'eau garde deux à cinq **charges** (boules d'eau qui
+    tournent au-dessus du nid), les lâche en rafale, puis se recharge une à
+    une ; ses boules éclaboussent et ralentissent ;
+  - le **berger australien** sur la roche crache un **jet de feu continu** sur
+    sa cible tant qu'elle reste à portée : plus il la tient, plus ça chauffe
+    (dégâts × 2,2 à × 2,6), et le feu traverse les boucliers.
+  Une tour posée sur un **menhir** accélère la régénération du mana ; les
+  cases boisées se dégagent avec le sort **Couper**.
 - **Niveaux 1 à 7** : chaque tour gagne de l'expérience en combattant, puis on
   achète le niveau suivant. Au niveau 4, elle se spécialise, au niveau 7 elle
   évolue encore :
   - Marcassin → Jeune sanglier → Sanglier des talus, puis Sanglier chasseur
-    (coups critiques) → Grand Solitaire, ou Laie baliste (tir de zone) →
-    Catapulte à châtaignes ;
+    (coups critiques) → Grand Solitaire (deux cibles à la fois), ou Laie
+    baliste (grosse châtaigne en cloche, zone) → Catapulte à châtaignes ;
   - Cygneau → Cygne → Cygne majestueux, puis Cygne des glaces (ralentit, fait
-    reculer de peur) → Cygne royal des glaces (gel), ou Cygne noir (vole du
+    reculer de peur) → Cygne royal des glaces (gel), ou Cygne noir (rend du
     mana, désarme) → Cygne noir enchanteur ;
   - Chiot berger → Berger australien → Berger de feu, puis il devient dragon :
-    Dragon merle rouge (feu de zone, brûlure) → Grand dragon rouge, ou Dragon
-    merle bleu (rayonnement, explosion des vaincus) → Grand dragon bleu.
-- **Onze ennemis** (même rôle que ceux de Cursed Treasure) : agriculteur en
-  colère, voleur en quad, cow-boy au lasso (attrape les gemmes tombées),
-  cavalier sur vache (bouclier), druide (barrière qui se reforme), bigoudène
-  aux crêpes (soigne), chasseur camouflé (fumigène : invisible), rugbyman
-  (esquive un tir sur deux), sonneur de biniou (accélère ses voisins), pompier
-  (insensible aux effets) et cavalier sur canard (coupe par l'eau). Chacun a
-  sa version champion, et chaque mission se termine par un boss nommé.
-- **Trois sorts** payés en mana : Couper, Frénésie (les tours tirent deux fois
-  plus vite pendant 5 s), Météore.
+    Dragon merle rouge (le jet embrase autour de la cible et la fait brûler) →
+    Grand dragon rouge (deux têtes, deux jets), ou Dragon merle bleu
+    (rayonnement, explosion des vaincus) → Grand dragon bleu (le jet rebondit).
+- **Seize ennemis** (même rôle que ceux de Cursed Treasure, et cinq de plus) :
+  agriculteur en colère, voleur en quad, cow-boy au lasso (attrape les gemmes
+  tombées), cavalier sur vache (bouclier), druide (bulle qui se reforme),
+  bigoudène aux crêpes (soigne), chasseur camouflé (fumigène : invisible),
+  rugbyman (esquive un tir sur deux), sonneur de biniou (accélère ses
+  voisins), pompier (insensible aux effets), cavalier sur canard (coupe par
+  l'eau), cyclistes (en peloton, plus rapides groupés), korrigan (touché, il
+  disparaît et réapparaît plus loin), touriste au flash (éblouit les tours),
+  tracteur (blindé ; trois agriculteurs sautent de la cabine) et montgolfière
+  (vole en ligne droite au-dessus de tout). Chacun a sa version champion, et
+  chaque mission se termine par un ou plusieurs boss nommés.
+- **Surprises**, toujours annoncées dans la frise des vagues : marée (à marée
+  basse, l'estran devient un raccourci ; un ennemi surpris par la marée
+  montante patauge jusqu'à la terre), barrières qui cèdent (une nouvelle
+  entrée s'ouvre à une vague donnée), passage secret, canards qui remontent
+  un ruisseau jusqu'à une cachette, montgolfières.
+- **Trois sorts** payés en mana : Couper, Frénésie (les tours attaquent deux
+  fois plus vite pendant 5 s), Météore.
 - **Quinze missions** reprenant la progression de Cursed Treasure (5 à 50
   vagues) : Le chemin du moulin, Le Gué, Les Deux Prés, La Croix, Le Hallier,
-  Le Vieux Fort, Les Yeux du serpent, Le Labyrinthe de talus, Le Carrefour,
-  L'Allée des chênes, L'Hydre du marais, La Percée, Le Manoir du Roi, Le
-  Passage secret (un fourré s'ouvre en chemin à la 25e vague) et La Bataille
-  du Moulin.
+  Le Vieux Fort (marée), Les Yeux du serpent (deux cachettes), Le Labyrinthe
+  de talus (barrière), Le Carrefour (deux cachettes, ruisseau des canards),
+  L'Allée des chênes, L'Hydre du marais (quatre entrées, montgolfières), La
+  Percée, Le Manoir du Roi (barrière, deux cachettes), Le Passage secret (un
+  fourré s'ouvre droit sur le moulin à la 25e vague) et La Bataille du Moulin
+  (trois cachettes, marée, barrière). Les dernières vagues des longues
+  missions accélèrent : elles restent dangereuses même avec des tours au
+  niveau 7.
 - **Compétences** : 3 points par mission gagnée, à répartir dans trois
   branches (Sanglier : or et Couper ; Cygne : mana et Frénésie ; Berger :
   gemmes et Météore), 21 compétences de 1 à 5 rangs, redistribuables.
-
 - **Interface de jeu vidéo** : logo, écran titre, carte des missions (gemmes
-  sauvées, couronne « Brillant »), compétences, encyclopédie des ennemis et des
-  tours, fiche « Nouvel ennemi ! » à la première apparition d'un type, bandeau
-  du boss, aperçu de la prochaine vague (ennemis, nombre, entrées, compte à
-  rebours) avec le bouton « Appeler » qui rapporte de l'or, icônes dessinées
-  pour tout (tours à chaque niveau, ennemis, sorts, compétences, terrains,
-  états). Police des titres : Lilita One (licence SIL OFL, jointe dans
-  `/jeu/OFL-LilitaOne.txt`).
+  sauvées, couronne « Brillant », nombre de cachettes), compétences,
+  encyclopédie des ennemis et des tours (façon d'attaquer expliquée), fiche
+  « Nouvel ennemi ! » à la première apparition d'un type, bandeau du boss,
+  **frise des vagues** façon Cursed Treasure (les prochaines vagues glissent
+  vers le repère : portraits × nombre, lettre et couleur de l'entrée,
+  surprises ; toucher la première l'appelle et rapporte de l'or), **aperçu
+  du trajet** de la prochaine vague sur la carte, **fiche d'un ennemi** au
+  toucher, panneau de tour selon sa façon d'attaquer (jauge de chauffe,
+  charges en direct), gemmes regroupées par cachette, annonces des surprises,
+  icônes dessinées pour tout. Police des titres : Lilita One (licence SIL
+  OFL, jointe dans `/jeu/OFL-LilitaOne.txt`).
 
 Commandes :
 
@@ -356,10 +416,10 @@ ordre) :
 | Emplacement | Rôle |
 | --- | --- |
 | `core/` | Socle commun (espace de noms, couleurs, matières, hasard reproductible) |
-| `sim/` | Simulation sans rendu : données (`00-data.js` : tours, ennemis, sorts, compétences), les quinze cartes (`10-maps.js`), chemins et champs de distance, vagues, partie (gemmes, IA, tours, capacités), progression |
-| `models/` | Modèles 3D procéduraux : tours sanglier, cygne et berger-dragon (niveaux 1 à 7), gemmes, moulin-repaire, menhirs, entrées, forêts à couper, décor et petits éléments de sol |
-| `fx/` | Effets : projectiles et impacts des tours, sorts, zones, éclats |
-| `actors/` | Les onze ennemis (et leurs champions et boss) sur un squelette procédural léger, montures (quad, vache, canard) et états visibles |
+| `sim/` | Simulation sans rendu : données (`00-data.js` : tours, ennemis, sorts, compétences), les quinze cartes (`10-maps.js`), champs de distance et d'écoulement (déplacement libre dans les routes larges), vagues, partie (cachettes, gemmes, IA, tours, capacités, surprises), progression |
+| `models/` | Modèles 3D procéduraux : tours sanglier, cygne et berger-dragon (niveaux 1 à 7), gemmes, cachettes, moulin, buttes, barrières, menhirs, entrées, forêts à couper, décor et petits éléments de sol |
+| `fx/` | Effets : projectiles, jets de feu continus et impacts des tours, sorts, zones, éclats |
+| `actors/` | Les seize ennemis (et leurs champions et boss) sur un squelette procédural léger, montures et véhicules (quad, vache, canard, vélo, tracteur, montgolfière) et états visibles |
 | `render/` | Carte peinte, relief, eau, décor, caméra fixe vue du dessus, liaison de l'état de la partie à la scène 3D |
 | `ui/` | Interface (titre, missions, compétences, encyclopédie, HUD, menus), icônes, logo, portraits des tours et des ennemis |
 | `main.js` | Application : relie simulation, carte, interface et progression ; boucle d'animation |
@@ -368,10 +428,12 @@ ordre) :
 | `CONCEPTION.md` | Conception du jeu et contrats entre ses parties |
 | `dev/` | Pages d'essai des tours, ennemis, décor, carte et interface (non publiées) |
 
-`npm test` rejoue la simulation : cartes, vagues, terrains, construction et
-niveaux des tours, sorts, gemmes (vol, chute, reprise par les autres ennemis),
-capacités des onze ennemis, compétences, progression, et un robot joueur qui
-doit gagner les quinze missions.
+`npm test` rejoue la simulation : cartes (routes larges, cachettes, chemins),
+écoulement et déplacement libre, vagues, terrains, construction et niveaux des
+tours, les trois façons d'attaquer, sorts, gemmes (vol, chute, reprise par les
+autres ennemis, plusieurs cachettes), surprises (marée, barrière, passage
+secret, canards, montgolfières), capacités des seize ennemis, compétences,
+progression, et un robot joueur qui doit gagner les quinze missions.
 
 Après une modification :
 
