@@ -279,6 +279,7 @@
     L.total = total;
     L.slotsKey = -1;
     if (L.alarm && model.alarm) model.alarm(true);
+    this.batchDirty = true; // lots des pièces immobiles à refaire (render/18-batch.js)
   };
   W.buildLairs = function () {
     this.lairs = [];
@@ -590,6 +591,7 @@
       }
     }
     const mesh = merged(parts, "Poteaux des entrées");
+    mesh.userData.batch = "plain";
     mesh.castShadow = this.high;
     this.root.add(mesh);
   };
@@ -633,7 +635,10 @@
   W.orientPlaces = function (az) {
     for (const L of this.lairs || []) {
       if (L.fixedYaw !== null) continue;
-      objOf(L.model).rotation.y = az || 0;
+      const o = objOf(L.model);
+      if (o.rotation.y === (az || 0)) continue;
+      o.rotation.y = az || 0;
+      this.batchDirty = true;
     }
   };
   W.updatePlaces = function (dt, time) {

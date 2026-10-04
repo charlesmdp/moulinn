@@ -47,7 +47,7 @@
     models: ["10-kit.js", "20-boar.js", "21-swan.js", "22-dog.js", "40-props.js", "41-gems.js", "42-landmarks.js", "43-forests.js", "44-decor.js"],
     fx: ["05-kit.js", "10-fx.js", "11-areas.js", "12-props.js", "13-shots.js", "14-world.js"],
     actors: ["10-actors.js", "11-types.js", "12-overlay.js", "13-mounts.js"],
-    render: ["10-map.js", "15-places.js", "20-entities.js", "25-routes.js", "30-camera.js"],
+    render: ["10-map.js", "15-places.js", "18-batch.js", "20-entities.js", "25-routes.js", "30-camera.js"],
   };
   // ?ext=<adresse d'un autre dossier jeu/>&extdirs=actors,models : ces dossiers viennent d'ailleurs
   // (par exemple le dépôt principal servi en lecture seule), pour essayer l'intégration ;
@@ -489,6 +489,39 @@
     }
     const i = renderer.info;
     return { calls: i.render.calls, triangles: i.render.triangles, geometries: i.memory.geometries, textures: i.memory.textures, syncMs: +(cpuSync / n).toFixed(2), renderCpuMs: +(cpuRender / n).toFixed(2), towers: game.state.towers.length, enemies: game.state.enemies.length, projectiles: game.state.projectiles.length, buildMs: +view.buildMs.toFixed(0), paintMs: +view.world.timings.paint.toFixed(0), scripts: loaded.length };
+  };
+  // Répartition approchée des appels de dessin par branche de la scène (objets visibles dans le cadre,
+  // un appel par matériau) : sert à savoir quoi alléger quand le budget est dépassé.
+  window.__calls = function () {
+    const cam = view.cam.camera;
+    cam.updateMatrixWorld();
+    const fr = new THREE.Frustum().setFromProjectionMatrix(new THREE.Matrix4().multiplyMatrices(cam.projectionMatrix, cam.matrixWorldInverse));
+    const out = {};
+    let total = 0;
+    const own = new Map();
+    for (const v of view.towers.values()) own.set(v.model.object, "tours");
+    for (const v of view.enemies.values()) own.set(v.obj, "ennemis");
+    for (const g of view.gems.values()) own.set(g.model.object, "gemmes");
+    const walk = (o, tag) => {
+      if (!o.visible) return;
+      if (own.has(o)) tag = own.get(o);
+      if ((o.isMesh || o.isPoints || o.isLine || o.isSprite) && o.material) {
+        let n = Array.isArray(o.material) ? o.material.length : 1;
+        if (o.isInstancedMesh && o.count === 0) n = 0;
+        if (n && o.frustumCulled && o.geometry && !o.isSprite && !fr.intersectsObject(o)) n = 0;
+        if (n) {
+          out[tag] = (out[tag] || 0) + n;
+          total += n;
+        }
+      }
+      for (const c of o.children) walk(c, tag);
+    };
+    for (const c of scene.children) {
+      if (c.children.length > 3 && !c.isMesh) for (const d of c.children) walk(d, (c.name || c.type) + "/" + (d.name || d.type));
+      else walk(c, c.name || c.type);
+    }
+    out.total = total;
+    return out;
   };
   setTimeout(() => (document.title = "prête"), 400);
 })().catch((e) => {

@@ -22,7 +22,8 @@
 //    d'écume qui recule, flaques qui restent) puis revient ;
 //  - ponts de bois, forêts à couper, tablier boisé, décor des cases X, menhirs et passage secret :
 //    modèles de l'agent Décor (PTMT.models.*) s'ils existent, sinon formes de secours dessinées
-//    ici ; cachettes, moulin, entrées, barrières et buttes : render/15-places.js ;
+//    ici ; cachettes, moulin, entrées, barrières et buttes : render/15-places.js ; les maillages
+//    immobiles sont ensuite regroupés par matière (render/18-batch.js : moins d'appels de dessin) ;
 //  - des surimpressions calculées dans les shaders du sol et de l'eau, qui épousent le relief :
 //    grille discrète des cases constructibles, mode construction (cases libres, à couper, case
 //    visée verte ou rouge), disque de portée à liseré net, réticules des sorts.
@@ -1827,12 +1828,15 @@
     TREE_GEO.set(key, g);
     return g;
   };
+  // Horloge des matières d'arbres : partagée par toutes les cartes (les matières sont gardées d'une
+  // carte à l'autre ; une horloge propre à la première carte s'arrêterait avec elle).
+  const TREE_TIME = (MK.treeTime = { value: 0 });
   /** Matière des arbres : couleurs par sommet (et par instance), balancement au vent. */
-  MK.treeMaterial = function (key, uTime) {
+  MK.treeMaterial = function (key) {
     return PTMT.mat("view:tree:" + key, () => {
       const m = new THREE.MeshLambertMaterial({ vertexColors: true });
       m.onBeforeCompile = (sh) => {
-        sh.uniforms.uTime = uTime;
+        sh.uniforms.uTime = TREE_TIME;
         sh.vertexShader = sh.vertexShader
           .replace("#include <common>", "#include <common>\nattribute float sway;\nuniform float uTime;")
           .replace(
@@ -1896,6 +1900,10 @@
     this.buildBridges();
     this.buildBackground();
     this.buildObjects();
+    // maillages immobiles regroupés (render/18-batch.js) : moins d'appels de dessin
+    const tb = performance.now();
+    if (this.batchStatic) this.batchStatic();
+    this.timings.batch = performance.now() - tb;
     this.timings.total = performance.now() - t0;
   }
   const W = World.prototype;
@@ -2412,6 +2420,7 @@
     const mat = PTMT.mat("view:bridge", () => new THREE.MeshLambertMaterial({ vertexColors: true }));
     const mesh = new THREE.Mesh(g, mat);
     mesh.name = "Ponts";
+    mesh.userData.batch = "plain";
     mesh.castShadow = this.high;
     mesh.receiveShadow = true;
     this.root.add(mesh);
@@ -2697,7 +2706,7 @@
       if (!byKey.has(key)) byKey.set(key, []);
       byKey.get(key).push(sl);
     }
-    const mat = MK.treeMaterial("forest", world.uTime);
+    const mat = MK.treeMaterial("forest");
     this.meshes = [];
     for (const [key, arr] of byKey) {
       const [sp, v] = key.split(":");
@@ -2916,7 +2925,7 @@
       if (out < 0.3 || at(fine.road, x, y) > 0.1 || at(fine.water, x, y) > 0.1) continue;
       lists.bush.push({ x, y, s: 0.8 + rng() * 0.5, r: rng() * 6.28, v: 0, k: 0.75 + rng() * 0.15 });
     }
-    const mat = MK.treeMaterial("apron", this.uTime);
+    const mat = MK.treeMaterial("apron");
     this.apronMeshes = [];
     for (const sp of Object.keys(lists)) {
       for (const v of [0, 1]) {
@@ -2935,6 +2944,7 @@
         mesh.frustumCulled = false;
         mesh.castShadow = false;
         mesh.name = "Tablier_" + sp;
+        mesh.userData.batch = "tree"; // immobile : regroupé en qualité « low » (render/18-batch.js)
         this.root.add(mesh);
         this.apronMeshes.push(mesh);
       }
@@ -2957,7 +2967,7 @@
       const x = x0 + (rng() - 0.5) * 0.06, y = y0 + (rng() - 0.5) * 0.06;
       list.push({ x, y, s: 0.55 + rng() * 0.45, r: rng() * 6.28, v: this.high ? (rng() * 2) | 0 : 0 });
     }
-    const mat = MK.treeMaterial("rocks", this.uTime);
+    const mat = MK.treeMaterial("rocks");
     for (const v of [0, 1]) {
       const arr = list.filter((t) => t.v === v);
       if (!arr.length) continue;
@@ -2975,6 +2985,7 @@
       mesh.castShadow = this.high;
       mesh.receiveShadow = true;
       mesh.name = "Rochers des buttes";
+      mesh.userData.batch = "tree";
       this.root.add(mesh);
     }
   };
@@ -3102,7 +3113,7 @@
       }
     }
     const g = mergeColored(list);
-    const mat = MK.treeMaterial("decor", this.uTime);
+    const mat = MK.treeMaterial("decor");
     const mesh = new THREE.Mesh(g, mat);
     mesh.castShadow = this.high;
     mesh.receiveShadow = true;
@@ -3190,7 +3201,7 @@
         }
       }
     if (!slots.length) return;
-    const mat = MK.treeMaterial("forest", this.uTime);
+    const mat = MK.treeMaterial("forest");
     const meshes = {};
     for (const sp of ["bramble", "bush"]) {
       const arr = slots.filter((s) => s.sp === sp);
@@ -3283,6 +3294,9 @@
   };
   W.update = function (dt, time) {
     this.uTime.value = time;
+    TREE_TIME.value = time;
+    if (this.batchDirty && this.batchStatic) this.batchStatic();
+    if (this.updateBatch) this.updateBatch(dt, time);
     this.ov.uOvTime.value = time;
     if (this.tideLevel !== this.tideTarget) {
       const d = this.tideTarget - this.tideLevel, step = dt / 2.1;
@@ -3307,6 +3321,7 @@
     for (const a of this.animated) a(dt, time);
   };
   W.dispose = function () {
+    if (this.disposeBatch) this.disposeBatch();
     if (this.disposePlaces) this.disposePlaces();
     this.root.parent && this.root.parent.remove(this.root);
     for (const d of this.disposables) d && d.dispose && d.dispose();

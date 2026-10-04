@@ -40,7 +40,9 @@
 //  - zones de brûlure et avertissements de météore ; marée, barrières qui cèdent, passage secret ;
 //  - surimpressions : barres de vie, barrière du druide, pictogrammes d'état, flèches d'amélioration,
 //    coins de la case visée par la coupe (un seul lot de sprites, toujours au premier plan), textes
-//    flottants et noms des boss (DOM) ; qualité « low » : disque d'ombre doux sous les tours.
+//    flottants et noms des boss (DOM) ; qualité « low » : disque d'ombre doux sous les tours, et
+//    lueurs des gemmes posées dans leur logement redessinées dans le lot des repères (celles du
+//    modèle de gemme sont cachées tant qu'elle y reste : un appel de dessin de moins par gemme).
 // Tout modèle absent (tours, ennemis, gemmes, projectiles, jets, décor) est remplacé par une forme de
 // secours simple : le jeu tourne avec ou sans les autres parties.
 (function () {
@@ -1083,13 +1085,18 @@
     this.bossLabels = new Map();
   };
   /** Texte flottant au-dessus d'un point de la carte (x, y cases ; lift m) : or, Raté !, Critique !… */
+  /** Abscisse d'un texte flottant gardée dans l'écran (largeur estimée d'après le nombre de lettres). */
+  P.floatX = function (px, text) {
+    const hw = String(text).length * 4.6 + 8, w = this.cam.w || 0;
+    return w > hw * 2 + 8 ? clamp(px, hw + 4, w - hw - 4) : px;
+  };
   P.floatText = function (x, y, lift, text, cls) {
     if (!this.layer) return;
     const p = this.canvasPoint(x, y, lift);
     const d = document.createElement("div");
     d.className = "ptmt-fl " + (cls || "");
     d.textContent = text;
-    d.style.left = p.x.toFixed(1) + "px";
+    d.style.left = this.floatX(p.x, text).toFixed(1) + "px";
     d.style.top = p.y.toFixed(1) + "px";
     d.addEventListener("animationend", () => d.remove());
     this.layer.appendChild(d);
@@ -1101,7 +1108,7 @@
     const d = document.createElement("div");
     d.className = "ptmt-fl " + (cls || "");
     d.textContent = text;
-    d.style.left = p.x.toFixed(1) + "px";
+    d.style.left = this.floatX(p.x, text).toFixed(1) + "px";
     d.style.top = p.y.toFixed(1) + "px";
     d.addEventListener("animationend", () => d.remove());
     this.layer.appendChild(d);
@@ -1577,6 +1584,8 @@
   P.syncGems = function (st, dt, time) {
     const W = this.world;
     this.glows.length = 0;
+    const calmGems = this.gemGlows || (this.gemGlows = []);
+    calmGems.length = 0;
     // logements pleins de chaque cachette (réutilisés d'une image à l'autre)
     const lairs = (st.map && st.map.lairs) || [];
     for (let k = 0; k < lairs.length; k++) {
@@ -1680,6 +1689,14 @@
         o.scale.setScalar(g.baseScale);
         const full = this.lairFull[lairId];
         if (full && slot < full.length) full[slot] = true;
+      }
+      // qualité « low » : les lueurs du Décor d'une gemme posée dans son logement sont redessinées
+      // dans le lot des repères (drawGemGlows) : un appel de dessin de moins par gemme
+      if (g.fxMesh === undefined) g.fxMesh = (!this.high && g.native && o.getObjectByName && o.getObjectByName("lueurs de gemme")) || null;
+      if (g.fxMesh) {
+        const calm = now === "lair" && !g.anim;
+        g.fxMesh.visible = !calm;
+        if (calm) calmGems.push(g);
       }
       if (g.model.update) g.model.update(dt, this.real);
     }
@@ -2418,8 +2435,41 @@
       } else if (this.canBuild(b.i, b.j, ps.family)) M.put(x, top, z, sz, HUD.corners, 0.78, 1, 0.6, 0.7, 0, 0, 1, 1);
     }
   };
+  // Couleurs des lueurs des gemmes (palette du Décor si elle est chargée), linéaires.
+  let GEM_GLOW = null;
+  function gemGlowColors() {
+    if (GEM_GLOW) return GEM_GLOW;
+    const P = PTMT.models && PTMT.models.props;
+    const src = P && P.GEMS && P.GEMS.length ? P.GEMS : [
+      { a: "#ff2b45", d: "#ff1838" }, { a: "#2df27c", d: "#12ff66" }, { a: "#4290ff", d: "#2a78ff" },
+      { a: "#c95cff", d: "#b43cff" }, { a: "#ffa524", d: "#ff8a10" }, { a: "#f6ffff", d: "#c4f4ff" },
+    ];
+    GEM_GLOW = src.map((G) => ({ a: lin(G.a), d: lin(G.d) }));
+    return GEM_GLOW;
+  }
+  /**
+   * Qualité « low » : lueurs des gemmes posées dans leur logement (celles du Décor sont cachées) :
+   * flaque de lumière de leur couleur au fond du logement et halo autour de la gemme, mêmes tailles.
+   */
+  P.drawGemGlows = function (time) {
+    const M = this.marks, list = this.gemGlows;
+    if (!M || !list || !list.length) return;
+    const pal = gemGlowColors(), fw = this.cam.forward;
+    for (const g of list) {
+      const o = g.model.object, p = o.position, s = o.scale.x || 1;
+      const c = pal[g.color] || pal[0];
+      const fl = 1 + 0.04 * Math.sin(time * 3.1 + g.id * 1.7);
+      M.put(p.x, p.y + 0.03 * s, p.z - 0.3 * s, 2.9 * s * fl, HUD.glow, c.d.r, c.d.g, c.d.b, 1, 0, 0.95, 1, 1);
+      M.put(p.x, p.y + 0.035 * s, p.z - 0.25 * s, 1.4 * s, HUD.glow, c.a.r, c.a.g, c.a.b, 0.75, 0, 1, 1, 1);
+      // halo face à la caméra, un peu avancé vers elle (la gemme ne le coupe pas en deux)
+      const fg = 1 + 0.1 * Math.sin(time * 7.3 + g.id * 4.1);
+      const k = 0.3 * s;
+      M.put(p.x - fw.x * k, p.y + 0.31 * s - fw.y * k, p.z - 0.53 * s - fw.z * k, 3.1 * s * fg, HUD.glow, c.d.r, c.d.g, c.d.b, 0.36, 0, 1, 0, 1);
+    }
+  };
   P.drawSelection = function (time) {
     this.drawButteMarks(time);
+    this.drawGemGlows(time);
     const M = this.marks;
     if (!M || this.selEnemy === null || this.selEnemy === undefined) return;
     const v = this.enemies.get(this.selEnemy);
