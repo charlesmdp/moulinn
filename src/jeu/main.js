@@ -5,7 +5,7 @@
 // Relie les parties écrites séparément : la simulation (PTMT.sim.createGame), le rendu de la carte
 // (PTMT.view), l'interface (PTMT.ui) et la progression (PTMT.progress). La caméra est fixe (vue du
 // dessus façon Cursed Treasure) : un toucher ou un clic sur la carte est transmis à l'interface, qui
-// ouvre le menu de construction, le panneau de tour ou lance le sort visé. Derrière l'écran titre et
+// ouvre le menu de construction, le panneau de tour, la fiche de l'ennemi touché ou lance le sort visé. Derrière l'écran titre et
 // la carte des missions, la dernière mission débloquée est affichée à l'arrêt, en vitrine.
 (function () {
   "use strict";
@@ -105,7 +105,8 @@
     const overlay = PTMT.actors && PTMT.actors.overlay;
     if (overlay && overlay.root && overlay.root.parent) overlay.root.parent.remove(overlay.root);
     app.map = map;
-    app.view = PTMT.view.create({ renderer: app.renderer, scene: app.scene, map, mobile: app.mobile, quality: app.quality() });
+    // La vue lit aussi la partie (aperçu du trajet de la prochaine vague : game.upcoming).
+    app.view = PTMT.view.create({ renderer: app.renderer, scene: app.scene, map, mobile: app.mobile, quality: app.quality(), game });
     app.viewAdapter = {
       worldToScreen: (x, y) => app.view.worldToScreen(x, y),
       showRange: (id) => app.view.showRange(id),
@@ -113,6 +114,8 @@
       target: (spell, x, y) => app.view.target(spell, x, y),
       setUpgradeHints: (ids) => app.view.setUpgradeHints && app.view.setUpgradeHints(ids),
     };
+    // Anneau doré sous l'ennemi dont la fiche est ouverte (sinon l'interface dessine le sien).
+    if (app.view.selectEnemy) app.viewAdapter.selectEnemy = (id) => app.view.selectEnemy(id);
     app.syncFresh = true;
     app.resize();
   };

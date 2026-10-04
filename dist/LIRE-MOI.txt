@@ -20,10 +20,16 @@ LES ADRESSES DU SITE
 /jeu/    le jeu « Pas touche à mes trésors » (seule façon d'y accéder).
 
 NOUVEAUTES DE CETTE SERIE
-Le jeu « Pas touche à mes trésors » est refait façon Cursed Treasure (voir
-plus bas) et ne s'ouvre plus qu'à l'adresse /jeu/ : le bouton Jeu a quitté la
-page d'accueil. Le personnage porte un grand chapeau de paille à la One Piece
-(bord large, ruban rouge), en toutes saisons.
+Le jeu « Pas touche à mes trésors » passe en v4 (voir plus bas) : routes
+larges où les ennemis se baladent (au milieu, le long des bords), plusieurs
+cachettes de gemmes à partir de la mission 7, gemmes grandes et de couleurs
+franches, trois façons d'attaquer (le sanglier tire, le cygne lâche ses
+charges en rafale puis se recharge, le berger crache un jet de feu continu
+qui chauffe), tours et ennemis lisibles d'en haut, seize ennemis dont cinq
+nouveaux, surprises annoncées (marée, barrières qui cèdent, passage secret,
+canards, montgolfières), frise des vagues façon Cursed Treasure et difficulté
+recalibrée jusqu'aux dernières vagues. Le jeu ne s'ouvre qu'à l'adresse
+/jeu/. Le personnage porte un grand chapeau de paille à la One Piece.
 
 RETOUCHES PRECEDENTES
 Plus de gel d'une dizaine de secondes en allumant la lampe ou les phares, au
@@ -45,21 +51,29 @@ gommer ou ajouter des berges, comparer et recaler le relief sur l'IGN.
 
 LE JEU « PAS TOUCHE A MES TRESORS »
 Adresse /jeu/. Un tower defense calqué sur Cursed Treasure, vu du dessus, sans
-caméra à déplacer. Cinq gemmes brillent devant le moulin : chaque ennemi en
-prend une et repart ; tué, il la lâche et les autres viennent la ramasser.
-Tours liées au terrain : sanglier sur l'herbe, cygne sur l'eau, berger
-australien cracheur de feu sur la roche (il devient dragon au niveau 4) ; les
-buttes acceptent les trois, les menhirs donnent du mana, les bois se coupent
-avec le sort Couper. Les tours gagnent de l'expérience, montent jusqu'au
-niveau 7 et se spécialisent au niveau 4. Onze ennemis (agriculteur en colère,
-voleur en quad, cow-boy au lasso, cavalier sur vache, druide, bigoudène aux
-crêpes, chasseur camouflé, rugbyman, sonneur de biniou, pompier, cavalier sur
-canard), champions et boss. Sorts : Couper, Frénésie, Météore. Quinze
-missions, 3 points de compétence par mission gagnée. Ordinateur : clic sur
-une case ou une tour, Q W E pour les sorts, Espace pour la pause, 1 2 3 pour
-la vitesse, Entrée pour appeler la vague. Téléphone : toucher. La progression
-reste dans le navigateur. Police des titres : Lilita One (licence SIL OFL,
-fichier OFL-LilitaOne.txt à côté du jeu).
+caméra à déplacer. Cinq grosses gemmes de couleurs franches brillent dans une
+cachette devant le moulin, puis, à partir de la mission 7, dans deux ou trois
+cachettes (moulin, vieux puits, dolmen, chapelle) : chaque ennemi va à la plus
+proche qui a encore des gemmes, en prend une et repart ; tué, il la lâche et
+les autres viennent la ramasser. Les routes sont larges : les ennemis s'y
+étalent et contournent les buttes. Tours liées au terrain, chacune avec sa
+façon d'attaquer : le sanglier sur l'herbe tire à la suite, le cygne sur l'eau
+lâche ses charges en rafale puis se recharge, le berger australien sur la
+roche crache un jet de feu continu qui chauffe tant qu'il tient sa cible (il
+devient dragon au niveau 4). Les buttes acceptent les trois, les menhirs
+donnent du mana, les bois se coupent avec le sort Couper. Les tours gagnent de
+l'expérience, montent jusqu'au niveau 7 et se spécialisent au niveau 4. Seize
+ennemis (agriculteur en colère, voleur en quad, cow-boy au lasso, cavalier sur
+vache, druide, bigoudène aux crêpes, chasseur camouflé, rugbyman, sonneur de
+biniou, pompier, cavalier sur canard, cyclistes, korrigan, touriste au flash,
+tracteur, montgolfière), champions et boss. Surprises annoncées dans la frise
+des vagues : marée, barrières qui cèdent, passage secret, canards,
+montgolfières. Sorts : Couper, Frénésie, Météore. Quinze missions, 3 points de
+compétence par mission gagnée. Ordinateur : clic sur une case, une tour ou un
+ennemi, Q W E pour les sorts, Espace pour la pause, 1 2 3 pour la vitesse,
+Entrée pour appeler la vague. Téléphone : toucher. La progression reste dans
+le navigateur. Police des titres : Lilita One (licence SIL OFL, fichier
+OFL-LilitaOne.txt à côté du jeu).
 
 LE LIEU DU MOULIN
 Le jeu est réglé sur le Moulin de Saint-Christophe, 56250 Elven. Un autre
