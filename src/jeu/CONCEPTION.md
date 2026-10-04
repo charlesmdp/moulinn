@@ -36,7 +36,9 @@ La v4 répond aux retours du propriétaire après avoir joué la v3 :
   d'une case boisée est ouvert ;
 - **zone** : le dragon rouge souffle un **cône de flammes** (attaque `cone`) ; Météore dès la
   mission 2 ;
-- **spécialisations** : chaque voie change la façon d'attaquer dès le niveau 4 (voir 1.1).
+- **spécialisations** : chaque voie change la façon d'attaquer dès le niveau 4 (voir 1.1) ;
+- **nouvelle partie** : bouton de l'écran titre (avec confirmation) qui remet `PTMT.progress` à
+  zéro (`fresh()`, réglages gardés) ; seule la clé `ptmt-v3` est réécrite.
 
 ## 0. Cursed Treasure : ce qui compte pour la v4
 

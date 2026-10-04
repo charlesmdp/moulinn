@@ -5159,6 +5159,30 @@ html.pt-over-enemy .ptmt-stage canvas {
 .pt.pt-tiny[data-layout="portrait"] .pt-prices {
   gap: 5px;
 }
+/* nouvelle partie : petit bouton sous ceux de l'écran titre, confirmation */
+.pt-title-btns .pt-newgame {
+  opacity: 0.92;
+}
+/* le bouton de plus prend sa place sous les autres : le logo réduit d'autant (crédits jamais couverts) */
+.pt-title.has-new .pt-title-logo {
+  width: min(880px, 94vw, calc((100vh - 290px) * 1.6));
+}
+.pt[data-layout="portrait"] .pt-title.has-new .pt-title-logo {
+  width: min(96vw, 560px);
+}
+.pt[data-layout="landscape"] .pt-title.has-new .pt-title-logo {
+  width: min(60vw, calc((100vh - 24px) * 1.6));
+}
+.pt-reset-p {
+  font-weight: 600;
+  color: var(--ink-2);
+}
+.pt-resetcard .pt-row {
+  margin-top: 4px;
+}
+.pt[data-layout="landscape"] .pt-title-btns .pt-newgame {
+  min-height: 30px;
+}
 /* pause automatique (menu de tour ou de construction ouvert) : bandeau discret */
 .pt-pausebar.auto {
   padding: 4px 13px 4px 8px;

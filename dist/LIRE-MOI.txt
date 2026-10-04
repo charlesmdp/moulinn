@@ -31,7 +31,8 @@ ouvert, cône de flammes du dragon rouge (attaque de zone) et Météore dès la
 mission 2, spécialisations vraiment différentes dès le niveau 4 (deux bogues
 à la fois ou grosse châtaigne qui explose ; onde de glace autour du nid ou
 toutes les boules d'un coup sur des ennemis différents ; cône de flammes ou
-jet qui rebondit).
+jet qui rebondit). Bouton « Nouvelle partie » sur l'écran titre pour tout
+recommencer depuis la mission 1.
 Le jeu « Pas touche à mes trésors » passe en v4 (voir plus bas) : routes
 larges où les ennemis se baladent (au milieu, le long des bords), plusieurs
 cachettes de gemmes à partir de la mission 7, gemmes grandes et de couleurs
@@ -90,7 +91,9 @@ compétence par mission gagnée (l'écran des compétences s'ouvre après chaque
 victoire). Ordinateur : clic sur une case, une tour ou un
 ennemi, Q W E pour les sorts, Espace pour la pause, 1 2 3 pour la vitesse,
 Entrée pour appeler la vague. Téléphone : toucher. La progression reste dans
-le navigateur. Police des titres : Lilita One (licence SIL OFL, fichier
+le navigateur ; le bouton « Nouvelle partie » de l'écran titre la remet à
+zéro pour tout recommencer depuis la mission 1 (réglages gardés, retouches
+de l'atelier non touchées). Police des titres : Lilita One (licence SIL OFL, fichier
 OFL-LilitaOne.txt à côté du jeu).
 
 LE LIEU DU MOULIN

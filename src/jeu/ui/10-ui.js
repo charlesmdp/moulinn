@@ -4,7 +4,8 @@
 // annonces des surprises, victoire, défaite, pause, tutoriel de la première mission.
 //
 //   const ui = PTMT.ui.create({ root, mobile, progress: PTMT.progress, data: PTMT.sim.DATA, maps: PTMT.sim.MAPS,
-//                              hooks: { playLevel(n), quitLevel(), restartLevel(), setQuality(q) facultatif } });
+//                              hooks: { playLevel(n), quitLevel(), restartLevel(), setQuality(q) facultatif,
+//                                       progressReset() facultatif (nouvelle partie : la vitrine repart de la mission 1) } });
 //   ui.showTitle() ; ui.showMap(n?) ; ui.showSkills() ; ui.showBestiary(tab?)
 //   ui.enterLevel(game, view)   // HUD d'une partie ; view = { worldToScreen(x, y), showRange(id|null),
 //                               //   preview(i, j, family|null), target(spell|null, x, y),
@@ -613,7 +614,7 @@
     const logo = PTMT.logo ? PTMT.logo.full() : "<h1>Pas touche à mes trésors</h1>";
     const sc = h(
       "section",
-      { class: "pt-screen pt-title" },
+      { class: "pt-screen pt-title" + (started ? " has-new" : "") },
       this.scenery(),
       h("div", { class: "pt-title-logo", html: logo }),
       h(
@@ -626,10 +627,56 @@
           h("button", { class: "pt-btn pt-wood", onclick: () => this.showSkills() }, ico("skills"), "Compétences", this.pointsBadge(p)),
           h("button", { class: "pt-btn pt-wood", onclick: () => this.showBestiary() }, ico("book"), "Encyclopédie"),
         ),
+        started ? h("button", { class: "pt-btn pt-wood pt-small pt-newgame", title: "Effacer la progression du jeu et tout recommencer depuis la mission 1", onclick: () => this.askReset() }, ico("restart"), "Nouvelle partie") : null,
       ),
       h("footer", { class: "pt-credits" }, "Moulin de Saint-Christophe", h("span", {}, " · "), "lettres Lilita One (SIL OFL)"),
     );
     this.setScreen(sc);
+  };
+  /**
+   * Nouvelle partie : confirmation, puis la progression du jeu repart de zéro (missions, gemmes
+   * sauvées, records, points et rangs de compétences, ennemis déjà rencontrés). Les réglages (qualité,
+   * vitesse) sont gardés ; seule la progression du jeu est touchée, pas les autres données du site.
+   */
+  P.askReset = function () {
+    const p = this.loadP();
+    const won = Object.values(p.levels || {}).filter((l) => l && l.won).length;
+    const pr = this.prog();
+    const pts = pr ? call(pr, "pointsTotal", p) || 0 : 0;
+    const s = (n) => (n > 1 ? "s" : "");
+    const card = h(
+      "div",
+      { class: "pt-card pt-resetcard pt-pop-in" },
+      h("div", { class: "pt-ribbon grey" }, h("span", {}, "Nouvelle partie")),
+      h("p", { class: "pt-result-t" }, "Tout recommencer depuis la mission 1 ?"),
+      h(
+        "p",
+        { class: "pt-reset-p" },
+        `${won ? `${won} mission${s(won)} gagnée${s(won)}` : "Les missions gagnées"}, les gemmes sauvées, les records${pts ? ` et ${pts > 1 ? "les" : "le"} ${pts} point${s(pts)} de compétence` : " et les compétences"} seront effacés : les missions se débloqueront de nouveau une à une. Les réglages (qualité, vitesse) sont gardés.`,
+      ),
+      h("small", { class: "pt-muted" }, "On ne peut pas revenir en arrière."),
+      h(
+        "div",
+        { class: "pt-row" },
+        h("button", { class: "pt-btn pt-wood", "data-focus": "", onclick: () => this.closeModal() }, ico("back"), "Annuler"),
+        h("button", { class: "pt-btn pt-red pt-big pt-reset-go", onclick: () => this.doReset() }, ico("restart"), "Tout recommencer"),
+      ),
+    );
+    this.openModal(card, { cls: "pt-m-reset" });
+  };
+  P.doReset = function () {
+    const pr = this.prog();
+    const old = this.loadP();
+    const p = pr && typeof pr.fresh === "function" ? pr.fresh() : { levels: {}, unlocked: 1, skills: {}, seen: {}, settings: {} };
+    p.settings = Object.assign({}, p.settings || {}, old.settings || {});
+    this.saveP(p);
+    this.closeModal(true);
+    this.justUnlocked = 0;
+    this.mapSel = 1;
+    this.skillTab = null;
+    call(this.hooks, "progressReset");
+    if (this.mode === "title") this.showTitle();
+    this.toast("Nouvelle partie : la mission 1 t'attend", "good", "play");
   };
   /** Décor de fond (ciel, collines bocagères) partagé par les écrans. */
   P.scenery = function () {

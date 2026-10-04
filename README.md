@@ -52,7 +52,12 @@ l'atelier.
     boule part en onde de glace autour du nid) ou Cygne noir (toutes ses
     boules d'un coup, chacune sur un ennemi différent) ; Dragon rouge (cône de
     flammes) ou Dragon bleu (jet qui rebondit sur un second ennemi, trois au
-    niveau 7).
+    niveau 7) ;
+  - **Nouvelle partie** : sur l'écran titre, un bouton remet la progression
+    du jeu à zéro (missions, records, points de compétence, ennemis
+    rencontrés) pour tout recommencer depuis la mission 1, après
+    confirmation ; les réglages sont gardés et les retouches faites dans
+    l'atelier du site ne sont pas touchées.
 - **« Pas touche à mes trésors » v4** (adresse `/jeu/`), d'après les retours
   sur la v3 :
   - **routes larges** (deux à quatre cases) où les ennemis se baladent :
@@ -285,7 +290,9 @@ Commandes :
 
 La caméra ne bouge pas : la carte entière est toujours visible (sur téléphone
 debout, elle pivote d'un quart de tour pour remplir l'écran). La progression
-(missions, gemmes, compétences, ennemis rencontrés) reste dans le navigateur.
+(missions, gemmes, compétences, ennemis rencontrés) reste dans le navigateur ;
+le bouton « Nouvelle partie » de l'écran titre la remet à zéro (après
+confirmation, réglages gardés).
 
 ## Nouveautés de la version 32
 

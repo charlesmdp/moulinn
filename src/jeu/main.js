@@ -54,6 +54,7 @@
         quitLevel: () => app.quitLevel(),
         restartLevel: () => app.playLevel(app.level),
         setQuality: (q) => app.setQuality(q),
+        progressReset: () => app.progressReset(),
       },
     });
     app.clock = { last: performance.now(), time: 0 };
@@ -126,6 +127,17 @@
     app.game = null;
     app.shown = PTMT.sim.createGame({ level: n, seed: 1 });
     app.mountView(PTMT.sim.MAPS[n], app.shown);
+  };
+
+  /**
+   * Nouvelle partie (écran titre) : la progression vient d'être effacée, la vitrine repart de la
+   * mission 1. La scène est reconstruite juste après, pour que l'interface réponde aussitôt.
+   */
+  App.progressReset = function () {
+    App.progress = PTMT.progress.load();
+    setTimeout(() => {
+      if (!App.game && !(App.shown && App.shown.state && App.shown.state.level === 1)) App.showcase(1);
+    }, 80);
   };
 
   App.playLevel = function (n) {
