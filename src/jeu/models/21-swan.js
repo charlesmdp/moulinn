@@ -81,7 +81,9 @@
     R.add(G.discUp(r, 28), "root", { p: [0, wy + 0.012, 0], c: o.rim || C.poolD, cls: CLS.wet, ol: false });
     R.add(G.discUp(r - 0.08, 28), "root", { p: [0, wy + 0.024, 0], c: o.pool || C.pool, cls: CLS.wet, ol: false });
     R.add(G.torus(r - 0.2, 0.085, 3, 28), "root", { p: [0, wy + 0.03, 0], r: [Math.PI / 2, 0, 0], s: [1, 1, 0.5], c: o.foam || C.foam, cls: CLS.satin, ol: false });
-    K.ctRipples(R, "root", r - 0.1, r + 0.3, wy + 0.02, 0.9);
+    // rides : autour du socle sur l'eau, dans la mare sur une butte (jamais sur l'herbe)
+    if (o.pond) K.ctRipples(R, "root", r * 0.72, r - 0.1, wy + 0.04, 0.8);
+    else K.ctRipples(R, "root", r - 0.1, r + 0.3, wy + 0.02, 0.9);
     return wy;
   }
 
@@ -522,7 +524,7 @@
         });
         swan(R, P, h * 0.28);
         // Réserve de boules au-dessus du nid.
-        K.ctOrbs(R, { parent: "float", y: (big ? 1.75 : 1.2 + level * 0.06) + P.k * 0.15, r: big ? 1.3 : r * 0.98, size: big ? 0.25 : 0.2 + Math.min(level, 4) * 0.008, kind: orbKind });
+        K.ctOrbs(R, { parent: "float", y: (big ? 1.75 : 1.2 + level * 0.06) + P.k * 0.15, r: big ? 1.3 : r * 0.98, size: big ? 0.27 : 0.235 + Math.min(level, 4) * 0.007, kind: orbKind });
         // Étincelles de mana qui tournent autour du cygne noir (os « orbit »).
         if (spec === "B") {
           R.bone("orbit", "yaw", [0, 0.9 * P.k, 0]);

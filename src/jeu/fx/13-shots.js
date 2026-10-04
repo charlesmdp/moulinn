@@ -209,8 +209,7 @@
         float fres = pow(1.0 - abs(dot(N, V)), 2.0);
         vec3 L = normalize(vec3(-0.35, 0.85, 0.45));
         float diff = max(dot(N, L), 0.0);
-        vec3 col = mix(vec3(0.04, 0.34, 0.95), vec3(0.62, 0.92, 1.0), 0.25 + 0.5 * diff + 0.4 * fres);
-        col += vec3(0.1, 0.35, 0.6) * 0.5;
+        vec3 col = mix(vec3(0.02, 0.22, 0.85), vec3(0.55, 0.88, 1.0), 0.08 + 0.42 * diff + 0.35 * fres);
         col += vec3(1.0) * pow(max(dot(reflect(-L, N), V), 0.0), 18.0) * 1.4;
         gl_FragColor = vec4(col, 0.92);
         OUT_COLOR
@@ -322,8 +321,8 @@
       leaf: { grav: 3, drag: 1.5, life: [0.35, 0.6], s0: [0.14, 0.22], s1: 0.08, cell: c.leaf, col: L.leaf, a: 1, a1: 0, rot: "rand", spin: [-8, 8] },
       dust: { drag: 2.2, life: [0.3, 0.5], s0: 0.18, s1: 0.45, cell: c.puff, col: L.dust, a: 0.55, a1: 0, rot: "rand", curve: 1 },
       streak: { drag: 3, life: 0.16, s0: 0.24, s1: 0.1, cell: c.spark, mode: 2, stretch: 0.06, col: L.cream, a: 0.5, a1: 0, add: 0.6 },
-      drop: { grav: 9, life: [0.3, 0.5], s0: [0.08, 0.14], s1: 0.05, cell: c.drop, mode: 2, stretch: 0.05, col: L.waterL, col1: L.water, a: 0.95, a1: 0.3 },
-      wstreak: { drag: 2.5, life: 0.22, s0: 0.3, s1: 0.12, cell: c.spark, mode: 2, stretch: 0.07, col: L.waterL, col1: L.water, a: 0.8, a1: 0, add: 0.3 },
+      drop: { grav: 9, life: [0.3, 0.5], s0: [0.11, 0.17], s1: 0.06, cell: c.drop, mode: 2, stretch: 0.05, col: L.waterL, col1: L.water, a: 0.95, a1: 0.3 },
+      wstreak: { drag: 2.5, life: 0.26, s0: 0.42, s1: 0.16, cell: c.spark, mode: 2, stretch: 0.08, col: L.waterL, col1: L.water, a: 0.95, a1: 0, add: 0.2 },
       foam: { drag: 2, life: 0.35, s0: 0.2, s1: 0.38, cell: c.foam, col: L.foam, a: 0.7, a1: 0, rot: "rand" },
       frost: { drag: 2, life: [0.35, 0.6], s0: [0.14, 0.24], s1: 0.02, cell: c.twinkle, col: L.iceW, a: 1, a1: 0, add: 0.6, rot: "rand", spin: [-4, 4] },
       snow: { drag: 2, grav: 0.6, life: [0.4, 0.7], s0: [0.12, 0.2], s1: 0.04, cell: c.snow, col: L.iceW, a: 0.9, a1: 0, add: 0.3, rot: "rand", spin: [-3, 3] },
