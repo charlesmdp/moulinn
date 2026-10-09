@@ -1,6 +1,7 @@
 // Construit le site statique publié dans dist/ à partir de src/.
 //
-//  src/index.html          page, avec les jetons {{asset:styles}} et {{asset:start}}
+//  src/portail.html        page d'accueil « / » : mot de passe qui mène au moulin (jeton {{gate:hash}})
+//  src/index.html          page du moulin (/moulin/, /3D/, /build/), avec les jetons {{asset:styles}} et {{asset:start}}
 //  src/start.js            chargeur progressif, avec le jeton {{asset:app}}
 //  src/app/v32/*.js        modules de la version 32 (ordre alphabétique)
 //  src/app/moulin.js       jeu complet (V31 dé-minifiée, avec les points d'accroche V32)
@@ -22,6 +23,10 @@ const dist = path.join(root, "dist");
 const target = ["es2020", "safari15"];
 
 const hash = (content) => crypto.createHash("sha256").update(content).digest("hex").slice(0, 12);
+
+// Mot de passe de la page d'accueil « / » (minuscules, sans espaces autour). Simple barrière : seule
+// son empreinte SHA-256 est publiée, et /moulin/ reste ouvert à qui connaît l'adresse.
+const GATE_PASSWORD = "azerty";
 
 async function listFiles(dir, extension) {
   try {
@@ -94,9 +99,10 @@ async function main() {
   let html = await fs.readFile(path.join(src, "index.html"), "utf8");
   html = html.replaceAll("{{asset:styles}}", cssFile).replaceAll("{{asset:start}}", startFile);
   if (/\{\{asset:/.test(html)) throw new Error("Jeton {{asset:…}} non remplacé dans index.html");
-  // Trois adresses pour la même page : l'accueil (Personnage, Vue libre, Météo, Jeu), /3D (avec
-  // la vue 3D) et /build (vue 3D et atelier « Aménager »), pour que l'atelier ne soit ouvert
-  // qu'à qui connaît l'adresse. Les sous-pages lisent les ressources à la racine (<base>).
+  // Trois adresses pour la même page : /moulin (Personnage, Vue libre, Météo), /3D (avec la vue 3D)
+  // et /build (vue 3D et atelier « Aménager »), pour que l'atelier ne soit ouvert qu'à qui connaît
+  // l'adresse. Les pages lisent les ressources à la racine (<base>). Elles ne sont pas indexées par
+  // les moteurs de recherche : on y entre par le mot de passe de « / » ou en connaissant l'adresse.
   const pageFor = (route) => {
     const drop = (mode) => {
       const button = new RegExp(`\\n[ \\t]*<button type="button" data-mode="${mode}"[^\\n]*?</button>`);
@@ -112,12 +118,11 @@ async function main() {
       if (!page.includes('<html lang="fr">') || !page.includes("<head>")) throw new Error("En-tête de index.html inattendu");
       page = page
         .replace('<html lang="fr">', `<html lang="fr" data-route="${route}">`)
-        .replace("<head>", '<head>\n<base href="../">' + (route === "build" ? '\n<meta name="robots" content="noindex,nofollow">' : ""));
+        .replace("<head>", '<head>\n<base href="../">\n<meta name="robots" content="noindex,nofollow">');
     }
     return page;
   };
-  await fs.writeFile(path.join(stage, "index.html"), pageFor(""));
-  for (const [dir, route] of [["3D", "3d"], ["build", "build"]]) {
+  for (const [dir, route] of [["moulin", "moulin"], ["3D", "3d"], ["build", "build"]]) {
     await fs.mkdir(path.join(stage, dir), { recursive: true });
     await fs.writeFile(path.join(stage, dir, "index.html"), pageFor(route));
   }
@@ -150,6 +155,13 @@ async function main() {
   await fs.mkdir(path.join(stage, "jeu"), { recursive: true });
   await fs.writeFile(path.join(stage, "jeu", "index.html"), jeuHtml);
   await fs.copyFile(path.join(jeuDir, "fonts", "OFL-LilitaOne.txt"), path.join(stage, "jeu", "OFL-LilitaOne.txt"));
+
+  // Accueil « / » : le mot de passe qui mène à /moulin/ (servie aussi pour toute adresse inconnue,
+  // qu'elle renvoie vers /moulin/, /3D/, /build/ ou /jeu/ quand seule la casse diffère).
+  const gateHash = crypto.createHash("sha256").update(GATE_PASSWORD.trim().toLowerCase()).digest("hex");
+  const gateHtml = (await fs.readFile(path.join(src, "portail.html"), "utf8")).replaceAll("{{gate:hash}}", gateHash);
+  if (/\{\{(asset|gate):/.test(gateHtml)) throw new Error("Jeton non remplacé dans portail.html");
+  await fs.writeFile(path.join(stage, "index.html"), gateHtml);
 
   // Vérification : chaque ressource citée par le chargeur et la page existe.
   const referenced = new Set([...`${html}\n${start}\n${jeuHtml}\n${jeuBoot}`.matchAll(/assets\/[A-Za-z0-9_.-]+\.[a-z0-9]+/g)].map((m) => m[0]));

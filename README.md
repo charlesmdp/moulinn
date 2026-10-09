@@ -2,9 +2,9 @@
 
 Le jardin interactif 3D du moulin, **version 32** : le moulin, la dépendance,
 les jardins, l'eau, les véhicules, les animaux, l'aménagement et les commandes
-tactiles, avec la météo et l'heure réelles. Le tower defense « Pas touche à
-mes trésors » se joue à part, à l'adresse `/jeu/` (plus de bouton sur la page
-d'accueil).
+tactiles, avec la météo et l'heure réelles, à l'adresse `/moulin/` ; la page
+`/` n'affiche plus qu'un mot de passe qui y mène. Le tower defense « Pas touche
+à mes trésors » se joue à part, à l'adresse `/jeu/`.
 
 Le dossier `dist/` est le site prêt à publier (Cloudflare Pages ou tout
 hébergement statique en HTTPS). Les sources modifiables sont dans `src/`.
@@ -13,18 +13,31 @@ hébergement statique en HTTPS). Les sources modifiables sont dans `src/`.
 
 | Adresse | Contenu |
 | --- | --- |
-| `/` | L'accueil des visiteurs : Personnage, Vue libre et Météo |
+| `/` | Un **mot de passe** (`azerty`) qui mène au moulin, rien d'autre |
+| `/moulin/` | Le moulin des visiteurs : Personnage, Vue libre et Météo (on y entre directement, sans mot de passe) |
 | `/3D/` | La même page avec la **Vue 3D** en plus |
 | `/build/` | La vue 3D et l'atelier **Aménager** (page non indexée par les moteurs de recherche) |
 | `/jeu/` | Le jeu « Pas touche à mes trésors » (seule façon d'y accéder) |
 
-`/3d` ou `/Build` (autres majuscules, avec ou sans « / ») mènent aux mêmes
-pages. Rappel : les retouches faites dans l'atelier restent dans le navigateur
-qui les a faites ; `/build` évite surtout que les visiteurs tombent sur
-l'atelier.
+`/Moulin`, `/3d`, `/Build` ou `/Jeu` (autres majuscules, avec ou sans « / »)
+mènent aux mêmes pages. Le mot de passe de `/` est une simple barrière : seule
+son empreinte est publiée, il se change dans `scripts/build.mjs`
+(`GATE_PASSWORD`), et `/moulin/` reste ouvert à qui connaît l'adresse ; pour
+qu'un moteur de recherche n'y mène pas tout droit, `/moulin/`, `/3D/` et
+`/build/` ne sont pas indexées. Rappel : les retouches faites dans l'atelier
+restent dans le navigateur qui les a faites ; `/build` évite surtout que les
+visiteurs tombent sur l'atelier.
 
 ## Nouveautés de cette série
 
+- **Le moulin passe à l'adresse `/moulin/`** : la page `/` n'affiche plus qu'un
+  mot de passe (`azerty`) qui y mène ; `/moulin/` s'ouvre directement, sans mot
+  de passe ; `/3D/`, `/build/` et `/jeu/` ne changent pas.
+- **Trésor du moulin** (en Personnage) : le coffre déterré affiche « Bravo, vous
+  avez trouvé le trésor ! Merci de montrer cet écran au créateur du jeu pour
+  qu'il vous attribue des points. » ; le panneau des commandes, à l'entrée du
+  moulin, précise que le secret est près du pont du fond du terrain, juste
+  avant que le ruisseau n'alimente l'étang.
 - **« Pas touche à mes trésors » v4.1**, d'après les retours sur la v4 :
   - **plus de flèches sur tout le trajet** : seules les entrées par où arrive
     la prochaine vague s'animent (blason à la couleur de l'entrée, chevrons au
@@ -397,7 +410,9 @@ npm ci
 npm run dev
 ```
 
-`npm run dev` reconstruit `dist/` puis le sert sur `http://localhost:8080`.
+`npm run dev` reconstruit `dist/` puis le sert sur `http://localhost:8080`
+(comme Cloudflare Pages, une adresse inconnue reçoit la page `/`, qui renvoie
+`/Moulin`, `/3d`… vers la bonne page).
 Les adresses réseau affichées permettent d'essayer depuis un téléphone
 connecté au même Wi-Fi (le bouton « Utiliser ma position actuelle » ne
 fonctionne qu'en HTTPS, donc sur Cloudflare : en local, cherche la commune). `npm run serve` sert `dist/` sans le
@@ -408,6 +423,9 @@ Sans Node.js, un serveur statique suffit :
 ```sh
 python3 -m http.server 8080 --directory dist
 ```
+
+(avec lui, seules les adresses exactes répondent : `/`, `/moulin/`, `/3D/`,
+`/build/`, `/jeu/`).
 
 Le double-clic sur `dist/index.html` ne convient pas : les ressources ont
 besoin d'un serveur HTTP ou HTTPS.

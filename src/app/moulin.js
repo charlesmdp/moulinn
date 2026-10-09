@@ -3425,7 +3425,9 @@ if(length(gl_PointCoord-vec2(.5))>.5)discard;`,
       qt.fillText("BIENVENUE AU MOULIN", 768, 120),
       (qt.font = "30px Georgia, serif"),
       (qt.fillStyle = "#ded9c7"),
-      qt.fillText("Explorez le domaine. Un secret vous attend pr\xE8s du pont\u2026", 768, 184));
+      // Indice du trésor : le pont du fond du terrain, avant que le ruisseau n'alimente l'étang.
+      qt.fillText("Un secret vous attend pr\xE8s du pont du fond du terrain,", 768, 172),
+      qt.fillText("juste avant que le ruisseau n\u2019alimente l\u2019\xE9tang\u2026", 768, 214));
     const Kt = [
       ["ZQSD / FL\xC8CHES", "Marcher ou conduire"],
       ["SOURIS", "Regarder autour de soi"],
@@ -17334,7 +17336,8 @@ void main(){
         qe.append(Xe);
         const _t = T.createElement("p");
         ((_t.className = "sign25-note"),
-          (_t.textContent = "Un secret vous attend au-del\xE0 du vieux pont. Cherchez le sceau du Cygne\u2026"),
+          (_t.textContent =
+            "Un secret vous attend pr\xE8s du pont du fond du terrain, juste avant que le ruisseau n\u2019alimente l\u2019\xE9tang. Cherchez le sceau du Cygne\u2026"),
           qe.append(_t));
       } else {
         const Xe = T.createElement("p");
@@ -17672,7 +17675,7 @@ void main(){
       ue.setAttribute("role", "dialog"),
       ue.setAttribute("aria-modal", "true"),
       ue.setAttribute("aria-labelledby", "adventure24-title"),
-      (ue.innerHTML = `<div class="adventure24-parchment"><p class="adventure24-eyebrow">Le secret du vieux pont</p><img class="adventure24-swan" alt="Cygne cuivr\xE9 de l\u2019Ordre" width="158" height="106"><h2 id="adventure24-title">F\xE9licitations, aventurier !</h2><p class="adventure24-message">Vous faites d\xE9sormais partie de L'ordre du Cygne du moulin de Saint Christophe</p><button class="btn" type="button">Allez demander votre r\xE9compense \xE0 votre h\xF4te</button></div>`),
+      (ue.innerHTML = `<div class="adventure24-parchment"><p class="adventure24-eyebrow">Le tr\xE9sor du moulin</p><img class="adventure24-swan" alt="Cygne cuivr\xE9 de l\u2019Ordre" width="158" height="106"><h2 id="adventure24-title">Bravo, vous avez trouv\xE9 le tr\xE9sor !</h2><p class="adventure24-message">Merci de montrer cet \xE9cran au cr\xE9ateur du jeu pour qu\u2019il vous attribue des points.</p><button class="btn" type="button">Reprendre la promenade</button></div>`),
       (ue.querySelector("img").src = _t),
       A.appendChild(ue));
     function se(de) {

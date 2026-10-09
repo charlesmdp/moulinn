@@ -187,7 +187,7 @@ button:active {
 /* Simple barrière : la page /moulin/ reste ouverte à qui connaît son adresse. Seule l'empreinte
    SHA-256 du mot de passe figure ici (minuscules, espaces retirés) ; elle est posée par le build. */
 (function () {
-  var HASH = "f2d81a260dea8a100dd517984e53c56a7523d96942a834b9cdc249bd4e8c7aa9";
+  var HASH = "{{gate:hash}}";
   var form = document.querySelector("[data-gate]");
   var input = document.getElementById("gate-password");
   var error = document.querySelector("[data-gate-error]");

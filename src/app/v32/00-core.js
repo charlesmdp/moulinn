@@ -43,12 +43,13 @@
 
   /**
    * Adresse ouverte (attribut data-route de la page générée par le build) :
-   *  - "" : l’accueil — Personnage, Vue libre et Météo (le jeu n’est que sur /jeu/) ;
+   *  - "moulin" (ou "" : page sans attribut) : /moulin — Personnage, Vue libre et Météo (« / » n'est
+   *    plus qu'un mot de passe qui y mène ; le jeu n’est que sur /jeu/) ;
    *  - "3d" : /3D — la vue 3D en plus ;
    *  - "build" : /build — la vue 3D et l'atelier « Aménager ».
    */
   V32.route = ((typeof document !== "undefined" && document.documentElement.dataset.route) || "").toLowerCase();
-  V32.modeAllowed = (mode) => (mode === "editor" ? V32.route === "build" : mode === "orbit" ? V32.route !== "" : true);
+  V32.modeAllowed = (mode) => (mode === "editor" ? V32.route === "build" : mode === "orbit" ? V32.route === "3d" || V32.route === "build" : true);
   V32.startMode = V32.route === "build" ? "editor" : V32.route === "3d" ? "orbit" : "play";
 
   /** Petit stockage local tolérant (navigation privée, stockage bloqué). */
