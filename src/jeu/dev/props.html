@@ -1,0 +1,649 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Pas touche à mes trésors · galerie du décor</title>
+<style>
+  html, body { margin: 0; height: 100%; overflow: hidden; background: #2c3a22; font: 13px/1.3 system-ui, -apple-system, "Segoe UI", sans-serif; color: #1d2a1a; }
+  canvas { display: block; touch-action: none; }
+  #ui { position: fixed; left: 8px; top: 8px; max-width: min(680px, calc(100vw - 16px)); display: flex; flex-direction: column; gap: 5px; z-index: 5; }
+  #ui .row { display: flex; flex-wrap: wrap; gap: 4px; align-items: center; }
+  #ui button { font: inherit; font-size: 12px; border: 0; border-radius: 9px; padding: 5px 9px; background: #fff7e6; color: #3b2a14; box-shadow: 0 2px 0 #c9a86a, 0 3px 8px rgba(0,0,0,.2); cursor: pointer; }
+  #ui button[aria-pressed="true"] { background: #7fae4b; color: #fff; box-shadow: 0 2px 0 #4f7a26, 0 3px 8px rgba(0,0,0,.2); }
+  #ui .title { font-weight: 700; color: #fff; text-shadow: 0 1px 3px rgba(0,0,0,.6); margin-right: 6px; }
+  #ui.hidden .row:not(:first-child) { display: none; }
+  #stats { position: fixed; right: 8px; bottom: 8px; color: #fff; text-shadow: 0 1px 2px #000; font: 11px/1.35 ui-monospace, monospace; text-align: right; white-space: pre; pointer-events: none; }
+  body.clean #ui, body.clean #stats { display: none; }
+</style>
+</head>
+<body>
+<div id="ui">
+  <div class="row"><span class="title">Pas touche à mes trésors · décor</span><button data-k="h" title="Masquer / afficher (H)">☰</button></div>
+  <div class="row">
+    <button data-k="x">Voler / rendre une gemme (X)</button>
+    <button data-k="g">Gemme : tomber / ramasser (G)</button>
+    <button data-k="l" data-toggle="alarm">Alarme (L)</button>
+    <button data-k="b" data-toggle="barrier">Barrières : céder / refermer (B)</button>
+  </div>
+  <div class="row">
+    <button data-k="c">Couper une case (C)</button>
+    <button data-k="p" data-toggle="pulse">Entrées : prochaine vague (P)</button>
+    <button data-k="m" data-toggle="menhir">Menhirs actifs (M)</button>
+    <button data-k="r">Remettre la forêt (R)</button>
+    <button data-k="n">Retirer les souches (N)</button>
+  </div>
+  <div class="row">
+    <button data-k="v">Vue suivante (V)</button>
+    <button data-k="s" data-toggle="shadows">Ombres (S)</button>
+  </div>
+</div>
+<div id="stats"></div>
+<script>
+"use strict";
+(function () {
+  const q = new URLSearchParams(location.search);
+  if (q.has("clean")) document.body.classList.add("clean");
+  const files = [
+    "../../static/assets/engine-0.40e246fcf208.js",
+    "../core/00-ptmt.js",
+    "../models/10-kit.js",
+    "../models/40-props.js",
+    "../models/41-gems.js",
+    "../models/42-landmarks.js",
+    "../models/43-forests.js",
+    "../models/44-decor.js",
+  ];
+  (function load(i) {
+    if (i >= files.length) return start();
+    const s = document.createElement("script");
+    s.src = files[i];
+    s.onload = () => load(i + 1);
+    s.onerror = () => { console.warn("galerie : fichier absent " + files[i]); load(i + 1); };
+    document.head.appendChild(s);
+  })(0);
+
+  // Fausse carte 20 × 13 (lettres du jeu v4 + lettres de décor propres à la galerie).
+  //  . herbe  ^ roche  ~ eau  f r w h forêts (h : butte boisée)  # chemin  E entrée  g barrière
+  //  H butte (au milieu du chemin)  L cachette (blocs 2 × 2)  O moulin (3 × 2)  m estran  n menhir
+  //  T talus  B chaos de granit  M maison  Y haie  C calvaire  F meules  P puits  K chapelle  S falaise  R rochers de berge
+  const GRID = [
+    "TTff.f.gg.ffTTf.ff^S",
+    "Ff...f.##LL.....LL^S",
+    "..n....##LL.^^..LL.S",
+    "f......H#...^r.####E",
+    "...f...##..YY.....^^",
+    "E##########h#OOO.ff.",
+    "E###H####H###OOO..fT",
+    "E############LL....T",
+    "..##.....#..#LL##H#E",
+    "..LL.....#.....####E",
+    "..LL.mmm.#.C....F...",
+    "w~~mm~~m.#...ff.....",
+    "~~~~~~~~Rg.TTT..ffTT",
+  ];
+  // Cachettes : case en haut à gauche du bloc 2 × 2, logements, gemmes présentes (couleurs).
+  const LAIRS = [
+    { at: [13, 7], n: 5, style: "moulin", mill: true, gems: [0, 1, 2] },
+    { at: [2, 9], n: 3, style: "puits", gems: [3, 4] },
+    { at: [9, 1], n: 2, style: "dolmen", gems: [5] },
+    { at: [16, 1], n: 3, style: "chapelle", gems: [2, 0] },
+  ];
+  const W = 20, H = 13, TILE = 3.6;
+  const DECOR = { T: "talus", B: "boulders", M: "house", Y: "hedge", C: "calvaire", F: "haystack", P: "well", K: "chapel", S: "cliff", R: "pond_rocks" };
+  const FOREST = { f: "grass", r: "rock", w: "reeds", h: "high" };
+  const at = (i, j) => (i < 0 || j < 0 || i >= W || j >= H ? " " : GRID[j][i]);
+  const terrainOf = (c) => {
+    if ("#EgHL=h".includes(c)) return c === "=" ? "bridge" : "road";
+    if ("~w".includes(c)) return "water";
+    if ("^r".includes(c)) return "rock";
+    if (c === "m") return "flat";
+    return "grass";
+  };
+  const TOPS = { road: 0, bridge: 0, water: -0.25, rock: 0.45, grass: 0.45, flat: -0.08 };
+  const tileTerrain = (i, j) => terrainOf(at(i, j));
+  const tileTop = (i, j) => TOPS[tileTerrain(i, j)];
+  const toWorld = (x, y) => [(x - W / 2) * TILE, (y - H / 2) * TILE];
+
+  function start() {
+    const PTMT = globalThis.PTMT, M = PTMT.models, K = M.kit, P = M.props;
+    const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: "high-performance" });
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+    renderer.setSize(innerWidth, innerHeight);
+    renderer.outputEncoding = THREE.sRGBEncoding;
+    renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    renderer.toneMappingExposure = +(q.get("exposure") || 0.95);
+    renderer.shadowMap.enabled = q.get("shadows") !== "0";
+    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    document.body.appendChild(renderer.domElement);
+
+    const scene = new THREE.Scene();
+    scene.background = PTMT.color("#3d5230");
+    // Mêmes lumières que le jeu (main.js) : ciel bleuté faible, soleil chaud venu du nord-ouest.
+    const hemi = new THREE.HemisphereLight(PTMT.color("#cfe3ff"), PTMT.color("#5b6b3a"), +(q.get("hemi") || 0.55));
+    scene.add(hemi);
+    const sun = new THREE.DirectionalLight(PTMT.color("#fff1d6"), +(q.get("sun") || 1.75));
+    sun.position.set(-30, 55, 22.5);
+    sun.castShadow = true;
+    sun.shadow.mapSize.set(2048, 2048);
+    Object.assign(sun.shadow.camera, { left: -44, right: 44, top: 34, bottom: -34, near: 1, far: 140 });
+    sun.shadow.bias = -0.0004;
+    sun.shadow.normalBias = 0.04;
+    scene.add(sun, sun.target);
+    {
+      // Reflets doux (dégradé ciel / sol) pour les parties brillantes.
+      const EW = 128, EH = 64, px = new Uint8Array(EW * EH * 4);
+      for (let y = 0; y < EH; y++) for (let x = 0; x < EW; x++) {
+        const r = y / (EH - 1), s = Math.min(1, Math.abs(r - 0.5) * 2);
+        const a = r < 0.5 ? [200, 216, 224] : [120, 136, 104], b = r < 0.5 ? [140, 176, 206] : [70, 84, 60];
+        for (let k = 0; k < 3; k++) px[(y * EW + x) * 4 + k] = a[k] * (1 - s) + b[k] * s;
+        px[(y * EW + x) * 4 + 3] = 255;
+      }
+      const et = new THREE.DataTexture(px, EW, EH, THREE.RGBAFormat);
+      et.encoding = THREE.sRGBEncoding; et.mapping = THREE.EquirectangularReflectionMapping; et.needsUpdate = true;
+      const pm = new THREE.PMREMGenerator(renderer);
+      scene.environment = pm.fromEquirectangular(et).texture;
+      pm.dispose();
+    }
+
+    /* ------------------------------------------------ terrain de démonstration (galerie seulement) */
+    const terrain = new THREE.Group();
+    terrain.name = "terrain (galerie)";
+    scene.add(terrain);
+    (function buildTerrain() {
+      const nz = K.noise;
+      const cv = document.createElement("canvas");
+      cv.width = cv.height = 256;
+      const g = cv.getContext("2d");
+      const img = g.createImageData(256, 256);
+      for (let y = 0; y < 256; y++) for (let x = 0; x < 256; x++) {
+        const n = nz.fbm(x / 256, y / 256, 4, 3, 4), h = nz.hash2(x, y, 7);
+        const v = 0.78 + n * 0.3 + (h - 0.5) * 0.12;
+        const i = (y * 256 + x) * 4;
+        img.data[i] = img.data[i + 1] = img.data[i + 2] = Math.min(255, 255 * v); img.data[i + 3] = 255;
+      }
+      g.putImageData(img, 0, 0);
+      const tex = new THREE.CanvasTexture(cv);
+      tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+      const mat = new THREE.MeshStandardMaterial({ vertexColors: true, map: tex, roughness: 0.95 });
+      const pos = [], nor = [], colr = [], uv = [];
+      const C = (h) => PTMT.color(h);
+      const TOPC = { grass: C("#6aa83a"), rock: C("#8a857e"), road: C("#c49a5e"), bridge: C("#8a6440"), water: C("#2f6f86"), flat: C("#a8946c") };
+      const SIDEC = { grass: C("#7a5a3a"), rock: C("#6f6a64"), road: C("#9a7a4c"), bridge: C("#6a4a30"), water: C("#4a3a2a"), flat: C("#7a6a4c") };
+      const quad = (a, b, c, d, n, cl) => {
+        for (const p of [a, b, c, a, c, d]) { pos.push(p[0], p[1], p[2]); nor.push(n[0], n[1], n[2]); colr.push(cl.r, cl.g, cl.b); uv.push(p[0] / 6, p[2] / 6 + p[1] / 6); }
+      };
+      const floorOf = (t) => (t === "water" || t === "bridge" ? -0.9 : TOPS[t]);
+      for (let j = 0; j < H; j++) for (let i = 0; i < W; i++) {
+        const t = tileTerrain(i, j);
+        const top = floorOf(t);
+        const [x0, z0] = toWorld(i, j), x1 = x0 + TILE, z1 = z0 + TILE;
+        const c = TOPC[t === "bridge" ? "water" : t].clone();
+        const sh = 0.94 + nz.hash2(i, j, 3) * 0.12;
+        c.multiplyScalar(sh);
+        quad([x0, top, z1], [x1, top, z1], [x1, top, z0], [x0, top, z0], [0, 1, 0], c);
+        // Parois vers les cases plus basses.
+        const sides = [[1, 0], [-1, 0], [0, 1], [0, -1]];
+        for (const [di, dj] of sides) {
+          const ni = i + di, nj = j + dj;
+          const nt = ni < 0 || nj < 0 || ni >= W || nj >= H ? -1.5 : floorOf(tileTerrain(ni, nj));
+          if (nt >= top) continue;
+          const sc = SIDEC[t === "bridge" ? "water" : t];
+          if (di === 1) quad([x1, nt, z1], [x1, nt, z0], [x1, top, z0], [x1, top, z1], [1, 0, 0], sc);
+          if (di === -1) quad([x0, nt, z0], [x0, nt, z1], [x0, top, z1], [x0, top, z0], [-1, 0, 0], sc);
+          if (dj === 1) quad([x0, nt, z1], [x1, nt, z1], [x1, top, z1], [x0, top, z1], [0, 0, 1], sc);
+          if (dj === -1) quad([x1, nt, z0], [x0, nt, z0], [x0, top, z0], [x1, top, z0], [0, 0, -1], sc);
+        }
+      }
+      const geo = new THREE.BufferGeometry();
+      geo.setAttribute("position", new THREE.Float32BufferAttribute(pos, 3));
+      geo.setAttribute("normal", new THREE.Float32BufferAttribute(nor, 3));
+      geo.setAttribute("color", new THREE.Float32BufferAttribute(colr, 3));
+      geo.setAttribute("uv", new THREE.Float32BufferAttribute(uv, 2));
+      const mesh = new THREE.Mesh(geo, mat);
+      mesh.receiveShadow = true;
+      terrain.add(mesh);
+      // Eau : plan translucide à −0,25 m.
+      const wg = new THREE.PlaneGeometry(W * TILE, H * TILE).rotateX(-Math.PI / 2);
+      const water = new THREE.Mesh(wg, new THREE.MeshStandardMaterial({ color: PTMT.color("#3a9ec0"), transparent: true, opacity: 0.78, roughness: 0.15, metalness: 0.1 }));
+      water.position.y = -0.25;
+      water.receiveShadow = true;
+      terrain.add(water);
+    })();
+
+    /* ------------------------------------------------ objets du décor */
+    const props = new THREE.Group();
+    props.name = "décor";
+    scene.add(props);
+    const updaters = [];
+    const state = { alarm: false, pulse: false, menhir: false, barrier: false, shadows: renderer.shadowMap.enabled, view: 0 };
+    let forests = null, decor = null, scatter = null, mill = null;
+    const gates = [], menhirs = [], gems = [], lairs = [], buttes = [], barriers = [];
+
+    // Moulin : centre de ses six cases O, façade vers sa cachette (+Z).
+    if (M.mill) {
+      let sx = 0, sz = 0, n = 0;
+      for (let j = 0; j < H; j++) for (let i = 0; i < W; i++) if (at(i, j) === "O") { sx += i + 0.5; sz += j + 0.5; n++; }
+      if (n) {
+        mill = M.mill();
+        const [x, z] = toWorld(sx / n, sz / n);
+        mill.object.position.set(x, 0, z);
+        props.add(mill.object);
+        updaters.push(mill);
+      }
+    }
+    // ?lairs=sheet : planche de cachettes de 1 à 6 logements pleins, sous la carte (vue « planche »).
+    if (q.get("lairs") === "sheet") {
+      const styles = ["dolmen", "puits", "chapelle", "moulin", "puits", "moulin"];
+      for (let k = 0; k < 6; k++) LAIRS.push({ at: [k * 3.2 + 0.4, 14.2], n: k + 1, style: styles[k], gems: Array.from({ length: k + 1 }, (_, i) => (i + k) % 6), sheet: true });
+    }
+    // Cachettes : centre du bloc 2 × 2.
+    if (M.lair) for (const L of LAIRS) {
+      const lair = M.lair(L.n, { style: L.style, mill: L.mill });
+      const [x, z] = toWorld(L.at[0] + 1, L.at[1] + 1);
+      lair.object.position.set(x, 0, z);
+      // ?lairyaw=<radians> : cachettes tournées (vérifie qu'aucune orientation ne cache les gemmes).
+      lair.object.rotation.y = +(q.get("lairyaw") || 0);
+      lair.object.updateMatrixWorld(true);
+      props.add(lair.object);
+      lairs.push({ def: L, lair, full: L.gems.map(() => true).concat(new Array(L.n - L.gems.length).fill(false)) });
+      updaters.push(lair);
+    }
+    // Buttes (au milieu des chemins ; « h » : butte boisée, la forêt pousse dessus).
+    if (M.highGround) {
+      let k = 0;
+      for (let j = 0; j < H; j++) for (let i = 0; i < W; i++) if (at(i, j) === "H" || at(i, j) === "h") {
+        const b = M.highGround({ seed: k++ });
+        const [x, z] = toWorld(i + 0.5, j + 0.5);
+        b.object.position.set(x, 0, z);
+        props.add(b.object);
+        buttes.push(b);
+        updaters.push(b);
+      }
+    }
+    // Barrières : un groupe de cases g contiguës au bord = une entrée fermée.
+    if (M.barrier) {
+      const seen = new Set();
+      for (let j = 0; j < H; j++) for (let i = 0; i < W; i++) {
+        if (at(i, j) !== "g" || seen.has(i + "," + j)) continue;
+        const group = [];
+        const stack = [[i, j]];
+        while (stack.length) {
+          const [a, b] = stack.pop();
+          const key = a + "," + b;
+          if (seen.has(key) || at(a, b) !== "g") continue;
+          seen.add(key); group.push([a, b]);
+          stack.push([a + 1, b], [a - 1, b], [a, b + 1], [a, b - 1]);
+        }
+        let cx = 0, cy = 0;
+        for (const [a, b] of group) { cx += a + 0.5; cy += b + 0.5; }
+        cx /= group.length; cy /= group.length;
+        const bar = M.barrier({ width: group.length, seed: barriers.length });
+        const [x, z] = toWorld(cx, cy);
+        bar.object.position.set(x, 0, z);
+        // +Z local = vers l'intérieur de la carte.
+        bar.object.rotation.y = cy < 1 ? 0 : cy > H - 1 ? Math.PI : cx < 1 ? Math.PI / 2 : -Math.PI / 2;
+        props.add(bar.object);
+        barriers.push(bar);
+        updaters.push(bar);
+      }
+      // Planche : barrières de 1, 2 et 3 cases sous la carte.
+      if (q.get("lairs") === "sheet")
+        [[3.5, 1], [9.5, 2], [16.5, 3]].forEach(([cx, n], k) => {
+          const bar = M.barrier({ width: n, seed: 10 + k });
+          const [x, z] = toWorld(cx, 17.7);
+          bar.object.position.set(x, 0, z);
+          props.add(bar.object);
+          barriers.push(bar);
+          updaters.push(bar);
+        });
+    }
+    // Entrées : flèche tournée vers l'intérieur de la carte.
+    if (M.gate) {
+      let k = 0;
+      for (let j = 0; j < H; j++) for (let i = 0; i < W; i++) if (at(i, j) === "E") {
+        const g = M.gate(k++);
+        const [x, z] = toWorld(i + 0.5, j + 0.5);
+        g.object.position.set(x, 0, z);
+        let yaw = 0;
+        if (i === 0) yaw = Math.PI / 2; else if (i === W - 1) yaw = -Math.PI / 2; else if (j === 0) yaw = 0; else yaw = Math.PI;
+        g.object.rotation.y = yaw;
+        props.add(g.object);
+        gates.push(g);
+        updaters.push(g);
+      }
+    }
+    // Menhirs (coin arrière gauche de la case).
+    if (M.menhir) {
+      for (let j = 0; j < H; j++) for (let i = 0; i < W; i++) if (at(i, j) === "n") {
+        const mh = M.menhir();
+        const [x, z] = toWorld(i + 0.5, j + 0.5);
+        mh.object.position.set(x - 1.2, tileTop(i, j), z - 1.15);
+        props.add(mh.object);
+        menhirs.push(mh);
+        updaters.push(mh);
+      }
+    }
+    // Forêts (la butte boisée pousse sur la butte : dessus à +1,3 m).
+    const forestKeys = [];
+    if (M.forests) {
+      const entries = [];
+      for (let j = 0; j < H; j++) for (let i = 0; i < W; i++) {
+        const kind = FOREST[at(i, j)];
+        if (!kind) continue;
+        const [x, z] = toWorld(i + 0.5, j + 0.5);
+        entries.push({ key: i + "," + j, kind, x, y: kind === "high" ? 1.3 : tileTop(i, j), z, seed: i * 31 + j * 17 + 5 });
+        forestKeys.push(i + "," + j);
+      }
+      forests = M.forests(entries);
+      props.add(forests.object);
+      updaters.push(forests);
+    }
+    // Décor des cases X.
+    if (M.decorBatch) {
+      const entries = [];
+      const same = (i, j, c) => at(i, j) === c;
+      for (let j = 0; j < H; j++) for (let i = 0; i < W; i++) {
+        const c = at(i, j), kind = DECOR[c];
+        if (!kind) continue;
+        const [x, z] = toWorld(i + 0.5, j + 0.5);
+        const link = (same(i + 1, j, c) ? 1 : 0) | (same(i, j + 1, c) ? 2 : 0) | (same(i - 1, j, c) ? 4 : 0) | (same(i, j - 1, c) ? 8 : 0);
+        let rot = 0;
+        if (kind === "house" || kind === "chapel" || kind === "calvaire" || kind === "well") {
+          const dirs = [[0, 1, 0], [1, 0, Math.PI / 2], [-1, 0, -Math.PI / 2], [0, -1, Math.PI]];
+          for (const [di, dj, r] of dirs) if ("#EL.".includes(at(i + di, j + dj))) { rot = r; break; }
+        }
+        entries.push({ kind, x, y: 0.45, z, rot, seed: i * 13 + j * 7 + 1, link });
+      }
+      decor = M.decorBatch(entries);
+      props.add(decor.object);
+      updaters.push(decor);
+    }
+    // Petits éléments de sol : herbe libre et bords de chemin, estran (goémon, coquillages, flaques).
+    if (M.scatter) {
+      const entries = [];
+      const rnd = PTMT.rng(99);
+      const kinds = ["flowers", "tuft", "tuft", "pebbles", "mushrooms", "gorse", "daisies", "foxglove", "tuft", "daisies"];
+      const shore = ["seaweed", "seaweed", "shells", "shells", "rockpool", "seaweed", "shells"];
+      for (let j = 0; j < H; j++) for (let i = 0; i < W; i++) {
+        const c = at(i, j);
+        const t = tileTerrain(i, j);
+        if (c === "m") {
+          const n = 4 + Math.floor(rnd() * 2);
+          for (let k = 0; k < n; k++) {
+            const [x, z] = toWorld(i + 0.15 + rnd() * 0.7, j + 0.15 + rnd() * 0.7);
+            entries.push({ kind: shore[(k + i + j) % shore.length], x, y: tileTop(i, j), z, seed: Math.floor(rnd() * 1e6) });
+          }
+          continue;
+        }
+        if (!(c === "." || c === "^" || c === "n")) continue;
+        const n = 2 + Math.floor(rnd() * 3);
+        for (let k = 0; k < n; k++) {
+          const [x, z] = toWorld(i + 0.12 + rnd() * 0.76, j + 0.12 + rnd() * 0.76);
+          let kind = kinds[Math.floor(rnd() * kinds.length)];
+          if (t === "rock") kind = rnd() < 0.5 ? "pebbles" : rnd() < 0.5 ? "gorse" : "tuft";
+          entries.push({ kind, x, y: tileTop(i, j), z, seed: Math.floor(rnd() * 1e6) });
+        }
+      }
+      scatter = M.scatter(entries);
+      props.add(scatter.object);
+    }
+
+    /* ------------------------------------------------ gemmes */
+    // Porteur (mannequin) : va et vient sur la route large ; point d'accroche au-dessus de la tête.
+    const carrier = new THREE.Group();
+    {
+      const m = new THREE.MeshStandardMaterial({ color: PTMT.color("#d9c9a8"), roughness: 0.8 });
+      const body = new THREE.Mesh(new THREE.CylinderGeometry(0.34, 0.4, 1.4, 12), m); body.position.y = 0.7;
+      const head = new THREE.Mesh(new THREE.SphereGeometry(0.45, 14, 10), m); head.position.y = 1.85;
+      const arm = new THREE.Mesh(new THREE.CylinderGeometry(0.09, 0.09, 1.0, 8), m); arm.position.set(0.42, 2.05, 0); arm.rotation.z = -0.25;
+      body.castShadow = head.castShadow = arm.castShadow = true;
+      carrier.add(body, head, arm);
+      carrier.userData.anchor = new THREE.Object3D();
+      carrier.userData.anchor.position.set(0.5, 2.55, 0.05);
+      carrier.add(carrier.userData.anchor);
+      scene.add(carrier);
+    }
+    const lairGems = [];
+    const gemAt = (color) => { const g = M.gem(color); gems.push(g); updaters.push(g); scene.add(g.object); return g; };
+    if (M.gem) {
+      for (const L of lairs) L.def.gems.forEach((c, s) => lairGems.push({ g: gemAt(c), L, slot: s }));
+    }
+    const ground = M.gem ? gemAt(4) : null;
+    const carried = M.gem ? gemAt(1) : null;
+    const flying = M.gem ? gemAt(3) : null;
+    let dropped = false;
+    const groundSpot = toWorld(8.2, 7.1);
+    // ?gems=row : les six gemmes au sol, alignées sur la route (planche des couleurs).
+    const gemRow = q.get("gems") === "row";
+    const rowGems = [];
+    if (gemRow && M.gem) for (let c = 0; c < 6; c++) rowGems.push(gemAt(c));
+    function placeGems(time) {
+      for (const e of lairGems) {
+        const full = e.L.full[e.slot];
+        e.g.object.visible = full;
+        e.g.setState("lair");
+        e.g.object.position.copy(e.L.lair.gemSlots[e.slot]).applyMatrix4(e.L.lair.object.matrixWorld);
+      }
+      for (const L of lairs) L.lair.setSlots(L.full);
+      if (ground) {
+        ground.setState(dropped ? "carried" : "ground");
+        if (dropped) carrier.userData.anchor.getWorldPosition(ground.object.position);
+        else ground.object.position.set(groundSpot[0], 0, groundSpot[1]);
+      }
+      if (carried) {
+        carried.setState(dropped ? "ground" : "carried");
+        if (dropped) carried.object.position.set(toWorld(5.5, 6.9)[0], 0, toWorld(5.5, 6.9)[1]);
+        else carrier.userData.anchor.getWorldPosition(carried.object.position);
+      }
+      if (flying && lairs[0]) {
+        // Gemme rendue : vole du chemin vers le logement libre de la cachette principale, puis repart.
+        const t = (time * 0.22) % 1;
+        const L = lairs[0];
+        const a = new THREE.Vector3(toWorld(6.5, 6.5)[0], 0.6, toWorld(6.5, 6.5)[1]);
+        const b = L.lair.gemSlots[3].clone().applyMatrix4(L.lair.object.matrixWorld);
+        if (t < 0.7) {
+          const k = t / 0.7;
+          flying.setState("returning");
+          flying.object.visible = true;
+          flying.object.position.lerpVectors(a, b, k);
+          flying.object.position.y += Math.sin(k * Math.PI) * 6;
+          L.full[3] = false;
+        } else {
+          flying.setState("lair");
+          flying.object.position.copy(b);
+          L.full[3] = true;
+        }
+      }
+      rowGems.forEach((g, k) => {
+        g.setState("ground");
+        const [wx, wz] = toWorld(5.3 + (k % 3) * 1.25, 5.55 + Math.floor(k / 3) * 1.25);
+        g.object.position.set(wx, 0, wz);
+      });
+    }
+
+    /* ------------------------------------------------ bilan du scénario budgété */
+    // Une carte type : 3 cachettes, 6 gemmes, le moulin, 4 buttes, 2 barrières (≤ 40 appels).
+    function budget() {
+      const parts = { cachettes: 0, gemmes: 0, moulin: 0, buttes: 0, barrières: 0 };
+      const tri = { cachettes: 0, gemmes: 0, moulin: 0, buttes: 0, barrières: 0 };
+      const add = (k, o) => { const s = P.stats(o); parts[k] += s.calls; tri[k] += s.tris; };
+      lairs.slice(0, 3).forEach((L) => add("cachettes", L.lair.object));
+      lairGems.slice(0, 6).forEach((e) => add("gemmes", e.g.object));
+      if (mill) add("moulin", mill.object);
+      buttes.slice(0, 4).forEach((b) => add("buttes", b.object));
+      barriers.slice(0, 2).forEach((b) => add("barrières", b.object));
+      let total = 0, tris = 0;
+      for (const k in parts) { total += parts[k]; tris += tri[k]; }
+      return { parts, tris: tri, total, totalTris: tris };
+    }
+
+    /* ------------------------------------------------ caméra orthographique inclinée à 60° */
+    const camera = new THREE.OrthographicCamera(-1, 1, 1, -1, 1, 400);
+    const lairC = (k) => toWorld(LAIRS[k].at[0] + 1, LAIRS[k].at[1] + 1);
+    const VIEWS = [
+      { name: "ensemble", c: [0, 0], w: W * TILE + 2 },
+      { name: "cachettes", c: toWorld(13.5, 7.0), w: 26 },
+      { name: "moulin", c: [lairC(0)[0], lairC(0)[1] - 2.5], w: 16 },
+      { name: "gros plan", c: [lairC(0)[0], lairC(0)[1] + 0.2], w: 7.5 },
+      { name: "façade", c: toWorld(14.2, 6.6), w: 12 },
+      { name: "puits", c: lairC(1), w: 11 },
+      { name: "dolmen", c: lairC(2), w: 11 },
+      { name: "chapelle", c: lairC(3), w: 11 },
+      { name: "buttes", c: toWorld(7.0, 5.5), w: 30 },
+      { name: "butte", c: toWorld(9.5, 6.5), w: 9 },
+      { name: "boisée", c: toWorld(11.5, 5.5), w: 9 },
+      { name: "barrière", c: toWorld(8.0, 1.0), w: 13 },
+      { name: "estran", c: toWorld(5.0, 10.8), w: 14 },
+      { name: "gemmes", c: toWorld(6.2, 6.9), w: 17 },
+      { name: "sud", c: toWorld(10, 10.5), w: 30 },
+    ];
+    if (gemRow) VIEWS.push({ name: "joyaux", c: toWorld(6.55, 6.3), w: 13 });
+    if (q.get("lairs") === "sheet") VIEWS.push({ name: "planche", c: toWorld(10, 15.2), w: 70 }, { name: "barrières", c: toWorld(10, 17.5), w: 70 });
+    const vq = q.get("view");
+    if (vq) { const k = VIEWS.findIndex((v) => v.name === vq); if (k >= 0) state.view = k; }
+    const ELEV = (+(q.get("elev") || 60) * Math.PI) / 180;
+    function applyView() {
+      const v = VIEWS[state.view];
+      const aspect = innerWidth / innerHeight;
+      let hw = v.w / 2, hh = hw / aspect;
+      const needH = (v.name === "ensemble" ? H * TILE * Math.sin(ELEV) + 4 : 0) / 2;
+      if (hh < needH) { hh = needH; hw = hh * aspect; }
+      camera.left = -hw; camera.right = hw; camera.top = hh; camera.bottom = -hh;
+      camera.updateProjectionMatrix();
+      const tx = v.c[0], tz = v.c[1];
+      camera.position.set(tx, Math.sin(ELEV) * 120, tz + Math.cos(ELEV) * 120);
+      camera.lookAt(tx, 0, tz);
+    }
+    applyView();
+
+    /* ------------------------------------------------ commandes */
+    const rndCut = PTMT.rng(7);
+    let cutList = forestKeys.slice();
+    let stealK = 0;
+    const api = {
+      cut() {
+        if (!forests || !cutList.length) return null;
+        const k = cutList.splice(Math.floor(rndCut() * cutList.length), 1)[0];
+        forests.cut(k);
+        return k;
+      },
+      cutKey(k) { if (forests) return forests.cut(k); },
+      reset() { if (forests && forests.reset) { forests.reset(); cutList = forestKeys.slice(); } },
+      clearStumps() { if (forests && forests.clear) for (const k of forestKeys) if (!cutList.includes(k)) forests.clear(k); },
+      /** Vole (ou rend) la gemme d'un logement : éclair du logement, logement vide qui reste visible. */
+      steal() {
+        const e = lairGems[stealK++ % lairGems.length];
+        if (e) e.L.full[e.slot] = !e.L.full[e.slot];
+      },
+      drop() { dropped = !dropped; },
+      alarm(on) { state.alarm = on === undefined ? !state.alarm : on; lairs.forEach((L) => L.lair.alarm(state.alarm)); if (mill) mill.alarm(state.alarm); },
+      barrier(on) {
+        state.barrier = on === undefined ? !state.barrier : on;
+        return Promise.all(barriers.map((b) => (state.barrier ? b.open() : (b.setOpen(false), true))));
+      },
+      pulse(on) { state.pulse = on === undefined ? !state.pulse : on; gates.forEach((g) => g.pulse(state.pulse)); },
+      menhir(on) { state.menhir = on === undefined ? !state.menhir : on; menhirs.forEach((m) => m.setActive(state.menhir)); },
+      view(name) { const k = VIEWS.findIndex((v) => v.name === name); state.view = k >= 0 ? k : (state.view + 1) % VIEWS.length; applyView(); },
+      shadows(on) { state.shadows = on === undefined ? !state.shadows : on; sun.castShadow = state.shadows; renderer.shadowMap.enabled = state.shadows; scene.traverse((o) => { if (o.material) o.material.needsUpdate = true; }); },
+      stats() {
+        return {
+          forests: forests ? P.stats(forests.object) : null,
+          decor: decor ? P.stats(decor.object) : null,
+          scatter: scatter ? P.stats(scatter.object) : null,
+          mill: mill ? P.stats(mill.object) : null,
+          lairs: lairs.map((L) => Object.assign({ style: L.def.style }, P.stats(L.lair.object))),
+          buttes: buttes.map((b) => P.stats(b.object)),
+          barriers: barriers.map((b) => P.stats(b.object)),
+          gates: gates.map((g) => P.stats(g.object)),
+          menhirs: menhirs.map((m) => P.stats(m.object)),
+          gems: gems.map((g) => P.stats(g.object)),
+          budget: budget(),
+          total: P.stats(props),
+          render: Object.assign({}, renderer.info.render),
+        };
+      },
+      ready: false,
+      objects: () => ({ gates, menhirs, gems, lairs, mill, buttes, barriers, forests, decor, scatter, scene, camera, renderer }),
+    };
+    window.PROPS_DEMO = api;
+    if (q.get("alarm") === "1") api.alarm(true);
+    if (q.get("pulse") === "1") api.pulse(true);
+    if (q.get("menhir") === "1") api.menhir(true);
+    if (q.get("drop") === "1") api.drop();
+    const buttons = document.querySelectorAll("#ui button");
+    const sync = () => buttons.forEach((b) => { const t = b.dataset.toggle; if (t) b.setAttribute("aria-pressed", String(!!state[t])); });
+    function key(k) {
+      if (k === "h") document.getElementById("ui").classList.toggle("hidden");
+      else if (k === "c") api.cut();
+      else if (k === "x") api.steal();
+      else if (k === "g") api.drop();
+      else if (k === "l") api.alarm();
+      else if (k === "b") api.barrier();
+      else if (k === "p") api.pulse();
+      else if (k === "m") api.menhir();
+      else if (k === "v") api.view();
+      else if (k === "s") api.shadows();
+      else if (k === "r") api.reset();
+      else if (k === "n") api.clearStumps();
+      sync();
+    }
+    buttons.forEach((b) => b.addEventListener("click", () => key(b.dataset.k)));
+    addEventListener("keydown", (e) => key(e.key.toLowerCase()));
+    sync();
+    addEventListener("resize", () => { renderer.setSize(innerWidth, innerHeight); applyView(); });
+
+    /* ------------------------------------------------ boucle */
+    const statsEl = document.getElementById("stats");
+    const t0 = performance.now() / 1000 - (+(q.get("t") || 0));
+    let last = t0, frames = 0, fpsT = 0, fps = 0;
+    // Mode pas à pas (?manual) : le temps n'avance que par PROPS_DEMO.advance(secondes) — captures reproductibles.
+    const manual = q.has("manual");
+    let simTime = +(q.get("t") || 0);
+    function tick(dt, time) {
+      // Porteur : va et vient sur la route large.
+      const u = (Math.sin(time * 0.35) + 1) / 2;
+      const [ax, az] = toWorld(2.0, 7.2), [bx, bz] = toWorld(7.0, 7.2);
+      carrier.position.set(ax + (bx - ax) * u, 0, az);
+      carrier.updateMatrixWorld(true);
+      placeGems(time);
+      for (const o of updaters) o.update(dt, time);
+    }
+    api.advance = (seconds, step) => {
+      const h = step || 1 / 30;
+      for (let k = 0; k < Math.round(seconds / h); k++) {
+        simTime += h;
+        tick(h, simTime);
+      }
+      renderer.render(scene, camera);
+      return simTime;
+    };
+    function frame() {
+      const now = performance.now() / 1000;
+      const dt = Math.min(0.1, now - last);
+      last = now;
+      if (!manual) tick(dt, now - t0);
+      renderer.render(scene, camera);
+      frames++;
+      fpsT += dt;
+      if (fpsT > 0.5) { fps = frames / fpsT; frames = 0; fpsT = 0;
+        const s = api.stats(), b = s.budget;
+        statsEl.textContent =
+          `décor (sans terrain) : ${s.total.calls} appels · ${(s.total.tris / 1000).toFixed(1)} k triangles\n` +
+          (s.forests ? `forêts ${s.forests.calls} · ${(s.forests.tris / 1000).toFixed(1)} k   ` : "") +
+          (s.decor ? `cases X ${s.decor.calls} · ${(s.decor.tris / 1000).toFixed(1)} k   ` : "") +
+          (s.scatter ? `sol ${s.scatter.calls} · ${(s.scatter.tris / 1000).toFixed(1)} k\n` : "\n") +
+          `carte type (3 cachettes, 6 gemmes, moulin, 4 buttes, 2 barrières) : ${b.total} appels · ${(b.totalTris / 1000).toFixed(1)} k tri\n` +
+          `  ${Object.keys(b.parts).map((k) => k + " " + b.parts[k]).join(" · ")}\n` +
+          `rendu total : ${s.render.calls} appels · ${(s.render.triangles / 1000).toFixed(1)} k tri · ${fps.toFixed(0)} i/s · vue ${VIEWS[state.view].name}`;
+      }
+      api.ready = true;
+      requestAnimationFrame(frame);
+    }
+    if (manual) api.advance(0.5);
+    requestAnimationFrame(frame);
+  }
+})();
+</script>
+</body>
+</html>

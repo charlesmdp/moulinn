@@ -1,0 +1,533 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Banc du monde</title>
+<style>
+  :root { --panel: rgba(18, 22, 16, 0.86); --ink: #f4efe1; --accent: #ffd23a; --muted: #a9b49a; }
+  html, body { margin: 0; height: 100%; background: #1f3319; color: var(--ink); font: 12px/1.3 system-ui, -apple-system, "Segoe UI", sans-serif; overflow: hidden; }
+  #stage { position: fixed; inset: 0; }
+  #stage canvas { display: block; width: 100%; height: 100%; }
+  #ui { position: fixed; left: 6px; top: 6px; max-width: min(600px, calc(100vw - 12px)); max-height: calc(100vh - 12px); overflow: auto; background: var(--panel); border-radius: 10px; padding: 6px 8px; z-index: 5; }
+  #ui h1 { font-size: 13px; margin: 0 0 4px; color: var(--accent); }
+  #ui .row { display: flex; flex-wrap: wrap; gap: 3px; margin: 3px 0; align-items: center; }
+  #ui button, #ui select { font: inherit; font-size: 11px; border: 0; border-radius: 5px; padding: 3px 6px; background: #3a4431; color: var(--ink); cursor: pointer; }
+  #ui button.on { background: var(--accent); color: #2a2206; font-weight: 600; }
+  #ui .lbl { color: var(--muted); margin-right: 2px; }
+  #stats { color: var(--muted); font: 11px/1.35 ui-monospace, Menlo, monospace; white-space: pre; margin-top: 4px; }
+  .bar { position: fixed; left: 0; right: 0; background: rgba(20, 16, 10, 0.55); border: 0 solid rgba(255, 220, 140, 0.35); z-index: 2; pointer-events: none; }
+  body.clean #ui { display: none; }
+</style>
+</head>
+<body>
+<div id="stage"></div>
+<div id="ui">
+  <h1>Pas touche à mes trésors — banc du monde (v4)</h1>
+  <div class="row"><span class="lbl">Mission</span><select id="mission"></select>
+    <span class="lbl">Qualité</span><select id="quality"><option>high</option><option>low</option></select>
+    <button id="pause">Pause</button><button data-speed="1" class="on">×1</button><button data-speed="2">×2</button><button data-speed="3">×3</button>
+  </div>
+  <div class="row"><span class="lbl">Partie</span><button id="wave">Appeler la vague</button><button id="peek">Aperçu : vague suivante</button><button id="tide">Marée</button><button id="gate">Barrière</button><button id="secret">Passage secret</button><button id="meteor">Météore</button><button id="frenzy">Frénésie</button><button id="cut">Couper</button></div>
+  <div class="row"><span class="lbl">Ennemis</span><button data-spawn="montgolfiere">Montgolfière</button><button data-spawn="korrigan">Korrigan</button><button data-spawn="touriste">Touriste</button><button data-spawn="tracteur">Tracteur</button><button data-spawn="canard">Canard</button><button data-spawn="cycliste">Peloton</button><button data-spawn="*">Au hasard</button><button id="kill">Tuer</button></div>
+  <div class="row"><span class="lbl">Tours</span><button id="towers">+ 6 tours</button><button id="beams">Bergers/dragons</button><button id="swans">Cygnes</button><button id="lvlup">Niveau +1</button><button data-build="boar">Sanglier</button><button data-build="swan">Cygne</button><button data-build="dog">Berger</button><button data-aim="meteor">Viser météore</button><button data-aim="cut">Viser coupe</button><button id="range">Portée</button><button id="hints">Flèches</button></div>
+  <div id="stats"></div>
+</div>
+<script src="../../static/assets/engine-0.40e246fcf208.js"></script>
+<script src="../vendor/BufferGeometryUtils.js"></script>
+<script>
+// Chargement tolérant : on charge dans l'ordre du jeu (core, sim, models, fx, actors, render) tous
+// les scripts présents (liste des dossiers si le serveur la donne, sinon liste connue) ; un
+// fichier absent ou qui échoue est ignoré.
+(function () {
+  "use strict";
+  const KNOWN = {
+    core: ["00-ptmt.js"],
+    sim: ["00-data.js", "10-maps.js", "20-path.js", "30-waves.js", "50-game.js", "90-progress.js"],
+    models: ["10-kit.js", "20-boar.js", "21-swan.js", "22-dog.js", "40-props.js", "41-gems.js", "42-landmarks.js", "43-forests.js", "44-decor.js"],
+    fx: ["05-kit.js", "10-fx.js", "11-areas.js", "12-props.js", "13-shots.js", "14-world.js"],
+    actors: ["10-actors.js", "11-types.js", "12-overlay.js", "13-mounts.js"],
+    render: ["10-map.js", "15-places.js", "18-batch.js", "20-entities.js", "25-routes.js", "30-camera.js"],
+  };
+  // ?ext=<adresse d'un autre dossier jeu/>&extdirs=actors,models : ces dossiers viennent d'ailleurs
+  // (par exemple le dépôt principal servi en lecture seule), pour essayer l'intégration ;
+  // &extmerge=fx : pour ces dossiers-là, les fichiers présents seulement ici sont chargés en plus ;
+  // &skip=models,actors : dossiers à ne pas charger (formes de secours).
+  const Q = new URLSearchParams(location.search);
+  const EXT = Q.get("ext");
+  const EXTDIRS = new Set((Q.get("extdirs") || "").split(",").filter(Boolean));
+  const EXTMERGE = new Set((Q.get("extmerge") || "").split(",").filter(Boolean));
+  const SKIP = new Set((Q.get("skip") || "").split(",").filter(Boolean));
+  const localOf = (dir) => "../" + dir + "/";
+  const baseOf = (dir) => (EXT && EXTDIRS.has(dir) ? EXT.replace(/\/?$/, "/") + dir + "/" : localOf(dir));
+  async function listDir(dir, local) {
+    try {
+      const r = await fetch(local ? localOf(dir) : baseOf(dir), { cache: "no-store" });
+      if (!r.ok) return null;
+      const html = await r.text();
+      const files = [...html.matchAll(/href="([^"?#/]+\.js)"/g)].map((m) => decodeURIComponent(m[1]));
+      return files.length ? files.sort() : null;
+    } catch (e) {
+      return null;
+    }
+  }
+  function load(src) {
+    return new Promise((res) => {
+      const s = document.createElement("script");
+      s.src = src;
+      s.onload = () => res(true);
+      s.onerror = () => res(false);
+      document.body.appendChild(s);
+    });
+  }
+  window.__loadGame = async function () {
+    const loaded = [];
+    for (const dir of ["core", "sim", "models", "fx", "actors", "render"]) {
+      if (SKIP.has(dir)) continue;
+      let files = await listDir(dir);
+      if (!files) files = KNOWN[dir];
+      let list = files.map((f) => [f, baseOf(dir) + f]);
+      if (EXT && EXTDIRS.has(dir) && EXTMERGE.has(dir)) {
+        const mine = (await listDir(dir, true)) || KNOWN[dir];
+        for (const f of mine) if (!files.includes(f)) list.push([f, localOf(dir) + f]);
+        list.sort((a, b) => (a[0] < b[0] ? -1 : a[0] > b[0] ? 1 : 0));
+      }
+      for (const [f, src] of list) if (await load(src)) loaded.push(dir + "/" + f + (src.startsWith("../") ? "" : " (ext)"));
+    }
+    return loaded;
+  };
+})();
+</script>
+<script>
+(async function () {
+  "use strict";
+  const params = new URLSearchParams(location.search);
+  if (params.get("ui") === "0") document.body.classList.add("clean");
+  const loaded = await window.__loadGame();
+  const P = globalThis.PTMT;
+  const D = P.sim.DATA;
+  const mobile = params.has("mobile");
+  let quality = params.get("quality") || (mobile ? "low" : "high");
+  const seed = +(params.get("seed") || 7);
+  const num = (k, d) => (params.has(k) ? +params.get(k) : d);
+
+  /* ------------------------------------------------------------------ rendu */
+  const stage = document.getElementById("stage");
+  const renderer = new THREE.WebGLRenderer({ antialias: true });
+  renderer.outputEncoding = THREE.sRGBEncoding;
+  renderer.toneMapping = THREE.ACESFilmicToneMapping;
+  renderer.toneMappingExposure = +(params.get("exposure") || 1.0);
+  stage.appendChild(renderer.domElement);
+  renderer.info.autoReset = false;
+  if (P.models && P.models.ctConfig) P.models.ctConfig({ mobile: mobile || quality === "low" });
+  if (P.actors && P.actors.load) {
+    try {
+      P.actors.mobile = mobile;
+      await P.actors.load();
+    } catch (e) {
+      console.warn("Personnages indisponibles", e);
+    }
+  }
+  let scene, view, game, mapN = +(params.get("map") || 1);
+  const insets = (params.get("insets") || "0,0,0,0").split(",").map(Number);
+  const INS = { top: insets[0] || 0, bottom: insets[1] || 0, left: insets[2] || 0, right: insets[3] || 0 };
+  function showBars() {
+    document.querySelectorAll(".bar").forEach((b) => b.remove());
+    if (INS.top) {
+      const b = document.createElement("div");
+      b.className = "bar";
+      b.style.cssText = `top:0;height:${INS.top}px;border-bottom-width:2px`;
+      document.body.appendChild(b);
+    }
+    if (INS.bottom) {
+      const b = document.createElement("div");
+      b.className = "bar";
+      b.style.cssText = `bottom:0;height:${INS.bottom}px;border-top-width:2px`;
+      document.body.appendChild(b);
+    }
+  }
+
+  /* ------------------------------------------------------------------ partie du banc */
+  const rng = P.rng(seed * 31 + 7);
+  const FAM_OF = { grass: "boar", rock: "dog", water: "swan", high: null };
+  /** Cases constructibles au bord des routes (8 voisins), mélangées. */
+  function buildSpots() {
+    const g = game.grid, out = [];
+    for (let j = 0; j < 13; j++)
+      for (let i = 0; i < 20; i++) {
+        const info = game.tileInfo(i, j);
+        if (!info || !info.buildable.length || info.towerId) continue;
+        let near = false;
+        for (let dj = -1; dj <= 1; dj++) for (let di = -1; di <= 1; di++) if (g.passable(i + di, j + dj, "walk") || g.char(i + di, j + dj) === "E" || g.char(i + di, j + dj) === "g") near = true;
+        if (near) out.push([i, j, info]);
+      }
+    for (let k = out.length - 1; k > 0; k--) {
+      const r = Math.floor(rng() * (k + 1));
+      [out[k], out[r]] = [out[r], out[k]];
+    }
+    return out;
+  }
+  /** Monte une tour au niveau voulu (expérience offerte). */
+  function raise(id, level, spec) {
+    for (let guard = 0; guard < 8; guard++) {
+      const t = game.towerById(id);
+      if (!t || t.level >= level) return;
+      t.xp = 1e9;
+      game.upgrade(id, t.level === 3 ? spec : t.spec);
+    }
+  }
+  /** Pose n tours (familles selon le terrain ; force : famille imposée si possible). */
+  function placeTowers(n, force, levels) {
+    game.state.gold = 1e7;
+    let made = 0;
+    for (const [i, j, info] of buildSpots()) {
+      if (made >= n) break;
+      let fam = force && info.buildable.includes(force) ? force : force ? null : info.buildable[Math.floor(rng() * info.buildable.length)];
+      if (!fam) continue;
+      const r = game.build(i, j, fam);
+      if (!r.ok) continue;
+      const lv = levels ? levels[made % levels.length] : 1 + Math.floor(rng() * 7);
+      raise(r.towerId, lv, rng() < 0.5 ? "A" : "B");
+      made++;
+    }
+    return made;
+  }
+  function openEntrance() {
+    return game.grid.entrances.find((e) => e.open) || game.grid.entrances[0];
+  }
+  function spawn(type, opts) {
+    const o = opts || {};
+    const ents = game.grid.openEntrances();
+    const e = o.entrance !== undefined ? game.grid.entrances[o.entrance] : ents[Math.floor(rng() * ents.length)];
+    return game.spawn({ type, champion: !!o.champion, boss: !!o.boss, entrance: e ? e.id : 0, hpMul: o.hpMul || 1 });
+  }
+  function build(n) {
+    if (view) view.dispose();
+    mapN = n;
+    scene = new THREE.Scene();
+    game = P.sim.createGame({ level: n, seed });
+    game.state.gold = 1e7;
+    const t0 = performance.now();
+    view = P.view.create({ renderer, scene, map: P.sim.MAPS[n], mobile, quality, game });
+    view.buildMs = performance.now() - t0;
+    view.resize(innerWidth, innerHeight, INS);
+    const f = params.get("focus");
+    if (f) {
+      const [x, y, z] = f.split(",").map(Number);
+      view.cam.focus = { x, y, zoom: z || 3 };
+      view.resize(innerWidth, innerHeight, INS);
+    }
+    const nt = num("towers", 0);
+    if (nt) placeTowers(nt);
+    window.view = view;
+    window.game = game;
+  }
+  const sel = document.getElementById("mission");
+  for (let n = 1; n < P.sim.MAPS.length; n++) {
+    const o = document.createElement("option");
+    o.value = n;
+    o.textContent = n + ". " + P.sim.MAPS[n].name;
+    sel.appendChild(o);
+  }
+  sel.value = mapN;
+  sel.onchange = () => build(+sel.value);
+  const qsel = document.getElementById("quality");
+  qsel.value = quality;
+  qsel.onchange = () => {
+    quality = qsel.value;
+    build(mapN);
+  };
+  showBars();
+  build(mapN);
+  addEventListener("resize", () => view.resize(innerWidth, innerHeight, INS));
+
+  /* ------------------------------------------------------------------ interaction */
+  let speed = 1, paused = false, buildFam = null, aim = null, rangeOn = false, hintsOn = false;
+  const ui = document.getElementById("ui");
+  ui.querySelectorAll("[data-speed]").forEach((b) => (b.onclick = () => {
+    speed = +b.dataset.speed;
+    game.setSpeed(speed);
+    ui.querySelectorAll("[data-speed]").forEach((x) => x.classList.toggle("on", x === b));
+  }));
+  document.getElementById("pause").onclick = (e) => {
+    paused = !paused;
+    e.target.classList.toggle("on", paused);
+  };
+  const enemyAt = () => game.state.enemies[Math.floor(rng() * game.state.enemies.length)];
+  const actions = {
+    wave: () => game.callWave(),
+    // aperçu : on annonce la vague d'après sans la lancer (pour voir les trajets des vagues suivantes)
+    peek: () => {
+      const w = game.state.wave;
+      if (w.index + 2 < w.total) {
+        w.index++;
+        game.refreshWavePreview();
+      }
+    },
+    tide: () => game.setTide(game.state.tide !== "low"),
+    gate: () => {
+      const e = game.grid.entrances.find((q) => !q.open);
+      if (e) game.openGate(e);
+    },
+    secret: () => game.openSecret(),
+    meteor: (x, y) => {
+      const e = enemyAt();
+      game.state.mana = game.state.manaMax;
+      game.cast("meteor", { x: x !== undefined ? x : e ? e.x : 10, y: y !== undefined ? y : e ? e.y : 6.5 });
+    },
+    frenzy: () => {
+      game.state.mana = game.state.manaMax;
+      game.cast("frenzy", {});
+    },
+    cut: (i, j) => {
+      game.state.mana = game.state.manaMax;
+      if (i === undefined) {
+        const list = [];
+        for (let jj = 0; jj < 13; jj++) for (let ii = 0; ii < 20; ii++) if (game.grid.tile(ii, jj).cutTo) list.push([ii, jj]);
+        if (!list.length) return;
+        [i, j] = list[Math.floor(rng() * list.length)];
+      }
+      game.cast("cut", { x: i + 0.5, y: j + 0.5 });
+    },
+    kill: () => {
+      const e = enemyAt();
+      if (e) game.hurt(e, 1e9, { pierce: true, kind: "banc" });
+    },
+    towers: () => placeTowers(6),
+    beams: () => placeTowers(4, "dog", [2, 4, 7, 7]),
+    swans: () => placeTowers(3, "swan", [1, 3, 7]),
+    lvlup: () => {
+      for (const t of game.state.towers) raise(t.id, Math.min(7, t.level + 1), rng() < 0.5 ? "A" : "B");
+    },
+  };
+  for (const k of Object.keys(actions)) {
+    const b = document.getElementById(k);
+    if (b) b.onclick = () => actions[k]();
+  }
+  ui.querySelectorAll("[data-spawn]").forEach((b) => (b.onclick = () => {
+    const t = b.dataset.spawn;
+    if (t === "cycliste") for (let k = 0; k < 8; k++) spawn("cycliste");
+    else if (t === "*") {
+      const keys = Object.keys(D.ENEMIES);
+      spawn(keys[Math.floor(rng() * keys.length)]);
+    } else spawn(t);
+  }));
+  document.getElementById("range").onclick = (e) => {
+    rangeOn = !rangeOn;
+    e.target.classList.toggle("on", rangeOn);
+    view.showRange(rangeOn && game.state.towers[0] ? game.state.towers[0].id : null);
+  };
+  document.getElementById("hints").onclick = (e) => {
+    hintsOn = !hintsOn;
+    e.target.classList.toggle("on", hintsOn);
+    view.setUpgradeHints(hintsOn ? game.state.towers.slice(0, 4).map((t) => t.id) : []);
+  };
+  ui.querySelectorAll("[data-build]").forEach((b) => (b.onclick = () => {
+    buildFam = buildFam === b.dataset.build ? null : b.dataset.build;
+    aim = null;
+    ui.querySelectorAll("[data-build],[data-aim]").forEach((x) => x.classList.toggle("on", x.dataset.build === buildFam && !!buildFam));
+    if (!buildFam) view.preview(null);
+    view.target(null);
+  }));
+  ui.querySelectorAll("[data-aim]").forEach((b) => (b.onclick = () => {
+    aim = aim === b.dataset.aim ? null : b.dataset.aim;
+    buildFam = null;
+    view.preview(null);
+    ui.querySelectorAll("[data-build],[data-aim]").forEach((x) => x.classList.toggle("on", x.dataset.aim === aim && !!aim));
+    if (!aim) view.target(null);
+  }));
+  renderer.domElement.addEventListener("pointermove", (ev) => {
+    const hit = view.pick(ev.clientX, ev.clientY);
+    if (buildFam) view.preview(hit ? hit.i : null, hit ? hit.j : null, buildFam);
+    else if (aim && hit) view.target(aim, hit.x, hit.y);
+  });
+  renderer.domElement.addEventListener("pointerdown", (ev) => {
+    const hit = view.pick(ev.clientX, ev.clientY);
+    if (!hit) return;
+    if (buildFam) {
+      if (view.canBuild(hit.i, hit.j, buildFam)) game.build(hit.i, hit.j, buildFam);
+      return;
+    }
+    if (aim === "meteor") actions.meteor(hit.x, hit.y);
+    else if (aim === "cut") actions.cut(hit.i, hit.j);
+    else if (hit.towerId) view.showRange(hit.towerId);
+    else view.showRange(null);
+    console.log("pick", JSON.stringify(hit));
+  });
+
+  /* ------------------------------------------------------------------ boucle */
+  let last = performance.now(), time = 0, fps = 0, frames = 0, fpsT = 0, cpu = 0;
+  const statsEl = document.getElementById("stats");
+  function tick(dt) {
+    if (!paused) game.step(dt);
+    time += dt;
+    view.sync(game.state, game.drainEvents(), paused ? 0 : dt * game.state.speed, time);
+  }
+  /**
+   * Avance rapide (le décor suit le temps simulé). Sans rendu entre deux pas, les sprites « posés »
+   * des ennemis (PTMT.actors.overlay, vidés après chaque rendu) s'accumuleraient : on les vide comme
+   * le ferait un rendu.
+   */
+  function flushOverlay() {
+    const ov = P.actors && P.actors.overlay;
+    if (!ov || !ov.root) return;
+    if (ov.now) ov.now._rendered = true;
+    for (const m of ov.root.children) if (m.isInstancedMesh && m.onBeforeRender) m.onBeforeRender();
+  }
+  function run(seconds) {
+    view.clock = "game";
+    for (let k = 0; k < seconds * 30; k++) {
+      tick(1 / 30);
+      flushOverlay();
+    }
+    view.clock = null;
+  }
+  const pre = num("t", 0);
+  if (pre) run(pre);
+  if (params.get("frenzy")) actions.frenzy();
+  if (params.get("range")) view.showRange(game.state.towers[0] && game.state.towers[0].id);
+  if (params.get("hints")) view.setUpgradeHints(game.state.towers.slice(0, 4).map((t) => t.id));
+  if (params.get("preview")) {
+    const [fam, i, j] = params.get("preview").split(",");
+    view.preview(+i, +j, fam);
+  }
+  if (params.get("target")) {
+    const [sp, x, y] = params.get("target").split(",");
+    view.target(sp, +x, +y);
+  }
+  // ?still : pas de boucle continue (captures du rendu logiciel) ; __bench.frame() dessine une image
+  const still = params.has("still");
+  function frame(now) {
+    if (!still) requestAnimationFrame(frame);
+    const dt = Math.min(0.1, (now - last) / 1000);
+    last = now;
+    const c0 = performance.now();
+    tick(dt);
+    renderer.info.reset();
+    view.render();
+    cpu = cpu * 0.9 + (performance.now() - c0) * 0.1;
+    frames++;
+    fpsT += dt;
+    if (fpsT > 0.5) {
+      fps = frames / fpsT;
+      frames = 0;
+      fpsT = 0;
+      const i = renderer.info;
+      statsEl.textContent =
+        `mission ${mapN} ${P.sim.MAPS[mapN].name} · ${quality}${mobile ? " · mobile" : ""} · marée ${game.state.tide || "—"}\n` +
+        `images/s ${fps.toFixed(0)} · processeur ${cpu.toFixed(1)} ms · appels ${i.render.calls} · triangles ${(i.render.triangles / 1000).toFixed(0)} k\n` +
+        `tours ${game.state.towers.length} · ennemis ${game.state.enemies.length} · projectiles ${game.state.projectiles.length} · vague ${game.state.wave.index + 1}/${game.state.wave.total} (${game.state.wave.countdown.toFixed(0)} s)\n` +
+        `géométries ${i.memory.geometries} · textures ${i.memory.textures} · construction ${view.buildMs.toFixed(0)} ms (peinture ${view.world.timings.paint.toFixed(0)} ms)\n` +
+        `chargés : ${loaded.length} scripts`;
+    }
+  }
+  if (!still) requestAnimationFrame(frame);
+  /** Pilotage par script (captures) : mission, simulation accélérée, scénarios, cadrage. */
+  window.__bench = {
+    build(n, opts) {
+      if (opts && opts.quality) quality = opts.quality;
+      build(n);
+      sel.value = n;
+    },
+    run,
+    actions,
+    spawn,
+    /** Vue refaite en cours de partie (comme main.js quand la qualité change) : l'état se pose sans animation. */
+    remount(q) {
+      if (q) quality = q;
+      view.dispose();
+      scene = new THREE.Scene();
+      const ov = P.actors && P.actors.overlay;
+      if (ov && ov.root && ov.root.parent) ov.root.parent.remove(ov.root);
+      view = P.view.create({ renderer, scene, map: P.sim.MAPS[mapN], mobile, quality, game });
+      view.buildMs = 0;
+      view.resize(innerWidth, innerHeight, INS);
+      window.view = view;
+      return true;
+    },
+    placeTowers,
+    raise,
+    /** Une image dessinée tout de suite (mode ?still). */
+    frame(dt) {
+      tick(dt === undefined ? 1 / 30 : dt);
+      renderer.info.reset();
+      view.render();
+      const i = renderer.info;
+      return { calls: i.render.calls, triangles: i.render.triangles };
+    },
+    focus(x, y, zoom) {
+      view.cam.focus = x === null ? null : { x, y, zoom: zoom || 3 };
+      view.resize(innerWidth, innerHeight, INS);
+    },
+    insets(t, b, l, r) {
+      INS.top = t || 0;
+      INS.bottom = b || 0;
+      INS.left = l || 0;
+      INS.right = r || 0;
+      showBars();
+      view.resize(innerWidth, innerHeight, INS);
+    },
+    get game() {
+      return game;
+    },
+    get view() {
+      return view;
+    },
+  };
+  /** Mesure d'une image (appels de dessin, triangles, temps processeur de sync + rendu). */
+  window.__measure = function (n) {
+    n = n || 5;
+    let cpuSync = 0, cpuRender = 0;
+    for (let k = 0; k < n; k++) {
+      const a = performance.now();
+      tick(1 / 60);
+      const b = performance.now();
+      renderer.info.reset();
+      view.render();
+      cpuSync += b - a;
+      cpuRender += performance.now() - b;
+    }
+    const i = renderer.info;
+    return { calls: i.render.calls, triangles: i.render.triangles, geometries: i.memory.geometries, textures: i.memory.textures, syncMs: +(cpuSync / n).toFixed(2), renderCpuMs: +(cpuRender / n).toFixed(2), towers: game.state.towers.length, enemies: game.state.enemies.length, projectiles: game.state.projectiles.length, buildMs: +view.buildMs.toFixed(0), paintMs: +view.world.timings.paint.toFixed(0), scripts: loaded.length };
+  };
+  // Répartition approchée des appels de dessin par branche de la scène (objets visibles dans le cadre,
+  // un appel par matériau) : sert à savoir quoi alléger quand le budget est dépassé.
+  window.__calls = function () {
+    const cam = view.cam.camera;
+    cam.updateMatrixWorld();
+    const fr = new THREE.Frustum().setFromProjectionMatrix(new THREE.Matrix4().multiplyMatrices(cam.projectionMatrix, cam.matrixWorldInverse));
+    const out = {};
+    let total = 0;
+    const own = new Map();
+    for (const v of view.towers.values()) own.set(v.model.object, "tours");
+    for (const v of view.enemies.values()) own.set(v.obj, "ennemis");
+    for (const g of view.gems.values()) own.set(g.model.object, "gemmes");
+    const walk = (o, tag) => {
+      if (!o.visible) return;
+      if (own.has(o)) tag = own.get(o);
+      if ((o.isMesh || o.isPoints || o.isLine || o.isSprite) && o.material) {
+        let n = Array.isArray(o.material) ? o.material.length : 1;
+        if (o.isInstancedMesh && o.count === 0) n = 0;
+        if (n && o.frustumCulled && o.geometry && !o.isSprite && !fr.intersectsObject(o)) n = 0;
+        if (n) {
+          out[tag] = (out[tag] || 0) + n;
+          total += n;
+        }
+      }
+      for (const c of o.children) walk(c, tag);
+    };
+    for (const c of scene.children) {
+      if (c.children.length > 3 && !c.isMesh) for (const d of c.children) walk(d, (c.name || c.type) + "/" + (d.name || d.type));
+      else walk(c, c.name || c.type);
+    }
+    out.total = total;
+    return out;
+  };
+  setTimeout(() => (document.title = "prête"), 400);
+})().catch((e) => {
+  console.error(e);
+  document.title = "erreur";
+});
+</script>
+</body>
+</html>

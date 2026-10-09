@@ -1,0 +1,19 @@
+{
+  "name": "moulin-saint-christophe",
+  "version": "32.0.0",
+  "private": true,
+  "description": "Jardin 3D interactif du moulin de Saint-Christophe",
+  "type": "module",
+  "scripts": {
+    "build": "node scripts/build.mjs",
+    "dev": "node scripts/build.mjs && node scripts/serve.mjs",
+    "serve": "node scripts/serve.mjs",
+    "test": "node tests/sim.test.mjs"
+  },
+  "devDependencies": {
+    "esbuild": "^0.28.2"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

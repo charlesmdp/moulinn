@@ -1,0 +1,168 @@
+MOULIN DE SAINT CHRISTOPHE — VERSION CLOUDFLARE PAGES
+Export web du 30 septembre 2026, version 32 du jardin.
+
+NOUVEAUTES V32
+Rendu net sur téléphone et interface de jeu. Heure réelle : soleil, lune et
+nuit à leur vraie place ; lumières du moulin éteintes à 23 h 30. Météo réelle
+(Open-Meteo) avec le vent réel dans les arbres. Onglet Météo avec la boule à
+neige qui tourne. Eau vive (courant, chute, roue à aubes qui trempe dans le
+bief), rivières au lit naturel hors du bief maçonné, murs en moellons,
+ardoises, arbres détaillés (chênes, vieux chênes, pins, bouleaux : écorces,
+branches et feuillages réalistes, allégés au loin), traces de quad qui
+s'effacent, oiseaux modelés. Atelier en quatre onglets avec les chemins
+taillés dans la pente.
+
+LES ADRESSES DU SITE
+/         un mot de passe (azerty) qui mène au moulin, rien d'autre ;
+/moulin/  le moulin des visiteurs : Personnage, Vue libre et Météo (on y entre
+          directement, sans mot de passe) ;
+/3D/      la même page avec la Vue 3D en plus ;
+/build/   la vue 3D et l'atelier Aménager ;
+/jeu/     le jeu « Pas touche à mes trésors » (seule façon d'y accéder).
+/moulin/, /3D/ et /build/ ne sont pas indexées par les moteurs de recherche.
+Le mot de passe est une simple barrière (seule son empreinte est publiée).
+
+NOUVEAUTES DE CETTE SERIE
+Le moulin passe à l'adresse /moulin/ ; la page / n'affiche plus qu'un mot de
+passe (azerty) qui y mène. Trésor du moulin : le coffre déterré affiche
+« Bravo, vous avez trouvé le trésor ! Merci de montrer cet écran au créateur
+du jeu pour qu'il vous attribue des points. » ; le panneau des commandes, à
+l'entrée, précise que le secret est près du pont du fond du terrain, juste
+avant que le ruisseau n'alimente l'étang.
+Jeu v4.1, d'après les retours sur la v4 : plus de flèches sur tout le trajet
+(seules les entrées de la prochaine vague s'animent), écran des compétences
+après chaque victoire, le rugbyman esquive aussi le jet de feu (la chauffe
+retombe), prix des tours à droite de la carte avec 20 or de plus par tour
+posée d'une même famille (comme Cursed Treasure), ennemis plus résistants de
+vague en vague, cygnes qui se rechargent deux fois moins vite mais frappent
+plus fort, temps arrêté tant que le menu d'une tour ou de construction est
+ouvert, cône de flammes du dragon rouge (attaque de zone) et Météore dès la
+mission 2, spécialisations vraiment différentes dès le niveau 4 (deux bogues
+à la fois ou grosse châtaigne qui explose ; onde de glace autour du nid ou
+toutes les boules d'un coup sur des ennemis différents ; cône de flammes ou
+jet qui rebondit). Bouton « Nouvelle partie » sur l'écran titre pour tout
+recommencer depuis la mission 1.
+Le jeu « Pas touche à mes trésors » passe en v4 (voir plus bas) : routes
+larges où les ennemis se baladent (au milieu, le long des bords), plusieurs
+cachettes de gemmes à partir de la mission 7, gemmes grandes et de couleurs
+franches, trois façons d'attaquer (le sanglier tire, le cygne lâche ses
+charges en rafale puis se recharge, le berger crache un jet de feu continu
+qui chauffe), tours et ennemis lisibles d'en haut, seize ennemis dont cinq
+nouveaux, surprises annoncées (marée, barrières qui cèdent, passage secret,
+canards, montgolfières), frise des vagues façon Cursed Treasure et difficulté
+recalibrée jusqu'aux dernières vagues. Le jeu ne s'ouvre qu'à l'adresse
+/jeu/. Le personnage porte un grand chapeau de paille à la One Piece.
+
+RETOUCHES PRECEDENTES
+Plus de gel d'une dizaine de secondes en allumant la lampe ou les phares, au
+lever et au coucher du soleil, ni en entrant dans la boule à neige. Plus rien
+ne dépasse de la boule. Sur téléphone, l'onglet Météo montre la boule seule
+(la pastille du bas déplie la météo) et le personnage court par défaut
+(bouton « Marcher »). La carte en haut à gauche a disparu. Dans l'atelier
+(/build/), Plantes & objets › Sous-bois : on dessine une grande zone au sol
+et elle se remplit de fougères, de ronces ou d'un sous-bois mêlé.
+L'eau coule dans le bon sens (sud-ouest, grand étang, bief, moulin, est),
+avec le bief encaissé entre deux murets de granit le long du carport. Véranda
+de plain-pied avec le jardin, le bief passant dessous en buse. Allée
+principale sans murets. Murets, piliers et murs du bief en pierres sèches,
+rocaille avec niche voûtée, marches de granit et petits objets dans tout le
+jardin. Collines dégagées d'après la couverture du sol réelle. Bruine visible
+et boule à neige remplie de nuages par temps couvert. Lampe torche tenue en
+main. Sur téléphone, bulles « Monter » et « Lire » sans touche E. Atelier :
+gommer ou ajouter des berges, comparer et recaler le relief sur l'IGN.
+
+LE JEU « PAS TOUCHE A MES TRESORS »
+Adresse /jeu/. Un tower defense calqué sur Cursed Treasure, vu du dessus, sans
+caméra à déplacer. Cinq grosses gemmes de couleurs franches brillent dans une
+cachette devant le moulin, puis, à partir de la mission 7, dans deux ou trois
+cachettes (moulin, vieux puits, dolmen, chapelle) : chaque ennemi va à la plus
+proche qui a encore des gemmes, en prend une et repart ; tué, il la lâche et
+les autres viennent la ramasser. Les routes sont larges : les ennemis s'y
+étalent et contournent les buttes. Tours liées au terrain, chacune avec sa
+façon d'attaquer : le sanglier sur l'herbe tire à la suite, le cygne sur l'eau
+lâche ses charges en rafale puis se recharge, le berger australien sur la
+roche crache un jet de feu continu qui chauffe tant qu'il tient sa cible (il
+devient dragon au niveau 4). Les buttes acceptent les trois, les menhirs
+donnent du mana, les bois se coupent avec le sort Couper. Chaque tour d'une
+famille coûte 20 or de plus que la précédente (prix affichés à droite de la
+carte). Les tours gagnent de l'expérience, montent jusqu'au niveau 7 et se
+spécialisent au niveau 4, chaque voie avec sa façon d'attaquer : deux bogues
+à la fois ou grosse châtaigne en cloche, onde de glace autour du nid ou
+salve de boules sur des ennemis différents, cône de flammes ou jet qui
+rebondit. Le temps s'arrête tant que le menu d'une tour est ouvert. Seize
+ennemis (agriculteur en colère, voleur en quad, cow-boy au lasso, cavalier sur
+vache, druide, bigoudène aux crêpes, chasseur camouflé, rugbyman, sonneur de
+biniou, pompier, cavalier sur canard, cyclistes, korrigan, touriste au flash,
+tracteur, montgolfière), champions et boss. Surprises annoncées dans la frise
+des vagues : marée, barrières qui cèdent, passage secret, canards,
+montgolfières. Sorts : Couper, Frénésie, Météore. Quinze missions, 3 points de
+compétence par mission gagnée (l'écran des compétences s'ouvre après chaque
+victoire). Ordinateur : clic sur une case, une tour ou un
+ennemi, Q W E pour les sorts, Espace pour la pause, 1 2 3 pour la vitesse,
+Entrée pour appeler la vague. Téléphone : toucher. La progression reste dans
+le navigateur ; le bouton « Nouvelle partie » de l'écran titre la remet à
+zéro pour tout recommencer depuis la mission 1 (réglages gardés, retouches
+de l'atelier non touchées). Police des titres : Lilita One (licence SIL OFL, fichier
+OFL-LilitaOne.txt à côté du jeu).
+
+LE LIEU DU MOULIN
+Le jeu est réglé sur le Moulin de Saint-Christophe, 56250 Elven. Un autre
+lieu peut être choisi dans l'onglet Météo. Dans Réglages, « Météo réelle » et
+« Heure réelle » peuvent être remplacées par un temps ou une ambiance fixes.
+
+MISE EN LIGNE DEPUIS UN ORDINATEUR
+1. Connectez-vous à votre compte sur https://dash.cloudflare.com/
+2. Allez dans Workers & Pages > Create application.
+3. Dans Pages, choisissez Get started > Drag and drop your files.
+4. Donnez un nom au projet, par exemple moulin-saint-christophe.
+5. Déposez le ZIP complet, puis cliquez sur Deploy site / Save and Deploy.
+6. Ouvrez l'adresse HTTPS en .pages.dev affichée par Cloudflare.
+   Elle permet de visiter le jardin depuis un ordinateur ou un téléphone.
+
+Le dossier est déjà construit : aucune installation ni commande de build.
+Cloudflare accepte directement le ZIP dans son interface de dépôt.
+Si vous décompressez le ZIP, index.html doit rester à la racine du dossier
+avec assets/ et _headers. Déposez tout le dossier, pas seulement index.html.
+
+SUR IPHONE
+Ouvrez l'adresse HTTPS du site dans Safari ou Chrome. Ouvrir le HTML dans
+Fichiers ou un aperçu local n'est pas le mode de lancement de cette version.
+Au premier accès, laissez le chargement se terminer. Les visites suivantes
+peuvent réutiliser les ressources conservées dans le cache du navigateur.
+Le jeu détecte les commandes tactiles et active le rendu mobile existant.
+Si la 3D est indisponible ou qu'un téléchargement échoue, l'écran affiche
+une indication et un bouton Recharger. Le son s'active par un appui.
+
+RETROUVER VOS RETOUCHES
+L'hébergement du jeu ne synchronise pas les sauvegardes. Elles sont stockées
+sur chaque navigateur et chaque adresse de site. Avant de changer d'appareil
+ou de passer de l'ancienne adresse à Cloudflare, utilisez l'export des
+retouches dans l'atelier (adresse /build/), puis importez ce fichier sur la
+nouvelle adresse.
+Le fichier emporte aussi les berges gommées ou ajoutées et le recalage IGN.
+
+MISES A JOUR
+Dans le même projet Cloudflare, utilisez Create a new deployment, choisissez
+Production et déposez le nouveau ZIP complet. L'adresse du projet reste la
+même. Les noms des ressources changent avec leur contenu pour éviter un
+mélange entre anciennes et nouvelles versions dans le cache.
+
+CE QUI A ETE ALLEGE
+- Ressources séparées du HTML et mises en cache.
+- Code et styles minifiés.
+- Modèles et terrain compressés, sans altération des données 3D.
+- Textures optimisées sans perte ; dimensions et pixels conservés.
+- Anciens modèles d'arbres inutilisés retirés du chargement.
+- Son et outil d'export 3D téléchargés uniquement lorsqu'ils sont utilisés.
+- Décompression native si disponible, avec solution de repli pour Safari
+  plus ancien. Toutes les ressources utiles sont incluses dans ce dossier.
+
+VERIFICATIONS
+Le chargement des fichiers, les deux chemins de décompression, les données
+3D et les initialisations mobile/ordinateur ont été vérifiés. Les tests
+simulent le moteur graphique : le rendu et la fluidité sur un iPhone réel
+ne sont pas encore validés. Les performances dépendent aussi de l'appareil.
+
+DOCUMENTATION CLOUDFLARE
+https://developers.cloudflare.com/pages/get-started/direct-upload/
+https://developers.cloudflare.com/pages/configuration/headers/

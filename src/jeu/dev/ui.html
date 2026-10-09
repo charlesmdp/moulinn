@@ -1,0 +1,534 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<title>Banc d'essai de l'interface</title>
+<link rel="icon" href="data:,">
+<style>
+  #bench { position: fixed; left: 8px; top: 50%; transform: translateY(-50%); z-index: 100; display: flex; flex-direction: column; gap: 3px; max-height: 96vh; overflow: auto; padding: 6px; border-radius: 10px; background: rgba(20, 24, 18, 0.82); font: 11px/1.2 system-ui, sans-serif; pointer-events: auto; }
+  #bench button { font: inherit; border: 0; border-radius: 5px; padding: 3px 6px; background: #3a4431; color: #f4efe1; cursor: pointer; text-align: left; }
+  #bench button.on { background: #7a8a2a; }
+  #bench b { color: #ffd23a; margin-top: 4px; }
+  body.clean #bench { display: none; }
+  /* Galerie (?set=icons|skills|gems|towers|logo|lairs) */
+  .gal { position: fixed; inset: 0; overflow: auto; display: flex; flex-wrap: wrap; align-content: flex-start; gap: 6px; padding: 8px; background: #e9dcc0; z-index: 200; font: 13px/1.3 system-ui, sans-serif; }
+  .gal .it { width: 118px; display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 4px; border-radius: 8px; background: #f7ecd2; }
+  .gal .it.dark { background: #3b2a1c; color: #f7ecd2; }
+  .gal .row { display: flex; align-items: flex-end; gap: 4px; }
+  .gal .it svg { display: block; }
+  .gal .s64 svg { width: 64px; height: 64px; }
+  .gal .s32 svg { width: 32px; height: 32px; }
+  .gal .s20 svg { width: 20px; height: 20px; }
+  .gal .nm { font-size: 10px; }
+</style>
+</head>
+<body>
+<div id="ptmt" class="ptmt">
+  <div id="stage" class="ptmt-stage"><canvas id="map" style="position:fixed;inset:0;width:100%;height:100%"></canvas></div>
+  <div class="ptmt-ui" data-ui></div>
+</div>
+<div id="bench"></div>
+<script src="../core/00-ptmt.js"></script>
+<script src="../sim/00-data.js"></script>
+<script src="../sim/10-maps.js"></script>
+<script src="../sim/20-path.js"></script>
+<script src="../sim/30-waves.js"></script>
+<script src="../sim/50-game.js"></script>
+<script src="../sim/90-progress.js"></script>
+<script src="../ui/05-icons.js"></script>
+<script src="../ui/06-portraits.js"></script>
+<script src="../ui/07-logo.js"></script>
+<script src="../ui/08-tower-portraits.js"></script>
+<script>
+  // Portraits d'essai (?portraits=fichier.js, chargé après 06-portraits.js) : version d'un autre atelier.
+  (function () {
+    const src = new URLSearchParams(location.search).get("portraits");
+    if (src) document.write('<script src="' + src.replace(/[^\w./-]/g, "") + '"><\/script>');
+  })();
+</script>
+<script src="../ui/10-ui.js"></script>
+<script>
+// Feuille du jeu : le jeton {{asset:jeu-font}} n'est remplacé qu'au build ; le banc la charge et fait
+// le même remplacement (police servie depuis src/), puis démarre une fois les styles en place.
+window.benchStyles = fetch("../jeu.css")
+  .then((r) => r.text())
+  .then((css) => {
+    const st = document.createElement("style");
+    st.textContent = css.split("{{asset:jeu-font}}").join("../fonts/lilita-one-latin.woff2");
+    document.head.appendChild(st);
+  });
+</script>
+<script>
+// Banc d'essai de l'interface : une VRAIE partie (simulation v4 de sim/*.js) tourne derrière
+// l'interface, sur une carte 2D dessinée sur canvas (20 × 13 cases colorées par terrain, tournée de 90°
+// en portrait comme la caméra du jeu) qui sait désigner une case, une tour ou un ennemi. Progression
+// en mémoire (API de sim/90-progress.js), boucle comme main.js (résultat enregistré avant ui.events
+// et joint à win / lose), robot de défense facultatif, boutons qui déclenchent les surprises (marée,
+// barrière, passage secret, montgolfières, flash…).
+//   ?screen=title|map|skills|bestiary|game  &level=9  &seed=3  &tab=towers  &focus=9
+//   &auto (défense automatique)  &ff=120 (avance de 120 s de jeu)  &wave=22 (saute à la vague 22)  &gold=2000
+//   &rich (or illimité : le robot améliore ses tours jusqu'au niveau 7)  &towers (tours de démonstration)
+//   &speed=2  &turbo=40 (40 pas de simulation par image : partie complète accélérée)
+//   &sel=tower:boar|swan|dog|ID  &sel=build:i,j  &enemy[=type]  &modal=pause|newEnemy|win|winb|lose
+//   &tide &gate &secret &balloons &flash &korrigan &tracteur &steal (surprises au démarrage)
+//   &paused  &fresh (progression neuve)  &seenall (seize ennemis déjà rencontrés : pas de fiche « Nouvel
+//   ennemi ! » qui met en pause)  &clean (sans ce panneau)  &portraits=fichier.js
+//   ?set=icons|skills|gems|towers|logo|lairs (galeries des dessins)  &only=nom,nom  &dark
+window.benchStyles.then(function () {
+  "use strict";
+  const Q = new URLSearchParams(location.search);
+  const D = PTMT.sim.DATA;
+  if (Q.has("clean")) document.body.classList.add("clean");
+
+  /* ================================================================ galerie des dessins */
+  const set = Q.get("set");
+  if (set) {
+    const I = PTMT.icons;
+    const gal = document.createElement("div");
+    gal.className = "gal";
+    document.body.append(gal);
+    const dark = Q.has("dark");
+    const add = (name, str) => {
+      const it = document.createElement("div");
+      it.className = "it" + (dark ? " dark" : "");
+      it.innerHTML = `<div class="row"><span class="s64">${str}</span><span class="s32">${str}</span><span class="s20">${str}</span></div><span class="nm">${name}</span>`;
+      gal.append(it);
+    };
+    const style = (css) => document.head.insertAdjacentHTML("beforeend", `<style>${css}</style>`);
+    const only = Q.get("only");
+    if (only) {
+      style(".gal .it{width:auto}.gal .s64 svg{width:128px;height:128px}.gal .s32 svg{width:48px;height:48px}.gal .s20 svg{width:24px;height:24px}");
+      for (const n of only.split(",")) add(n, I[n] || I["skill_" + n] || "");
+    } else if (set === "icons") for (const n of I.names) add(n, I[n]);
+    if (set === "skills") { for (const n of I.skillNames) add(n, I["skill_" + n]); for (const b of ["boar", "swan", "dog"]) add("branche " + b, I.branch(b)); }
+    if (set === "gems") for (let c = 0; c < 6; c++) for (const st of ["lair", "ground", "carried", "lost"]) add(c + " " + st, I.gem(c, st));
+    if (set === "lairs") for (const st of ["moulin", "puits", "dolmen", "chapelle"]) add(st, I.lair(st));
+    if (set === "logo") {
+      gal.style.background = "linear-gradient(#6fb6e8, #bfe3f5 60%, #7cc26a 60%, #4f9a45)";
+      gal.innerHTML = `<div style="width:min(900px,96vw)">${PTMT.logo.full()}</div><div style="display:flex;gap:10px;align-items:end">${[128, 64, 32, 16].map((s) => `<div style="width:${s}px;height:${s}px">${PTMT.logo.emblem()}</div>`).join("")}</div>`;
+      style(".gal > div > svg, .gal > div > div > svg{width:100%;height:auto;display:block}");
+    }
+    if (set === "towers") {
+      style(".gal .it{width:auto}.gal .s64 svg{width:128px;height:128px}.gal .s32 svg{width:64px;height:64px}.gal .s20 svg{width:36px;height:36px}");
+      if (Q.has("big")) style(".gal .s64 svg{width:240px;height:240px}");
+      const pick = Q.get("keys");
+      for (const k of pick ? pick.split(",") : PTMT.towerPortraits.keys) add(k, PTMT.towerPortraits.get(k.replace(/[A-Z0-9].*$/, ""), /7$/.test(k) ? 7 : /[AB]/.test(k) ? 4 : +k.slice(-1), (k.match(/[AB]/) || [null])[0]));
+    }
+    if (set === "portraits") for (const t of Object.keys(D.ENEMIES)) { add(t, PTMT.portraits.get(t, false) || "—"); add(t + " ★", PTMT.portraits.get(t, true) || "—"); }
+    return;
+  }
+
+  /* ================================================================ progression en mémoire */
+  // Même logique que sim/90-progress.js (validation, compétences, résultats), sans toucher au stockage
+  // du navigateur : missions 1 à 14 gagnées, onze ennemis déjà vus (et deux des nouveaux).
+  const P = PTMT.progress;
+  const seenAll = ["fermier", "quad", "cowboy", "vache", "druide", "bigoudene", "chasseur", "rugbyman", "sonneur", "pompier", "canard", "cycliste", "korrigan"];
+  let store = P.fresh();
+  if (!Q.has("fresh")) {
+    for (let k = 1; k <= 14; k++) store.levels[k] = { won: true, bestGems: k % 4 ? 5 : 3, gemsTotal: 5, brilliant: k % 4 !== 0 && k % 3 !== 0 };
+    store.unlocked = 15;
+    store.skills = { goldVault: 3, heights: 2, cutStudy: 2, manaStock: 2, manaPool: 1, training: 3, hotGems: 1, meteorStudy: 1, sawmill: 2, frenzyStudy: 1, manaSpring: 2 };
+    for (const t of Q.has("seenall") ? Object.keys(D.ENEMIES) : seenAll) store.seen[t] = true;
+  }
+  store = P.sanitize(store);
+  P.load = () => P.sanitize(JSON.parse(JSON.stringify(store)));
+  P.save = (p) => (store = P.sanitize(JSON.parse(JSON.stringify(p))));
+
+  /* ================================================================ robot de défense (facultatif) */
+  // Construit sur la case libre qui couvre le plus de chemin (familles variées), améliore dès que
+  // possible (voies A et B en alternance), coupe parfois le bois et lance Météore sur les groupes.
+  function makeBot(game) {
+    const s = game.state;
+    let clock = 0, turn = 0;
+    const FAMS = ["dog", "swan", "boar"];
+    function score(i, j) {
+      let sc = 0;
+      for (let b = j - 3; b <= j + 3; b++)
+        for (let a = i - 3; a <= i + 3; a++) {
+          if ((a - i) ** 2 + (b - j) ** 2 > 7.8) continue;
+          const ch = s.map.grid[b] && s.map.grid[b][a];
+          if (ch === "#" || ch === "=" || ch === "m" || ch === "E") sc += 1;
+          else if (ch === "L") sc += 3;
+        }
+      return sc;
+    }
+    return {
+      step(dt) {
+        clock += dt;
+        if (clock < 0.3) return;
+        clock = 0;
+        for (const t of s.towers) {
+          if (t.level >= 7) continue;
+          const spec = t.level === 3 ? (t.id % 2 ? "A" : "B") : null;
+          if (game.upgrade(t.id, spec).ok) return;
+        }
+        if (s.spells.meteor && s.spells.meteor.ready) {
+          const live = s.enemies.filter((e) => !e.dead);
+          const best = live.find((e) => live.filter((o) => (o.x - e.x) ** 2 + (o.y - e.y) ** 2 < 1.3).length >= 5);
+          if (best) return void game.cast("meteor", { x: best.x, y: best.y });
+        }
+        // Pas trop de tours : on garde de l'or pour les améliorer.
+        if (s.towers.length >= 8 + 2 * Math.max(0, s.wave.index) && s.gold < 400) return;
+        const want = FAMS[turn % 3];
+        let pick = null, ps = 0;
+        for (let j = 0; j < 13; j++)
+          for (let i = 0; i < 20; i++) {
+            const info = game.tileInfo(i, j);
+            if (!info || info.towerId) continue;
+            if (info.forest && info.cuttable && s.mana > 75 && score(i, j) > 9) { game.cast("cut", { x: i + 0.5, y: j + 0.5 }); return; }
+            if (!info.buildable.length) continue;
+            const f = info.buildable.includes(want) ? want : info.buildable[0];
+            const sc = score(i, j) * (f === want ? 1.35 : 1) * (info.high ? 1.2 : 1);
+            if (sc > ps) { ps = sc; pick = { i, j, f }; }
+          }
+        if (pick && ps > 3 && game.build(pick.i, pick.j, pick.f).ok) turn++;
+      },
+    };
+  }
+
+  /* ================================================================ carte 2D (vue d'essai) */
+  // ?vitrine : le canvas passe dans un [data-stage] et montre une mission derrière les menus, comme
+  // main.js avec la scène 3D (l'interface le détecte et rend l'écran titre transparent).
+  const canvas = document.getElementById("map");
+  const stage = document.getElementById("stage");
+  if (Q.has("vitrine")) stage.setAttribute("data-stage", "");
+  const ctx = canvas.getContext("2d");
+  let ui = null, game = null, shown = null, bot = null, turbo = +(Q.get("turbo") || 0);
+  const view = {
+    range: null, prev: null, aim: null, hints: [], picked: null,
+    cell: 30, ox: 0, oy: 0, rot: false,
+    layout() {
+      const ins = ui ? ui.insets() : { top: 0, bottom: 0, left: 0, right: 0 };
+      const W = innerWidth, H = innerHeight;
+      const rw = W - ins.left - ins.right - 12, rh = H - ins.top - ins.bottom - 12;
+      this.rot = H > W * 1.05;
+      const cols = this.rot ? 13 : 20, rows = this.rot ? 20 : 13;
+      this.cell = Math.max(8, Math.min(rw / cols, rh / rows));
+      this.ox = ins.left + 6 + (rw - cols * this.cell) / 2;
+      this.oy = ins.top + 6 + (rh - rows * this.cell) / 2;
+    },
+    worldToScreen(x, y) {
+      return this.rot ? { x: this.ox + (13 - y) * this.cell, y: this.oy + x * this.cell } : { x: this.ox + x * this.cell, y: this.oy + y * this.cell };
+    },
+    toMap(cx, cy) {
+      const u = (cx - this.ox) / this.cell, v = (cy - this.oy) / this.cell;
+      return this.rot ? { x: v, y: 13 - u } : { x: u, y: v };
+    },
+    /** Comme view.pick du jeu : tour, ennemi (le plus proche à moins d'une demi-case) ou case. */
+    pick(cx, cy) {
+      const { x, y } = this.toMap(cx, cy);
+      if (x < -0.5 || y < -0.5 || x >= 20.5 || y >= 13.5) return null;
+      const g = game || shown;
+      const out = { i: Math.floor(x), j: Math.floor(y), x, y };
+      if (g) {
+        let best = null, bd = 0.36;
+        for (const e of g.state.enemies) {
+          const d2 = (e.x - x) ** 2 + (e.y - y) ** 2;
+          if (d2 < bd) { bd = d2; best = e; }
+        }
+        const t = g.state.towers.find((t) => t.i === out.i && t.j === out.j);
+        if (t) out.towerId = t.id;
+        else if (best) out.enemyId = best.id;
+      }
+      if (out.i < 0 || out.j < 0 || out.i >= 20 || out.j >= 13) return out.enemyId !== undefined ? out : null;
+      return out;
+    },
+    showRange(id) { this.range = id; },
+    preview(i, j, family) { this.prev = family ? { i, j, family } : null; },
+    target(spell, x, y) { this.aim = spell ? { spell, x, y } : null; },
+    setUpgradeHints(ids) { this.hints = ids || []; },
+  };
+  const COL = { grass: "#7cc24e", rock: "#9a9fa8", water: "#3f9be8", high: "#a8d86a", road: "#d8b77a", bridge: "#b08a5a", decor: "#6b5a44", lair: "#4a3424", thicket: "#2f5a2a", tide: "#7fb8d8", gate: "#c9b18a" };
+  const FC = { boar: "#8a5a32", swan: "#f4f1e6", dog: "#ef7d2a" };
+  const TINT = { fermier: "#6f8f3a", quad: "#d8412f", cowboy: "#a0602d", vache: "#3a3a3a", druide: "#5aa832", bigoudene: "#2a4c9a", chasseur: "#ff6a00", rugbyman: "#2a5cb8", sonneur: "#35508f", pompier: "#c8342a", canard: "#e8b820", cycliste: "#f2c21a", korrigan: "#7a4fc0", touriste: "#2fa3a0", tracteur: "#b5202a", montgolfiere: "#e8622f" };
+  function draw() {
+    const W = innerWidth, H = innerHeight, dpr = Math.min(2, devicePixelRatio || 1);
+    if (canvas.width !== Math.round(W * dpr) || canvas.height !== Math.round(H * dpr)) { canvas.width = Math.round(W * dpr); canvas.height = Math.round(H * dpr); }
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.fillStyle = "#274a2e";
+    ctx.fillRect(0, 0, W, H);
+    const g = game || shown;
+    if (!g) return;
+    view.layout();
+    const s = g.state;
+    const c = view.cell;
+    const grid = s.map.grid;
+    const box = (i, j) => { const a = view.worldToScreen(i, j), b = view.worldToScreen(i + 1, j + 1); return { x: Math.min(a.x, b.x), y: Math.min(a.y, b.y) }; };
+    const P2 = (x, y) => view.worldToScreen(x, y);
+    for (let j = 0; j < 13; j++)
+      for (let i = 0; i < 20; i++) {
+        const ch = grid[j][i];
+        const t = D.TILES[ch] || { terrain: "decor" };
+        const p = box(i, j);
+        let fill = COL[t.terrain] || "#555";
+        if (t.tide) fill = s.tide === "low" ? "#e8d29a" : "#5aa6dc";
+        if (t.entrance) fill = "#e2c48a";
+        ctx.fillStyle = fill;
+        ctx.fillRect(p.x, p.y, c, c);
+        ctx.strokeStyle = "rgba(0,0,0,.12)";
+        ctx.strokeRect(p.x + 0.5, p.y + 0.5, c - 1, c - 1);
+        if (t.forest) { ctx.fillStyle = "#2f7d44"; ctx.beginPath(); ctx.arc(p.x + c * 0.35, p.y + c * 0.45, c * 0.26, 0, 7); ctx.arc(p.x + c * 0.65, p.y + c * 0.55, c * 0.26, 0, 7); ctx.fill(); }
+        if (t.high) { ctx.strokeStyle = "#5a7a2a"; ctx.lineWidth = 3; ctx.strokeRect(p.x + 3, p.y + 3, c - 6, c - 6); ctx.lineWidth = 1; }
+        if (t.secret) { ctx.strokeStyle = "#1a3a16"; ctx.lineWidth = 2; for (let k = 4; k < c; k += 6) { ctx.beginPath(); ctx.moveTo(p.x + k, p.y); ctx.lineTo(p.x, p.y + k); ctx.stroke(); } ctx.lineWidth = 1; }
+        if (t.gate) { ctx.fillStyle = "#e8412f"; for (let k = 0; k < 3; k++) ctx.fillRect(p.x + 3 + k * c * 0.32, p.y + c * 0.3, c * 0.16, c * 0.4); }
+        if (t.lair) { ctx.fillStyle = "#1d1a20"; ctx.beginPath(); ctx.arc(p.x + c / 2, p.y + c / 2, c * 0.36, 0, 7); ctx.fill(); }
+        if ((s.map.mana || []).some(([a, b]) => a === i && b === j)) { ctx.fillStyle = "#5fd6ff"; ctx.fillRect(p.x + c * 0.4, p.y + c * 0.2, c * 0.2, c * 0.6); }
+      }
+    ctx.textAlign = "center"; ctx.textBaseline = "middle";
+    // Entrées : lettre dans la couleur de l'entrée
+    for (const e of s.map.entrances) {
+      const p = P2(e.x, e.y);
+      ctx.fillStyle = e.open ? e.color : "#777";
+      ctx.beginPath(); ctx.arc(p.x, p.y, c * 0.32, 0, 7); ctx.fill();
+      ctx.strokeStyle = "#2b1a10"; ctx.lineWidth = 2; ctx.stroke(); ctx.lineWidth = 1;
+      ctx.fillStyle = "#fff"; ctx.font = `bold ${Math.round(c * 0.36)}px system-ui`; ctx.fillText(e.letter, p.x, p.y + 1);
+    }
+    // Cachettes : stock restant
+    for (const L of s.map.lairs) {
+      const p = P2(L.x, L.y);
+      ctx.fillStyle = "#ffd23a"; ctx.font = `bold ${Math.round(c * 0.4)}px system-ui`;
+      ctx.fillText(L.stock + "/" + L.total, p.x, p.y);
+    }
+    const dot = (x, y, r, fill, stroke, lw) => { const p = P2(x, y); ctx.beginPath(); ctx.arc(p.x, p.y, r, 0, 7); ctx.fillStyle = fill; ctx.fill(); if (stroke) { ctx.strokeStyle = stroke; ctx.lineWidth = lw || 2; ctx.stroke(); ctx.lineWidth = 1; } return p; };
+    for (const t of s.towers) {
+      const p = dot(t.i + 0.5, t.j + 0.5, c * 0.36, FC[t.family], "#2b1a10");
+      ctx.fillStyle = t.family === "swan" ? "#2b1a10" : "#fff";
+      ctx.font = `bold ${Math.round(c * 0.34)}px system-ui`;
+      ctx.fillText(String(t.level) + (t.spec || ""), p.x, p.y + 1);
+      if (t.attack === "charges") for (let k = 0; k < t.ammoMax; k++) { ctx.fillStyle = k < Math.floor(t.ammo) ? "#3f9be8" : "#cfe9ff"; ctx.beginPath(); ctx.arc(p.x - c * 0.3 + k * c * 0.15, p.y + c * 0.42, c * 0.06, 0, 7); ctx.fill(); }
+      if (t.dazzled > 0) { ctx.fillStyle = "#fff3a0"; ctx.font = `${Math.round(c * 0.5)}px system-ui`; ctx.fillText("✸", p.x + c * 0.35, p.y - c * 0.35); }
+      if (view.hints.includes(t.id)) { ctx.fillStyle = "#ffd23a"; ctx.beginPath(); ctx.moveTo(p.x, p.y - c * 0.62); ctx.lineTo(p.x - c * 0.14, p.y - c * 0.42); ctx.lineTo(p.x + c * 0.14, p.y - c * 0.42); ctx.fill(); }
+      for (const b of t.beams || []) {
+        const e = s.enemies.find((x) => x.id === b.targetId);
+        if (!e) continue;
+        const q = P2(e.x, e.y);
+        ctx.strokeStyle = `hsl(${50 - 45 * b.heat}, 100%, ${60 - 10 * b.heat}%)`; ctx.lineWidth = 3 + 4 * b.heat;
+        ctx.beginPath(); ctx.moveTo(p.x, p.y); ctx.lineTo(q.x, q.y); ctx.stroke(); ctx.lineWidth = 1;
+      }
+    }
+    for (const gm of s.gems) if (gm.where === "ground") dot(gm.x, gm.y, c * 0.18, PTMT.icons.GEM_COLORS[gm.color], "#fff");
+    for (const p of s.projectiles) dot(p.x, p.y, c * 0.08, p.kind.includes("Orb") ? "#9fd3ff" : "#7a4420");
+    for (const e of s.enemies) {
+      const r = c * (e.boss ? 0.3 : e.champion ? 0.25 : 0.2) * (e.flying ? 1.3 : 1);
+      const p = dot(e.x, e.y, r, TINT[e.type] || "#d8412f", e.champion || e.boss ? "#ffd23a" : e.flying ? "#fff" : "#2b1a10", e.flying ? 3 : 2);
+      ctx.fillStyle = "#fff"; ctx.font = `bold ${Math.round(r * 1.1)}px system-ui`;
+      ctx.fillText((D.ENEMIES[e.type].name || "?").replace(/^(Le |La )/, "").charAt(0), p.x, p.y + 1);
+      if (e.carrying) { const gm = s.gems.find((x) => x.id === e.carrying); if (gm) dot(e.x + 0.2, e.y - 0.2, c * 0.1, PTMT.icons.GEM_COLORS[gm.color], "#fff", 1.5); }
+    }
+    if (view.range !== null) { const t = s.towers.find((x) => x.id === view.range); if (t) { const p = P2(t.i + 0.5, t.j + 0.5); ctx.beginPath(); ctx.arc(p.x, p.y, t.range * c, 0, 7); ctx.fillStyle = "rgba(255,255,255,.18)"; ctx.fill(); ctx.strokeStyle = "rgba(255,255,255,.8)"; ctx.setLineDash([6, 5]); ctx.stroke(); ctx.setLineDash([]); } }
+    if (view.prev) { const L = D.towerLevel(view.prev.family, 1); const p = P2(view.prev.i + 0.5, view.prev.j + 0.5); ctx.beginPath(); ctx.arc(p.x, p.y, L.range * c, 0, 7); ctx.fillStyle = "rgba(255,240,150,.18)"; ctx.fill(); ctx.strokeStyle = "#fff3a0"; ctx.stroke(); }
+    if (view.aim && view.aim.x > -50) { const p = P2(view.aim.x, view.aim.y); ctx.beginPath(); ctx.arc(p.x, p.y, (view.aim.spell === "meteor" ? 1.4 : 0.5) * c, 0, 7); ctx.fillStyle = "rgba(255,120,40,.25)"; ctx.fill(); ctx.strokeStyle = "#ffb070"; ctx.lineWidth = 3; ctx.stroke(); ctx.lineWidth = 1; }
+  }
+
+  /* ================================================================ montage (comme main.js) */
+  const showcase = (n) => {
+    game = null;
+    shown = Q.has("vitrine") ? PTMT.sim.createGame({ level: n, seed: 1 }) : null;
+  };
+  let level = null;
+  const hooks = {
+    playLevel(n) { startGame(n); },
+    quitLevel() { showcase(level || Math.min(P.load().unlocked, 15)); ui.showMap(); },
+    restartLevel() { startGame(level || 1); },
+    setQuality(q) { console.log("qualité", q); },
+  };
+  ui = PTMT.ui.create({ root: document.getElementById("ptmt").querySelector("[data-ui]"), mobile: matchMedia("(pointer: coarse)").matches, progress: P, data: D, maps: PTMT.sim.MAPS, hooks });
+  window.benchUI = ui;
+  function startGame(n, seed) {
+    level = n;
+    const p = P.load();
+    game = PTMT.sim.createGame({ level: n, skills: p.skills, seed: seed || +(Q.get("seed") || 0) || (Date.now() % 100000) + 1 });
+    game.setSpeed((p.settings || {}).speed || 1);
+    shown = game;
+    bot = Q.has("auto") || btnAuto.classList.contains("on") ? makeBot(game) : null;
+    window.benchGame = game;
+    ui.enterLevel(game, view);
+  }
+  /** Avance la partie de sec secondes de jeu (robot compris), sans transmettre les événements. */
+  function fastForward(sec) {
+    if (!game) return;
+    const sp = game.state.speed;
+    game.setSpeed(3);
+    for (let t = 0; t < sec && !game.state.over; t += 0.3) {
+      game.step(0.1);
+      if (Q.has("rich")) game.state.gold = Math.max(game.state.gold, 900);
+      if (bot) bot.step(0.3);
+    }
+    game.drainEvents();
+    game.setSpeed(sp);
+  }
+  /** Saute à la vague n (prochaine vague = n), sans jouer les précédentes. */
+  function jumpWave(n) {
+    const w = game.state.wave;
+    w.index = Math.max(-1, Math.min(w.total - 2, n - 2));
+    w.countdown = 18;
+    game.refreshWavePreview();
+  }
+  showcase(Math.min(P.load().unlocked, 15));
+  let down = null;
+  canvas.addEventListener("pointerdown", (e) => (down = { x: e.clientX, y: e.clientY }));
+  canvas.addEventListener("pointerup", (e) => {
+    if (!down || !game) return;
+    const moved = Math.hypot(e.clientX - down.x, e.clientY - down.y);
+    down = null;
+    if (moved > 14) return;
+    const r = view.pick(e.clientX, e.clientY);
+    ui.mapTap(r ? Object.assign({ screenX: e.clientX, screenY: e.clientY }, r) : null);
+  });
+  canvas.addEventListener("pointermove", (e) => { if (game && e.pointerType === "mouse") ui.mapHover(view.pick(e.clientX, e.clientY)); });
+  addEventListener("resize", () => ui.onResize());
+  let last = performance.now(), hintClock = 0;
+  window.benchErrors = [];
+  function loop(now) {
+    requestAnimationFrame(loop);
+    const dt = Math.min(0.1, (now - last) / 1000);
+    last = now;
+    let events = [];
+    try {
+      if (game) {
+        const n = 1 + (turbo || 0);
+        if (Q.has("rich")) game.state.gold = Math.max(game.state.gold, 900);
+        for (let k = 0; k < n && !game.state.over; k++) {
+          game.step(k ? 0.1 : dt);
+          if (bot) bot.step(k ? 0.1 * game.state.speed : dt * game.state.speed);
+        }
+        events = game.drainEvents();
+        // Comme main.js : le résultat est enregistré AVANT ui.events, et joint à l'événement.
+        for (const ev of events)
+          if ((ev.type === "win" || ev.type === "lose") && game.state.over && !game.recorded) {
+            game.recorded = true;
+            const p = P.load();
+            ev.record = P.recordResult(p, game.state.level, game.state.over);
+            P.save(p);
+          }
+        if ((hintClock += dt) > 0.25) {
+          hintClock = 0;
+          view.setUpgradeHints(game.upgradeable());
+        }
+        ui.events(events);
+      }
+      ui.frame(dt);
+      draw();
+    } catch (err) {
+      window.benchErrors.push(String(err && err.stack || err));
+      if (window.benchErrors.length < 4) console.error(err);
+    }
+  }
+  requestAnimationFrame(loop);
+
+  /* ================================================================ panneau du banc d'essai */
+  const bench = document.getElementById("bench");
+  const btn = (label, fn) => { const b = document.createElement("button"); b.textContent = label; b.onclick = fn; bench.append(b); return b; };
+  const head = (t) => { const b = document.createElement("b"); b.textContent = t; bench.append(b); };
+  const need = (fn) => () => game && fn(game);
+  const spawn = (g, type, n, at) => { for (let k = 0; k < (n || 1); k++) g.spawn({ type, champion: false, boss: false, entrance: k % g.state.map.entrances.filter((e) => e.open).length, hpMul: 1 }, at); };
+  /** Surprises et événements, comme la simulation les produit (méthodes internes de la partie). */
+  const T = {
+    tide: (g) => g.tideCycle ? g.setTide(g.state.tide !== "low") : (console.log("pas de marée sur cette carte"), 0),
+    gate: (g) => { const e = g.grid.entrances.find((x) => !x.open); if (e) g.openGate(e); else console.log("pas de barrière fermée"); },
+    secret: (g) => g.openSecret(),
+    balloons: (g) => spawn(g, "montgolfiere", 2),
+    korrigan: (g) => spawn(g, "korrigan", 3),
+    tracteur: (g) => spawn(g, "tracteur", 1),
+    flash: (g) => {
+      const t = g.state.towers[0];
+      if (!t) return spawn(g, "touriste", 2);
+      t.dazzled = 2;
+      g.stopBeams(t);
+      g.emit("flash", { enemyId: 0, towerIds: [t.id], x: t.x, y: t.y });
+    },
+    steal: (g) => { const L = g.state.map.lairs.find((x) => x.stock > 0); if (L) spawn(g, "quad", 1, { x: L.x, y: L.y }); },
+    /** Tours de démonstration, montées directement à leur niveau (expérience et or offerts). */
+    towers: (g) => {
+      const s = g.state;
+      const plan = [["dog", 5, "A"], ["swan", 4, "A"], ["boar", 7, "A"], ["dog", 7, "B"], ["swan", 6, "B"], ["boar", 4, "B"], ["dog", 2, null], ["swan", 3, null]];
+      const near = (i, j) => { let n = 0; for (let b = j - 2; b <= j + 2; b++) for (let a = i - 2; a <= i + 2; a++) { const ch = s.map.grid[b] && s.map.grid[b][a]; if (ch === "#" || ch === "=" || ch === "L" || ch === "m") n++; } return n; };
+      for (const [fam, lv, spec] of plan) {
+        let best = null, bs = 0;
+        for (let j = 0; j < 13; j++)
+          for (let i = 0; i < 20; i++) {
+            const info = g.tileInfo(i, j);
+            if (!info || info.towerId || !info.buildable.includes(fam)) continue;
+            const sc = near(i, j);
+            if (sc > bs) { bs = sc; best = info; }
+          }
+        if (!best) continue;
+        s.gold += 5000;
+        const r = g.build(best.i, best.j, fam);
+        if (!r.ok) continue;
+        const t = g.towerById(r.towerId);
+        while (t.level < lv) { t.xp = 1e4; s.gold += 5000; if (!g.upgrade(t.id, t.level === 3 ? spec : null).ok) break; }
+        t.xp = 0;
+        t.kills = 10 * lv;
+      }
+      s.gold = Math.min(s.gold, 180);
+    },
+  };
+  head("Écrans");
+  btn("Titre", () => ui.showTitle()); btn("Missions", () => ui.showMap()); btn("Compétences", () => ui.showSkills()); btn("Encyclopédie", () => ui.showBestiary());
+  head("Parties v4");
+  for (const n of [1, 6, 9, 11, 13, 14, 15]) btn("Mission " + n + " · " + PTMT.sim.MAPS[n].name, () => startGame(n));
+  head("Jeu");
+  const btnAuto = btn("Défense auto", () => { btnAuto.classList.toggle("on"); bot = btnAuto.classList.contains("on") && game ? makeBot(game) : null; });
+  if (Q.has("auto")) btnAuto.classList.add("on");
+  const btnTurbo = btn("Turbo ×20", () => { turbo = turbo ? 0 : 20; btnTurbo.classList.toggle("on", !!turbo); });
+  btn("Avancer de 60 s", () => fastForward(60));
+  btn("Sauter 5 vagues", need((g) => jumpWave(g.state.wave.index + 1 + 5)));
+  btn("Appeler la vague", () => game && ui._ui.callWave());
+  btn("Or +500", need((g) => (g.state.gold += 500)));
+  btn("Tours de démonstration", need(T.towers));
+  head("Surprises");
+  btn("Marée", need(T.tide)); btn("Barrière", need(T.gate)); btn("Passage secret", need(T.secret));
+  btn("Montgolfières", need(T.balloons)); btn("Korrigans", need(T.korrigan)); btn("Tracteur", need(T.tracteur));
+  btn("Flash (tour éblouie)", need(T.flash)); btn("Vol de gemme", need(T.steal));
+  head("Fiches");
+  btn("Fiche d'ennemi", need((g) => { const e = g.state.enemies[0]; if (e) ui.mapTap({ i: Math.floor(e.x), j: Math.floor(e.y), x: e.x, y: e.y, enemyId: e.id }); }));
+  for (const f of ["boar", "swan", "dog"]) btn("Tour : " + D.FAMILIES[f].name, need((g) => { const t = g.state.towers.filter((x) => x.family === f).sort((a, b) => b.level - a.level)[0]; if (t) ui.mapTap({ i: t.i, j: t.j, x: t.x, y: t.y, towerId: t.id }); }));
+  btn("Nouvel ennemi (touriste)", () => game && ui._ui.queueModal(() => ui._ui.newEnemyCard("touriste")));
+  btn("Victoire", need((g) => { g.state.wave.index = g.waves.length - 1; g.spawnQueue = []; g.state.enemies = []; }));
+  btn("Défaite", need((g) => { for (const gm of g.state.gems) gm.where = "lost"; g.countGems(); }));
+
+  /* ================================================================ état initial selon l'adresse */
+  const screen = Q.get("screen") || "title";
+  const lv = +(Q.get("level") || 9);
+  if (screen === "title") ui.showTitle();
+  else if (screen === "map") ui.showMap(Q.get("focus") ? +Q.get("focus") : undefined);
+  else if (screen === "skills") ui.showSkills();
+  else if (screen === "bestiary") ui.showBestiary(Q.get("tab") || "enemies");
+  else if (screen === "game") {
+    startGame(lv);
+    if (Q.has("towers")) T.towers(game);
+    if (Q.get("speed")) game.setSpeed(+Q.get("speed"));
+    if (Q.get("gold")) game.state.gold += +Q.get("gold");
+    if (Q.get("ff")) fastForward(+Q.get("ff"));
+    if (Q.get("wave")) jumpWave(+Q.get("wave"));
+    for (const k of ["tide", "gate", "secret", "balloons", "korrigan", "tracteur", "flash", "steal"]) if (Q.has(k)) T[k](game);
+    if (Q.has("paused")) game.setPaused(true);
+    const modal = Q.get("modal");
+    setTimeout(() => {
+      const U = ui._ui;
+      if (modal === "pause") U.openPause();
+      else if (modal === "newEnemy") U.queueModal(() => U.newEnemyCard(Q.get("enemy") || "korrigan"));
+      else if (modal === "win" || modal === "winb") { game.state.wave.index = game.waves.length - 1; game.spawnQueue = []; game.state.enemies = []; if (modal === "win") { game.state.gems[0].where = "lost"; game.countGems(); } }
+      else if (modal === "lose") { for (const gm of game.state.gems) gm.where = "lost"; game.countGems(); }
+      const sel = Q.get("sel");
+      if (sel) {
+        const [k, v] = sel.split(":");
+        if (k === "tower") {
+          const t = /^\d+$/.test(v) ? game.state.towers.find((x) => x.id === +v) : game.state.towers.filter((x) => x.family === v).sort((a, b) => b.level - a.level)[0];
+          if (t) ui.mapTap({ i: t.i, j: t.j, x: t.x, y: t.y, towerId: t.id });
+        } else { const [i, j] = v.split(",").map(Number); ui.mapTap({ i, j, x: i + 0.5, y: j + 0.5 }); }
+      }
+      if (Q.has("enemy") && modal !== "newEnemy") {
+        const want = Q.get("enemy");
+        const list = game.state.enemies;
+        const e = (want && list.find((x) => x.type === want)) || list.find((x) => x.champion || x.boss || x.carrying) || list[0];
+        if (e) ui.mapTap({ i: Math.floor(e.x), j: Math.floor(e.y), x: e.x, y: e.y, enemyId: e.id });
+      }
+    }, +(Q.get("delay") || 350));
+  }
+});
+</script>
+</body>
+</html>
