@@ -5,7 +5,7 @@
 <script>
 /* Cloudflare Pages sert cette page pour toute adresse inconnue : /Moulin, /3d, /Build, /Jeu… tapées
    autrement mènent à la bonne page (jamais vers elle-même, pour ne pas boucler). */
-(function(){var p=location.pathname,m=/^(.*?\/)(moulin|3d|build|jeu)\/?$/i.exec(p);if(!m)return;var k=m[2].toLowerCase(),c=k==="3d"?"3D":k;if(m[2]!==c||!/\/$/.test(p))location.replace(m[1]+c+"/"+location.search+location.hash);})();
+(function(){var p=location.pathname,m=/^(.*?\/)(moulin2|moulin|3d|build|jeu)\/?$/i.exec(p);if(!m)return;var k=m[2].toLowerCase(),c=k==="3d"?"3D":k;if(m[2]!==c||!/\/$/.test(p))location.replace(m[1]+c+"/"+location.search+location.hash);})();
 </script>
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="description" content="Moulin de Saint-Christophe, Elven.">

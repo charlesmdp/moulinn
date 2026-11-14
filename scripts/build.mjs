@@ -6,11 +6,13 @@
 //  src/app/v32/*.js        modules de la version 32 (ordre alphabétique)
 //  src/app/moulin.js       jeu complet (V31 dé-minifiée, avec les points d'accroche V32)
 //  src/styles/*.css        base.css puis les feuilles V32 (ordre alphabétique)
+//  src/moulin2/            « La Fête du Moulin » (/moulin2/) : jeux multijoueurs posés sur le moulin 3D
+//                          (NN-*.js, puis games/*.js, puis 99-host-moulin.js ; arcade.css ; p2p-entry.mjs)
 //  src/static/             ressources inchangées (déjà nommées d'après leur contenu)
 //
 // Le résultat est préparé dans .build/dist puis remplace dist/ d'un seul coup.
 
-import { transform } from "esbuild";
+import { build, transform } from "esbuild";
 import crypto from "node:crypto";
 import fs from "node:fs/promises";
 import path from "node:path";
@@ -84,6 +86,29 @@ async function main() {
   const app = await minifyJs(await concat(appFiles), "moulin.js");
   const appFile = await emit("moulin", "js", app, report);
 
+  // Police des titres et des boutons (Lilita One, licence SIL OFL), commune au jeu /jeu/ et à la fête.
+  const jeuFontFile = await emit("lilita-one", "woff2", await fs.readFile(path.join(src, "jeu", "fonts", "lilita-one-latin.woff2")), report);
+
+  // La Fête du Moulin (/moulin2/) : un second script chargé avant le jeu du moulin, sur cette page
+  // seulement. Ordre : socle (fichiers numérotés avant 60), jeux, puis branchement sur le moulin.
+  const feteDir = path.join(src, "moulin2");
+  const feteAll = await listFiles(feteDir, ".js");
+  const feteOrder = (file) => parseInt(path.basename(file), 10) || 0;
+  const feteFiles = [...feteAll.filter((f) => feteOrder(f) < 60), ...(await listFiles(path.join(feteDir, "games"), ".js")), ...feteAll.filter((f) => feteOrder(f) >= 60)];
+  for (const file of feteFiles)
+    await transform(await fs.readFile(file, "utf8"), { loader: "js", sourcefile: path.relative(root, file) }).catch((error) => {
+      throw new Error(error.message);
+    });
+  // Connexion directe entre navigateurs (Trystero, licence MIT) : fichier à part, chargé à la demande.
+  const p2p = await build({ entryPoints: [path.join(feteDir, "p2p-entry.mjs")], bundle: true, format: "iife", minify: true, target, write: false, legalComments: "none", logLevel: "warning" });
+  const p2pFile = await emit("p2p", "js", "/* Trystero 0.27 — https://github.com/dmotz/trystero — licence MIT (voir LICENCES.txt) */\n" + p2p.outputFiles[0].text, report);
+  const feteSource = (await concat(feteFiles)).replaceAll("{{asset:p2p}}", p2pFile);
+  const feteFile = await emit("arcade", "js", await minifyJs(feteSource, "arcade.js"), report);
+  const feteCssSource = (await fs.readFile(path.join(feteDir, "arcade.css"), "utf8")).replaceAll("{{asset:fete-font}}", path.basename(jeuFontFile));
+  const feteCss = await transform(feteCssSource, { loader: "css", minify: true, target: ["safari15"] });
+  const feteCssFile = await emit("arcade", "css", feteCss.code, report);
+  if (/\{\{asset:/.test(feteSource + feteCss.code)) throw new Error("Jeton {{asset:…}} non remplacé dans la fête");
+
   // Styles.
   const styleFiles = await listFiles(path.join(src, "styles"), ".css");
   styleFiles.sort((a, b) => (a.endsWith("base.css") ? -1 : b.endsWith("base.css") ? 1 : a.localeCompare(b)));
@@ -92,7 +117,7 @@ async function main() {
 
   // Chargeur.
   let start = await fs.readFile(path.join(src, "start.js"), "utf8");
-  start = start.replaceAll("{{asset:app}}", appFile);
+  start = start.replaceAll("{{asset:app}}", appFile).replaceAll("{{asset:arcade}}", feteFile);
   const startFile = await emit("start", "js", await minifyJs(start, "start.js"), report);
 
   // Page.
@@ -118,11 +143,27 @@ async function main() {
       if (!page.includes('<html lang="fr">') || !page.includes("<head>")) throw new Error("En-tête de index.html inattendu");
       page = page
         .replace('<html lang="fr">', `<html lang="fr" data-route="${route}">`)
-        .replace("<head>", '<head>\n<base href="../">\n<meta name="robots" content="noindex,nofollow">');
+        .replace("<head>", '<head>\n<base href="../">' + (route === "moulin2" ? "" : '\n<meta name="robots" content="noindex,nofollow">'));
+    }
+    if (route === "moulin2") {
+      // La fête est publique (indexée, partageable) : son titre, sa description, ses styles.
+      const title = "La Fête du Moulin · 8 jeux multijoueurs dans un jardin 3D";
+      const description = "Courses de voitures RC, de bateaux et de drones, mini-golf, stand de tir, pêche aux canards, auto-tamponneuses, lancer de citrouilles : huit jeux de fête foraine à jouer de 1 à 8, directement dans le navigateur, dans le jardin 3D d'un moulin breton.";
+      const swap = (pattern, text) => {
+        if (!pattern.test(page)) throw new Error("En-tête de index.html inattendu (" + pattern + ")");
+        page = page.replace(pattern, text);
+      };
+      swap(/<title>[^<]*<\/title>/, `<title>${title}</title>`);
+      swap(/<meta name="description" content="[^"]*">/, `<meta name="description" content="${description}">`);
+      swap(
+        /<link rel="stylesheet" href="[^"]+">/,
+        (link) =>
+          `${link}\n<link rel="stylesheet" href="${feteCssFile}">\n<meta property="og:type" content="website">\n<meta property="og:title" content="${title}">\n<meta property="og:description" content="${description}">\n<meta name="twitter:card" content="summary_large_image">\n<meta name="twitter:title" content="${title}">\n<meta name="twitter:description" content="${description}">`,
+      );
     }
     return page;
   };
-  for (const [dir, route] of [["moulin", "moulin"], ["3D", "3d"], ["build", "build"]]) {
+  for (const [dir, route] of [["moulin", "moulin"], ["3D", "3d"], ["build", "build"], ["moulin2", "moulin2"]]) {
     await fs.mkdir(path.join(stage, dir), { recursive: true });
     await fs.writeFile(path.join(stage, dir, "index.html"), pageFor(route));
   }
@@ -141,8 +182,7 @@ async function main() {
   // Seul BufferGeometryUtils sert encore (fusion de géométries des effets) : plus de modèle GLB à charger.
   const vendorFiles = ["BufferGeometryUtils.js"].map((f) => path.join(jeuDir, "vendor", f));
   const jeuVendorFile = await emit("jeu-vendor", "js", await minifyJs(await concat(vendorFiles), "jeu-vendor.js"), report);
-  // Police des titres et des boutons (Lilita One, licence SIL OFL, jointe à côté de la page du jeu).
-  const jeuFontFile = await emit("lilita-one", "woff2", await fs.readFile(path.join(jeuDir, "fonts", "lilita-one-latin.woff2")), report);
+  // (La police Lilita One est émise plus haut ; sa licence est jointe à côté de la page du jeu.)
   const jeuCssSource = (await fs.readFile(path.join(jeuDir, "jeu.css"), "utf8")).replaceAll("{{asset:jeu-font}}", path.basename(jeuFontFile));
   const jeuCss = await transform(jeuCssSource, { loader: "css", minify: true, target: ["safari15"] });
   const jeuCssFile = await emit("jeu", "css", jeuCss.code, report);
@@ -164,7 +204,7 @@ async function main() {
   await fs.writeFile(path.join(stage, "index.html"), gateHtml);
 
   // Vérification : chaque ressource citée par le chargeur et la page existe.
-  const referenced = new Set([...`${html}\n${start}\n${jeuHtml}\n${jeuBoot}`.matchAll(/assets\/[A-Za-z0-9_.-]+\.[a-z0-9]+/g)].map((m) => m[0]));
+  const referenced = new Set([...`${html}\n${start}\n${jeuHtml}\n${jeuBoot}\n${feteSource}\n${feteCssFile}`.matchAll(/assets\/[A-Za-z0-9_.-]+\.[a-z0-9]+/g)].map((m) => m[0]));
   const plan = JSON.parse(await fs.readFile(path.join(stage, "assets", path.basename(start.match(/assets\/garden-assets\.[a-f0-9]+\.json/)[0])), "utf8"));
   for (const texture of Object.values(plan.textures || {})) referenced.add(texture.uri);
   for (const file of referenced) {

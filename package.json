@@ -11,7 +11,8 @@
     "test": "node tests/sim.test.mjs"
   },
   "devDependencies": {
-    "esbuild": "^0.28.2"
+    "esbuild": "^0.28.2",
+    "trystero": "^0.27.0"
   },
   "engines": {
     "node": ">=20"

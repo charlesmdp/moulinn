@@ -8,6 +8,8 @@
         "assets/engine-2.64422f1aa30f.js",
       ],
       app: "{{asset:app}}",
+      // La Fête du Moulin : chargé avant le jeu, sur la page /moulin2 seulement.
+      arcade: "{{asset:arcade}}",
       exporter: "assets/gltf-exporter.7f2e462b46ac.js",
       assets: "assets/garden-assets.1b2d1ff75f13.json",
       plan: "assets/garden-plan.8d2f34ed9340.json",
@@ -156,7 +158,10 @@
         const s = t[r.type];
         i.terrain[a] = new s(e[4], r.offset, r.bytes / s.BYTES_PER_ELEMENT);
       }
-      u || ((l.textContent = "Construction du jardin\u2026"), await p(n.app));
+      if (u) return;
+      l.textContent = "Construction du jardin\u2026";
+      if (document.documentElement.getAttribute("data-route") === "moulin2") await p(n.arcade);
+      await p(n.app);
     })
     .catch(c);
 })();

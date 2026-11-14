@@ -8,3 +8,9 @@
   Cache-Control: public, max-age=0, must-revalidate
 /moulin/index.html
   Cache-Control: public, max-age=0, must-revalidate
+/moulin2/
+  Cache-Control: public, max-age=0, must-revalidate
+/moulin2/index.html
+  Cache-Control: public, max-age=0, must-revalidate
+/moulin2/sponsors.json
+  Cache-Control: public, max-age=300
