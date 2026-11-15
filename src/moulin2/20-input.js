@@ -7,7 +7,8 @@
 //     layout "pilot"   : un manche à gauche (x, y) — auto-tamponneuses…
 //            "radio"   : télécommande de modélisme, manche gauche vertical (y : gaz), manche droit
 //                        horizontal (x : direction), marque du sponsor au milieu — voitures, bateaux
-//            "dual"    : deux manches complets (x2, y2 à gauche ; x, y à droite) — drones
+//            "dual"    : deux manches complets (x2, y2 à gauche ; x, y à droite) — drones ; avec radio:
+//                        { brand }, le boîtier de la radiocommande s'affiche aussi
 //            "pointer" : pas de manche, on vise ou on tire en glissant sur l'écran — golf, tir, pêche…
 //     buttons : [{ id: "a", label: "Klaxon", key: "Espace" }] (a : Espace, b : Maj ou E, c : C ou X)
 //     radio   : { brand: "Nom du sponsor" } (texte au milieu de la télécommande)
@@ -189,6 +190,14 @@
           makeStick("left", false, true, null, "y", "GAZ");
           makeStick("right", true, false, "x", null, "DIRECTION");
         } else if (scheme.layout === "dual") {
+          if (scheme.radio) {
+            // radiocommande à deux manches : même boîtier, avec la marque du sponsor au milieu
+            radioEl = h("div", "fete-radio", layer);
+            h("div", "fete-radio-antenna", radioEl);
+            const brand = h("div", "fete-radio-brand", radioEl);
+            h("small", "", brand, scheme.radio.kicker || "RADIOCOMMANDE");
+            h("b", "", brand, scheme.radio.brand || "VOTRE MARQUE ICI");
+          }
           makeStick("left", true, true, "x2", "y2", scheme.leftLabel || "");
           makeStick("right", true, true, "x", "y", scheme.rightLabel || "");
         }
