@@ -94,7 +94,10 @@ async function main() {
   const feteDir = path.join(src, "moulin2");
   const feteAll = await listFiles(feteDir, ".js");
   const feteOrder = (file) => parseInt(path.basename(file), 10) || 0;
-  const feteFiles = [...feteAll.filter((f) => feteOrder(f) < 60), ...(await listFiles(path.join(feteDir, "games"), ".js")), ...feteAll.filter((f) => feteOrder(f) >= 60)];
+  // FETE_JEUX=rc,golf node scripts/build.mjs : ne garder que ces jeux (mise au point, jamais pour publier).
+  const feteOnly = process.env.FETE_JEUX ? process.env.FETE_JEUX.split(",") : null;
+  const feteGames = (await listFiles(path.join(feteDir, "games"), ".js")).filter((f) => !feteOnly || feteOnly.includes(path.basename(f, ".js")));
+  const feteFiles = [...feteAll.filter((f) => feteOrder(f) < 60), ...feteGames, ...feteAll.filter((f) => feteOrder(f) >= 60)];
   for (const file of feteFiles)
     await transform(await fs.readFile(file, "utf8"), { loader: "js", sourcefile: path.relative(root, file) }).catch((error) => {
       throw new Error(error.message);

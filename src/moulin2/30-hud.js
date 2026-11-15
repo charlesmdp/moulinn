@@ -13,7 +13,9 @@
 //   hud.hint("Flèches : piloter")   ligne d'aide en bas
 //   hud.board([{ name, color, text, self }])   classement en direct, à droite
 //   hud.toast("…")                  petit message en haut
-//   hud.widget("classe", html) → élément libre posé sur l'écran (viseur, jauge…), retiré en quittant le jeu
+//   hud.widget("classe", html) → élément libre posé sur l'écran (viseur…), retiré en quittant le jeu
+//   hud.pop("+25", x, y)            petit texte qui s'envole depuis un point de l'écran
+//   hud.gauge(0.7, "Puissance")     jauge en bas de l'écran (null pour la cacher)
 (function () {
   "use strict";
   const MF = (globalThis.MoulinFete = globalThis.MoulinFete || {});
@@ -316,6 +318,27 @@
       },
       widget(cls, html) {
         return el("div", cls, custom, html);
+      },
+      /** Petit texte qui s'envole depuis un point de l'écran (px) : « +25 », « Raté »… options { color }. */
+      pop(text, x, y, o = {}) {
+        const p = el("div", "fete-pop", custom);
+        p.textContent = text;
+        p.style.left = x + "px";
+        p.style.top = y + "px";
+        if (o.color) p.style.color = o.color;
+        setTimeout(() => p.remove(), 900);
+      },
+      /** Jauge en bas de l'écran (0 à 1), avec un libellé ; null pour la cacher. */
+      gauge(value, label) {
+        let g = custom.querySelector(".fete-gauge");
+        if (value == null) {
+          if (g) g.remove();
+          return;
+        }
+        if (!g) g = el("div", "fete-gauge", custom, "<span></span><i></i>");
+        g.firstChild.textContent = label || "";
+        g.lastChild.style.width = Math.round(MF.clamp(value, 0, 1) * 100) + "%";
+        g.dataset.level = value > 0.85 ? "max" : value > 0.5 ? "haut" : "bas";
       },
       /** Remet la couche de jeu à zéro (en quittant un jeu). */
       clearGame() {

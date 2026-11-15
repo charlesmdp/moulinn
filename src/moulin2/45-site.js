@@ -23,9 +23,11 @@
     const s = def.station;
     const y = world.heightAt(s.x, s.z);
     const h = s.heading || 0;
-    // le mât est un peu en retrait, derrière le joueur (qui regarde vers le jeu)
-    const bx = s.x - Math.sin(h) * 1.5 + Math.cos(h) * 1.7, bz = s.z - Math.cos(h) * 1.5 - Math.sin(h) * 1.7;
-    const g = MF.group({ name: "Stand_" + def.id, x: bx, y: world.heightAt(bx, bz), z: bz, ry: h });
+    // le mât est sur le côté du joueur (qui regarde vers le jeu), pour ne pas boucher la vue ;
+    // un jeu peut imposer sa place : def.kiosk = { x, z, heading }
+    const k = def.kiosk || { x: s.x - Math.sin(h) * 0.5 + Math.cos(h) * 3.2, z: s.z - Math.cos(h) * 0.5 - Math.sin(h) * 3.2, heading: h };
+    const bx = k.x, bz = k.z;
+    const g = MF.group({ name: "Stand_" + def.id, x: bx, y: world.heightAt(bx, bz), z: bz, ry: k.heading ?? h });
     g.add(MF.pole(3.1));
     const color = def.color || MF.PAL.red;
     const board = MF.sign(def.title.toUpperCase(), { w: 2.3, h: 0.5, bg: color, color: "#ffffff", border: "#ffffff", double: true });
@@ -43,7 +45,7 @@
     });
     // rond au sol : « c'est ici qu'on joue »
     const THREE = globalThis.THREE;
-    const local = new THREE.Vector3(s.x - bx, 0, s.z - bz).applyAxisAngle(new THREE.Vector3(0, 1, 0), -h);
+    const local = new THREE.Vector3(s.x - bx, 0, s.z - bz).applyAxisAngle(new THREE.Vector3(0, 1, 0), -(k.heading ?? h));
     MF.mesh(new THREE.RingGeometry(0.95, 1.2, 28), MF.mat(color, { opacity: 0.85 }), { x: local.x, y: y - g.position.y + 0.05, z: local.z, rx: -Math.PI / 2, parent: g });
     return g;
   }
