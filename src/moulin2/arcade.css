@@ -146,8 +146,10 @@
 .fete-quit { position: absolute; top: 12px; right: 12px; min-height: 42px; background: var(--red); color: #fff; }
 .fete-ui[data-mode="lobby"] .fete-quit, .fete-ui[data-mode="results"] .fete-quit, .fete-ui[data-mode="watch"] .fete-quit { display: none; }
 .fete-card { position: absolute; left: 12px; top: 74px; width: min(380px, calc(100% - 24px)); max-height: calc(100% - 96px); overflow-y: auto; padding: 0 16px 16px; box-sizing: border-box; }
-.fete-card > header { display: flex; align-items: center; gap: 10px; margin: 0 -16px 12px; padding: 10px 16px; background: var(--yellow); border-bottom: 4px solid var(--ink); border-radius: 18px 18px 0 0; position: sticky; top: 0; }
-.fete-card > header .fete-game-icon { font-size: 34px; }
+.fete-card > header { display: flex; align-items: center; justify-content: flex-start; text-align: left; gap: 10px; margin: 0 -16px 12px; padding: 10px 16px; background: var(--yellow); border-bottom: 4px solid var(--ink); border-radius: 18px 18px 0 0; position: sticky; top: 0; }
+.fete-card > header .fete-game-icon { font-size: 34px; flex: none; }
+.fete-card > header > div { flex: 1; min-width: 0; text-align: left; }
+.fete-card > header small { display: block; }
 .fete-card > header small { font-size: 12.5px; font-weight: 600; color: #6b4a1a; }
 .fete-card[data-kind="results"] > header { background: var(--green); color: #fff; }
 .fete-card[data-kind="results"] > header small { color: #eaffdf; }
@@ -248,7 +250,10 @@
 .fete-radio-brand { text-align: center; padding: 5px 16px; background: var(--cream); border: 3px solid var(--ink); border-radius: 10px; max-width: 78%; }
 .fete-radio-brand small { display: block; font: 800 9px system-ui, sans-serif; letter-spacing: 0.14em; color: #8a6a45; }
 .fete-radio-brand b { display: block; font-family: var(--title); font-weight: 400; font-size: 17px; line-height: 1.05; color: var(--red); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.fete-touch.is-touch .fete-radio { width: min(300px, 44%); height: 58px; }
+.fete-touch.is-touch .fete-radio { width: min(300px, 32%); height: 56px; }
+.fete-touch.is-touch .fete-radio-brand { padding: 4px 8px; max-width: 92%; }
+.fete-touch.is-touch .fete-radio-brand b { font-size: 13px; }
+.fete-touch.is-touch .fete-radio-brand small { font-size: 7.5px; letter-spacing: 0.08em; }
 
 /* ---------------------------------------------------------------- la page du moulin pendant la fête */
 html[data-route="moulin2"] main > header { display: none; }

@@ -46,7 +46,7 @@
     // rond au sol : « c'est ici qu'on joue »
     const THREE = globalThis.THREE;
     const local = new THREE.Vector3(s.x - bx, 0, s.z - bz).applyAxisAngle(new THREE.Vector3(0, 1, 0), -(k.heading ?? h));
-    MF.mesh(new THREE.RingGeometry(0.95, 1.2, 28), MF.mat(color, { opacity: 0.85 }), { x: local.x, y: y - g.position.y + 0.05, z: local.z, rx: -Math.PI / 2, parent: g });
+    MF.mesh(new THREE.RingGeometry(0.95, 1.2, 28), MF.mat(color, { opacity: 0.85 }), { x: local.x, y: y - g.position.y + 0.13, z: local.z, rx: -Math.PI / 2, parent: g });
     return g;
   }
 

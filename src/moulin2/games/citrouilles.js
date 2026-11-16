@@ -83,7 +83,7 @@
 
       /* ---------------------------------------------------------------- décor (une fois) */
       const deco = MF.group({ name: "Lancer_de_citrouilles", parent: group });
-      MF.box(15.5, 0.12, 2.6, MF.PAL.wood, { x: PAD.x, y: Y0 + 0.02, z: PAD.z, parent: deco });
+      MF.box(15.5, 0.3, 2.6, MF.PAL.wood, { x: PAD.x, y: Y0 - 0.05, z: PAD.z, parent: deco });
       const sp = MF.sponsors.banner("citrouilles-fronton", 5, 0.95, { lift: 0.35 });
       sp.position.set(PAD.x - 6.4, H(PAD.x - 6.4, PAD.z - 1.9), PAD.z - 1.9);
       sp.rotation.y = 0.35;
@@ -160,7 +160,7 @@
             pults.set(p.uid, c);
           }
           c.x = laneX(i, roster.length);
-          c.group.position.set(c.x, H(c.x, PAD.z) + 0.08, PAD.z);
+          c.group.position.set(c.x, Math.max(H(c.x, PAD.z), Y0) + 0.1, PAD.z);
         });
       }
       const shots = []; // citrouilles en vol : { mesh, x, y, z, vx, vy, vz, mine, alive }

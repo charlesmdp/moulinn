@@ -75,14 +75,17 @@
       const { world, session, hud, input, group, camera } = ctx;
       const path = MF.path(TRACK, { closed: true, step: 1 });
       const L = path.length;
-      const H = world.heightAt;
+      // Les voitures roulent 9 cm au-dessus du relief calculé : c'est la hauteur de la piste, posée assez
+      // haut pour ne pas disparaître sous les bosses du sol réel (et l'herbe a cette épaisseur).
+      const RIDE = 0.09;
+      const H = (x, z) => world.heightAt(x, z) + RIDE;
       const obstacles = MF.obstacles(world, [-12, -80, 18, -10]);
       obstacles.add(6.2, -21.4, 1.3); // voiture garée sur la cour
       obstacles.add(7.4, -21.0, 1.3);
 
       /* ---------------------------------------------------------------- décor (une fois) */
       const deco = MF.group({ name: "Circuit_RC", parent: group });
-      deco.add(MF.ribbon(world, path, { width: WIDTH, color: "#d9b77a", edgeColor: "#ffffff", edge: 0.2, stripes: true, lift: 0.06, name: "Piste_RC" }));
+      deco.add(MF.ribbon(world, path, { width: WIDTH, color: "#d9b77a", edgeColor: "#ffffff", edge: 0.2, stripes: true, lift: RIDE + 0.02, name: "Piste_RC" }));
       // ligne d'arrivée en damier et arche de départ
       const start = path.at(0);
       const startHeading = Math.atan2(start.tx, start.tz);
@@ -94,8 +97,8 @@
       }), polygonOffset: true, polygonOffsetFactor: -4, polygonOffsetUnits: -8 }), { rx: -Math.PI / 2 });
       const lineHolder = MF.group({ parent: deco });
       lineHolder.add(line);
-      MF.seat(lineHolder, world, start.x, start.z, startHeading, 0.09);
-      const arch = MF.group({ name: "Arche_depart_RC", x: start.x, y: H(start.x, start.z), z: start.z, ry: startHeading, parent: deco });
+      MF.seat(lineHolder, world, start.x, start.z, startHeading, RIDE + 0.05);
+      const arch = MF.group({ name: "Arche_depart_RC", x: start.x, y: world.heightAt(start.x, start.z), z: start.z, ry: startHeading, parent: deco });
       for (const side of [-1, 1]) {
         const p = MF.pole(3.0, { color: MF.PAL.red });
         p.position.x = side * (WIDTH / 2 + 0.55);
@@ -114,7 +117,7 @@
         const x = p.x - p.tz * off, z = p.z + p.tx * off;
         const b = MF.sponsors.banner(id, w, 0.9, { lift: 0.25 });
         // la face de la bâche regarde la piste
-        b.position.set(x, H(x, z), z);
+        b.position.set(x, world.heightAt(x, z), z);
         b.rotation.y = Math.atan2(p.x - x, p.z - z);
         deco.add(b);
         for (const e of [-1, 1]) obstacles.add(x + Math.cos(b.rotation.y) * e * (w / 2), z - Math.sin(b.rotation.y) * e * (w / 2), 0.1);
@@ -126,7 +129,7 @@
       // piles de pneus à l'intérieur des deux virages serrés
       const tyres = (s, side) => {
         const p = path.at(s), off = side * (WIDTH / 2 + 0.35);
-        const x = p.x - p.tz * off, z = p.z + p.tx * off, y = H(x, z);
+        const x = p.x - p.tz * off, z = p.z + p.tx * off, y = world.heightAt(x, z);
         for (let i = 0; i < 3; i++) MF.torus(0.17, 0.075, i % 2 ? MF.PAL.white : MF.PAL.black, { x, y: y + 0.08 + i * 0.15, z, rx: Math.PI / 2, parent: deco, seg: 12, tubeSeg: 6 });
         obstacles.add(x, z, 0.26);
       };

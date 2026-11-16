@@ -114,11 +114,11 @@
       // aires de décollage
       const padMat = MF.mat(MF.PAL.cream);
       PADS.forEach(([x, z], i) => {
-        const y = H(x, z) + 0.04;
-        MF.cyl(0.55, 0.55, 0.05, i % 2 ? MF.PAL.orange : MF.PAL.teal, { x, y, z, parent: deco, seg: 16 });
-        MF.box(0.5, 0.02, 0.1, padMat, { x, y: y + 0.035, z, parent: deco });
-        MF.box(0.1, 0.02, 0.5, padMat, { x: x - 0.2, y: y + 0.035, z, parent: deco });
-        MF.box(0.1, 0.02, 0.5, padMat, { x: x + 0.2, y: y + 0.035, z, parent: deco });
+        const y = H(x, z) + 0.1;
+        MF.cyl(0.55, 0.55, 0.14, i % 2 ? MF.PAL.orange : MF.PAL.teal, { x, y, z, parent: deco, seg: 16 });
+        MF.box(0.5, 0.02, 0.1, padMat, { x, y: y + 0.08, z, parent: deco });
+        MF.box(0.1, 0.02, 0.5, padMat, { x: x - 0.2, y: y + 0.08, z, parent: deco });
+        MF.box(0.1, 0.02, 0.5, padMat, { x: x + 0.2, y: y + 0.08, z, parent: deco });
       });
       MF.freeze(deco);
       // obstacles : arbres proches du parcours, bâtiments

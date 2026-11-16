@@ -62,6 +62,11 @@ emplacement affiche « VOTRE MARQUE ICI ». Pour vendre un emplacement, renseign
 publier ; `contact` (texte et lien) alimente le bouton du panneau « Sponsors ».
 Exemple et liste complète : [`src/moulin2/CONCEPTION.md`](src/moulin2/CONCEPTION.md).
 
+**Image de partage.** Pour que X ou LinkedIn affichent l'aperçu de la page
+(`src/static/moulin2/partage.jpg`), il faut leur donner l'adresse complète du
+site : construire avec `SITE_URL=https://mon-site.example node scripts/build.mjs`
+(ou renseigner `SITE_URL` dans `scripts/build.mjs`).
+
 **Mise au point.** `node scripts/labo.mjs` ouvre les mêmes jeux dans un terrain
 d'essai léger (`http://localhost:8090/`, deux onglets pour jouer à deux) ;
 `node tests/fete.test.mjs` vérifie le réseau et le déroulement des parties sans

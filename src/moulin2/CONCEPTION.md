@@ -88,6 +88,9 @@ MF.registerGame({
 });
 ```
 
+Facultatifs : `kiosk: { x, z, heading }` (place du panneau du stand, sinon sur le côté du joueur) et
+`range` (distance, en mètres, au-delà de laquelle le jeu n'est plus dessiné ; 85 par défaut).
+
 `create(ctx)` est appelé **une fois**, au chargement : le jeu y construit son décor (ajouté à
 `ctx.group`) et renvoie :
 
@@ -204,7 +207,10 @@ des emplacements libres. Les logos vont dans `src/static/moulin2/logos/`.
 
 Le moulin affiche déjà près de 3 millions de triangles : un jeu reste léger (quelques milliers de
 triangles, peu de matériaux — `MF.mat` les met en commun), ne crée rien à chaque image, retire ce
-qu'il ajoute (`MF.dispose`), et ne dessine que si quelque chose bouge.
+qu'il ajoute (`MF.dispose`), et ne dessine que si quelque chose bouge. Une fois son décor construit,
+il le fusionne avec `MF.freeze(groupe)` : un seul maillage par matériau au lieu de dizaines (ce qui
+bouge porte `userData.live = true` et reste à part). Avec cela, la fête n'ajoute presque rien au
+nombre d'appels de dessin de la promenade.
 
 ## Terrain d'essai
 

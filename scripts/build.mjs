@@ -30,6 +30,11 @@ const hash = (content) => crypto.createHash("sha256").update(content).digest("he
 // son empreinte SHA-256 est publiée, et /moulin/ reste ouvert à qui connaît l'adresse.
 const GATE_PASSWORD = "azerty";
 
+// Adresse publique du site, sans « / » final (par exemple "https://moulin.example.fr"). Elle sert
+// seulement à la page /moulin2/ : les réseaux sociaux (X, LinkedIn…) n'affichent l'image de partage
+// que si son adresse est complète. Vide : la page est publiée sans image de partage.
+const SITE_URL = process.env.SITE_URL || "";
+
 async function listFiles(dir, extension) {
   try {
     return (await fs.readdir(dir))
@@ -161,7 +166,10 @@ async function main() {
       swap(
         /<link rel="stylesheet" href="[^"]+">/,
         (link) =>
-          `${link}\n<link rel="stylesheet" href="${feteCssFile}">\n<meta property="og:type" content="website">\n<meta property="og:title" content="${title}">\n<meta property="og:description" content="${description}">\n<meta name="twitter:card" content="summary_large_image">\n<meta name="twitter:title" content="${title}">\n<meta name="twitter:description" content="${description}">`,
+          `${link}\n<link rel="stylesheet" href="${feteCssFile}">\n<meta property="og:type" content="website">\n<meta property="og:title" content="${title}">\n<meta property="og:description" content="${description}">\n<meta name="twitter:card" content="summary_large_image">\n<meta name="twitter:title" content="${title}">\n<meta name="twitter:description" content="${description}">` +
+          (SITE_URL
+            ? `\n<link rel="canonical" href="${SITE_URL}/moulin2/">\n<meta property="og:url" content="${SITE_URL}/moulin2/">\n<meta property="og:image" content="${SITE_URL}/moulin2/partage.jpg">\n<meta property="og:image:width" content="1200">\n<meta property="og:image:height" content="630">\n<meta name="twitter:image" content="${SITE_URL}/moulin2/partage.jpg">`
+            : ""),
       );
     }
     return page;

@@ -35,8 +35,15 @@
         canvas: game.renderer.domElement,
         mobile: !!hooks.mobile,
         real: true,
-        /** Hauteur du sol (fond des étangs compris). */
-        heightAt: (x, z) => game.terrainHeight(x, z),
+        /**
+         * Hauteur du sol (fond des étangs compris). Là où le moulin a posé un revêtement sur le relief
+         * (pavés de la cour, terrasse, allée), on prend sa surface : quelques centimètres plus haut.
+         */
+        heightAt(x, z) {
+          const t = game.terrainHeight(x, z);
+          const s = game.cameraSupportHeight ? game.cameraSupportHeight(x, z) : t;
+          return s > t && s - t < 0.6 ? s : t;
+        },
         /** Étang en ce point ({ name, level, poly }) ou null. */
         waterAt(x, z) {
           for (const p of ponds) if (x >= p.x0 && x <= p.x1 && z >= p.z0 && z <= p.z1 && MF.pointInPoly(x, z, p.poly)) return p;
