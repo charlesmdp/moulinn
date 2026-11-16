@@ -96,6 +96,7 @@
         if (def.wheel) {
           // roue à aubes couchée : un moyeu et une grande pale double qui balaie le passage
           h.wheelMesh = MF.group({ x: h.X(def.wheel.u), y: y + 0.01, z: h.Z(def.wheel.v), parent: g });
+          h.wheelMesh.userData.live = true;
           MF.box(def.wheel.len * 2, 0.13, 0.07, MF.PAL.woodDark, { y: 0.08, parent: h.wheelMesh });
           MF.box(0.07, 0.13, 0.5, MF.PAL.woodDark, { y: 0.08, parent: h.wheelMesh });
           MF.cyl(0.13, 0.13, 0.2, MF.PAL.red, { x: h.X(def.wheel.u), y: y + 0.1, z: h.Z(def.wheel.v), parent: g, seg: 10 });
@@ -111,6 +112,7 @@
           for (const side of [-1, 1]) MF.box(0.09, 0.55, 0.09, MF.PAL.woodDark, { x: h.X(def.gate.u), y: y + 0.27, z: h.Z(side * (def.gate.half + 0.04)), parent: g });
           MF.box(0.09, 0.08, def.gate.half * 2 + 0.26, MF.PAL.woodDark, { x: h.X(def.gate.u), y: y + 0.58, z: oz, parent: g });
           h.gateMesh = MF.box(0.05, 0.3, def.gate.half * 2, MF.PAL.red, { x: h.X(def.gate.u), y: y + 0.15, z: oz, parent: g });
+          h.gateMesh.userData.live = true;
         }
         if (def.mill) {
           // moulin à vent : une tour à cheval sur le passage, quatre ailes qui passent devant
@@ -119,6 +121,7 @@
           MF.cyl(0.2, 0.36, 0.95, MF.PAL.cream, { x: mx, y: y + 0.88, z: oz, parent: g, seg: 10, cast: true });
           MF.cone(0.3, 0.3, MF.PAL.red, { x: mx, y: y + 1.5, z: oz, parent: g, seg: 10 });
           h.millMesh = MF.group({ x: h.X(def.mill.u - 0.26), y: y + 0.98, z: oz, parent: g });
+          h.millMesh.userData.live = true;
           for (let k = 0; k < 4; k++) {
             const arm = MF.group({ rx: (k * Math.PI) / 2, parent: h.millMesh });
             MF.box(0.03, 0.9, 0.17, MF.PAL.white, { y: -0.5, parent: arm });
@@ -138,6 +141,7 @@
         sp.position.set(h.X(LEN + 0.42), y - 0.3, oz);
         sp.rotation.y = Math.PI / 2;
         g.add(sp);
+        MF.freeze(g); // décor du trou fusionné ; la roue, la vanne et les ailes restent mobiles
         return h;
       });
 

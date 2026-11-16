@@ -28,10 +28,13 @@
     for (const [x, z] of [[-0.26, 0.24], [0.26, 0.24], [-0.26, -0.24], [0.26, -0.24]]) {
       MF.box(0.05, 0.03, Math.hypot(x, z) * 2 * 0.52, MF.PAL.black, { x: x / 2, z: z / 2, ry: Math.atan2(x, z), parent: body });
       MF.cyl(0.035, 0.035, 0.07, MF.PAL.steel, { x, y: 0.03, z, parent: body, seg: 6 });
-      props.push(MF.cyl(0.17, 0.17, 0.012, MF.mat("#dfe8ff", { opacity: 0.45 }), { x, y: 0.08, z, parent: body, seg: 10 }));
+      const prop = MF.cyl(0.17, 0.17, 0.012, MF.mat("#dfe8ff", { opacity: 0.45 }), { x, y: 0.08, z, parent: body, seg: 10 });
+      prop.userData.live = true; // les hélices tournent
+      props.push(prop);
     }
     MF.sphere(0.03, MF.mat(MF.PAL.white, { basic: true }), { z: 0.17, parent: body, seg: 5 });
     MF.sphere(0.03, MF.mat(MF.PAL.red, { basic: true }), { z: -0.17, parent: body, seg: 5 });
+    MF.freeze(body);
     body.scale.setScalar(1.35);
     const shadow = MF.blob(0.4, 0.3);
     g.add(shadow);
@@ -73,10 +76,11 @@
       const gates = GATES.map(([x, z, up], i) => ({ i, x, z, y: base(x, z) + up }));
       const startGate = { x: START.x, z: START.z, y: base(START.x, START.z) + START.up, nx: -1, ny: 0, nz: 0 };
       const dir = new THREE.Vector3(), q = new THREE.Quaternion(), zAxis = new THREE.Vector3(0, 0, 1);
+      const deco = MF.group({ name: "Parcours_des_drones", parent: group });
       const portTex = MF.sponsors.texture("drones-portes", { w: 2.2, h: 0.5, kicker: "Porte" });
       const portMat = new THREE.MeshBasicMaterial({ map: portTex });
       function buildGate(gt, label, sponsorBoard) {
-        const g = MF.group({ name: "Porte_" + label, x: gt.x, y: gt.y, z: gt.z, parent: group });
+        const g = MF.group({ name: "Porte_" + label, x: gt.x, y: gt.y, z: gt.z, parent: deco });
         dir.set(gt.nx, gt.ny, gt.nz);
         g.quaternion.setFromUnitVectors(zAxis, dir);
         gt.mat = MF.mat(MF.PAL.teal, { unique: true, emissive: MF.PAL.teal, emissiveIntensity: 0.25 });
@@ -111,11 +115,12 @@
       const padMat = MF.mat(MF.PAL.cream);
       PADS.forEach(([x, z], i) => {
         const y = H(x, z) + 0.04;
-        MF.cyl(0.55, 0.55, 0.05, i % 2 ? MF.PAL.orange : MF.PAL.teal, { x, y, z, parent: group, seg: 16 });
-        MF.box(0.5, 0.02, 0.1, padMat, { x, y: y + 0.035, z, parent: group });
-        MF.box(0.1, 0.02, 0.5, padMat, { x: x - 0.2, y: y + 0.035, z, parent: group });
-        MF.box(0.1, 0.02, 0.5, padMat, { x: x + 0.2, y: y + 0.035, z, parent: group });
+        MF.cyl(0.55, 0.55, 0.05, i % 2 ? MF.PAL.orange : MF.PAL.teal, { x, y, z, parent: deco, seg: 16 });
+        MF.box(0.5, 0.02, 0.1, padMat, { x, y: y + 0.035, z, parent: deco });
+        MF.box(0.1, 0.02, 0.5, padMat, { x: x - 0.2, y: y + 0.035, z, parent: deco });
+        MF.box(0.1, 0.02, 0.5, padMat, { x: x + 0.2, y: y + 0.035, z, parent: deco });
       });
+      MF.freeze(deco);
       // obstacles : arbres proches du parcours, bâtiments
       const trees = (world.trees || []).filter((t) => t.x > -48 && t.x < 42 && t.z > -52 && t.z < 42).map((t) => ({ x: t.x, z: t.z, g: H(t.x, t.z), h: t.height || 10, r: 0.22 * (t.height || 10) }));
       const solids = (world.solids || []).filter((r) => r.y1 - r.y0 > 1.5);

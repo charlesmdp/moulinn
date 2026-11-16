@@ -70,7 +70,7 @@
     const root = MF.group({ name: "Fete_du_Moulin" });
     world.scene.add(root);
     try {
-      MF.site.build({ world, root });
+      MF.freeze(MF.site.build({ world, root }));
     } catch (error) {
       console.error("[Fête du Moulin] décor", error);
     }
@@ -101,7 +101,7 @@
       };
       entry.ctx = ctx;
       try {
-        root.add(MF.site.kiosk(def, world));
+        group.add(MF.freeze(MF.site.kiosk(def, world)));
         entry.instance = def.create(ctx) || {};
       } catch (error) {
         entry.broken = true;
@@ -257,6 +257,16 @@
       if (hud.panel() === "sponsors") hud.setSponsors(sponsorsModel());
       refreshCard();
       placeSelf();
+      // un stand lointain n'est pas dessiné (le moulin est déjà lourd) : on le cache au-delà de sa portée
+      const cam = world.camera.position;
+      for (const e of entries) {
+        const s = e.def.station;
+        const near = e === active || Math.hypot(cam.x - s.x, cam.z - s.z) < (e.def.range || 85);
+        if (e.group.visible !== near) {
+          e.group.visible = near;
+          world.invalidate();
+        }
+      }
       // invitations : un joueur attend des adversaires à un jeu
       if (!active)
         for (const r of presence.list()) {

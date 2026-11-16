@@ -9,6 +9,7 @@
 //       (au plus 12 fois par seconde) ; autres.update() à chaque image crée, déplace en douceur et retire
 //       leurs objets. « valeurs » : size nombres (position, cap…) ; « extra » : champ libre non lissé.
 //
+//   MF.freeze(groupe) → fusionne le décor immobile d'un groupe (un appel de dessin par matériau)
 //   MF.ribbon(world, ligne, { width, color… }) → piste posée sur le sol, qui épouse le relief
 //   MF.obstacles(world, zone) → arbres et murs du domaine ; .add(x, z, r) ; .hit(x, z, r) → { nx, nz, depth } | null
 //   MF.ground(world, x, z, écart?) → { y, nx, ny, nz }    hauteur et pente du sol
@@ -195,6 +196,78 @@
         return out;
       },
     };
+  };
+
+  /* ------------------------------------------------------------------ décor fusionné */
+  /**
+   * Fusionne le décor immobile d'un groupe : tous les maillages qui partagent un matériau deviennent un
+   * seul maillage (un seul appel de dessin au lieu de dizaines). À appeler une fois le décor construit.
+   * Ce qui bouge doit porter userData.live = true (lui et ses enfants sont laissés tels quels).
+   */
+  MF.freeze = function (root) {
+    const THREE = T();
+    root.updateMatrixWorld(true);
+    const inv = new THREE.Matrix4().copy(root.matrixWorld).invert();
+    const buckets = new Map();
+    (function collect(o) {
+      if (o.userData && o.userData.live) return;
+      if (o.isMesh && !o.isInstancedMesh && o.visible && o.geometry && o.geometry.attributes.position && !Array.isArray(o.material) && !o.geometry.attributes.color) {
+        const key = o.material.uuid + (o.castShadow ? "c" : "") + (o.receiveShadow ? "r" : "");
+        if (!buckets.has(key)) buckets.set(key, { material: o.material, cast: o.castShadow, receive: o.receiveShadow, list: [] });
+        buckets.get(key).list.push(o);
+      }
+      for (const c of o.children.slice()) collect(c);
+    })(root);
+    const m = new THREE.Matrix4(), n3 = new THREE.Matrix3(), v = new THREE.Vector3();
+    for (const b of buckets.values()) {
+      if (b.list.length < 2) continue;
+      let nv = 0, ni = 0;
+      for (const o of b.list) {
+        nv += o.geometry.attributes.position.count;
+        ni += o.geometry.index ? o.geometry.index.count : o.geometry.attributes.position.count;
+      }
+      const pos = new Float32Array(nv * 3), nor = new Float32Array(nv * 3), uv = new Float32Array(nv * 2);
+      const idx = nv > 65535 ? new Uint32Array(ni) : new Uint16Array(ni);
+      let vo = 0, io = 0;
+      for (const o of b.list) {
+        const g = o.geometry, P = g.attributes.position, N = g.attributes.normal, U = g.attributes.uv;
+        m.multiplyMatrices(inv, o.matrixWorld);
+        n3.getNormalMatrix(m);
+        for (let i = 0; i < P.count; i++) {
+          const k = (vo + i) * 3;
+          v.fromBufferAttribute(P, i).applyMatrix4(m);
+          pos[k] = v.x;
+          pos[k + 1] = v.y;
+          pos[k + 2] = v.z;
+          if (N) {
+            v.fromBufferAttribute(N, i).applyMatrix3(n3).normalize();
+            nor[k] = v.x;
+            nor[k + 1] = v.y;
+            nor[k + 2] = v.z;
+          }
+          if (U) {
+            uv[(vo + i) * 2] = U.getX(i);
+            uv[(vo + i) * 2 + 1] = U.getY(i);
+          }
+        }
+        if (g.index) for (let i = 0; i < g.index.count; i++) idx[io++] = g.index.getX(i) + vo;
+        else for (let i = 0; i < P.count; i++) idx[io++] = vo + i;
+        vo += P.count;
+        o.parent.remove(o);
+        g.dispose();
+      }
+      const geo = new THREE.BufferGeometry();
+      geo.setAttribute("position", new THREE.BufferAttribute(pos, 3));
+      geo.setAttribute("normal", new THREE.BufferAttribute(nor, 3));
+      geo.setAttribute("uv", new THREE.BufferAttribute(uv, 2));
+      geo.setIndex(new THREE.BufferAttribute(idx, 1));
+      const mesh = new THREE.Mesh(geo, b.material);
+      mesh.castShadow = b.cast;
+      mesh.receiveShadow = b.receive;
+      mesh.name = "Decor_fusionne";
+      root.add(mesh);
+    }
+    return root;
   };
 
   /* ------------------------------------------------------------------ objets des autres joueurs */

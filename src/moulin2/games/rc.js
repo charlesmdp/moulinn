@@ -35,6 +35,7 @@
     for (const side of [-1, 1]) MF.box(0.02, 0.1, 0.06, MF.PAL.black, { x: side * 0.13, y: 0.255, z: -0.27, parent: body });
     MF.cyl(0.006, 0.006, 0.42, MF.PAL.steel, { x: 0.09, y: 0.44, z: -0.16, parent: body, seg: 5 });
     MF.box(0.1, 0.06, 0.004, paint, { x: 0.14, y: 0.62, z: -0.16, parent: body });
+    MF.freeze(body); // la caisse d'un seul bloc ; les roues restent mobiles
     const wheels = [];
     for (const [x, z, front] of [[-0.19, 0.19, 1], [0.19, 0.19, 1], [-0.19, -0.19, 0], [0.19, -0.19, 0]]) {
       const pivot = MF.group({ x, y: 0.085, z, parent: g });
@@ -80,7 +81,8 @@
       obstacles.add(7.4, -21.0, 1.3);
 
       /* ---------------------------------------------------------------- décor (une fois) */
-      group.add(MF.ribbon(world, path, { width: WIDTH, color: "#d9b77a", edgeColor: "#ffffff", edge: 0.2, stripes: true, lift: 0.06, name: "Piste_RC" }));
+      const deco = MF.group({ name: "Circuit_RC", parent: group });
+      deco.add(MF.ribbon(world, path, { width: WIDTH, color: "#d9b77a", edgeColor: "#ffffff", edge: 0.2, stripes: true, lift: 0.06, name: "Piste_RC" }));
       // ligne d'arrivée en damier et arche de départ
       const start = path.at(0);
       const startHeading = Math.atan2(start.tx, start.tz);
@@ -90,10 +92,10 @@
           c.fillRect((i * W) / 16, (j * Hh) / 4, W / 16 + 1, Hh / 4 + 1);
         }
       }), polygonOffset: true, polygonOffsetFactor: -4, polygonOffsetUnits: -8 }), { rx: -Math.PI / 2 });
-      const lineHolder = MF.group({ parent: group });
+      const lineHolder = MF.group({ parent: deco });
       lineHolder.add(line);
       MF.seat(lineHolder, world, start.x, start.z, startHeading, 0.09);
-      const arch = MF.group({ name: "Arche_depart_RC", x: start.x, y: H(start.x, start.z), z: start.z, ry: startHeading, parent: group });
+      const arch = MF.group({ name: "Arche_depart_RC", x: start.x, y: H(start.x, start.z), z: start.z, ry: startHeading, parent: deco });
       for (const side of [-1, 1]) {
         const p = MF.pole(3.0, { color: MF.PAL.red });
         p.position.x = side * (WIDTH / 2 + 0.55);
@@ -114,7 +116,7 @@
         // la face de la bâche regarde la piste
         b.position.set(x, H(x, z), z);
         b.rotation.y = Math.atan2(p.x - x, p.z - z);
-        group.add(b);
+        deco.add(b);
         for (const e of [-1, 1]) obstacles.add(x + Math.cos(b.rotation.y) * e * (w / 2), z - Math.sin(b.rotation.y) * e * (w / 2), 0.1);
       };
       banner("rc-bache-1", 5.5, -1);
@@ -125,10 +127,11 @@
       const tyres = (s, side) => {
         const p = path.at(s), off = side * (WIDTH / 2 + 0.35);
         const x = p.x - p.tz * off, z = p.z + p.tx * off, y = H(x, z);
-        for (let i = 0; i < 3; i++) MF.torus(0.17, 0.075, i % 2 ? MF.PAL.white : MF.PAL.black, { x, y: y + 0.08 + i * 0.15, z, rx: Math.PI / 2, parent: group, seg: 12, tubeSeg: 6 });
+        for (let i = 0; i < 3; i++) MF.torus(0.17, 0.075, i % 2 ? MF.PAL.white : MF.PAL.black, { x, y: y + 0.08 + i * 0.15, z, rx: Math.PI / 2, parent: deco, seg: 12, tubeSeg: 6 });
         obstacles.add(x, z, 0.26);
       };
       for (const s of [13, 15.5, 18, 67, 70, 73]) tyres(s, 1);
+      MF.freeze(deco);
 
       /* ---------------------------------------------------------------- voitures */
       let me = null; // ma voiture : { car, x, y, z, h, vx, vz, vy, air, s, dist, lap, steer, … }

@@ -18,9 +18,27 @@ LES ADRESSES DU SITE
           directement, sans mot de passe) ;
 /3D/      la même page avec la Vue 3D en plus ;
 /build/   la vue 3D et l'atelier Aménager ;
-/jeu/     le jeu « Pas touche à mes trésors » (seule façon d'y accéder).
+/jeu/     le jeu « Pas touche à mes trésors » (seule façon d'y accéder) ;
+/moulin2/ la Fête du Moulin : huit jeux multijoueurs dans le moulin 3D (page
+          publique, faite pour être partagée).
 /moulin/, /3D/ et /build/ ne sont pas indexées par les moteurs de recherche.
 Le mot de passe est une simple barrière (seule son empreinte est publiée).
+
+LA FETE DU MOULIN (/moulin2/)
+Le moulin 3D tel quel (rien n'est changé à la maison ni au terrain), avec huit
+jeux de fête foraine posés par-dessus, à jouer de 1 à 8 : course de voitures
+RC sur l'allée et la cour, course de bateaux sur le Grand étang, mini-golf de
+9 trous (chacun son tour, le plus loin du trou joue), stand de tir (60 s),
+pêche aux canards (75 s), auto-tamponneuses (90 s, avec des robots quand on
+est peu nombreux), lancer de citrouilles par-dessus l'étang intermédiaire,
+course de drones en vue embarquée autour du moulin.
+Multijoueur sans serveur : tous ceux qui ouvrent /moulin2/ au même moment se
+retrouvent dans le même salon ; /moulin2/?salon=mon-code ouvre un salon privé
+à partager, /moulin2/?jeu=rc mène droit à un jeu. Les navigateurs se parlent
+directement (WebRTC) après s'être trouvés par des relais publics.
+Sponsors : 31 emplacements (arches, bâches, toile de fond du tir, bouées,
+télécommandes…) décrits dans le fichier moulin2/sponsors.json ; un emplacement
+libre affiche « VOTRE MARQUE ICI ».
 
 NOUVEAUTES DE CETTE SERIE
 Le moulin passe à l'adresse /moulin/ ; la page / n'affiche plus qu'un mot de

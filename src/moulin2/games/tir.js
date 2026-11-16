@@ -60,6 +60,7 @@
       booth.add(title);
       booth.add(MF.sponsors.board("tir-fronton", 5.6, 0.62, { x: CX, y: Y0 + 3.36, z: COUNTER_Z - 0.76, ry: Math.PI, kicker: "Fronton du stand de tir" }));
       booth.add(MF.bunting({ x: CX - HALF, y: Y0 + 3.05, z: COUNTER_Z - 0.7 }, { x: CX + HALF, y: Y0 + 3.05, z: COUNTER_Z - 0.7 }, { sag: 0.3, size: 0.24 }));
+      MF.freeze(booth);
 
       /* ---------------------------------------------------------------- les cibles (réutilisées de vague en vague) */
       const targets = []; // { type, i, mesh, key, x, y, z, live }
@@ -85,6 +86,7 @@
           mesh = MF.mesh(new THREE.OctahedronGeometry(0.17), MF.mat(MF.PAL.yellow, { emissive: MF.PAL.yellow, emissiveIntensity: 0.6 }), { parent: group });
           mesh.scale.set(1, 1, 0.45);
         }
+        if (mesh.isGroup && type !== "o") MF.freeze(mesh);
         mesh.visible = false;
         targets.push({ type, i, mesh, key: "", x: 0, y: 0, z: 0, live: false });
       }

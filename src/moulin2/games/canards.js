@@ -39,6 +39,8 @@
     MF.box(0.14, 0.1, 0.34, "#6e4520", { y: 0.03, parent: shoe });
     MF.box(0.13, 0.2, 0.13, "#6e4520", { y: 0.14, z: -0.1, parent: shoe });
     const ring = MF.torus(0.065, 0.014, MF.PAL.white, { y: 0.33, z: 0.1, parent: g, seg: 12, tubeSeg: 5 });
+    MF.freeze(duck);
+    MF.freeze(shoe);
     return { group: g, duck, shoe, paint, ring };
   }
   /** Canne : une tige de la berge au bout, un fil, un hameçon ; le tout orienté à chaque image. */
@@ -88,6 +90,7 @@
       MF.mesh(new THREE.CylinderGeometry(R + 0.27, R + 0.27, 0.4, 40, 1, true), new THREE.MeshBasicMaterial({ map: bandTex }), { x: BX, y: Y0 + 0.26, z: BZ, parent: stand });
       // au centre : une petite roue de moulin qui fait tourner l'eau
       const wheel = MF.group({ x: BX, y: WY + 0.34, z: BZ, parent: stand });
+      wheel.userData.live = true; // elle tourne : à laisser hors du décor fusionné
       MF.cyl(0.32, 0.4, 0.5, MF.PAL.cream, { x: BX, y: WY + 0.2, z: BZ, parent: stand, seg: 10 });
       MF.cone(0.42, 0.34, MF.PAL.red, { x: BX, y: WY + 0.62, z: BZ, parent: stand, seg: 10 });
       for (let i = 0; i < 6; i++) MF.box(0.05, 0.16, 0.46, MF.PAL.wood, { x: Math.cos((i * Math.PI) / 3) * 0.55, z: Math.sin((i * Math.PI) / 3) * 0.55, ry: -(i * Math.PI) / 3, y: -0.3, parent: wheel });
@@ -104,6 +107,7 @@
       arch.add(MF.sign("PÊCHE AUX CANARDS", { w: 5.0, h: 0.7, bg: MF.PAL.blue, color: "#ffffff", border: MF.PAL.yellow, y: 3.05, z: 0.02 }));
       arch.add(MF.sponsors.board("canards-fronton", 4.6, 0.62, { y: 2.32, z: 0.02, kicker: "Fronton de la pêche aux canards" }));
       for (let i = 0; i < 5; i++) MF.sphere(0.16, [MF.PAL.pink, MF.PAL.yellow, MF.PAL.green, MF.PAL.orange, MF.PAL.purple][i], { x: -1.8 + i * 0.9, y: 1.78, z: 0.02, parent: arch, seg: 8 }); // lots
+      MF.freeze(stand);
 
       /* ---------------------------------------------------------------- les canards */
       const ducks = [];

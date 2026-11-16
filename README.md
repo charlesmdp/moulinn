@@ -18,15 +18,54 @@ hébergement statique en HTTPS). Les sources modifiables sont dans `src/`.
 | `/3D/` | La même page avec la **Vue 3D** en plus |
 | `/build/` | La vue 3D et l'atelier **Aménager** (page non indexée par les moteurs de recherche) |
 | `/jeu/` | Le jeu « Pas touche à mes trésors » (seule façon d'y accéder) |
+| `/moulin2/` | **La Fête du Moulin** : huit jeux de fête foraine multijoueurs dans le moulin 3D (page publique, indexée, faite pour être partagée) |
 
-`/Moulin`, `/3d`, `/Build` ou `/Jeu` (autres majuscules, avec ou sans « / »)
-mènent aux mêmes pages. Le mot de passe de `/` est une simple barrière : seule
+`/Moulin`, `/3d`, `/Build`, `/Jeu` ou `/Moulin2` (autres majuscules, avec ou
+sans « / ») mènent aux mêmes pages. Le mot de passe de `/` est une simple barrière : seule
 son empreinte est publiée, il se change dans `scripts/build.mjs`
 (`GATE_PASSWORD`), et `/moulin/` reste ouvert à qui connaît l'adresse ; pour
 qu'un moteur de recherche n'y mène pas tout droit, `/moulin/`, `/3D/` et
 `/build/` ne sont pas indexées. Rappel : les retouches faites dans l'atelier
 restent dans le navigateur qui les a faites ; `/build` évite surtout que les
 visiteurs tombent sur l'atelier.
+
+## La Fête du Moulin (`/moulin2/`)
+
+Le moulin 3D tel quel — rien n'est changé à la maison ni au terrain — avec, posés
+par-dessus comme une kermesse, huit jeux à jouer de 1 à 8, au clavier, à la
+souris ou au doigt :
+
+| Jeu | Où | Règle |
+| --- | --- | --- |
+| Course de voitures RC | allée, prairie, cour | 3 ou 5 tours d'un circuit de 116 m |
+| Course de bateaux | Grand étang | 3 ou 5 tours de 134 m autour de l'îlot |
+| Mini-golf | prairie est | 9 trous (ou 3), chacun son tour : le plus loin du trou joue |
+| Stand de tir | prairie est | 60 secondes : canettes, cibles mobiles, ballons |
+| Pêche aux canards | prairie est | 75 secondes, l'hameçon se balance |
+| Auto-tamponneuses | prairie est | 90 secondes, un point par choc donné ; des robots complètent la piste |
+| Lancer de citrouilles | rive de l'étang intermédiaire | 5 ou 8 tirs sur des cibles de l'autre côté de l'eau |
+| Course de drones FPV | autour du moulin | 2 ou 3 tours de 11 portes, vue embarquée |
+
+**Multijoueur sans serveur.** Tous ceux qui ouvrent `/moulin2/` au même moment
+sont dans le même salon public (12 personnes, puis un deuxième salon s'ouvre) ;
+`/moulin2/?salon=mon-code` ouvre un salon privé, `/moulin2/?jeu=rc` mène droit à
+un jeu. Les navigateurs se trouvent par des relais publics puis se parlent
+directement (WebRTC, bibliothèque Trystero) ; les onglets d'un même navigateur
+se voient même hors ligne. Chaque jeu a sa salle d'attente : n'importe quel
+inscrit lance la partie, les arrivants suivants regardent puis jouent la suivante.
+
+**Sponsors.** Chaque jeu a ses emplacements (arches, bâches le long des parcours,
+toile de fond du stand de tir, télécommandes, bouées, portes des drones… 31 en
+tout), décrits dans `src/static/moulin2/sponsors.json` : sans sponsor, un
+emplacement affiche « VOTRE MARQUE ICI ». Pour vendre un emplacement, renseigner
+`nom`, `accroche`, `lien`, couleurs et éventuellement `logo`, reconstruire et
+publier ; `contact` (texte et lien) alimente le bouton du panneau « Sponsors ».
+Exemple et liste complète : [`src/moulin2/CONCEPTION.md`](src/moulin2/CONCEPTION.md).
+
+**Mise au point.** `node scripts/labo.mjs` ouvre les mêmes jeux dans un terrain
+d'essai léger (`http://localhost:8090/`, deux onglets pour jouer à deux) ;
+`node tests/fete.test.mjs` vérifie le réseau et le déroulement des parties sans
+navigateur.
 
 ## Nouveautés de cette série
 

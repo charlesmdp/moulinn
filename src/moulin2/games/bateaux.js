@@ -31,6 +31,7 @@
     MF.box(0.12, 0.2, 0.14, MF.PAL.black, { y: 0.08, z: -0.44, parent: hull });
     MF.cyl(0.006, 0.006, 0.4, MF.PAL.steel, { y: 0.32, z: -0.3, parent: hull, seg: 5 });
     MF.box(0.004, 0.07, 0.12, paint, { y: 0.48, z: -0.37, parent: hull });
+    MF.freeze(hull);
     // sillage : un ruban blanc qui s'effile derrière le bateau (géométrie réutilisée à chaque image)
     const pos = new Float32Array(TRAIL * 2 * 3), idx = [];
     for (let i = 0; i < TRAIL - 1; i++) idx.push(i * 2, i * 2 + 1, i * 2 + 2, i * 2 + 1, i * 2 + 3, i * 2 + 2);
@@ -130,6 +131,7 @@
       sp.position.set(0.72, 0.42, 0.2);
       sp.rotation.y = Math.PI / 2;
       jetty.add(sp);
+      MF.freeze(deco);
 
       /* ---------------------------------------------------------------- bateaux */
       let me = null;

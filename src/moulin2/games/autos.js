@@ -27,6 +27,7 @@
     for (const side of [-1, 1]) MF.sphere(0.07, MF.mat(MF.PAL.yellow, { emissive: MF.PAL.yellow }), { x: side * 0.28, y: 0.32, z: 0.62, parent: g, seg: 6 });
     MF.cyl(0.02, 0.02, 1.9, MF.PAL.steel, { y: 1.3, z: -0.5, parent: g, seg: 5 });
     MF.box(0.3, 0.2, 0.01, paint, { x: 0.16, y: 2.14, z: -0.5, parent: g });
+    MF.freeze(g);
     const shadow = MF.blob(0.95, 0.35);
     shadow.position.y = 0.03;
     g.add(shadow);
@@ -81,6 +82,7 @@
       deco.add(MF.sponsors.board("autos-fronton", 5.0, 0.66, { x: A.x0 - 0.25, y: DY + 2.52, z: CZ, ry: -Math.PI / 2, kicker: "Fronton des auto-tamponneuses" }));
       deco.add(MF.sponsors.board("autos-bandeau", 7.6, 0.8, { x: A.x1 + 0.42, y: DY + 1.05, z: CZ, ry: -Math.PI / 2, kicker: "Bandeau de la piste" }));
       MF.box(0.08, 0.9, 7.8, MF.PAL.woodDark, { x: A.x1 + 0.48, y: DY + 1.05, z: CZ, parent: deco });
+      MF.freeze(deco);
 
       /* ---------------------------------------------------------------- autos */
       let me = null; // { car, x, z, h, vx, vz, stun, spin, turbo, cool, score }

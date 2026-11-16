@@ -32,7 +32,7 @@
     MF.sphere(0.24, MF.PAL.orange, { parent: g, seg: 10 }).scale.set(1, 0.8, 1);
     for (let i = 0; i < 6; i++) MF.sphere(0.11, "#ff9d3d", { x: Math.cos(i * 1.047) * 0.17, z: Math.sin(i * 1.047) * 0.17, parent: g, seg: 6 }).scale.set(1, 1.5, 1);
     MF.cyl(0.03, 0.04, 0.1, MF.PAL.green, { y: 0.2, parent: g, seg: 5 });
-    return g;
+    return MF.freeze(g);
   }
   /** Catapulte de fête : bâti en bois, bras qui bascule autour d'un axe, contrepoids. Avant vers −z. */
   function buildCatapult(color) {
@@ -46,12 +46,14 @@
     }
     MF.cyl(0.05, 0.05, 1.0, MF.PAL.steel, { y: 1.4, z: 0.02, rz: Math.PI / 2, parent: g, seg: 6 });
     const arm = MF.group({ y: 1.4, z: 0.02, parent: g });
+    arm.userData.live = true; // le bras bascule
     MF.box(0.09, 0.09, 2.3, MF.PAL.wood, { z: 0.45, parent: arm });
     MF.box(0.36, 0.36, 0.36, MF.mat(color), { z: -0.62, y: -0.1, parent: arm }); // contrepoids à la couleur du joueur
     MF.cyl(0.3, 0.22, 0.14, MF.PAL.woodDark, { z: 1.58, y: 0.08, parent: arm, seg: 10 }); // panier
     const load = buildPumpkin();
     load.position.set(0, 0.3, 1.58);
     arm.add(load);
+    MF.freeze(g);
     return { group: g, arm, load, swing: 0 };
   }
 
@@ -96,6 +98,7 @@
       sockPole.position.set(PAD.x + 9.6, H(PAD.x + 9.6, PAD.z - 1), PAD.z - 1);
       deco.add(sockPole);
       const sock = MF.group({ x: PAD.x + 9.6, y: sockPole.position.y + 3.3, z: PAD.z - 1, parent: deco });
+      sock.userData.live = true; // elle tourne avec le vent
       MF.cone(0.22, 1.3, MF.PAL.red, { z: 0.65, rx: -Math.PI / 2, parent: sock, seg: 8 });
       // cibles de la rive nord : disque à anneaux couché en arrière, sur un chevalet, bâche du sponsor dessous
       const ringTex = MF.canvasTexture(256, 256, (c, W) => {
@@ -127,6 +130,7 @@
       // bassines flottantes
       const rafts = RAFTS.map((r) => {
         const g = MF.group({ name: "Bassine_flottante", x: r.x, y: WL, z: r.z, parent: deco });
+        g.userData.live = true; // elle dérive
         MF.box(2.0, 0.14, 2.0, MF.PAL.wood, { y: 0.05, parent: g });
         MF.cyl(0.9, 0.78, 0.5, MF.PAL.red, { y: 0.36, parent: g, seg: 16, open: true });
         MF.cyl(0.78, 0.78, 0.04, MF.PAL.white, { y: 0.14, parent: g, seg: 16 });
@@ -134,6 +138,7 @@
         return Object.assign({ group: g, cx: r.x }, r);
       });
       const raftX = (r, t) => r.x + Math.sin(t * r.w + r.p) * r.a;
+      MF.freeze(deco);
 
       /* ---------------------------------------------------------------- catapultes, citrouilles, éclats */
       const pults = new Map(); // uid → catapulte (une par joueur de la partie)
