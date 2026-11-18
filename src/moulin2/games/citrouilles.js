@@ -59,17 +59,17 @@
 
   MF.registerGame({
     id: "citrouilles",
-    title: "Lancer de citrouilles",
+    title: "Pumpkin Toss",
     icon: "🎃",
     color: MF.PAL.orange,
-    blurb: "Catapulte par-dessus l'étang",
+    blurb: "Catapult across the pond",
     station: { x: PAD.x, z: PAD.z + 2.6, heading: Math.PI },
     kiosk: { x: PAD.x + 8.6, z: PAD.z + 2.2, heading: Math.PI },
     minPlayers: 1,
     maxPlayers: 8,
     maxTime: TIME_LIMIT + 30,
-    options: [{ key: "shots", label: "Citrouilles", values: [5, 8], default: 5, format: (v) => v + " tirs" }],
-    help: "← → : viser · ↑ ↓ : hausse · maintiens Espace (ou le clic) pour charger, relâche pour lancer. Attention au vent !",
+    options: [{ key: "shots", label: "Pumpkins", values: [5, 8], default: 5, format: (v) => v + " shots" }],
+    help: "← →: aim · ↑ ↓: elevation · hold Space (or click) to charge, release to launch. Mind the wind!",
     rank: (list) => list.slice().sort((a, b) => (b.score || 0) - (a.score || 0) || (a.name < b.name ? -1 : 1)),
     describe: (r) => (r.score || 0) + " points",
 
@@ -284,7 +284,7 @@
             me.power = 1;
             me.dir = -1;
           } else if (me.power <= 0.04 && me.dir < 0) me.dir = 1;
-          hud.gauge(me.power, "Puissance");
+          hud.gauge(me.power, "Power");
         } else if (me.charging) {
           me.charging = false;
           hud.gauge(null);
@@ -296,7 +296,7 @@
           me.left--;
           me.cool = 1.3;
           MF.sfx.play("swing");
-          if (me.left === 1) hud.flash("Dernière citrouille !", { color: MF.PAL.yellow });
+          if (me.left === 1) hud.flash("Last pumpkin!", { color: MF.PAL.yellow });
         }
         // bras de ma catapulte : il recule en chargeant
         if (!c.swing) c.arm.rotation.x = -0.5 - (me.charging ? me.power * 0.45 : 0);
@@ -344,9 +344,9 @@
           return { points: pts || 0, x: s.x, z: s.z };
         },
         enter() {
-          input.use({ layout: "pointer", buttons: [{ id: "a", label: "LANCER", key: "Espace" }] });
-          hud.stats([{ key: "score", label: "Score" }, { key: "left", label: "Citrouilles" }, { key: "wind", label: "Vent" }, { key: "time", label: "Temps" }]);
-          hud.hint(input.touch ? "Glisse pour viser · maintiens LANCER pour charger, relâche pour tirer" : "← → viser · ↑ ↓ hausse · maintiens Espace ou le clic pour charger, relâche pour lancer");
+          input.use({ layout: "pointer", buttons: [{ id: "a", label: "LAUNCH", key: "Space" }] });
+          hud.stats([{ key: "score", label: "Score" }, { key: "left", label: "Pumpkins" }, { key: "wind", label: "Wind" }, { key: "time", label: "Time" }]);
+          hud.hint(input.touch ? "Drag to aim · hold LAUNCH to charge, release to fire" : "← → aim · ↑ ↓ elevation · hold Space or click to charge, release to launch");
           sway = 0;
         },
         leave() {
@@ -392,7 +392,7 @@
             if (pts === null || !s.mine) continue;
             me.score += pts;
             session.send("score", me.score);
-            if (ctx.active()) hud.flash(pts >= 50 ? "Dans le mille ! +50" : pts ? "+" + pts : world.waterAt(s.x, s.z) ? "Plouf !" : "Raté…", { color: pts ? MF.PAL.yellow : "#ffffff", hold: 1.2 });
+            if (ctx.active()) hud.flash(pts >= 50 ? "Bullseye! +50" : pts ? "+" + pts : world.waterAt(s.x, s.z) ? "Splash!" : "Missed…", { color: pts ? MF.PAL.yellow : "#ffffff", hold: 1.2 });
             if (pts >= 30) MF.sfx.play("bravo");
           }
           for (const b of bits) {

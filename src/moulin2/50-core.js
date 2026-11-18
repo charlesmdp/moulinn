@@ -33,7 +33,7 @@
       const p = JSON.parse(localStorage.getItem(PROFILE_KEY));
       if (p && p.name) return { name: String(p.name).slice(0, 18), color: MF.PLAYER_COLORS.includes(p.color) ? p.color : MF.PLAYER_COLORS[0], known: true };
     } catch (e) {}
-    return { name: "Meunier " + (10 + Math.floor(Math.random() * 90)), color: MF.PLAYER_COLORS[Math.floor(Math.random() * MF.PLAYER_COLORS.length)], known: false };
+    return { name: "Miller " + (10 + Math.floor(Math.random() * 90)), color: MF.PLAYER_COLORS[Math.floor(Math.random() * MF.PLAYER_COLORS.length)], known: false };
   }
   function saveProfile(p) {
     try {
@@ -191,13 +191,13 @@
           rows: st.ranking.map((uid, i) => {
             const p = st.roster.find((q) => q.uid === uid) || { name: "?", color: "#888888" };
             const r = st.results[uid] || { dnf: true };
-            return { pos: i + 1, name: p.name, color: p.color, self: uid === net.self.uid, text: r.dnf ? "abandon" : def.describe ? def.describe(r, st.opts) : "" };
+            return { pos: i + 1, name: p.name, color: p.color, self: uid === net.self.uid, text: r.dnf ? "did not finish" : def.describe ? def.describe(r, st.opts) : "" };
           }),
         });
       }
       if (st && st.phase !== "lobby") {
         if (s.inRoster()) return null; // en pleine partie : pas de carte
-        return Object.assign(base, { kind: "watch", players, wait: "Partie en cours : tu joueras la prochaine." });
+        return Object.assign(base, { kind: "watch", players, wait: "Game in progress: you'll play the next one." });
       }
       const n = players.length;
       return Object.assign(base, {
@@ -206,15 +206,15 @@
         help: def.help,
         options: (def.options || []).map((o) => ({ key: o.key, label: o.label, values: o.values.map((v) => ({ value: v, text: o.format ? o.format(v) : String(v), on: !!st && st.opts[o.key] === v })) })),
         canStart: !!st && n >= (def.minPlayers || 1),
-        startText: n > 1 ? "Lancer la partie à " + Math.min(n, def.maxPlayers || 8) : "Jouer seul",
+        startText: n > 1 ? "Start with " + Math.min(n, def.maxPlayers || 8) + " players" : "Play solo",
         wait: !st
-          ? "Connexion à la partie…"
+          ? "Joining the game…"
           : n < (def.minPlayers || 1)
-            ? "Il faut au moins " + def.minPlayers + " joueurs."
+            ? "At least " + def.minPlayers + " players needed."
             : n > (def.maxPlayers || 8)
-              ? "Les " + def.maxPlayers + " premiers jouent, les autres regardent."
+              ? "The first " + def.maxPlayers + " play, the others watch."
               : n === 1
-                ? "D'autres joueurs peuvent te rejoindre tant que la partie n'est pas lancée."
+                ? "Other players can join until the game starts."
                 : "",
       });
     }
@@ -223,21 +223,21 @@
     }
     const doing = (game, state) => {
       const e = game && find(game);
-      if (!e) return "se promène";
-      return (state === "play" ? "joue : " : state === "watch" ? "regarde : " : state === "done" ? "a fini : " : "attend des joueurs : ") + e.def.title;
+      if (!e) return "walking around";
+      return (state === "play" ? "playing: " : state === "watch" ? "watching: " : state === "done" ? "finished: " : "waiting for players: ") + e.def.title;
     };
     function netText(st) {
-      if (st.direct === "arrêt") return "Jeu entre les onglets de ce navigateur uniquement.";
-      if (st.direct === "chargement") return "Connexion aux autres joueurs…";
-      if (st.direct === "indisponible") return "Connexion directe indisponible : tu joues seul ou entre onglets de ce navigateur.";
-      if (st.full) return "Ce salon est complet.";
-      return st.relays.total ? "Connexion directe entre joueurs · " + st.relays.up + " relais joignables sur " + st.relays.total : "Recherche d'autres joueurs…";
+      if (st.direct === "arrêt") return "Playing between tabs of this browser only.";
+      if (st.direct === "chargement") return "Connecting to other players…";
+      if (st.direct === "indisponible") return "Direct connection unavailable: you play solo or between tabs of this browser.";
+      if (st.full) return "This room is full.";
+      return st.relays.total ? "Peer-to-peer connection · " + st.relays.up + " of " + st.relays.total + " relays reachable" : "Looking for other players…";
     }
     function sponsorsModel() {
       const titles = Object.fromEntries(entries.map((e) => [e.def.id, e.def.title]));
       return {
         contact: MF.sponsors.contact(),
-        slots: MF.sponsors.all().map((s) => ({ label: s.label, group: titles[s.game] || "Toute la fête", taken: s.taken, name: s.name, url: s.url, price: s.price })),
+        slots: MF.sponsors.all().map((s) => ({ label: s.label, group: titles[s.game] || "Whole fair", taken: s.taken, name: s.name, url: s.url, price: s.price })),
       };
     }
     let uiTimer = 0;
@@ -274,7 +274,7 @@
           else if (r.state === "wait" && r.invited !== r.game && performance.now() - started > 4000) {
             r.invited = r.game;
             const e = find(r.game);
-            if (e) hud.toast(r.peer.name + " attend des joueurs : " + e.def.title, { hold: 7, action: { label: "Rejoindre", run: () => enter(e.def.id) } });
+            if (e) hud.toast(r.peer.name + " is waiting for players: " + e.def.title, { hold: 7, action: { label: "Join", run: () => enter(e.def.id) } });
           }
         }
     }
@@ -303,13 +303,13 @@
         if (value) MF.sfx.play("clic");
       } else if (action === "copy") {
         const link = inviteLink();
-        const done = () => hud.toast("Lien copié : envoie-le à tes amis");
+        const done = () => hud.toast("Link copied: send it to your friends");
         if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(link).then(done, () => hud.toast(link, { hold: 9 }));
         else hud.toast(link, { hold: 9 });
       } else if (action === "room") {
         if (active) leave();
         const code = MF.Net.cleanCode(value);
-        if (value !== null && !code) return hud.toast("Donne un nom au salon privé (lettres et chiffres)");
+        if (value !== null && !code) return hud.toast("Give the private room a name (letters and digits)");
         net.switchRoom(code || null);
         try {
           const url = new URL(location.href);
@@ -317,16 +317,16 @@
           else url.searchParams.delete("salon");
           history.replaceState(null, "", url.href);
         } catch (e) {}
-        hud.toast(code ? "Salon privé « " + code + " » : partage le lien d'invitation" : "Retour au salon public");
+        hud.toast(code ? "Private room “" + code + "”: share the invite link" : "Back to the public room");
       } else if (action === "panel" && value === "sponsors") hud.setSponsors(sponsorsModel());
       refreshUi();
     });
     net.onJoin((peer, changed) => {
-      if (!changed && performance.now() - started > 4000) hud.toast(peer.name + " arrive à la fête");
+      if (!changed && performance.now() - started > 4000) hud.toast(peer.name + " joined the fair");
       world.invalidate();
     });
     net.onLeave((peer, why) => {
-      if (why !== "changement de salon") hud.toast(peer.name + " s'en va");
+      if (why !== "changement de salon") hud.toast(peer.name + " left");
       world.invalidate();
     });
 
@@ -383,12 +383,12 @@
           if (t < 0) {
             const n = Math.ceil(-t);
             text = n > 3 ? "" : String(n);
-          } else if (t < 0.9) text = "Partez !";
+          } else if (t < 0.9) text = "Go!";
         }
         if (text !== lastCount) {
           lastCount = text;
           hud.countdown(text);
-          if (text) MF.sfx.play(text === "Partez !" ? "top" : "bip");
+          if (text) MF.sfx.play(text === "Go!" ? "top" : "bip");
         }
       } else {
         // près d'un stand ? (seulement en se promenant avec le personnage)

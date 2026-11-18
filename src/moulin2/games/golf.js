@@ -18,15 +18,15 @@
   // Emplacements en serpentin : [colonne, rangée, sens] (sens 1 : on joue vers l'est ; −1 : vers l'ouest)
   const PLACES = [[0, 0, 1], [1, 0, 1], [1, 1, -1], [0, 1, -1], [0, 2, 1], [1, 2, 1], [1, 3, -1], [0, 3, -1], [0, 4, 1]];
   const HOLES = [
-    { name: "L'échauffement", par: 2, tee: [0.9, 0], cup: [7.6, 0], circles: [[4.3, -0.78, 0.2], [4.3, 0.78, 0.2]] },
-    { name: "Le coude", par: 2, tee: [0.9, -0.6], cup: [7.6, -0.6], walls: [[4.3, -HW, 4.3, 0.3], [6.0, HW, 7.3, 0.25]] },
-    { name: "La roue à aubes", par: 3, tee: [0.9, 0], cup: [7.6, 0], wheel: { u: 4.3, v: 0, len: 0.98, w: 1.5 } },
-    { name: "Le petit pont", par: 3, tee: [0.9, 0.55], cup: [7.6, -0.5], water: [[3.7, -HW, 5.0, -0.27], [3.7, 0.27, 5.0, HW]], walls: [[3.7, -0.27, 5.0, -0.27], [3.7, 0.27, 5.0, 0.27]] },
-    { name: "Les meules", par: 3, tee: [0.9, 0], cup: [7.6, 0.2], circles: [[2.9, -0.4, 0.32], [4.3, 0.5, 0.32], [5.7, -0.35, 0.32], [4.3, -0.85, 0.2], [5.7, 0.8, 0.2]] },
-    { name: "La maison du moulin", par: 3, tee: [0.9, -0.5], cup: [7.6, 0.4], house: [4.0, 5.3, 0.2] },
-    { name: "La vanne", par: 3, tee: [0.9, 0], cup: [7.6, 0], walls: [[4.6, -HW, 4.6, -0.33], [4.6, 0.33, 4.6, HW]], gate: { u: 4.6, half: 0.33, open: 1.7, closed: 1.5 } },
-    { name: "Entre deux étangs", par: 3, tee: [0.9, -0.5], cup: [7.6, 0.5], ponds: [[3.3, -0.42, 0.7], [5.5, 0.42, 0.7]] },
-    { name: "Le moulin à vent", par: 4, tee: [0.9, 0.5], cup: [7.7, 0], walls: [[3.9, -HW, 3.9, -0.25], [3.9, 0.25, 3.9, HW], [5.6, -HW, 7.1, -0.32], [5.6, HW, 7.1, 0.32]], mill: { u: 3.9, half: 0.25, w: 1.15 } },
+    { name: "Warm-up", par: 2, tee: [0.9, 0], cup: [7.6, 0], circles: [[4.3, -0.78, 0.2], [4.3, 0.78, 0.2]] },
+    { name: "The Dogleg", par: 2, tee: [0.9, -0.6], cup: [7.6, -0.6], walls: [[4.3, -HW, 4.3, 0.3], [6.0, HW, 7.3, 0.25]] },
+    { name: "The Water Wheel", par: 3, tee: [0.9, 0], cup: [7.6, 0], wheel: { u: 4.3, v: 0, len: 0.98, w: 1.5 } },
+    { name: "The Little Bridge", par: 3, tee: [0.9, 0.55], cup: [7.6, -0.5], water: [[3.7, -HW, 5.0, -0.27], [3.7, 0.27, 5.0, HW]], walls: [[3.7, -0.27, 5.0, -0.27], [3.7, 0.27, 5.0, 0.27]] },
+    { name: "The Millstones", par: 3, tee: [0.9, 0], cup: [7.6, 0.2], circles: [[2.9, -0.4, 0.32], [4.3, 0.5, 0.32], [5.7, -0.35, 0.32], [4.3, -0.85, 0.2], [5.7, 0.8, 0.2]] },
+    { name: "The Mill House", par: 3, tee: [0.9, -0.5], cup: [7.6, 0.4], house: [4.0, 5.3, 0.2] },
+    { name: "The Sluice Gate", par: 3, tee: [0.9, 0], cup: [7.6, 0], walls: [[4.6, -HW, 4.6, -0.33], [4.6, 0.33, 4.6, HW]], gate: { u: 4.6, half: 0.33, open: 1.7, closed: 1.5 } },
+    { name: "Between Two Ponds", par: 3, tee: [0.9, -0.5], cup: [7.6, 0.5], ponds: [[3.3, -0.42, 0.7], [5.5, 0.42, 0.7]] },
+    { name: "The Windmill", par: 4, tee: [0.9, 0.5], cup: [7.7, 0], walls: [[3.9, -HW, 3.9, -0.25], [3.9, 0.25, 3.9, HW], [5.6, -HW, 7.1, -0.32], [5.6, HW, 7.1, 0.32]], mill: { u: 3.9, half: 0.25, w: 1.15 } },
   ];
   for (const h of HOLES) {
     if (h.house) {
@@ -39,22 +39,22 @@
 
   MF.registerGame({
     id: "golf",
-    title: "Mini-golf du moulin",
+    title: "Mill Mini-Golf",
     icon: "⛳",
     color: MF.PAL.green,
-    blurb: "9 trous · chacun son tour",
+    blurb: "9 holes · take turns",
     station: { x: 98, z: -4.5, heading: Math.PI / 2 },
     kiosk: { x: 98.4, z: -9.6, heading: Math.PI / 2 },
     minPlayers: 1,
     maxPlayers: 8,
     maxTime: 1500,
-    options: [{ key: "holes", label: "Parcours", values: [9, 3], default: 9, format: (v) => (v === 9 ? "9 trous" : "3 trous (rapide)") }],
-    help: "Tire en arrière depuis la balle comme un lance-pierre, puis relâche (ou ← → pour viser, maintiens Espace pour doser). Le plus loin du trou joue toujours le premier.",
+    options: [{ key: "holes", label: "Course", values: [9, 3], default: 9, format: (v) => (v === 9 ? "9 holes" : "3 holes (quick)") }],
+    help: "Pull back from the ball like a slingshot, then release (or ← → to aim, hold Space to set the power). The ball farthest from the hole always plays first.",
     rank: (list) => list.slice().sort((a, b) => (a.strokes ? 0 : 1) - (b.strokes ? 0 : 1) || (a.strokes || 0) - (b.strokes || 0) || (a.name < b.name ? -1 : 1)),
     describe: (r, opts) => {
-      if (!r.strokes) return "n'a pas fini";
+      if (!r.strokes) return "did not finish";
       const par = PAR.slice(0, (opts && opts.holes) || 9).reduce((a, b) => a + b, 0), d = r.strokes - par;
-      return r.strokes + " coups (" + (d > 0 ? "+" + d : d === 0 ? "par" : d) + ")";
+      return r.strokes + " strokes (" + (d > 0 ? "+" + d : d === 0 ? "par" : d) + ")";
     },
 
     create(ctx) {
@@ -265,7 +265,7 @@
           turnOf = who;
           turnSince = session.time();
           if (who === ctx.self.uid && ctx.active()) {
-            hud.flash("À toi de jouer !", { color: MF.PAL.yellow, hold: 1.2 });
+            hud.flash("Your turn!", { color: MF.PAL.yellow, hold: 1.2 });
             MF.sfx.play("ting");
           }
         }
@@ -393,7 +393,7 @@
           shoot(h, e, my.aim, my.power);
           my.power = 0;
         }
-        hud.gauge(my.drag || my.charging ? my.power : null, "Puissance");
+        hud.gauge(my.drag || my.charging ? my.power : null, "Power");
         // flèche de visée posée sur le feutre
         const len = 0.5 + (my.drag || my.charging ? my.power : 0.35) * 1.6;
         arrowG.visible = !my.rolling;
@@ -405,7 +405,7 @@
       }
       function verdict(n, par) {
         const d = n - par;
-        return n === 1 ? "Trou en un !" : d <= -2 ? "Eagle !" : d === -1 ? "Birdie !" : d === 0 ? "Par" : d === 1 ? "Bogey" : n + " coups";
+        return n === 1 ? "Hole in one!" : d <= -2 ? "Eagle!" : d === -1 ? "Birdie!" : d === 0 ? "Par" : d === 1 ? "Bogey" : n + " strokes";
       }
 
       return {
@@ -415,8 +415,8 @@
         my,
         roll,
         enter() {
-          input.use({ layout: "pointer", buttons: [{ id: "a", label: "FRAPPER", key: "Espace" }] });
-          hud.stats([{ key: "hole", label: "Trou" }, { key: "par", label: "Par" }, { key: "n", label: "Coups" }, { key: "tot", label: "Total" }]);
+          input.use({ layout: "pointer", buttons: [{ id: "a", label: "HIT", key: "Space" }] });
+          hud.stats([{ key: "hole", label: "Hole" }, { key: "par", label: "Par" }, { key: "n", label: "Strokes" }, { key: "tot", label: "Total" }]);
           sway = 0;
           snap = true;
         },
@@ -509,12 +509,12 @@
               session.send("coup", d);
               applyStroke(ctx.self.uid, d, st);
               if (water) {
-                hud.flash("Plouf ! +1 coup", { color: "#8fd3ff", hold: 1.4 });
+                hud.flash("Splash! +1 stroke", { color: "#8fd3ff", hold: 1.4 });
                 MF.sfx.play("plouf");
               } else if (d.holed) {
                 hud.flash(verdict(d.n, h.par), { color: MF.PAL.yellow, hold: 2 });
                 MF.sfx.play("trou");
-              } else if (d.n >= MAX_STROKES) hud.flash("Sept coups : on ramasse", { hold: 1.6 });
+              } else if (d.n >= MAX_STROKES) hud.flash("Seven strokes: pick up", { hold: 1.6 });
             }
           } else if (myGo) myTurn(dt, h, mine, st);
           else arrowG.visible = false;
@@ -577,10 +577,10 @@
           hud.set("tot", e ? total(e) : "–");
           const who = st.roster.find((p) => p.uid === turnOf);
           const left = Math.ceil(TURN_LIMIT - (session.time() - turnSince));
-          hud.hint(holeEnd ? "Trou terminé : " + h.name : myGo ? (my.rolling ? "" : (input.touch ? "Tire en arrière depuis la balle, relâche pour frapper" : "Tire en arrière à la souris et relâche · ou ← → et Espace maintenu") + (left <= 15 ? " · encore " + left + " s" : "")) : who ? who.name + " joue…" : "");
+          hud.hint(holeEnd ? "Hole complete: " + h.name : myGo ? (my.rolling ? "" : (input.touch ? "Pull back from the ball, release to hit" : "Pull back with the mouse and release · or ← → and hold Space") + (left <= 15 ? " · " + left + " s left" : "")) : who ? who.name + " is playing…" : "");
           if (time - lastBoard > 0.4) {
             lastBoard = time;
-            hud.board(st.roster.map((p) => ({ p, e: table.get(p.uid) })).filter((r) => r.e).sort((a, b) => total(a.e) - total(b.e)).map((r) => ({ name: r.p.name, color: r.p.color, self: r.p.uid === ctx.self.uid, text: r.e.gone ? "parti" : total(r.e) + (r.p.uid === turnOf ? " ●" : "") })));
+            hud.board(st.roster.map((p) => ({ p, e: table.get(p.uid) })).filter((r) => r.e).sort((a, b) => total(a.e) - total(b.e)).map((r) => ({ name: r.p.name, color: r.p.color, self: r.p.uid === ctx.self.uid, text: r.e.gone ? "left" : total(r.e) + (r.p.uid === turnOf ? " ●" : "") })));
           }
           return true;
         },

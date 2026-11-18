@@ -41,18 +41,18 @@
 
   MF.registerGame({
     id: "autos",
-    title: "Auto-tamponneuses",
+    title: "Bumper Cars",
     icon: "💥",
     color: MF.PAL.purple,
-    blurb: "1 à 8 pilotes · 90 secondes de chocs",
+    blurb: "1–8 drivers · 90 seconds of mayhem",
     station: { x: 78, z: -5.5, heading: Math.PI / 2 },
     kiosk: { x: 78.6, z: -0.6, heading: Math.PI / 2 },
     minPlayers: 1,
     maxPlayers: 8,
     maxTime: DURATION + 20,
-    help: "Flèches ou ZQSD : conduire · Espace : turbo. Percute les autres avec ton avant pour marquer ; évite de te faire prendre de côté !",
+    help: "Arrows or WASD: drive · Space: turbo. Ram the others with your nose to score; don't get hit from the side!",
     rank: (list) => list.slice().sort((a, b) => (b.score || 0) - (a.score || 0) || (a.name < b.name ? -1 : 1)),
-    describe: (r) => (r.score || 0) + (r.score > 1 ? " chocs" : " choc"),
+    describe: (r) => (r.score || 0) + (r.score === 1 ? " hit" : " hits"),
 
     create(ctx) {
       const { world, session, hud, input, group, camera } = ctx;
@@ -78,9 +78,9 @@
       }
       for (let i = 0; i < 4; i++) deco.add(MF.bunting(tops[i], tops[(i + 1) % 4], { sag: 0.45, size: 0.34 }));
       // fronton au-dessus de l'entrée (côté ouest, face au stand) et bandeau le long du côté est
-      deco.add(MF.sign("AUTO-TAMPONNEUSES", { w: 5.4, h: 0.7, bg: MF.PAL.purple, color: "#ffffff", border: MF.PAL.yellow, x: A.x0 - 0.25, y: DY + 3.25, z: CZ, ry: -Math.PI / 2 }));
-      deco.add(MF.sponsors.board("autos-fronton", 5.0, 0.66, { x: A.x0 - 0.25, y: DY + 2.52, z: CZ, ry: -Math.PI / 2, kicker: "Fronton des auto-tamponneuses" }));
-      deco.add(MF.sponsors.board("autos-bandeau", 7.6, 0.8, { x: A.x1 + 0.42, y: DY + 1.05, z: CZ, ry: -Math.PI / 2, kicker: "Bandeau de la piste" }));
+      deco.add(MF.sign("BUMPER CARS", { w: 5.4, h: 0.7, bg: MF.PAL.purple, color: "#ffffff", border: MF.PAL.yellow, x: A.x0 - 0.25, y: DY + 3.25, z: CZ, ry: -Math.PI / 2 }));
+      deco.add(MF.sponsors.board("autos-fronton", 5.0, 0.66, { x: A.x0 - 0.25, y: DY + 2.52, z: CZ, ry: -Math.PI / 2, kicker: "Bumper cars front sign" }));
+      deco.add(MF.sponsors.board("autos-bandeau", 7.6, 0.8, { x: A.x1 + 0.42, y: DY + 1.05, z: CZ, ry: -Math.PI / 2, kicker: "Arena banner" }));
       MF.box(0.08, 0.9, 7.8, MF.PAL.woodDark, { x: A.x1 + 0.48, y: DY + 1.05, z: CZ, parent: deco });
       MF.freeze(deco);
 
@@ -157,7 +157,7 @@
           me.spinV = 11 * (Math.random() < 0.5 ? -1 : 1);
           shake = 0.4;
           if (ctx.active()) {
-            hud.flash("Aïe !", { color: MF.PAL.red, hold: 0.8 });
+            hud.flash("Ouch!", { color: MF.PAL.red, hold: 0.8 });
             MF.sfx.play("boing");
           }
         } else if (d.to.startsWith("bot:") && session.isHost()) {
@@ -328,7 +328,7 @@
               me.stun = 0.8;
               me.spinV = 11;
               shake = 0.4;
-              hud.flash("Aïe !", { color: MF.PAL.red, hold: 0.8 });
+              hud.flash("Ouch!", { color: MF.PAL.red, hold: 0.8 });
               MF.sfx.play("boing");
             });
           }
@@ -350,9 +350,9 @@
         remotes,
         arena: A,
         enter() {
-          input.use({ layout: "pilot", buttons: [{ id: "a", label: "TURBO", key: "Espace" }] });
-          hud.stats([{ key: "score", label: "Chocs" }, { key: "time", label: "Temps" }, { key: "turbo", label: "Turbo" }]);
-          hud.hint(input.touch ? "Manette : conduire · TURBO pour foncer" : "Flèches ou ZQSD : conduire · Espace : turbo");
+          input.use({ layout: "pilot", buttons: [{ id: "a", label: "TURBO", key: "Space" }] });
+          hud.stats([{ key: "score", label: "Hits" }, { key: "time", label: "Time" }, { key: "turbo", label: "Turbo" }]);
+          hud.hint(input.touch ? "Stick: drive · TURBO to charge" : "Arrows or WASD: drive · Space: turbo");
           sway = 0;
         },
         leave: despawn,
@@ -386,7 +386,7 @@
             if (go && S.hit.a && me.cool <= 0) {
               me.turbo = 1.2;
               me.cool = 5;
-              hud.flash("Turbo !", { color: MF.PAL.yellow, hold: 0.7 });
+              hud.flash("Turbo!", { color: MF.PAL.yellow, hold: 0.7 });
               MF.sfx.play("swing");
             }
             move(me, go ? S.y : 0, go ? S.x : 0, dt, C.vmax * (me.turbo > 0 ? 1.5 : 1));
@@ -396,7 +396,7 @@
               immune.set(o.id, t);
               me.score++;
               session.send("choc", { to: o.id, x: Math.round(dx * 100) / 100, z: Math.round(dz * 100) / 100, v: Math.round(v * 10) / 10 });
-              hud.flash("BOUM ! +1", { color: MF.PAL.yellow, hold: 0.8 });
+              hud.flash("BOOM! +1", { color: MF.PAL.yellow, hold: 0.8 });
               MF.sfx.play("choc");
             });
             me.car.group.position.set(me.x, DY, me.z);
@@ -407,10 +407,10 @@
             const left = Math.max(0, DURATION - Math.max(0, t));
             hud.set("score", me.score);
             hud.set("time", Math.ceil(left) + " s");
-            hud.set("turbo", me.cool <= 0 ? "prêt" : Math.ceil(me.cool) + " s");
+            hud.set("turbo", me.cool <= 0 ? "ready" : Math.ceil(me.cool) + " s");
             if (running && left < 10 && !warned) {
               warned = true;
-              hud.flash("Plus que 10 secondes !", { color: MF.PAL.yellow });
+              hud.flash("10 seconds left!", { color: MF.PAL.yellow });
             }
             if (phase === "run" && t >= DURATION && !reported) {
               reported = true;

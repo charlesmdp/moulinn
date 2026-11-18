@@ -88,7 +88,7 @@ test("deux onglets du même salon se découvrent, avec nom et couleur", () => {
   run([a, b], 0.5);
   eq(a.net.peers.size, 1);
   eq([...b.net.peers.values()][0].name, "Alice");
-  eq(a.net.status().label, "Salon public n° 1");
+  eq(a.net.status().label, "Public room #1");
   a.net.close();
   b.net.close();
 });

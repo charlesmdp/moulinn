@@ -7,7 +7,8 @@
 //  src/app/moulin.js       jeu complet (V31 dé-minifiée, avec les points d'accroche V32)
 //  src/styles/*.css        base.css puis les feuilles V32 (ordre alphabétique)
 //  src/moulin2/            « La Fête du Moulin » (/moulin2/) : jeux multijoueurs posés sur le moulin 3D
-//                          (NN-*.js, puis games/*.js, puis 99-host-moulin.js ; arcade.css ; p2p-entry.mjs)
+//                          (NN-*.js, puis games/*.js, puis 99-host-moulin.js ; arcade.css ; p2p-entry.mjs).
+//                          Cette page est en anglais : 02-anglais.js traduit aussi l'habillage du moulin.
 //  src/static/             ressources inchangées (déjà nommées d'après leur contenu)
 //
 // Le résultat est préparé dans .build/dist puis remplace dist/ d'un seul coup.
@@ -17,6 +18,7 @@ import crypto from "node:crypto";
 import fs from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import vm from "node:vm";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const src = path.join(root, "src");
@@ -107,6 +109,33 @@ async function main() {
     await transform(await fs.readFile(file, "utf8"), { loader: "js", sourcefile: path.relative(root, file) }).catch((error) => {
       throw new Error(error.message);
     });
+  // /moulin2 est en anglais : le dictionnaire de 02-anglais.js (le même que dans le navigateur) sert
+  // ici à traduire le HTML de la page, pour que l'écran de chargement soit déjà en anglais.
+  const anglaisBox = {};
+  vm.runInNewContext(await fs.readFile(path.join(feteDir, "02-anglais.js"), "utf8"), anglaisBox);
+  const anglais = anglaisBox.MoulinFeteAnglais;
+  const htmlDecode = (s) => s.replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&nbsp;/g, "\u00a0").replace(/&amp;/g, "&");
+  const htmlEncode = (s, attribute) => {
+    const text = s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+    return attribute ? text.replace(/"/g, "&quot;") : text;
+  };
+  const englishPage = (page) =>
+    page
+      .split(/(<script\b[\s\S]*?<\/script>|<style\b[\s\S]*?<\/style>)/)
+      .map((part, i) =>
+        i % 2
+          ? part
+          : part
+              .replace(/(?<=\s)(title|aria-label|placeholder|alt)="([^"]*)"/g, (all, name, value) => {
+                const t = anglais.translate(htmlDecode(value), true);
+                return t === null ? all : `${name}="${htmlEncode(t, true)}"`;
+              })
+              .replace(/>([^<>]+)</g, (all, text) => {
+                const t = anglais.translate(htmlDecode(text), false);
+                return t === null ? all : ">" + htmlEncode(t) + "<";
+              }),
+      )
+      .join("");
   // Connexion directe entre navigateurs (Trystero, licence MIT) : fichier à part, chargé à la demande.
   const p2p = await build({ entryPoints: [path.join(feteDir, "p2p-entry.mjs")], bundle: true, format: "iife", minify: true, target, write: false, legalComments: "none", logLevel: "warning" });
   const p2pFile = await emit("p2p", "js", "/* Trystero 0.27 — https://github.com/dmotz/trystero — licence MIT (voir LICENCES.txt) */\n" + p2p.outputFiles[0].text, report);
@@ -154,9 +183,12 @@ async function main() {
         .replace("<head>", '<head>\n<base href="../">' + (route === "moulin2" ? "" : '\n<meta name="robots" content="noindex,nofollow">'));
     }
     if (route === "moulin2") {
-      // La fête est publique (indexée, partageable) : son titre, sa description, ses styles.
-      const title = "La Fête du Moulin · 8 jeux multijoueurs dans un jardin 3D";
-      const description = "Courses de voitures RC, de bateaux et de drones, mini-golf, stand de tir, pêche aux canards, auto-tamponneuses, lancer de citrouilles : huit jeux de fête foraine à jouer de 1 à 8, directement dans le navigateur, dans le jardin 3D d'un moulin breton.";
+      // La fête est publique (indexée, partageable) et en anglais : textes de la page, titre,
+      // description, styles.
+      page = englishPage(page).replace('<html lang="fr" data-route="moulin2">', '<html lang="en" data-route="moulin2">');
+      if (!page.includes('<html lang="en" data-route="moulin2">')) throw new Error("En-tête de index.html inattendu (langue)");
+      const title = "The Mill Fair · 8 multiplayer games in a 3D garden";
+      const description = "RC car, boat and drone races, mini-golf, a shooting gallery, hook-a-duck, bumper cars and pumpkin tossing: eight fairground games for 1 to 8 players, right in your browser, in the 3D garden of an old watermill in Brittany.";
       const swap = (pattern, text) => {
         if (!pattern.test(page)) throw new Error("En-tête de index.html inattendu (" + pattern + ")");
         page = page.replace(pattern, text);

@@ -195,7 +195,7 @@
   function create(options = {}) {
     const BC = options.BroadcastChannel || globalThis.BroadcastChannel;
     const now = options.now || (() => Date.now());
-    const self = { uid: options.uid || MF.uid(10), name: options.name || "Meunier", color: options.color || MF.PLAYER_COLORS[0] };
+    const self = { uid: options.uid || MF.uid(10), name: options.name || "Miller", color: options.color || MF.PLAYER_COLORS[0] };
     const peers = new Map();
     const handlers = new Map();
     const joinFns = [], leaveFns = [], statusFns = [];
@@ -280,7 +280,7 @@
       if (env.t === "hello") {
         const d = env.d || {};
         const changed = peer.name !== d.name || peer.color !== d.color;
-        peer.name = String(d.name || "Meunier").slice(0, 18);
+        peer.name = String(d.name || "Miller").slice(0, 18);
         peer.color = /^#[0-9a-f]{6}$/i.test(d.color) ? d.color : "#888888";
         if (peer.fresh) {
           peer.fresh = false;
@@ -367,7 +367,7 @@
       onLeave: (fn) => leaveFns.push(fn),
       onStatus: (fn) => statusFns.push(fn),
       setProfile(profile) {
-        if (profile.name !== undefined) self.name = String(profile.name).trim().slice(0, 18) || "Meunier";
+        if (profile.name !== undefined) self.name = String(profile.name).trim().slice(0, 18) || "Miller";
         if (profile.color !== undefined) self.color = profile.color;
         hello(false);
       },
@@ -375,7 +375,7 @@
         const relays = direct ? direct.relays() : { total: 0, up: 0 };
         return {
           room: roomId,
-          label: isPrivate ? "Salon privé « " + base.slice(6) + " »" : "Salon public n° " + roomIndex,
+          label: isPrivate ? "Private room “" + base.slice(6) + "”" : "Public room #" + roomIndex,
           code: isPrivate ? base.slice(6) : null,
           isPrivate,
           direct: direct ? direct.state : "arrêt",

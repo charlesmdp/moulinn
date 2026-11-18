@@ -52,18 +52,18 @@
 
   MF.registerGame({
     id: "bateaux",
-    title: "Course de bateaux télécommandés",
+    title: "RC Boat Race",
     icon: "🚤",
     color: MF.PAL.blue,
-    blurb: "1 à 8 skippers · 3 ou 5 tours",
+    blurb: "1–8 skippers · 3 or 5 laps",
     station: { x: -10, z: 14.6, heading: 0 },
     minPlayers: 1,
     maxPlayers: 8,
     maxTime: 300,
-    options: [{ key: "laps", label: "Nombre de tours", values: [3, 5], default: 3, format: (v) => v + " tours" }],
-    help: "Flèches ou ZQSD : gaz et gouvernail (il n'agit qu'avec de la vitesse) · C : se replacer dans le chenal.",
+    options: [{ key: "laps", label: "Laps", values: [3, 5], default: 3, format: (v) => v + " laps" }],
+    help: "Arrows or WASD: throttle and rudder (it only bites with speed) · C: back in the channel.",
     rank: (list) => list.slice().sort((a, b) => (a.time ? 0 : 1) - (b.time ? 0 : 1) || (a.time || 0) - (b.time || 0) || (b.dist || 0) - (a.dist || 0)),
-    describe: (r) => (r.time ? MF.time(r.time) : "n'a pas fini"),
+    describe: (r) => (r.time ? MF.time(r.time) : "did not finish"),
 
     create(ctx) {
       const { world, session, hud, input, group, camera } = ctx;
@@ -94,7 +94,7 @@
         }
       }
       // grosses bouées de virage, à l'intérieur des virages, au nom du sponsor
-      const buoyTex = MF.sponsors.texture("bateaux-bouees", { w: 2.4, h: 0.6, kicker: "Bouée" });
+      const buoyTex = MF.sponsors.texture("bateaux-bouees", { w: 2.4, h: 0.6, kicker: "Buoy" });
       const buoyMat = new world.THREE.MeshBasicMaterial({ map: buoyTex });
       const bigBuoy = (s, side, n) => {
         const p = path.at(s);
@@ -120,7 +120,7 @@
         f.add(pole);
         marks.push({ x: start.x - start.tz * side * (WIDTH / 2 + 0.9), z: start.z + start.tx * side * (WIDTH / 2 + 0.9), r: 0.5 });
       }
-      const title = MF.sign("DÉPART", { w: WIDTH + 1.4, h: 0.6, bg: MF.PAL.blue, color: "#ffffff", border: "#ffffff", double: true });
+      const title = MF.sign("START", { w: WIDTH + 1.4, h: 0.6, bg: MF.PAL.blue, color: "#ffffff", border: "#ffffff", double: true });
       title.position.y = 2.6;
       gate.add(title);
       // ponton de bois au pied de la terrasse, avec la banderole du sponsor tournée vers la course
@@ -316,9 +316,9 @@
         boat: () => me,
         remotes,
         enter() {
-          input.use({ layout: "radio", radio: { kicker: "TÉLÉCOMMANDE", brand: MF.sponsors.brand("bateaux-telecommande") }, buttons: [{ id: "c", label: "REPLACER", key: "C" }] });
-          hud.stats([{ key: "lap", label: "Tour" }, { key: "time", label: "Temps" }, { key: "pos", label: "Place" }]);
-          hud.hint(input.touch ? "Manette de gauche : gaz · manette de droite : gouvernail" : "Flèches ou ZQSD : gaz et gouvernail · C : se replacer");
+          input.use({ layout: "radio", radio: { kicker: "REMOTE CONTROL", brand: MF.sponsors.brand("bateaux-telecommande") }, buttons: [{ id: "c", label: "RESET", key: "C" }] });
+          hud.stats([{ key: "lap", label: "Lap" }, { key: "time", label: "Time" }, { key: "pos", label: "Position" }]);
+          hud.hint(input.touch ? "Left stick: throttle · right stick: rudder" : "Arrows or WASD: throttle and rudder · C: reset");
           sway = 0;
         },
         leave: despawn,
@@ -346,7 +346,7 @@
             if (!finished && phase === "run") {
               if (me.lap !== lap && me.dist > 1) {
                 if (me.lap !== undefined && lap > me.lap) {
-                  hud.flash(lap === laps ? "Dernier tour !" : "Tour " + lap + " / " + laps, { color: lap === laps ? MF.PAL.yellow : "#ffffff" });
+                  hud.flash(lap === laps ? "Final lap!" : "Lap " + lap + " / " + laps, { color: lap === laps ? MF.PAL.yellow : "#ffffff" });
                   MF.sfx.play("tour");
                 }
                 me.lap = lap;
@@ -354,12 +354,12 @@
               if (me.dist >= laps * L) {
                 finished = true;
                 const before = ranking().filter((r) => r.time).length;
-                hud.flash(before ? "Arrivée ! " + (before + 1) + "ᵉ" : "Arrivée ! 1ᵉʳ", { color: MF.PAL.yellow, hold: 3 });
+                hud.flash("Finished! " + MF.ordinal(before + 1), { color: MF.PAL.yellow, hold: 3 });
                 session.report({ time: Math.round(t * 1000) / 1000, dist: Math.round(me.dist) });
               } else {
                 if (!graceEnd && Object.values(st.results).some((r) => r && r.time)) {
                   graceEnd = t + GRACE;
-                  hud.flash("Le premier est arrivé : encore " + GRACE + " s", { hold: 2.5 });
+                  hud.flash("First finisher is in: " + GRACE + " s left", { hold: 2.5 });
                 }
                 if (graceEnd && t > graceEnd) {
                   finished = true;
@@ -377,7 +377,7 @@
               lastBoard = time;
               const rows = ranking();
               hud.set("pos", rows.findIndex((r) => r.self) + 1 + " / " + rows.length);
-              hud.board(rows.map((r) => ({ name: r.name, color: r.color, self: r.self, text: r.time ? MF.time(r.time, 1) : r.gone ? "–" : "tour " + MF.clamp(Math.floor(Math.max(0, r.dist) / L) + 1, 1, laps) })));
+              hud.board(rows.map((r) => ({ name: r.name, color: r.color, self: r.self, text: r.time ? MF.time(r.time, 1) : r.gone ? "–" : "lap " + MF.clamp(Math.floor(Math.max(0, r.dist) / L) + 1, 1, laps) })));
             }
           } else {
             if (engine) {

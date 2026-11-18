@@ -57,19 +57,19 @@
 
   MF.registerGame({
     id: "rc",
-    title: "Course de voitures RC",
+    title: "RC Car Race",
     icon: "🏎️",
     color: MF.PAL.red,
-    blurb: "1 à 8 pilotes · 3 ou 5 tours",
+    blurb: "1–8 drivers · 3 or 5 laps",
     station: { x: 4.5, z: -58, heading: -Math.PI / 2 },
     minPlayers: 1,
     maxPlayers: 8,
     maxTime: 300,
-    options: [{ key: "laps", label: "Nombre de tours", values: [3, 5], default: 3, format: (v) => v + " tours" }],
-    help: "Flèches ou ZQSD : accélérer, freiner, tourner · Espace : frein à main (dérapage) · C : se replacer sur la piste.",
+    options: [{ key: "laps", label: "Laps", values: [3, 5], default: 3, format: (v) => v + " laps" }],
+    help: "Arrows or WASD: accelerate, brake, steer · Space: handbrake (drift) · C: back on track.",
     // Arrivés d'abord (au temps), puis les autres selon la distance parcourue.
     rank: (list) => list.slice().sort((a, b) => (a.time ? 0 : 1) - (b.time ? 0 : 1) || (a.time || 0) - (b.time || 0) || (b.dist || 0) - (a.dist || 0)),
-    describe: (r) => (r.time ? MF.time(r.time) : "n'a pas fini"),
+    describe: (r) => (r.time ? MF.time(r.time) : "did not finish"),
 
     create(ctx) {
       const { world, session, hud, input, group, camera } = ctx;
@@ -105,10 +105,10 @@
         arch.add(p);
         obstacles.add(start.x - start.tz * side * (WIDTH / 2 + 0.55), start.z + start.tx * side * (WIDTH / 2 + 0.55), 0.12);
       }
-      const title = MF.sign("DÉPART", { w: 1.5, h: 0.42, bg: MF.PAL.yellow, color: MF.PAL.ink, double: true });
+      const title = MF.sign("START", { w: 1.5, h: 0.42, bg: MF.PAL.yellow, color: MF.PAL.ink, double: true });
       title.position.y = 3.08;
       arch.add(title);
-      for (const face of [0, Math.PI]) arch.add(MF.sponsors.board("rc-arche", WIDTH + 0.9, 0.66, { y: 2.5, z: face ? -0.02 : 0.02, ry: face, kicker: "Arche de départ" }));
+      for (const face of [0, Math.PI]) arch.add(MF.sponsors.board("rc-arche", WIDTH + 0.9, 0.66, { y: 2.5, z: face ? -0.02 : 0.02, ry: face, kicker: "Start arch" }));
       // bâches de sponsors, à l'extérieur des virages et le long de la ligne droite
       const banner = (id, s, side, w = 3.6) => {
         const p = path.at(s);
@@ -309,9 +309,9 @@
         car: () => me,
         remotes,
         enter() {
-          input.use({ layout: "radio", radio: { kicker: "TÉLÉCOMMANDE", brand: MF.sponsors.brand("rc-telecommande") }, buttons: [{ id: "a", label: "FREIN", key: "Espace" }, { id: "c", label: "REPLACER", key: "C" }] });
-          hud.stats([{ key: "lap", label: "Tour" }, { key: "time", label: "Temps" }, { key: "pos", label: "Place" }]);
-          hud.hint(input.touch ? "Manette de gauche : gaz · manette de droite : direction" : "Flèches ou ZQSD : piloter · Espace : frein à main · C : se replacer");
+          input.use({ layout: "radio", radio: { kicker: "REMOTE CONTROL", brand: MF.sponsors.brand("rc-telecommande") }, buttons: [{ id: "a", label: "BRAKE", key: "Space" }, { id: "c", label: "RESET", key: "C" }] });
+          hud.stats([{ key: "lap", label: "Lap" }, { key: "time", label: "Time" }, { key: "pos", label: "Position" }]);
+          hud.hint(input.touch ? "Left stick: throttle · right stick: steering" : "Arrows or WASD: drive · Space: handbrake · C: reset");
           sway = 0;
         },
         leave() {
@@ -346,7 +346,7 @@
             if (!finished && phase === "run") {
               if (me.lap !== lap && me.dist > 1) {
                 if (me.lap !== undefined && lap > me.lap) {
-                  hud.flash(lap === laps ? "Dernier tour !" : "Tour " + lap + " / " + laps, { color: lap === laps ? MF.PAL.yellow : "#ffffff" });
+                  hud.flash(lap === laps ? "Final lap!" : "Lap " + lap + " / " + laps, { color: lap === laps ? MF.PAL.yellow : "#ffffff" });
                   MF.sfx.play("tour");
                 }
                 me.lap = lap;
@@ -354,14 +354,14 @@
               if (me.dist >= laps * L) {
                 finished = true;
                 const rows = ranking().filter((r) => r.time);
-                hud.flash(rows.length ? "Arrivée ! " + (rows.length + 1) + "ᵉ" : "Arrivée ! 1ᵉʳ", { color: MF.PAL.yellow, hold: 3 });
+                hud.flash("Finished! " + MF.ordinal(rows.length + 1), { color: MF.PAL.yellow, hold: 3 });
                 session.report({ time: Math.round(t * 1000) / 1000, dist: Math.round(me.dist) });
               } else {
                 // le premier est arrivé : il reste 30 secondes aux autres
                 const first = Object.values(st.results).some((r) => r && r.time);
                 if (first && !graceEnd) {
                   graceEnd = t + GRACE;
-                  hud.flash("Le premier est arrivé : encore " + GRACE + " s", { hold: 2.5 });
+                  hud.flash("First finisher is in: " + GRACE + " s left", { hold: 2.5 });
                 }
                 if (graceEnd && t > graceEnd) {
                   finished = true;
@@ -378,7 +378,7 @@
               lastBoard = time;
               const rows = ranking();
               hud.set("pos", rows.findIndex((r) => r.self) + 1 + " / " + rows.length);
-              hud.board(rows.map((r) => ({ name: r.name, color: r.color, self: r.self, text: r.time ? MF.time(r.time, 1) : r.gone ? "–" : "tour " + MF.clamp(Math.floor(Math.max(0, r.dist) / L) + 1, 1, laps) })));
+              hud.board(rows.map((r) => ({ name: r.name, color: r.color, self: r.self, text: r.time ? MF.time(r.time, 1) : r.gone ? "–" : "lap " + MF.clamp(Math.floor(Math.max(0, r.dist) / L) + 1, 1, laps) })));
             }
           } else {
             // salle d'attente, spectateur ou résultats : vue de la grille de départ, sous l'arche

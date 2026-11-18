@@ -28,37 +28,37 @@
 
   // Catalogue des emplacements : identifiant → [où, jeu].
   const CATALOG = {
-    "village-arche": ["Arche d'entrée de la fête", "fete"],
-    "village-panneau": ["Grand panneau des jeux", "fete"],
-    "rc-arche": ["Arche de départ du circuit", "rc"],
-    "rc-bache-1": ["Bâche du circuit, ligne droite", "rc"],
-    "rc-bache-2": ["Bâche du circuit, épingle", "rc"],
-    "rc-bache-3": ["Bâche du circuit, descente", "rc"],
-    "rc-bache-4": ["Bâche du circuit, cour du moulin", "rc"],
-    "rc-telecommande": ["Télécommande des voitures", "rc"],
-    "bateaux-ponton": ["Banderole du ponton", "bateaux"],
-    "bateaux-bouees": ["Bouées du parcours", "bateaux"],
-    "bateaux-telecommande": ["Télécommande des bateaux", "bateaux"],
-    "golf-1": ["Bâche du trou n° 1", "golf"],
-    "golf-2": ["Bâche du trou n° 2", "golf"],
-    "golf-3": ["Bâche du trou n° 3", "golf"],
-    "golf-4": ["Bâche du trou n° 4", "golf"],
-    "golf-5": ["Bâche du trou n° 5", "golf"],
-    "golf-6": ["Bâche du trou n° 6", "golf"],
-    "golf-7": ["Bâche du trou n° 7", "golf"],
-    "golf-8": ["Bâche du trou n° 8", "golf"],
-    "golf-9": ["Bâche du trou n° 9", "golf"],
-    "tir-fond": ["Toile de fond du stand de tir", "tir"],
-    "tir-fronton": ["Fronton du stand de tir", "tir"],
-    "canards-fronton": ["Fronton de la pêche aux canards", "canards"],
-    "canards-bassin": ["Tour du bassin aux canards", "canards"],
-    "autos-fronton": ["Fronton des auto-tamponneuses", "autos"],
-    "autos-bandeau": ["Bandeau de la piste", "autos"],
-    "citrouilles-fronton": ["Banderole du pas de tir", "citrouilles"],
-    "citrouilles-cibles": ["Cibles flottantes", "citrouilles"],
-    "drones-arche": ["Arche de départ des drones", "drones"],
-    "drones-portes": ["Portes du parcours", "drones"],
-    "drones-radio": ["Radiocommande des drones", "drones"],
+    "village-arche": ["Fair entrance arch", "fete"],
+    "village-panneau": ["Main games board", "fete"],
+    "rc-arche": ["RC track start arch", "rc"],
+    "rc-bache-1": ["RC track banner, main straight", "rc"],
+    "rc-bache-2": ["RC track banner, hairpin", "rc"],
+    "rc-bache-3": ["RC track banner, downhill", "rc"],
+    "rc-bache-4": ["RC track banner, mill courtyard", "rc"],
+    "rc-telecommande": ["RC car remote control", "rc"],
+    "bateaux-ponton": ["Jetty banner", "bateaux"],
+    "bateaux-bouees": ["Course buoys", "bateaux"],
+    "bateaux-telecommande": ["RC boat remote control", "bateaux"],
+    "golf-1": ["Mini-golf hole 1 banner", "golf"],
+    "golf-2": ["Mini-golf hole 2 banner", "golf"],
+    "golf-3": ["Mini-golf hole 3 banner", "golf"],
+    "golf-4": ["Mini-golf hole 4 banner", "golf"],
+    "golf-5": ["Mini-golf hole 5 banner", "golf"],
+    "golf-6": ["Mini-golf hole 6 banner", "golf"],
+    "golf-7": ["Mini-golf hole 7 banner", "golf"],
+    "golf-8": ["Mini-golf hole 8 banner", "golf"],
+    "golf-9": ["Mini-golf hole 9 banner", "golf"],
+    "tir-fond": ["Shooting gallery backdrop", "tir"],
+    "tir-fronton": ["Shooting gallery front sign", "tir"],
+    "canards-fronton": ["Hook-a-duck front sign", "canards"],
+    "canards-bassin": ["Duck pool rim", "canards"],
+    "autos-fronton": ["Bumper cars front sign", "autos"],
+    "autos-bandeau": ["Bumper cars arena banner", "autos"],
+    "citrouilles-fronton": ["Pumpkin launch pad banner", "citrouilles"],
+    "citrouilles-cibles": ["Pumpkin targets", "citrouilles"],
+    "drones-arche": ["Drone race start arch", "drones"],
+    "drones-portes": ["Drone race gates", "drones"],
+    "drones-radio": ["Drone radio controller", "drones"],
   };
   const state = { data: {}, contact: { texte: "", lien: "" }, textures: [], logos: new Map(), loaded: false, listeners: [] };
 
@@ -110,8 +110,8 @@
       ctx.setLineDash([H * 0.12, H * 0.08]);
       ctx.strokeRect(pad * 1.2, pad * 1.2, W - pad * 2.4, H - pad * 2.4);
       ctx.setLineDash([]);
-      MF.fitText(ctx, "VOTRE MARQUE ICI", W / 2, H * 0.42, W - pad * 6, H * 0.38, { color: MF.PAL.red });
-      MF.fitText(ctx, (o.kicker || s.label) + " · emplacement à réserver", W / 2, H * 0.76, W - pad * 6, H * 0.16, { color: MF.PAL.woodDark, font: "system-ui, sans-serif", weight: "700" });
+      MF.fitText(ctx, "YOUR BRAND HERE", W / 2, H * 0.42, W - pad * 6, H * 0.38, { color: MF.PAL.red });
+      MF.fitText(ctx, (o.kicker || s.label) + " · spot available", W / 2, H * 0.76, W - pad * 6, H * 0.16, { color: MF.PAL.woodDark, font: "system-ui, sans-serif", weight: "700" });
       return;
     }
     const img = logoImage(s.logo, o.redraw);
@@ -170,7 +170,7 @@
     banner,
     brand: (id) => {
       const s = get(id);
-      return s.taken ? s.name.toUpperCase() : "VOTRE MARQUE ICI";
+      return s.taken ? s.name.toUpperCase() : "YOUR BRAND HERE";
     },
     all: () => Object.keys(CATALOG).map(get),
     contact: () => state.contact,

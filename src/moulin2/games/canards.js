@@ -58,16 +58,16 @@
 
   MF.registerGame({
     id: "canards",
-    title: "Pêche aux canards",
+    title: "Hook-a-Duck",
     icon: "🦆",
     color: MF.PAL.yellow,
-    blurb: "75 secondes · plus dur qu'il n'y paraît",
+    blurb: "75 seconds · harder than it looks",
     station: { x: BX, z: BZ - 4.5, heading: 0 },
     kiosk: { x: BX - 4.4, z: BZ - 3.4, heading: 0 },
     minPlayers: 1,
     maxPlayers: 8,
     maxTime: DURATION + 20,
-    help: "Promène la canne à la souris (ou flèches), maintiens le clic ou Espace pour plonger l'hameçon dans un anneau. Doucement : le fil se balance !",
+    help: "Move the rod with the mouse (or arrows), hold the click or Space to dip the hook into a ring. Gently: the line swings!",
     rank: (list) => list.slice().sort((a, b) => (b.score || 0) - (a.score || 0) || (a.name < b.name ? -1 : 1)),
     describe: (r) => (r.score || 0) + " points",
 
@@ -84,7 +84,7 @@
       MF.cyl(R - 0.1, R - 0.1, 0.04, MF.mat("#49c6f2", { opacity: 0.88 }), { x: BX, y: WY, z: BZ, parent: stand, seg: 32 });
       MF.cyl(R, R, 0.3, "#2a86c8", { x: BX, y: Y0 + 0.15, z: BZ, parent: stand, seg: 32 });
       // tour du bassin au nom du sponsor (répété quatre fois)
-      const bandTex = MF.sponsors.texture("canards-bassin", { w: 4, h: 0.42, kicker: "Tour du bassin" });
+      const bandTex = MF.sponsors.texture("canards-bassin", { w: 4, h: 0.42, kicker: "Pool rim" });
       bandTex.wrapS = THREE.RepeatWrapping;
       bandTex.repeat.x = 4;
       MF.mesh(new THREE.CylinderGeometry(R + 0.27, R + 0.27, 0.4, 40, 1, true), new THREE.MeshBasicMaterial({ map: bandTex }), { x: BX, y: Y0 + 0.26, z: BZ, parent: stand });
@@ -104,8 +104,8 @@
         b.position.set(side * 2.7, 3.5, 0);
         arch.add(b);
       }
-      arch.add(MF.sign("PÊCHE AUX CANARDS", { w: 5.0, h: 0.7, bg: MF.PAL.blue, color: "#ffffff", border: MF.PAL.yellow, y: 3.05, z: 0.02 }));
-      arch.add(MF.sponsors.board("canards-fronton", 4.6, 0.62, { y: 2.32, z: 0.02, kicker: "Fronton de la pêche aux canards" }));
+      arch.add(MF.sign("HOOK-A-DUCK", { w: 5.0, h: 0.7, bg: MF.PAL.blue, color: "#ffffff", border: MF.PAL.yellow, y: 3.05, z: 0.02 }));
+      arch.add(MF.sponsors.board("canards-fronton", 4.6, 0.62, { y: 2.32, z: 0.02, kicker: "Hook-a-duck front sign" }));
       for (let i = 0; i < 5; i++) MF.sphere(0.16, [MF.PAL.pink, MF.PAL.yellow, MF.PAL.green, MF.PAL.orange, MF.PAL.purple][i], { x: -1.8 + i * 0.9, y: 1.78, z: 0.02, parent: arch, seg: 8 }); // lots
       MF.freeze(stand);
 
@@ -278,7 +278,7 @@
                 me.catches++;
                 proj.set(d.x, WY + 0.5, d.z).project(camera);
                 const px = ((proj.x + 1) / 2) * hud.root.clientWidth, py = ((1 - proj.y) / 2) * hud.root.clientHeight;
-                hud.pop(d.kind === "gold" ? "Canard doré ! +10" : d.kind === "shoe" ? "Une chaussure… −3" : "+" + d.value, px, py, { color: d.kind === "shoe" ? "#ff8a80" : d.kind === "gold" ? "#ffe45c" : undefined });
+                hud.pop(d.kind === "gold" ? "Golden duck! +10" : d.kind === "shoe" ? "An old shoe… −3" : "+" + d.value, px, py, { color: d.kind === "shoe" ? "#ff8a80" : d.kind === "gold" ? "#ffe45c" : undefined });
                 MF.sfx.play(d.kind === "gold" ? "bravo" : d.kind === "shoe" ? "perdu" : "ting");
               }
               break;
@@ -302,9 +302,9 @@
         remotes,
         score: () => (session.state ? scoreOf(ctx.self.uid, session.state.seed) : 0),
         enter() {
-          input.use({ layout: "pointer", buttons: [{ id: "a", label: "PLONGER", key: "Espace" }] });
-          hud.stats([{ key: "score", label: "Score" }, { key: "time", label: "Temps" }, { key: "n", label: "Prises" }]);
-          hud.hint(input.touch ? "Glisse le doigt pour promener la canne · bouton PLONGER pour descendre l'hameçon" : "Souris : promener la canne · clic maintenu ou Espace : plonger l'hameçon");
+          input.use({ layout: "pointer", buttons: [{ id: "a", label: "DIP", key: "Space" }] });
+          hud.stats([{ key: "score", label: "Score" }, { key: "time", label: "Time" }, { key: "n", label: "Catches" }]);
+          hud.hint(input.touch ? "Drag to move the rod · DIP button to lower the hook" : "Mouse: move the rod · hold click or Space: dip the hook");
           sway = 0;
         },
         leave() {
@@ -344,7 +344,7 @@
             hud.set("n", me.catches);
             if (running && left < 10 && !warned) {
               warned = true;
-              hud.flash("Plus que 10 secondes !", { color: MF.PAL.yellow });
+              hud.flash("10 seconds left!", { color: MF.PAL.yellow });
             }
             if (phase === "run" && t >= DURATION && !reported) {
               reported = true;

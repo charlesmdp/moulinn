@@ -19,16 +19,16 @@
 
   MF.registerGame({
     id: "tir",
-    title: "Stand de tir forain",
+    title: "Shooting Gallery",
     icon: "🎯",
     color: MF.PAL.orange,
-    blurb: "60 secondes · canettes, cibles, ballons",
+    blurb: "60 seconds · cans, targets, balloons",
     station: { x: CX, z: -7.5, heading: 0 },
     kiosk: { x: CX - HALF - 1.3, z: COUNTER_Z - 0.9, heading: 0 }, // au coin du stand, hors de la ligne de tir
     minPlayers: 1,
     maxPlayers: 8,
     maxTime: DURATION + 20,
-    help: "Vise à la souris et clique pour tirer (ou flèches et Espace ; au doigt : touche la cible). 6 plombs par chargeur.",
+    help: "Aim with the mouse and click to shoot (or arrows and Space; on touch: tap the target). 6 pellets per magazine.",
     rank: (list) => list.slice().sort((a, b) => (b.score || 0) - (a.score || 0) || (a.name < b.name ? -1 : 1)),
     describe: (r) => (r.score || 0) + " points",
 
@@ -48,7 +48,7 @@
         MF.box(0.12, 3.0, BACK_Z - COUNTER_Z, MF.PAL.blue, { x: CX + side * (HALF + 0.06), y: Y0 + 1.5, z: (BACK_Z + COUNTER_Z) / 2, parent: booth, cast: true });
         for (let i = 0; i < 3; i++) MF.sphere(0.2, [MF.PAL.pink, MF.PAL.yellow, MF.PAL.teal][i], { x: CX + side * (HALF - 0.2), y: Y0 + 2.5, z: -3.4 + i * 1.2, parent: booth, seg: 10 }); // lots
       }
-      booth.add(MF.sponsors.board("tir-fond", HALF * 2, 2.9, { x: CX, y: Y0 + 1.5, z: BACK_Z, ry: Math.PI, kicker: "Toile de fond du stand de tir" }));
+      booth.add(MF.sponsors.board("tir-fond", HALF * 2, 2.9, { x: CX, y: Y0 + 1.5, z: BACK_Z, ry: Math.PI, kicker: "Shooting gallery backdrop" }));
       MF.box(HALF * 2 + 0.3, 3.0, 0.1, MF.PAL.woodDark, { x: CX, y: Y0 + 1.5, z: BACK_Z + 0.07, parent: booth, cast: true });
       const SHELF = [Y0 + 0.95, Y0 + 1.5];
       for (const y of SHELF) MF.box(HALF * 2 - 0.4, 0.05, 0.34, MF.PAL.wood, { x: CX, y: y - 0.03, z: 0.55, parent: booth });
@@ -56,9 +56,9 @@
       for (const y of RAIL) MF.box(HALF * 2 - 0.2, 0.04, 0.04, MF.PAL.steel, { x: CX, y: y - 0.3, z: -0.1, parent: booth });
       // toit et fronton, tournés vers les joueurs
       for (let i = 0; i < 10; i++) MF.box(0.98, 0.1, BACK_Z - COUNTER_Z + 1.4, i % 2 ? MF.PAL.yellow : MF.PAL.red, { x: CX - HALF + 0.5 + i * 0.96, y: Y0 + 3.12, z: (BACK_Z + COUNTER_Z) / 2 - 0.3, parent: booth, cast: true });
-      const title = MF.sign("STAND DE TIR", { w: 4.6, h: 0.7, bg: MF.PAL.red, color: "#ffffff", border: MF.PAL.yellow, x: CX, y: Y0 + 3.85, z: COUNTER_Z - 0.75, ry: Math.PI });
+      const title = MF.sign("SHOOTING GALLERY", { w: 4.6, h: 0.7, bg: MF.PAL.red, color: "#ffffff", border: MF.PAL.yellow, x: CX, y: Y0 + 3.85, z: COUNTER_Z - 0.75, ry: Math.PI });
       booth.add(title);
-      booth.add(MF.sponsors.board("tir-fronton", 5.6, 0.62, { x: CX, y: Y0 + 3.36, z: COUNTER_Z - 0.76, ry: Math.PI, kicker: "Fronton du stand de tir" }));
+      booth.add(MF.sponsors.board("tir-fronton", 5.6, 0.62, { x: CX, y: Y0 + 3.36, z: COUNTER_Z - 0.76, ry: Math.PI, kicker: "Front sign" }));
       booth.add(MF.bunting({ x: CX - HALF, y: Y0 + 3.05, z: COUNTER_Z - 0.7 }, { x: CX + HALF, y: Y0 + 3.05, z: COUNTER_Z - 0.7 }, { sag: 0.3, size: 0.24 }));
       MF.freeze(booth);
 
@@ -246,7 +246,7 @@
           const pts = POINTS[best.type];
           burst(best.x, best.y, best.z, best.type === "o" ? 6 : 4);
           session.send("pan", [best.x, best.y, best.z]);
-          hud.pop(best.type === "g" ? "Dans le mille ! +" + pts : "+" + pts, px, py - 30, { color: best.type === "g" ? "#ffe45c" : undefined });
+          hud.pop(best.type === "g" ? "Bullseye! +" + pts : "+" + pts, px, py - 30, { color: best.type === "g" ? "#ffe45c" : undefined });
           MF.sfx.play(best.type === "o" ? "pop" : best.type === "g" ? "bravo" : "ting");
         } else {
           // dans la toile : petit impact
@@ -262,9 +262,9 @@
         score: () => scoreOf(ctx.self.uid),
         aim,
         enter() {
-          input.use({ layout: "pointer", buttons: [{ id: "a", label: "TIRER", key: "Espace" }] });
-          hud.stats([{ key: "score", label: "Score" }, { key: "time", label: "Temps" }, { key: "ammo", label: "Plombs" }]);
-          hud.hint(input.touch ? "Touche une cible pour tirer dessus" : "Vise à la souris, clique pour tirer · ou flèches et Espace");
+          input.use({ layout: "pointer", buttons: [{ id: "a", label: "FIRE", key: "Space" }] });
+          hud.stats([{ key: "score", label: "Score" }, { key: "time", label: "Time" }, { key: "ammo", label: "Pellets" }]);
+          hud.hint(input.touch ? "Tap a target to shoot it" : "Aim with the mouse, click to shoot · or arrows and Space");
           cross = hud.widget("fete-cross");
           aim.x = 0;
           aim.y = 0.1;
@@ -348,7 +348,7 @@
             hud.set("ammo", reload > 0 ? "…" : ammo + " / " + MAG);
             if (running && left < 10 && !warned) {
               warned = true;
-              hud.flash("Plus que 10 secondes !", { color: MF.PAL.yellow });
+              hud.flash("10 seconds left!", { color: MF.PAL.yellow });
             }
             if (phase === "run" && t >= DURATION && !reported) {
               reported = true;

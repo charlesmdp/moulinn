@@ -48,19 +48,19 @@
 
   MF.registerGame({
     id: "drones",
-    title: "Course de drones FPV",
+    title: "FPV Drone Race",
     icon: "🚁",
     color: MF.PAL.teal,
-    blurb: "1 à 8 pilotes · portes autour du moulin",
+    blurb: "1–8 pilots · gates around the mill",
     station: { x: 15.2, z: -35, heading: -Math.PI / 2 },
     kiosk: { x: 15.4, z: -31.2, heading: -Math.PI / 2 },
     minPlayers: 1,
     maxPlayers: 8,
     maxTime: 300,
-    options: [{ key: "laps", label: "Nombre de tours", values: [2, 3], default: 3, format: (v) => v + " tours" }],
-    help: "Flèches ou ZQSD : avancer et tourner · I / K : monter, descendre · J / L : glisser de côté · Espace : turbo · E : changer de vue · C : se replacer.",
+    options: [{ key: "laps", label: "Laps", values: [2, 3], default: 3, format: (v) => v + " laps" }],
+    help: "Arrows or WASD: fly and turn · I / K: up, down · J / L: strafe · Space: turbo · E: switch view · C: reset.",
     rank: (list) => list.slice().sort((a, b) => (a.time ? 0 : 1) - (b.time ? 0 : 1) || (a.time || 0) - (b.time || 0) || (b.gates || 0) - (a.gates || 0)),
-    describe: (r) => (r.time ? MF.time(r.time) : "n'a pas fini"),
+    describe: (r) => (r.time ? MF.time(r.time) : "did not finish"),
 
     create(ctx) {
       const { world, session, hud, input, group, camera } = ctx;
@@ -77,7 +77,7 @@
       const startGate = { x: START.x, z: START.z, y: base(START.x, START.z) + START.up, nx: -1, ny: 0, nz: 0 };
       const dir = new THREE.Vector3(), q = new THREE.Quaternion(), zAxis = new THREE.Vector3(0, 0, 1);
       const deco = MF.group({ name: "Parcours_des_drones", parent: group });
-      const portTex = MF.sponsors.texture("drones-portes", { w: 2.2, h: 0.5, kicker: "Porte" });
+      const portTex = MF.sponsors.texture("drones-portes", { w: 2.2, h: 0.5, kicker: "Gate" });
       const portMat = new THREE.MeshBasicMaterial({ map: portTex });
       function buildGate(gt, label, sponsorBoard) {
         const g = MF.group({ name: "Porte_" + label, x: gt.x, y: gt.y, z: gt.z, parent: deco });
@@ -88,7 +88,7 @@
         // bandeau du sponsor et numéro, lisibles des deux côtés ; ballons qui portent l'anneau
         for (const face of [0, Math.PI]) {
           MF.plane(2.2, 0.5, portMat, { y: RING + 0.45, z: face ? -0.02 : 0.02, ry: face, parent: g, receive: false });
-          if (sponsorBoard) g.add(MF.sponsors.board("drones-arche", 3.6, 0.7, { y: RING + 1.15, z: face ? -0.02 : 0.02, ry: face, kicker: "Arche de départ des drones" }));
+          if (sponsorBoard) g.add(MF.sponsors.board("drones-arche", 3.6, 0.7, { y: RING + 1.15, z: face ? -0.02 : 0.02, ry: face, kicker: "Drone start arch" }));
         }
         const num = MF.sign(label, { w: 0.6, h: 0.5, bg: MF.PAL.ink, color: "#ffffff", border: MF.PAL.yellow, double: true });
         num.position.set(RING + 0.45, 0.6, 0);
@@ -110,7 +110,7 @@
         gt.nz = dir.z;
         buildGate(gt, String(i + 1), false);
       });
-      buildGate(startGate, "DÉPART", true);
+      buildGate(startGate, "START", true);
       // aires de décollage
       const padMat = MF.mat(MF.PAL.cream);
       PADS.forEach(([x, z], i) => {
@@ -253,7 +253,7 @@
         const g = H(me.x, me.z), w = world.waterAt(me.x, me.z);
         if (w && me.y < w.level + 0.22 && g < w.level) {
           MF.sfx.play("plouf");
-          hud.flash("Plouf !", { hold: 0.9 });
+          hud.flash("Splash!", { hold: 0.9 });
           return reset();
         }
         if (me.y < g + 0.25) {
@@ -296,7 +296,7 @@
             bump(-gate.nx, -gate.ny, -gate.nz, 0.4); // dans le montant de l'anneau
           } else if (off < 9 && performance.now() - missed > 2500) {
             missed = performance.now();
-            hud.flash("Porte manquée !", { color: MF.PAL.red, hold: 1 });
+            hud.flash("Missed gate!", { color: MF.PAL.red, hold: 1 });
           }
         }
         for (const r of remotes.map.values()) {
@@ -340,9 +340,9 @@
         drone: () => me,
         remotes,
         enter() {
-          input.use({ layout: "dual", radio: { kicker: "RADIOCOMMANDE", brand: MF.sponsors.brand("drones-radio") }, leftLabel: "MONTER · GLISSER", rightLabel: "AVANCER · TOURNER", buttons: [{ id: "a", label: "TURBO", key: "Espace" }, { id: "b", label: "VUE", key: "E" }, { id: "c", label: "REPLACER", key: "C" }] });
-          hud.stats([{ key: "lap", label: "Tour" }, { key: "gate", label: "Porte" }, { key: "time", label: "Temps" }, { key: "pos", label: "Place" }]);
-          hud.hint(input.touch ? "Manche droit : avancer et tourner · manche gauche : monter et glisser" : "Flèches ou ZQSD : piloter · I / K : monter, descendre · Espace : turbo · E : vue · C : se replacer");
+          input.use({ layout: "dual", radio: { kicker: "RADIO CONTROLLER", brand: MF.sponsors.brand("drones-radio") }, leftLabel: "CLIMB · STRAFE", rightLabel: "FLY · TURN", buttons: [{ id: "a", label: "TURBO", key: "Space" }, { id: "b", label: "VIEW", key: "E" }, { id: "c", label: "RESET", key: "C" }] });
+          hud.stats([{ key: "lap", label: "Lap" }, { key: "gate", label: "Gate" }, { key: "time", label: "Time" }, { key: "pos", label: "Position" }]);
+          hud.hint(input.touch ? "Right stick: fly and turn · left stick: climb and strafe" : "Arrows or WASD: fly · I / K: up, down · Space: turbo · E: view · C: reset");
           arrow = hud.widget("fete-arrow");
           arrow.hidden = true;
           chase = false;
@@ -380,7 +380,7 @@
             if (!finished && phase === "run") {
               if (me.lap !== lap) {
                 if (me.lap !== undefined && lap > me.lap) {
-                  hud.flash(lap === laps ? "Dernier tour !" : "Tour " + lap + " / " + laps, { color: lap === laps ? MF.PAL.yellow : "#ffffff" });
+                  hud.flash(lap === laps ? "Final lap!" : "Lap " + lap + " / " + laps, { color: lap === laps ? MF.PAL.yellow : "#ffffff" });
                   MF.sfx.play("tour");
                 }
                 me.lap = lap;
@@ -388,12 +388,12 @@
               if (me.passed >= total) {
                 finished = true;
                 const before = ranking().filter((r) => r.time).length;
-                hud.flash(before ? "Arrivée ! " + (before + 1) + "ᵉ" : "Arrivée ! 1ᵉʳ", { color: MF.PAL.yellow, hold: 3 });
+                hud.flash("Finished! " + MF.ordinal(before + 1), { color: MF.PAL.yellow, hold: 3 });
                 session.report({ time: Math.round(t * 1000) / 1000, gates: me.passed });
               } else {
                 if (!graceEnd && Object.values(st.results).some((r) => r && r.time)) {
                   graceEnd = t + GRACE;
-                  hud.flash("Le premier est arrivé : encore " + GRACE + " s", { hold: 2.5 });
+                  hud.flash("First finisher is in: " + GRACE + " s left", { hold: 2.5 });
                 }
                 if (graceEnd && t > graceEnd) {
                   finished = true;
@@ -402,7 +402,7 @@
               }
             }
             hud.set("lap", lap + " / " + laps);
-            hud.set("gate", me.next < 0 ? "départ" : me.next + 1 + " / " + N);
+            hud.set("gate", me.next < 0 ? "start" : me.next + 1 + " / " + N);
             hud.set("time", MF.time(Math.max(0, t), 1));
             remotes.send([me.x, me.y, me.z, me.yaw, me.pitch, me.roll], [me.passed, finished ? 1 : 0]);
             lights(time);
@@ -429,7 +429,7 @@
               lastBoard = time;
               const rows = ranking();
               hud.set("pos", rows.findIndex((r) => r.self) + 1 + " / " + rows.length);
-              hud.board(rows.map((r) => ({ name: r.name, color: r.color, self: r.self, text: r.time ? MF.time(r.time, 1) : r.gone ? "–" : "porte " + r.passed })));
+              hud.board(rows.map((r) => ({ name: r.name, color: r.color, self: r.self, text: r.time ? MF.time(r.time, 1) : r.gone ? "–" : "gate " + r.passed })));
             }
           } else {
             if (engine) {

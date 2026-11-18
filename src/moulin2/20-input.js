@@ -185,18 +185,18 @@
           radioEl = h("div", "fete-radio", layer);
           h("div", "fete-radio-antenna", radioEl);
           const brand = h("div", "fete-radio-brand", radioEl);
-          h("small", "", brand, (scheme.radio && scheme.radio.kicker) || "TÉLÉCOMMANDE");
-          h("b", "", brand, (scheme.radio && scheme.radio.brand) || "VOTRE MARQUE ICI");
-          makeStick("left", false, true, null, "y", "GAZ");
-          makeStick("right", true, false, "x", null, "DIRECTION");
+          h("small", "", brand, (scheme.radio && scheme.radio.kicker) || "REMOTE CONTROL");
+          h("b", "", brand, (scheme.radio && scheme.radio.brand) || "YOUR BRAND HERE");
+          makeStick("left", false, true, null, "y", "THROTTLE");
+          makeStick("right", true, false, "x", null, "STEERING");
         } else if (scheme.layout === "dual") {
           if (scheme.radio) {
             // radiocommande à deux manches : même boîtier, avec la marque du sponsor au milieu
             radioEl = h("div", "fete-radio", layer);
             h("div", "fete-radio-antenna", radioEl);
             const brand = h("div", "fete-radio-brand", radioEl);
-            h("small", "", brand, scheme.radio.kicker || "RADIOCOMMANDE");
-            h("b", "", brand, scheme.radio.brand || "VOTRE MARQUE ICI");
+            h("small", "", brand, scheme.radio.kicker || "RADIO CONTROLLER");
+            h("b", "", brand, scheme.radio.brand || "YOUR BRAND HERE");
           }
           makeStick("left", true, true, "x2", "y2", scheme.leftLabel || "");
           makeStick("right", true, true, "x", "y", scheme.rightLabel || "");

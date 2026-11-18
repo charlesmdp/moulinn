@@ -28,7 +28,7 @@
     return e;
   };
   const dot = (color) => `<i class="fete-dot" style="--c:${esc(color)}"></i>`;
-  const STATE_TEXT = { wait: "prêt", play: "joue", done: "a fini", watch: "regarde" };
+  const STATE_TEXT = { wait: "ready", play: "playing", done: "finished", watch: "watching" };
 
   function create({ dom, mobile }) {
     const listeners = [];
@@ -41,15 +41,15 @@
       "div",
       "fete-top",
       root,
-      `<button type="button" class="fete-brand" data-open="players" title="Joueurs, pseudo et salon">
+      `<button type="button" class="fete-brand" data-open="players" title="Players, nickname and room">
          <span class="fete-brand-icon" aria-hidden="true">🎪</span>
-         <span class="fete-brand-text"><b>La Fête du Moulin</b><small data-room>Connexion…</small></span>
+         <span class="fete-brand-text"><b>The Mill Fair</b><small data-room>Connecting…</small></span>
        </button>
        <div class="fete-top-actions">
-         <button type="button" class="fete-btn fete-btn-main" data-open="games"><span aria-hidden="true">🎮</span><span class="fete-btn-label">Jeux</span></button>
-         <button type="button" class="fete-btn" data-open="players" title="Joueurs présents"><span aria-hidden="true">👥</span><span data-count>1</span></button>
+         <button type="button" class="fete-btn fete-btn-main" data-open="games"><span aria-hidden="true">🎮</span><span class="fete-btn-label">Games</span></button>
+         <button type="button" class="fete-btn" data-open="players" title="Players here"><span aria-hidden="true">👥</span><span data-count>1</span></button>
          <button type="button" class="fete-btn" data-open="sponsors"><span aria-hidden="true">📣</span><span class="fete-btn-label">Sponsors</span></button>
-         <button type="button" class="fete-btn" data-sound aria-pressed="true" title="Sons du jeu"><span aria-hidden="true" data-sound-icon>🔊</span></button>
+         <button type="button" class="fete-btn" data-sound aria-pressed="true" title="Game sounds"><span aria-hidden="true" data-sound-icon>🔊</span></button>
        </div>`,
     );
     const roomLabel = top.querySelector("[data-room]");
@@ -59,14 +59,14 @@
     /* ---------------------------------------------------------------- panneaux */
     const panels = {};
     for (const [name, title] of [
-      ["games", "Les jeux de la fête"],
-      ["players", "Joueurs et salon"],
+      ["games", "Fair games"],
+      ["players", "Players & room"],
       ["sponsors", "Sponsors"],
     ]) {
       const p = el("section", "fete-panel", root);
       p.hidden = true;
       p.dataset.panel = name;
-      p.innerHTML = `<header><h2>${title}</h2><button type="button" class="fete-x" data-close aria-label="Fermer">✕</button></header><div class="fete-panel-body"></div>`;
+      p.innerHTML = `<header><h2>${title}</h2><button type="button" class="fete-x" data-close aria-label="Close">✕</button></header><div class="fete-panel-body"></div>`;
       panels[name] = p.querySelector(".fete-panel-body");
     }
     let openName = null;
@@ -91,7 +91,7 @@
     const flash = el("div", "fete-flash", game);
     const count = el("div", "fete-count", game);
     const hint = el("div", "fete-hint", game);
-    const quit = el("button", "fete-btn fete-quit", game, `<span aria-hidden="true">✕</span><span class="fete-btn-label">Quitter</span>`);
+    const quit = el("button", "fete-btn fete-quit", game, `<span aria-hidden="true">✕</span><span class="fete-btn-label">Quit</span>`);
     quit.type = "button";
     quit.dataset.act = "leave";
     const card = el("section", "fete-card fete-lobby", game);
@@ -158,7 +158,7 @@
         soundBtn.querySelector("[data-sound-icon]").textContent = on ? "🔊" : "🔇";
       },
       setRoom(label, n) {
-        roomLabel.textContent = label + " · " + n + (n > 1 ? " joueurs" : " joueur");
+        roomLabel.textContent = label + " · " + n + (n > 1 ? " players" : " player");
         countLabel.textContent = n;
       },
       /** Menu des jeux : [{ id, title, icon, blurb, players, phase }] */
@@ -171,13 +171,13 @@
           list
             .map((g) => {
               const live = g.phase === "run" || g.phase === "countdown";
-              const who = g.players ? `${g.players} joueur${g.players > 1 ? "s" : ""} · ${live ? "partie en cours" : "en salle d'attente"}` : "personne pour l'instant";
+              const who = g.players ? `${g.players} player${g.players > 1 ? "s" : ""} · ${live ? "game in progress" : "in the lobby"}` : "nobody yet";
               return `<button type="button" class="fete-game-card${g.players ? " is-busy" : ""}" data-game="${esc(g.id)}">
                 <span class="fete-game-icon" aria-hidden="true">${g.icon}</span>
                 <b>${esc(g.title)}</b><small>${esc(g.blurb || "")}</small><em>${who}</em></button>`;
             })
             .join("") +
-          `</div><p class="fete-note">Choisis un jeu pour t'y rendre, ou promène-toi : chaque stand a son panneau. Les parties se jouent de 1 à 8.</p>`;
+          `</div><p class="fete-note">Pick a game to go there, or walk around: every stand has its sign. Games are for 1 to 8 players.</p>`;
       },
       /** Panneau des joueurs. model : { self: { name, color }, players: [{ name, color, self, doing }], room: { label, isPrivate, code }, net } */
       setPlayers(model) {
@@ -188,17 +188,17 @@
         panels.players._sig = sig;
         panels.players.innerHTML =
           `<ul class="fete-players">` +
-          model.players.map((p) => `<li>${dot(p.color)}<b>${esc(p.name)}${p.self ? " <span>(toi)</span>" : ""}</b><small>${esc(p.doing)}</small></li>`).join("") +
+          model.players.map((p) => `<li>${dot(p.color)}<b>${esc(p.name)}${p.self ? " <span>(you)</span>" : ""}</b><small>${esc(p.doing)}</small></li>`).join("") +
           `</ul>
-          <h3>Ton pseudo et ta couleur</h3>
-          <input type="text" class="fete-input" data-name maxlength="18" value="${esc(model.self.name)}" aria-label="Pseudo" autocomplete="off" spellcheck="false">
+          <h3>Your nickname and color</h3>
+          <input type="text" class="fete-input" data-name maxlength="18" value="${esc(model.self.name)}" aria-label="Nickname" autocomplete="off" spellcheck="false">
           <div class="fete-swatches">` +
-          MF.PLAYER_COLORS.map((c) => `<button type="button" data-color="${c}" style="--c:${c}" aria-pressed="${c === model.self.color}" aria-label="Couleur"></button>`).join("") +
+          MF.PLAYER_COLORS.map((c) => `<button type="button" data-color="${c}" style="--c:${c}" aria-pressed="${c === model.self.color}" aria-label="Color"></button>`).join("") +
           `</div>
-          <h3>Jouer avec des amis</h3>
-          <p class="fete-note">${esc(model.room.label)}. ${model.room.isPrivate ? "Seuls ceux qui ont le lien vous rejoignent." : "Tous les visiteurs s'y retrouvent ; envoie le lien pour jouer ensemble."}</p>
-          <div class="fete-row"><button type="button" class="fete-btn fete-btn-main" data-copy>Copier le lien d'invitation</button>${model.room.isPrivate ? `<button type="button" class="fete-btn" data-public>Salon public</button>` : ""}</div>
-          <div class="fete-row"><input type="text" class="fete-input" data-code maxlength="24" placeholder="nom d'un salon privé" value="${esc(model.room.code || "")}" aria-label="Nom du salon privé" autocomplete="off" spellcheck="false"><button type="button" class="fete-btn" data-private>Ouvrir</button></div>
+          <h3>Play with friends</h3>
+          <p class="fete-note">${esc(model.room.label)}. ${model.room.isPrivate ? "Only people with the link can join." : "Every visitor lands here; send the link to play together."}</p>
+          <div class="fete-row"><button type="button" class="fete-btn fete-btn-main" data-copy>Copy invite link</button>${model.room.isPrivate ? `<button type="button" class="fete-btn" data-public>Public room</button>` : ""}</div>
+          <div class="fete-row"><input type="text" class="fete-input" data-code maxlength="24" placeholder="private room name" value="${esc(model.room.code || "")}" aria-label="Private room name" autocomplete="off" spellcheck="false"><button type="button" class="fete-btn" data-private>Open</button></div>
           <p class="fete-net">${esc(model.net)}</p>`;
       },
       /** Panneau des sponsors : { contact: { texte, lien }, slots: [{ label, game, taken, name, url, price }] } */
@@ -208,18 +208,18 @@
         panels.sponsors._sig = sig;
         const free = model.slots.filter((s) => !s.taken).length;
         const contact = model.contact.lien
-          ? `<a class="fete-btn fete-btn-main" href="${esc(model.contact.lien)}" target="_blank" rel="noopener">${esc(model.contact.texte || "Réserver un emplacement")}</a>`
+          ? `<a class="fete-btn fete-btn-main" href="${esc(model.contact.lien)}" target="_blank" rel="noopener">${esc(model.contact.texte || "Book a spot")}</a>`
           : model.contact.texte
             ? `<p class="fete-note"><b>${esc(model.contact.texte)}</b></p>`
             : "";
         let last = "";
         panels.sponsors.innerHTML =
-          `<p class="fete-note">Affichez votre marque dans la fête : bâches le long des parcours, arches de départ, toile de fond du stand de tir, télécommandes… ${free} emplacement${free > 1 ? "s" : ""} libre${free > 1 ? "s" : ""} sur ${model.slots.length}.</p>${contact}
+          `<p class="fete-note">Put your brand inside the fair: banners along the tracks, start arches, the shooting gallery backdrop, remote controls… ${free} of ${model.slots.length} spots available.</p>${contact}
           <ul class="fete-slots">` +
           model.slots
             .map((s) => {
               const head = s.group !== last ? `<li class="fete-slot-group">${esc((last = s.group))}</li>` : "";
-              const who = s.taken ? (s.url ? `<a href="${esc(s.url)}" target="_blank" rel="noopener sponsored">${esc(s.name)}</a>` : esc(s.name)) : "libre" + (s.price ? " · " + esc(s.price) : "");
+              const who = s.taken ? (s.url ? `<a href="${esc(s.url)}" target="_blank" rel="noopener sponsored">${esc(s.name)}</a>` : esc(s.name)) : "available" + (s.price ? " · " + esc(s.price) : "");
               return `${head}<li class="${s.taken ? "is-taken" : ""}"><b>${esc(s.label)}</b><em>${who}</em></li>`;
             })
             .join("") +
@@ -231,7 +231,7 @@
         if (id === promptId) return;
         promptId = id;
         prompt.hidden = !def;
-        if (def) prompt.innerHTML = `<span aria-hidden="true">${def.icon}</span><span>Jouer : <b>${esc(def.title)}</b></span>${mobile ? "" : "<kbd>E</kbd>"}`;
+        if (def) prompt.innerHTML = `<span aria-hidden="true">${def.icon}</span><span>Play: <b>${esc(def.title)}</b></span>${mobile ? "" : "<kbd>E</kbd>"}`;
       },
 
       /* ------------------------------------------------------------ carte du jeu : attente, spectateur, résultats */
@@ -257,9 +257,9 @@
             model.rows
               .map((r) => `<li class="${r.self ? "is-self" : ""}"><span class="fete-pos">${r.pos === 1 ? "🏆" : r.pos}</span>${dot(r.color)}<b>${esc(r.name)}</b><em>${esc(r.text)}</em></li>`)
               .join("") +
-            `</ol><div class="fete-row"><button type="button" class="fete-btn fete-btn-main" data-act="replay">Rejouer</button><button type="button" class="fete-btn" data-act="leave">Quitter</button></div>`;
+            `</ol><div class="fete-row"><button type="button" class="fete-btn fete-btn-main" data-act="replay">Play again</button><button type="button" class="fete-btn" data-act="leave">Quit</button></div>`;
         } else {
-          const list = model.players.map((p) => `<li>${dot(p.color)}<b>${esc(p.name)}${p.self ? " <span>(toi)</span>" : ""}</b><small>${STATE_TEXT[p.state] || ""}</small></li>`).join("");
+          const list = model.players.map((p) => `<li>${dot(p.color)}<b>${esc(p.name)}${p.self ? " <span>(you)</span>" : ""}</b><small>${STATE_TEXT[p.state] || ""}</small></li>`).join("");
           body = `<ul class="fete-players">${list}</ul>`;
           if (model.kind === "lobby") {
             for (const o of model.options || [])
@@ -268,13 +268,13 @@
                 o.values.map((v) => `<button type="button" data-act="option" data-key="${esc(o.key)}" data-value="${esc(JSON.stringify(v.value))}" aria-pressed="${!!v.on}">${esc(v.text)}</button>`).join("") +
                 `</div></div>`;
             if (model.help) body += `<p class="fete-note">${esc(model.help)}</p>`;
-            body += `<div class="fete-row"><button type="button" class="fete-btn fete-btn-main fete-btn-go" data-act="start"${model.canStart ? "" : " disabled"}>${esc(model.startText || "Lancer la partie")}</button><button type="button" class="fete-btn" data-act="leave">Quitter</button></div>`;
+            body += `<div class="fete-row"><button type="button" class="fete-btn fete-btn-main fete-btn-go" data-act="start"${model.canStart ? "" : " disabled"}>${esc(model.startText || "Start the game")}</button><button type="button" class="fete-btn" data-act="leave">Quit</button></div>`;
             if (model.wait) body += `<p class="fete-note">${esc(model.wait)}</p>`;
           } else {
-            body += `<p class="fete-note">${esc(model.wait || "Partie en cours : tu joueras la prochaine.")}</p><div class="fete-row"><button type="button" class="fete-btn" data-act="leave">Quitter</button></div>`;
+            body += `<p class="fete-note">${esc(model.wait || "Game in progress: you'll play the next one.")}</p><div class="fete-row"><button type="button" class="fete-btn" data-act="leave">Quit</button></div>`;
           }
         }
-        card.innerHTML = `<header><span class="fete-game-icon" aria-hidden="true">${model.icon}</span><div><h2>${esc(model.title)}</h2><small>${esc(model.kind === "results" ? "Résultats" : model.blurb || "")}</small></div></header>${body}`;
+        card.innerHTML = `<header><span class="fete-game-icon" aria-hidden="true">${model.icon}</span><div><h2>${esc(model.title)}</h2><small>${esc(model.kind === "results" ? "Results" : model.blurb || "")}</small></div></header>${body}`;
       },
       /** Décompte du départ : 3, 2, 1, « Partez ! » (null pour l'effacer). */
       countdown(text) {
@@ -373,12 +373,12 @@
           root,
           `<form class="fete-card">
             <div class="fete-welcome-icon" aria-hidden="true">🎪</div>
-            <h2>Bienvenue à la Fête du Moulin</h2>
-            <p class="fete-note">Huit jeux de fête foraine dans le jardin du moulin, à jouer seul ou à plusieurs : tous ceux qui ouvrent cette page au même moment se retrouvent ici.</p>
-            <label class="fete-label" for="fete-pseudo">Ton pseudo</label>
+            <h2>Welcome to the Mill Fair</h2>
+            <p class="fete-note">Eight fairground games in the 3D garden of an old French watermill, solo or multiplayer: everyone who opens this page at the same time meets here.</p>
+            <label class="fete-label" for="fete-pseudo">Your nickname</label>
             <input id="fete-pseudo" type="text" class="fete-input" maxlength="18" value="${esc(profile.name)}" autocomplete="off" spellcheck="false">
-            <div class="fete-swatches">${MF.PLAYER_COLORS.map((c) => `<button type="button" data-pick="${c}" style="--c:${c}" aria-pressed="${c === profile.color}" aria-label="Couleur"></button>`).join("")}</div>
-            <button type="submit" class="fete-btn fete-btn-main fete-btn-go">Entrer dans la fête</button>
+            <div class="fete-swatches">${MF.PLAYER_COLORS.map((c) => `<button type="button" data-pick="${c}" style="--c:${c}" aria-pressed="${c === profile.color}" aria-label="Color"></button>`).join("")}</div>
+            <button type="submit" class="fete-btn fete-btn-main fete-btn-go">Enter the fair</button>
           </form>`,
         );
         let color = profile.color;

@@ -52,6 +52,8 @@
     return out;
   };
   /** Durée lisible : 83,456 s → « 1:23.46 ». */
+  /** Rang en anglais : 1st, 2nd, 3rd, 4th… */
+  MF.ordinal = (n) => n + (n % 100 >= 11 && n % 100 <= 13 ? "th" : ["th", "st", "nd", "rd"][n % 10] || "th");
   MF.time = function (seconds, digits = 2) {
     if (!(seconds >= 0) || !isFinite(seconds)) return "–";
     const m = Math.floor(seconds / 60);

@@ -65,12 +65,12 @@
       p.position.x = (side * span) / 2;
       arch.add(p);
     }
-    const title = MF.sign("LA FÊTE DU MOULIN", { w: span - 0.3, h: 0.95, bg: MF.PAL.red, color: "#ffffff", border: MF.PAL.yellow, double: true });
+    const title = MF.sign("THE MILL FAIR", { w: span - 0.3, h: 0.95, bg: MF.PAL.red, color: "#ffffff", border: MF.PAL.yellow, double: true });
     title.position.y = 3.85;
     arch.add(title);
-    const sp = MF.sponsors.board("village-arche", span - 0.9, 0.62, { y: 3.02, z: 0.02, kicker: "Arche d'entrée" });
+    const sp = MF.sponsors.board("village-arche", span - 0.9, 0.62, { y: 3.02, z: 0.02, kicker: "Entrance arch" });
     arch.add(sp);
-    const spBack = MF.sponsors.board("village-arche", span - 0.9, 0.62, { y: 3.02, z: -0.02, ry: Math.PI, kicker: "Arche d'entrée" });
+    const spBack = MF.sponsors.board("village-arche", span - 0.9, 0.62, { y: 3.02, z: -0.02, ry: Math.PI, kicker: "Entrance arch" });
     spBack.material = sp.material;
     arch.add(spBack);
     [MF.PAL.yellow, MF.PAL.blue, MF.PAL.green, MF.PAL.pink].forEach((c, i) => {
@@ -95,10 +95,10 @@
     const P = MF.site.board;
     const panel = MF.group({ name: "Panneau_des_jeux", x: P.x, y: H(P.x, P.z), z: P.z, ry: P.heading, parent: g });
     for (const side of [-1, 1]) MF.cyl(0.06, 0.07, 2.9, MF.PAL.woodDark, { x: side * 1.55, y: 1.45, parent: panel, cast: true, seg: 8 });
-    const head = MF.sign("8 JEUX · 1 À 8 JOUEURS", { w: 3.0, h: 0.5, bg: MF.PAL.blue, color: "#ffffff", border: "#ffffff" });
+    const head = MF.sign("8 GAMES · 1 TO 8 PLAYERS", { w: 3.0, h: 0.5, bg: MF.PAL.blue, color: "#ffffff", border: "#ffffff" });
     head.position.set(0, 2.6, 0.03);
     panel.add(head);
-    panel.add(MF.sponsors.board("village-panneau", 3.0, 1.25, { y: 1.62, z: 0.03, kicker: "Grand panneau" }));
+    panel.add(MF.sponsors.board("village-panneau", 3.0, 1.25, { y: 1.62, z: 0.03, kicker: "Main board" }));
     MF.box(3.1, 1.85, 0.05, MF.PAL.wood, { y: 1.9, z: -0.01, parent: panel, cast: true });
     return g;
   }
