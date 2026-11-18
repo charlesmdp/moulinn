@@ -80,8 +80,9 @@
   function hall(def, world, scores, parent) {
     const s = def.station;
     const k = def.hall || beside(s, -3.2);
-    const W = 360, H = 500;
+    const W = 360, H = 572;
     let variant = 0;
+    const band = { kicker: "Top 10 board", redraw: null };
     const variants = () => {
       const keys = [...scores.boards.keys()].filter((key) => key.startsWith(def.id + "|") && scores.boards.get(key).length);
       const base = scores.table(def).key;
@@ -134,12 +135,22 @@
       }
       if (!rows.length) MF.fitText(ctx, "Nobody yet.\nBe the first name\non the wall!", W / 2, 250, W - 80, 110, { color: "#8a6a45" });
       ctx.fillStyle = "#2b1a10";
-      MF.roundRect(ctx, 8, H - 50, W - 16, 42, 16);
+      MF.roundRect(ctx, 8, H - 124, W - 16, 38, 12);
       ctx.fill();
-      MF.fitText(ctx, "WRITTEN HERE FOREVER", W / 2, H - 28, W - 50, 24, { color: "#ffcf3a" });
+      MF.fitText(ctx, "WRITTEN HERE FOREVER", W / 2, H - 104, W - 50, 22, { color: "#ffcf3a" });
+      // le bandeau du sponsor des tableaux (à défaut, celui du jeu)
+      ctx.save();
+      ctx.translate(8, H - 80);
+      ctx.beginPath();
+      MF.roundRect(ctx, 0, 0, W - 16, 72, 14);
+      ctx.clip();
+      MF.sponsors.paint(ctx, W - 16, 72, MF.sponsors.get("top10-" + def.id), band);
+      ctx.restore();
     };
     const tex = MF.canvasTexture(W, H, draw);
     MF.whenFont(() => tex.redraw());
+    band.redraw = () => tex.redraw();
+    MF.sponsors.onChange(() => tex.redraw());
     const mat = new (T().MeshBasicMaterial)({ map: tex });
     const g = MF.group({ name: "Top10_" + def.id, x: k.x, y: world.heightAt(k.x, k.z), z: k.z, ry: (k.heading || 0) + Math.PI, parent });
     const bw = 1.5, bh = (bw * H) / W;
@@ -147,6 +158,9 @@
     face.userData.live = true; // la texture change : laissé hors de la fusion du décor
     MF.plane(bw, bh, mat, { y: 0.75 + bh / 2, z: 0.05, receive: false, parent: face });
     MF.plane(bw, bh, mat, { y: 0.75 + bh / 2, z: -0.05, ry: Math.PI, receive: false, parent: face });
+    // sous le tableau : le sponsor du jeu
+    const own = MF.sponsors.board(def.id + "-tableau", bw, 0.4, { y: 0.47, z: 0.05, kicker: def.title, parent: face });
+    MF.plane(bw, 0.4, own.material, { y: 0.47, z: -0.05, ry: Math.PI, receive: false, parent: face });
     const frame = MF.group({ parent: g });
     MF.box(bw + 0.14, bh + 0.14, 0.08, MF.PAL.woodDark, { y: 0.75 + bh / 2, parent: frame, cast: true });
     for (const side of [-1, 1]) MF.box(0.1, 0.75 + bh + 0.25, 0.1, MF.PAL.wood, { x: side * (bw / 2 + 0.12), y: (0.75 + bh + 0.25) / 2, parent: frame, cast: true });

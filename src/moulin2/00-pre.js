@@ -13,9 +13,22 @@
   const MF = (globalThis.MoulinFete = globalThis.MoulinFete || {});
   MF.version = 1;
   MF.route = ((typeof document !== "undefined" && document.documentElement.dataset.route) || "").toLowerCase();
-  MF.assets = { p2p: "{{asset:p2p}}", sponsors: "moulin2/sponsors.json", scores: "api/scores" };
+  MF.assets = { p2p: "{{asset:p2p}}", sponsors: "moulin2/sponsors.json", scores: "api/scores", sponsorsApi: "api/sponsors" };
   if (MF.route !== "moulin2" || MF.preDone) return;
   MF.preDone = true;
+
+  // 0. L'écran de chargement annonce le sponsor principal de la fête (connu depuis la dernière visite).
+  try {
+    const loading = document.querySelector("#moulin-vallee-3d .moulin-loading"), name = localStorage.getItem("fete-sponsor-principal");
+    if (loading && !loading.querySelector(".fete-load-sponsor")) {
+      const line = document.createElement("p");
+      line.className = "fete-load-sponsor";
+      line.textContent = name ? "Presented by " + name : "Your brand here · become the main sponsor at the Ad Booth";
+      loading.appendChild(line);
+    }
+  } catch (error) {
+    // sans importance
+  }
 
   // 1. Réglages à part : les clés « moulin-… » du jeu sont rangées sous « m2:moulin-… ».
   try {

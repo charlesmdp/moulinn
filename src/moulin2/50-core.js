@@ -241,7 +241,7 @@
     /* ---------------------------------------------------------------- interface */
     function cardModel(e) {
       const s = e.session, st = s.state, def = e.def;
-      const base = { icon: def.icon, title: def.title, blurb: def.blurb };
+      const base = { icon: def.icon, title: def.title, blurb: def.blurb, sponsor: sponsorCard(def.id) };
       const players = s.players().map((p) => ({ name: p.name, color: p.color, self: p.self, state: p.state }));
       if (st && st.phase === "results") {
         return Object.assign(base, {
@@ -333,13 +333,71 @@
       if (st.full) return "This room is full.";
       return st.relays.total ? "Peer-to-peer connection · " + st.relays.up + " of " + st.relays.total + " relays reachable" : "Looking for other players…";
     }
+    // guichet des sponsors : les cibles (toute la fête, les tableaux, chaque jeu) et, pour le propriétaire, les demandes
+    let adRequests = null;
+    const AD_ERRORS = {
+      "bad-key": "Wrong owner key",
+      closed: "Publishing is closed: set the ADS_KEY variable of the site first",
+      "no-store": "The sponsor service is not set up on this site yet",
+      offline: "The sponsor service does not answer here",
+      "queue-full": "Too many requests are waiting, come back later",
+      "bad-request": "Give your brand a name first",
+    };
+    const targetLabel = (id) => (id === "fair" ? "⭐ Main sponsor · the whole fest" : id === "top10" ? "🏆 All the Top 10 boards" : ((find(id) || {}).def || { icon: "🎮", title: id }).icon + " " + ((find(id) || {}).def || { title: id }).title);
     function sponsorsModel() {
-      const titles = Object.fromEntries(entries.map((e) => [e.def.id, e.def.title]));
-      return {
-        contact: MF.sponsors.contact(),
-        slots: MF.sponsors.all().map((s) => ({ label: s.label, group: titles[s.game] || "Whole fair", taken: s.taken, name: s.name, url: s.url, price: s.price })),
+      const st = MF.sponsors.status();
+      const row = (id, group) => {
+        const ad = MF.sponsors.of(id);
+        return { id, group, label: targetLabel(id), taken: !!ad, name: ad ? ad.name : "", url: ad ? ad.url : "", preview: !!(ad && ad.preview) };
       };
+      return { open: st.open, online: st.online, requests: adRequests, targets: [row("fair", "main"), row("top10", "main")].concat(entries.map((e) => row(e.def.id, "game"))) };
     }
+    const listRequests = (list) => (list || []).map((r) => ({ id: r.id, label: targetLabel(r.target), name: r.ad.name, tagline: r.ad.tagline, url: r.ad.url, image: r.ad.image, contact: r.contact, date: r.date }));
+    function adAction(v) {
+      const S = MF.sponsors, say = (r, good) => hud.toast(r.ok ? good : AD_ERRORS[r.error] || "That did not work (" + r.error + ")", { hold: 5 });
+      const again = () => {
+        hud.setSponsors(sponsorsModel());
+        world.invalidate();
+      };
+      if ((v.op === "preview" || v.op === "request" || v.op === "publish") && !v.ad.name) return hud.toast("Give your brand a name first");
+      if (v.op === "preview") {
+        S.setPreview(v.target, v.ad);
+        hud.toast("Preview on: look around the fair, only you can see it", { hold: 5 });
+      } else if (v.op === "clear") {
+        S.setPreview(v.target, null);
+        hud.toast("Preview removed");
+      } else if (v.op === "request") S.request(v.target, v.ad, v.contact).then((r) => say(r, "Request sent: the owner of the fair will review it"));
+      else {
+        // actions du propriétaire : la clé est gardée dans ce navigateur
+        try {
+          localStorage.setItem("fete-ads-cle", v.key || "");
+        } catch (e) {}
+        if (v.op === "publish" || v.op === "unpublish")
+          S.publish(v.target, v.op === "publish" ? v.ad : null, v.key).then((r) => {
+            say(r, v.op === "publish" ? "Published: everyone sees it now" : "Sponsor taken down");
+            if (r.ok) S.setPreview(v.target, null);
+            again();
+          });
+        else if (v.op === "pending")
+          S.pending(v.key).then((r) => {
+            if (r.ok) adRequests = listRequests(r.requests);
+            else say(r, "");
+            again();
+          });
+        else if (v.op === "approve" || v.op === "reject")
+          S.decide(v.id, v.op === "approve", v.key).then((r) => {
+            if (r.ok) adRequests = listRequests(r.requests);
+            say(r, v.op === "approve" ? "Published: everyone sees it now" : "Request declined");
+            again();
+          });
+      }
+      again();
+    }
+    /** Ligne « Presented by » de la carte d'un jeu : son sponsor, à défaut le sponsor principal. */
+    const sponsorCard = (id) => {
+      const ad = MF.sponsors.of(id) || MF.sponsors.of("fair");
+      return ad ? { name: ad.name, tagline: ad.tagline, url: ad.url, image: ad.image, bg: ad.bg, fg: ad.fg } : null;
+    };
     let uiTimer = 0;
     function refreshUi() {
       const st = net.status();
@@ -424,6 +482,7 @@
         if (seated) presence.setSeat(seated);
       } else if (action === "place") places.run(value);
       else if (action === "stand") stand();
+      else if (action === "ad") adAction(value || {});
       else if (action === "ambience") {
         MF.ambience.set(value);
         if (seated) hud.seat({ ambience: MF.ambience.mode });

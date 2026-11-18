@@ -192,6 +192,13 @@
   function setAds(ads) {
     if (!ads || typeof ads !== "object") return;
     state.ads = { fair: ads.fair || null, top10: ads.top10 || null, games: ads.games && typeof ads.games === "object" ? ads.games : {} };
+    try {
+      // l'écran de chargement de la prochaine visite annonce le sponsor principal (src/moulin2/00-pre.js)
+      if (state.ads.fair && state.ads.fair.name) localStorage.setItem("fete-sponsor-principal", String(state.ads.fair.name).slice(0, 28));
+      else localStorage.removeItem("fete-sponsor-principal");
+    } catch (error) {
+      /* sans importance */
+    }
     refresh();
   }
 

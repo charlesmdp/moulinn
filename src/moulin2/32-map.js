@@ -50,6 +50,7 @@
     if (typeof document === "undefined" || !hud || !hud.root) return { update() {}, open() {}, close() {}, poi() {} };
     const px = (x) => (x - X0) * S, pz = (z) => (z - Z0) * S;
     const pois = POIS.map(([icon, title, x, z]) => ({ icon, title, x, z }));
+    for (const [x, z, heading] of (MF.fest && MF.fest.AD_BOOTHS) || []) pois.push({ icon: "📣", title: "Ad Booth · put your brand in the fair", x: x + Math.sin(heading) * 1.35, z: z + Math.cos(heading) * 1.35 });
     const base = document.createElement("canvas"); // le plan (dessiné une fois)
     base.width = W;
     base.height = H;

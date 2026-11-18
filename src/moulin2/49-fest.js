@@ -16,6 +16,16 @@
   "use strict";
   const MF = (globalThis.MoulinFete = globalThis.MoulinFete || {});
   const TAU = Math.PI * 2;
+  // Guichets des sponsors : [x, z, cap] (le cap est la direction vers laquelle regarde le comptoir).
+  const AD_BOOTHS = [
+    [7.5, -79.5, -Math.PI / 2], // l'entrée
+    [60, 2, Math.PI], // le pré (The Green)
+    [-24, 17, 0], // vers le ponton des fondateurs
+    [-91, 3, Math.PI], // le bord du plateau, près de la montgolfière
+    [150, -6, -Math.PI / 2], // le pré de l'est
+    [-70, 126.5, Math.PI], // la rive sud
+    [40, 36, -Math.PI / 2], // le camp des bûcherons
+  ];
   const BALLOON = { x: -95, z: -4, rise: 34, drift: 18, period: 72 }; // un vol toutes les 72 s : 18 s au sol, montée, palier, descente
   const BUTTON = { x: 10.8, z: 14.4 };
   const SKY = { x: 2, z: 27 }; // le feu d'artifice éclate au-dessus de la baie nord du Grand étang
@@ -656,6 +666,10 @@
     MF.cone(0.14, 0.5, MF.mat("#ffb02e", { emissive: "#ff7a1a", emissiveIntensity: 1 }), { y: 2.95, parent: shell, seg: 6 });
     for (const [sx, sz] of [[-1, -1], [-1, 1], [1, -1], [1, 1]]) MF.cyl(0.02, 0.02, 2.2, "#5d4630", { x: sx * 0.9, y: 2.3, z: sz * 0.9, rz: sx * 0.12, rx: -sz * 0.12, parent: shell, seg: 4 });
     MF.freeze(shell);
+    for (const ry of [0, Math.PI]) {
+      const face = MF.group({ ry, parent: balloon });
+      face.add(MF.sponsors.board("fest-ballon", 5.2, 1.5, { y: 8.6, z: 4.62, kicker: "Hot-air balloon · main sponsor" }));
+    }
     const seats = [[-0.45, -0.45], [0.45, -0.45], [-0.45, 0.45], [0.45, 0.45]].map(([dx, dz], i) => ({ id: "balloon-" + i, dx, dz, x: B.x + dx, y: gy + 0.38, z: B.z + dz, heading: Math.PI / 2, moving: true, ride: "balloon", laptop: false, stand: true, back: 3.4, up: 3.1, look: { x: 0, y: 0, z: 0 }, exit: { x: B.x - 3.2, z: B.z } }));
     let lift = 0, back = 0; // hauteur du vol (0…1) ; secondes avant le retour au sol
     places.add({
@@ -710,6 +724,31 @@
       return best || (before ? before(r) : null);
     };
 
+    /* ---- Les guichets des sponsors (« Ad Booth ») : à l'entrée et dans chaque coin du parc. On y
+       ouvre le formulaire : marque, slogan, site, image ; aperçu pour soi, demande au propriétaire. */
+    AD_BOOTHS.forEach(([x, z, heading], i) => {
+      const g = MF.group({ name: "Guichet_sponsors" }), blue = "#2f7fd8";
+      MF.box(2.0, 1.0, 0.9, blue, { y: 0.5, parent: g, cast: true });
+      MF.box(2.2, 0.07, 1.1, MF.PAL.woodDark, { y: 1.035, parent: g });
+      MF.box(2.0, 1.75, 0.07, MF.PAL.cream, { y: 1.9, z: -0.42, parent: g, cast: true });
+      for (const sx of [-1, 1]) MF.box(0.09, 2.75, 0.09, "#ffffff", { x: sx * 1.0, y: 1.375, z: -0.42, parent: g, cast: true });
+      for (let k = 0; k < 6; k++) MF.box(0.37, 0.05, 1.35, k % 2 ? "#ffffff" : blue, { x: -0.925 + k * 0.37, y: 2.86, z: 0.1, rx: 0.2, parent: g, cast: true }); // auvent rayé
+      // un mégaphone sur le comptoir
+      MF.cone(0.16, 0.34, MF.PAL.orange, { x: 0.62, y: 1.24, z: 0.05, rz: Math.PI / 2 + 0.25, parent: g, seg: 10 });
+      MF.cyl(0.05, 0.05, 0.16, MF.PAL.ink, { x: 0.82, y: 1.2, z: 0.05, rz: Math.PI / 2 + 0.25, parent: g, seg: 8 });
+      const title = MF.sign("AD BOOTH", { w: 1.9, h: 0.46, bg: blue, color: "#ffffff", border: MF.PAL.yellow });
+      title.position.set(0, 3.25, 0.5);
+      g.add(title);
+      const sub = MF.sign("YOUR BRAND IN THE FAIR", { w: 1.8, h: 0.26, px: 128, bg: MF.PAL.yellow, color: MF.PAL.ink, border: MF.PAL.ink });
+      sub.position.set(0, 0.6, 0.462);
+      g.add(sub);
+      g.add(MF.sponsors.board("fest-guichet", 1.8, 0.8, { y: 2.0, z: -0.38, kicker: "Main sponsor" }));
+      const home = zone("Guichet_" + i, x, z, 70);
+      put(home, MF.freeze(g), x, z, heading);
+      const px = x + Math.sin(heading) * 1.35, pz = z + Math.cos(heading) * 1.35;
+      places.add({ id: "ads-" + i, x: px, z: pz, r: 2.1, icon: "📣", title: "Ad Booth · put your brand in the fair", verb: "Open", run: () => ctx.hud && ctx.hud.openPanel("sponsors") });
+    });
+
     MF.fest.fixed = fixed;
     return {
       balloon: B,
@@ -745,5 +784,5 @@
     };
   }
 
-  MF.fest = { build, BALLOON, BUTTON, fixed: null };
+  MF.fest = { build, BALLOON, BUTTON, AD_BOOTHS, fixed: null };
 })();

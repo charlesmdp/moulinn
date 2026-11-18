@@ -116,10 +116,28 @@
     const toasts = el("div", "fete-toasts", root);
     const statEls = new Map();
     let flashTimer = 0, cardSig = "";
+    // guichet des sponsors : ce que le visiteur est en train de saisir (gardé d'un dessin à l'autre)
+    const adDraft = { target: "fair", name: "", tagline: "", url: "", image: "", bg: "#1d2b4f", fg: "#ffffff", contact: "", key: "", owner: false };
+    let adModel = null;
+    try {
+      adDraft.key = localStorage.getItem("fete-ads-cle") || "";
+    } catch (error) {
+      /* sans importance */
+    }
+    function drawAd() {
+      const canvas = panels.sponsors.querySelector("[data-ad-canvas]");
+      if (!canvas) return;
+      const d = adDraft;
+      MF.sponsors.paint(canvas.getContext("2d"), canvas.width, canvas.height, { taken: !!d.name.trim(), name: d.name.trim(), tagline: d.tagline.trim(), bg: d.bg, fg: d.fg, logo: d.image, label: "Your banner" }, { redraw: drawAd });
+    }
+    const redrawAds = () => {
+      panels.sponsors._sig = "";
+      if (adModel) hud.setSponsors(adModel);
+    };
 
     /* ---------------------------------------------------------------- clics */
     root.addEventListener("click", (ev) => {
-      const t = ev.target.closest("[data-open],[data-close],[data-act],[data-game],[data-spot],[data-sound],[data-music],[data-ambience],[data-color],[data-kit],[data-hat],[data-logo-clear],[data-copy],[data-private],[data-public],[data-fold]");
+      const t = ev.target.closest("[data-open],[data-close],[data-act],[data-game],[data-spot],[data-sound],[data-music],[data-ambience],[data-color],[data-kit],[data-hat],[data-logo-clear],[data-ad-op],[data-copy],[data-private],[data-public],[data-fold]");
       if (!t || !root.contains(t)) return;
       if (t.dataset.open) return openPanel(t.dataset.open);
       if (t.hasAttribute("data-close")) return openPanel(null);
@@ -139,6 +157,16 @@
       if (t.dataset.kit) return act("profile", { kit: t.dataset.kit });
       if (t.dataset.hat) return act("profile", { hat: t.dataset.hat });
       if (t.hasAttribute("data-logo-clear")) return act("profile", { logo: "" });
+      if (t.dataset.adOp) {
+        const d = adDraft, op = t.dataset.adOp;
+        if (op === "noimage") {
+          d.image = "";
+          return redrawAds();
+        }
+        const details = panels.sponsors.querySelector(".fete-ad-owner");
+        d.owner = !!(details && details.open);
+        return act("ad", { op, id: t.dataset.id, target: d.target, contact: d.contact.trim(), key: d.key, ad: { name: d.name.trim(), tagline: d.tagline.trim(), url: d.url.trim(), image: d.image, bg: d.bg, fg: d.fg } });
+      }
       if (t.hasAttribute("data-copy")) return act("copy");
       if (t.hasAttribute("data-private")) {
         const input = panels.players.querySelector("[data-code]");
@@ -155,7 +183,22 @@
       }
       if (a) act(a, t.dataset.arg);
     });
+    root.addEventListener("input", (ev) => {
+      const field = ev.target.dataset && ev.target.dataset.ad;
+      if (!field) return;
+      adDraft[field] = ev.target.value;
+      drawAd();
+    });
     root.addEventListener("change", (ev) => {
+      if (ev.target.matches("[data-ad-image]") && ev.target.files && ev.target.files[0])
+        // l'image d'une annonce : 512 × 256 pixels au plus, quelques dizaines de kilo-octets
+        MF.shrinkImage(ev.target.files[0], { w: 512, h: 256, free: true, max: 60000 }).then(
+          (image) => {
+            adDraft.image = image;
+            redrawAds();
+          },
+          (error) => hud.toast(error.message),
+        );
       if (ev.target.matches("[data-name]")) act("profile", { name: ev.target.value });
       if (ev.target.matches("[data-bio]")) act("profile", { bio: ev.target.value });
       if (ev.target.matches("[data-logo]") && ev.target.files && ev.target.files[0])
@@ -254,29 +297,66 @@
           <p class="fete-net">${esc(model.net)}</p>`;
         fillThumbs(panels.players);
       },
-      /** Panneau des sponsors : { contact: { texte, lien }, slots: [{ label, game, taken, name, url, price }] } */
+      /**
+       * Guichet des sponsors. model : { open, online, targets: [{ id, label, group, taken, name, url, preview }],
+       * requests: null | [{ id, label, name, tagline, url, image, contact, date }] }
+       */
       setSponsors(model) {
-        const sig = JSON.stringify(model);
+        adModel = model;
+        const sig = JSON.stringify(model) + "|" + adDraft.image.length;
         if (panels.sponsors._sig === sig) return;
+        // ne pas redessiner pendant que l'on remplit le formulaire
+        if (panels.sponsors.contains(document.activeElement) && document.activeElement.matches("input, select")) return;
         panels.sponsors._sig = sig;
-        const free = model.slots.filter((s) => !s.taken).length;
-        const contact = model.contact.lien
-          ? `<a class="fete-btn fete-btn-main" href="${esc(model.contact.lien)}" target="_blank" rel="noopener">${esc(model.contact.texte || "Book a spot")}</a>`
-          : model.contact.texte
-            ? `<p class="fete-note"><b>${esc(model.contact.texte)}</b></p>`
-            : "";
-        let last = "";
+        const d = adDraft;
+        const option = (t) => `<option value="${t.id}"${t.id === d.target ? " selected" : ""}>${esc(t.label)} · ${t.taken ? esc(t.name) + (t.preview ? " (your preview)" : "") : "available"}</option>`;
+        const main = model.targets.filter((t) => t.group === "main"), games = model.targets.filter((t) => t.group !== "main");
+        const thumb = (image) => `<i class="fete-logo-thumb"${image ? ` style="background-image:url(${esc(image)})"` : ""}></i>`;
+        const requests = !model.requests
+          ? ""
+          : model.requests.length
+            ? `<ul class="fete-ad-requests">` +
+              model.requests
+                .map(
+                  (r) =>
+                    `<li>${thumb(r.image)}<div><b>${esc(r.name)}</b> → ${esc(r.label)}<small>${esc([r.tagline, r.url, r.contact, r.date].filter(Boolean).join(" · "))}</small></div><button type="button" class="fete-btn fete-btn-main" data-ad-op="approve" data-id="${esc(r.id)}">Publish</button><button type="button" class="fete-btn" data-ad-op="reject" data-id="${esc(r.id)}">Decline</button></li>`,
+                )
+                .join("") +
+              `</ul>`
+            : `<p class="fete-note">No request is waiting.</p>`;
+        const where = model.online ? (model.open ? "Publishing is open: enter your owner key." : "Publishing is closed: set the ADS_KEY variable of the site first.") : "The sponsor service does not answer here: it runs on the published site.";
         panels.sponsors.innerHTML =
-          `<p class="fete-note">Put your brand inside the fair: banners along the tracks, start arches, the shooting gallery backdrop, remote controls… ${free} of ${model.slots.length} spots available.</p>${contact}
+          `<p class="fete-note">Put your brand inside the fair: <b>one sponsor per game</b> (its banners, its stand, its top-10 board), one for <b>all the Top 10 boards</b>, and a <b>main sponsor</b> for the whole fest (entrance arch, mill banner, hot-air balloon, park map, loading screen). Nothing to pay here: try it, then send your request.</p>
+          <label class="fete-label">Where</label>
+          <select class="fete-input" data-ad="target"><optgroup label="The whole fest">${main.map(option).join("")}</optgroup><optgroup label="One game">${games.map(option).join("")}</optgroup></select>
+          <label class="fete-label">Brand</label>
+          <input type="text" class="fete-input" data-ad="name" maxlength="28" value="${esc(d.name)}" placeholder="Acme" autocomplete="off" spellcheck="false">
+          <label class="fete-label">Tagline <small>optional</small></label>
+          <input type="text" class="fete-input" data-ad="tagline" maxlength="60" value="${esc(d.tagline)}" placeholder="Tools for indie makers" autocomplete="off">
+          <label class="fete-label">Website <small>optional</small></label>
+          <input type="url" class="fete-input" data-ad="url" maxlength="200" value="${esc(d.url)}" placeholder="https://" autocomplete="off" spellcheck="false">
+          <div class="fete-row fete-logo-row">${thumb(d.image)}<label class="fete-btn"><input type="file" accept="image/*" data-ad-image hidden>${d.image ? "Change the image" : "Add a logo or a picture"}</label>${d.image ? `<button type="button" class="fete-btn" data-ad-op="noimage">Remove</button>` : ""}</div>
+          <div class="fete-row fete-logo-row"><span class="fete-note">Banner colours</span><input type="color" data-ad="bg" value="${esc(d.bg)}" title="Background colour" aria-label="Background colour"><input type="color" data-ad="fg" value="${esc(d.fg)}" title="Text colour" aria-label="Text colour"></div>
+          <canvas class="fete-ad-canvas" width="640" height="160" data-ad-canvas></canvas>
+          <div class="fete-row"><button type="button" class="fete-btn fete-btn-main" data-ad-op="preview">Try it in the fair</button><button type="button" class="fete-btn" data-ad-op="clear">Remove my preview</button></div>
+          <p class="fete-note">The preview is visible to you only, in this browser. To show it to everyone, send a request: the owner of the fair publishes it.</p>
+          <div class="fete-row"><input type="text" class="fete-input" data-ad="contact" maxlength="80" value="${esc(d.contact)}" placeholder="How to reach you (email, X…)" autocomplete="off"><button type="button" class="fete-btn" data-ad-op="request">Send my request</button></div>
+          <details class="fete-ad-owner"${d.owner ? " open" : ""}><summary>I own this fair</summary>
+            <div class="fete-row"><input type="password" class="fete-input" data-ad="key" value="${esc(d.key)}" placeholder="Owner key" autocomplete="off"><button type="button" class="fete-btn fete-btn-main" data-ad-op="publish">Publish</button><button type="button" class="fete-btn" data-ad-op="unpublish">Take down</button></div>
+            <div class="fete-row"><button type="button" class="fete-btn" data-ad-op="pending">Show the requests</button></div>
+            ${requests}
+            <p class="fete-note">${where}</p>
+          </details>
+          <h3>Who sponsors what</h3>
           <ul class="fete-slots">` +
-          model.slots
-            .map((s) => {
-              const head = s.group !== last ? `<li class="fete-slot-group">${esc((last = s.group))}</li>` : "";
-              const who = s.taken ? (s.url ? `<a href="${esc(s.url)}" target="_blank" rel="noopener sponsored">${esc(s.name)}</a>` : esc(s.name)) : "available" + (s.price ? " · " + esc(s.price) : "");
-              return `${head}<li class="${s.taken ? "is-taken" : ""}"><b>${esc(s.label)}</b><em>${who}</em></li>`;
+          model.targets
+            .map((t) => {
+              const who = t.taken ? (t.url ? `<a href="${esc(t.url)}" target="_blank" rel="noopener sponsored">${esc(t.name)}</a>` : esc(t.name)) + (t.preview ? " · your preview" : "") : "available";
+              return `<li class="${t.taken ? "is-taken" : ""}"><b>${esc(t.label)}</b><em>${who}</em></li>`;
             })
             .join("") +
           `</ul>`;
+        drawAd();
       },
       /**
        * Bouton d'invite quand on est près d'un stand ou d'un lieu (null pour le cacher) :
@@ -366,6 +446,10 @@
           } else {
             body += `<p class="fete-note">${esc(model.wait || "Game in progress: you'll play the next one.")}</p><div class="fete-row"><button type="button" class="fete-btn" data-act="leave">Quit</button></div>`;
           }
+        }
+        if (model.sponsor) {
+          const sp = model.sponsor, inner = `${sp.image ? `<i style="background-image:url(${esc(sp.image)})"></i>` : ""}<span>Presented by <b>${esc(sp.name)}</b>${sp.tagline ? " · " + esc(sp.tagline) : ""}</span>`;
+          body += sp.url ? `<a class="fete-sponsor-line" href="${esc(sp.url)}" target="_blank" rel="noopener sponsored" style="background:${esc(sp.bg)};color:${esc(sp.fg)}">${inner}</a>` : `<p class="fete-sponsor-line" style="background:${esc(sp.bg)};color:${esc(sp.fg)}">${inner}</p>`;
         }
         card.innerHTML = `<header><span class="fete-game-icon" aria-hidden="true">${model.icon}</span><div><h2>${esc(model.title)}</h2><small>${esc(model.kind === "results" ? "Results" : model.blurb || "")}</small></div></header>${body}`;
       },

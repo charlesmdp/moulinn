@@ -66,7 +66,11 @@
         if (spec.before) spec.before(ctx, toWorld); // pontons et planchers du jeu, posés avant de relever les hauteurs
         const root = MF.group({ name: "Baraque_" + spec.id, x: A.x, y: world.heightAt(A.x, A.z) + 0.02, z: A.z, ry: face, parent: group });
         const decor = MF.group({ parent: root }), live = MF.group({ parent: root });
-        if (spec.stall !== false) decor.add(MF.props.stall(Object.assign({ title: spec.title.toUpperCase(), skirt: 0.45 }, S)));
+        if (spec.stall !== false) {
+          decor.add(MF.props.stall(Object.assign({ title: spec.title.toUpperCase(), skirt: 0.45 }, S)));
+          // le sponsor du jeu, sur le devant du comptoir
+          if (S.counter !== false) decor.add(MF.sponsors.board(spec.id + "-comptoir", Math.min(S.w - 0.5, 3.2), 0.44, { y: 0.62, z: S.d / 2 + 0.07, kicker: spec.title }));
+        }
         root.updateMatrixWorld(true);
         const inv = new THREE.Matrix4().copy(root.matrixWorld).invert();
         const tmp = new THREE.Vector3(), from = new THREE.Vector3(), to = new THREE.Vector3();
