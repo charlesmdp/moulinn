@@ -150,66 +150,234 @@
     };
   }
 
-  /** Feu d'artifice : un seul nuage de points (un appel de dessin), des gerbes qui retombent. */
-  function fireworks(parent, count = 540) {
+  /* ---- Feu d'artifice : des gerbes rondes, et des figures (dollar, pomme croquée, shiba, fusée…) */
+  // Chaque figure est dessinée une fois sur un petit canevas ; ses pixels deviennent les étincelles.
+  const SHAPES = {
+    dollar(c) {
+      c.fillStyle = "#3ddc6a";
+      c.font = "900 46px Arial, sans-serif";
+      c.fillText("$", 24, 26);
+    },
+    bitcoin(c) {
+      c.fillStyle = "#ff9f1a";
+      c.font = "900 42px Arial, sans-serif";
+      c.fillText("B", 25, 26);
+      c.fillRect(17, 3, 4, 42);
+      c.fillRect(25, 3, 4, 42);
+    },
+    apple(c) {
+      // une pomme croquée, sa feuille
+      c.fillStyle = "#eef2f7";
+      c.beginPath();
+      c.arc(18, 28, 11, 0, 7);
+      c.arc(30, 28, 11, 0, 7);
+      c.arc(24, 33, 11, 0, 7);
+      c.fill();
+      c.globalCompositeOperation = "destination-out";
+      c.beginPath();
+      c.arc(41, 24, 7.5, 0, 7);
+      c.fill();
+      c.globalCompositeOperation = "source-over";
+      c.beginPath();
+      c.ellipse(27, 10, 6, 3, -0.8, 0, 7);
+      c.fill();
+    },
+    doge(c) {
+      // un shiba : oreilles, tête fauve, museau crème, yeux et truffe
+      c.fillStyle = "#e0a650";
+      for (const sx of [-1, 1]) {
+        c.beginPath();
+        c.moveTo(24 + sx * 6, 14);
+        c.lineTo(24 + sx * 17, 4);
+        c.lineTo(24 + sx * 16, 20);
+        c.fill();
+      }
+      c.beginPath();
+      c.arc(24, 27, 15, 0, 7);
+      c.fill();
+      c.fillStyle = "#fff3d6";
+      c.beginPath();
+      c.ellipse(24, 33, 9, 7.5, 0, 0, 7);
+      c.fill();
+      c.fillStyle = "#2b1a10";
+      for (const [x, y, r] of [[17.5, 24, 2.2], [30.5, 24, 2.2], [24, 30, 2.6]]) {
+        c.beginPath();
+        c.arc(x, y, r, 0, 7);
+        c.fill();
+      }
+      c.fillRect(20, 35, 8, 1.6);
+    },
+    rocket(c) {
+      c.fillStyle = "#f4f6fb";
+      c.beginPath();
+      c.moveTo(24, 3);
+      c.quadraticCurveTo(34, 14, 31, 33);
+      c.lineTo(17, 33);
+      c.quadraticCurveTo(14, 14, 24, 3);
+      c.fill();
+      c.fillStyle = "#e8402c";
+      c.beginPath();
+      c.moveTo(17, 24);
+      c.lineTo(9, 37);
+      c.lineTo(17, 34);
+      c.moveTo(31, 24);
+      c.lineTo(39, 37);
+      c.lineTo(31, 34);
+      c.fill();
+      c.fillStyle = "#2f8fe8";
+      c.beginPath();
+      c.arc(24, 17, 4, 0, 7);
+      c.fill();
+      c.fillStyle = "#ffb02e";
+      c.beginPath();
+      c.moveTo(19, 34);
+      c.lineTo(24, 46);
+      c.lineTo(29, 34);
+      c.fill();
+    },
+    heart(c) {
+      c.fillStyle = "#ff4d6d";
+      c.beginPath();
+      c.arc(16, 18, 9.5, 0, 7);
+      c.arc(32, 18, 9.5, 0, 7);
+      c.fill();
+      c.beginPath();
+      c.moveTo(7.5, 22);
+      c.lineTo(24, 43);
+      c.lineTo(40.5, 22);
+      c.fill();
+    },
+    star(c) {
+      c.fillStyle = "#ffd54a";
+      c.beginPath();
+      for (let i = 0; i < 10; i++) {
+        const r = i % 2 ? 9 : 21, a = -Math.PI / 2 + (i * Math.PI) / 5;
+        c.lineTo(24 + Math.cos(a) * r, 25 + Math.sin(a) * r);
+      }
+      c.fill();
+    },
+  };
+  let shapeCache = null;
+  /** Points de chaque figure : [dx, dy, r, g, b] (en « pixels », −24…24, y vers le haut). */
+  function shapePoints() {
+    if (shapeCache) return shapeCache;
+    shapeCache = {};
+    if (typeof document === "undefined") return shapeCache;
+    const cv = document.createElement("canvas");
+    cv.width = cv.height = 48;
+    const c = cv.getContext("2d");
+    for (const name in SHAPES) {
+      c.clearRect(0, 0, 48, 48);
+      c.textAlign = "center";
+      c.textBaseline = "middle";
+      SHAPES[name](c);
+      const img = c.getImageData(0, 0, 48, 48).data, pts = [];
+      for (let y = 0; y < 48; y++)
+        for (let x = (y % 2) * 1; x < 48; x += 2) {
+          const k = (y * 48 + x) * 4;
+          if (img[k + 3] > 130) pts.push([x - 24, 24 - y, img[k] / 255, img[k + 1] / 255, img[k + 2] / 255]);
+        }
+      shapeCache[name] = pts;
+    }
+    return shapeCache;
+  }
+
+  /** Le feu d'artifice : un seul nuage de points (un appel de dessin), chaque étincelle a sa couleur, sa taille, son fondu. */
+  function fireworks(parent, world, count = 1400) {
     const THREE = globalThis.THREE;
-    const pos = new Float32Array(count * 3).fill(-999), col = new Float32Array(count * 3), parts = [];
-    for (let i = 0; i < count; i++) parts.push({ life: 0, vx: 0, vy: 0, vz: 0 });
+    const pos = new Float32Array(count * 3).fill(-999), tint = new Float32Array(count * 4), size = new Float32Array(count), parts = [];
+    for (let i = 0; i < count; i++) parts.push({ life: 0, age: 0, vx: 0, vy: 0, vz: 0, tx: 0, ty: 0, tz: 0, shape: false, hold: 0 });
     const geo = new THREE.BufferGeometry();
     geo.setAttribute("position", new THREE.BufferAttribute(pos, 3));
-    geo.setAttribute("color", new THREE.BufferAttribute(col, 3));
-    // chaque point est un petit disque lumineux (texture dessinée une fois)
-    const dot = MF.canvasTexture(32, 32, (c) => {
-      const g = c.createRadialGradient(16, 16, 1, 16, 16, 15);
-      g.addColorStop(0, "rgba(255,255,255,1)");
-      g.addColorStop(0.45, "rgba(255,255,255,0.95)");
-      g.addColorStop(1, "rgba(255,255,255,0)");
-      c.fillStyle = g;
-      c.fillRect(0, 0, 32, 32);
+    geo.setAttribute("tint", new THREE.BufferAttribute(tint, 4));
+    geo.setAttribute("size", new THREE.BufferAttribute(size, 1));
+    const material = new THREE.ShaderMaterial({
+      uniforms: { scale: { value: 400 } },
+      vertexShader: "attribute vec4 tint; attribute float size; varying vec4 vTint; uniform float scale; void main() { vTint = tint; vec4 mv = modelViewMatrix * vec4(position, 1.0); gl_PointSize = size * scale / max(0.5, -mv.z); gl_Position = projectionMatrix * mv; }",
+      fragmentShader: "varying vec4 vTint; void main() { float d = length(gl_PointCoord - 0.5); if (d > 0.5) discard; float core = smoothstep(0.5, 0.0, d); gl_FragColor = vec4(mix(vTint.rgb, vec3(1.0), core * core * 0.55), vTint.a * smoothstep(0.5, 0.3, d)); }",
+      transparent: true,
+      depthWrite: false,
     });
-    const points = new THREE.Points(geo, new THREE.PointsMaterial({ size: 1.15, map: dot, vertexColors: true, transparent: true, depthWrite: false, sizeAttenuation: true }));
+    const points = new THREE.Points(geo, material);
     points.frustumCulled = false;
     points.name = "Feu_d_artifice";
     points.userData.live = true;
     points.visible = false;
     parent.add(points);
-    const queue = []; // gerbes à venir : { at, x, y, z, color }
+    const queue = []; // gerbes à venir : { at, x, y, z, color | shape }
     let next = 0, alive = 0, clock = 0;
-    function burst(x, y, z, color) {
-      const c = MF.color(color);
-      for (let k = 0; k < 90; k++) {
-        const i = next++ % count, p = parts[i];
-        // direction au hasard sur la sphère, vitesse presque égale : une boule qui s'ouvre
-        const u = Math.random() * 2 - 1, a = Math.random() * TAU, s = Math.sqrt(1 - u * u), v = 6.5 + Math.random() * 2.5;
-        p.vx = Math.cos(a) * s * v;
-        p.vy = u * v + 1.5;
-        p.vz = Math.sin(a) * s * v;
-        p.life = 1.5 + Math.random() * 0.7;
-        pos[i * 3] = x;
-        pos[i * 3 + 1] = y;
-        pos[i * 3 + 2] = z;
-        col[i * 3] = c.r;
-        col[i * 3 + 1] = c.g;
-        col[i * 3 + 2] = c.b;
+    const cam = new THREE.Vector3(), right = new THREE.Vector3(), up = new THREE.Vector3(0, 1, 0), face = new THREE.Vector3();
+    function spark(x, y, z, r, g, b, big) {
+      const i = next++ % count, p = parts[i];
+      pos[i * 3] = x;
+      pos[i * 3 + 1] = y;
+      pos[i * 3 + 2] = z;
+      tint[i * 4] = r;
+      tint[i * 4 + 1] = g;
+      tint[i * 4 + 2] = b;
+      tint[i * 4 + 3] = 1;
+      size[i] = big;
+      p.age = 0;
+      return p;
+    }
+    function burst(q) {
+      const pts = q.shape && shapePoints()[q.shape];
+      if (pts && pts.length) {
+        // la figure se déploie face à celui qui regarde : chaque joueur la voit de face
+        cam.copy(world.camera.position);
+        face.set(cam.x - q.x, 0, cam.z - q.z).normalize();
+        right.crossVectors(up, face).normalize();
+        const k = 0.24; // 48 « pixels » → 11,5 m
+        for (const [dx, dy, r, g, b] of pts) {
+          const p = spark(q.x, q.y, q.z, r, g, b, 1.5);
+          p.shape = true;
+          p.tx = q.x + right.x * dx * k;
+          p.ty = q.y + dy * k;
+          p.tz = q.z + right.z * dx * k;
+          p.life = 2.9 + Math.random() * 0.5;
+          p.hold = 0.45 + Math.random() * 0.12;
+        }
+        alive = Math.max(alive, 3.6);
+      } else {
+        const c = MF.color(q.color || "#ffffff").clone().convertLinearToSRGB(); // le nuage écrit ses couleurs telles quelles
+        for (let n = 0; n < 110; n++) {
+          // direction au hasard sur la sphère, vitesse presque égale : une boule qui s'ouvre
+          const u = Math.random() * 2 - 1, a = Math.random() * TAU, sr = Math.sqrt(1 - u * u), v = 7 + Math.random() * 3;
+          const p = spark(q.x, q.y, q.z, c.r, c.g, c.b, 1.1);
+          p.shape = false;
+          p.vx = Math.cos(a) * sr * v;
+          p.vy = u * v + 1.5;
+          p.vz = Math.sin(a) * sr * v;
+          p.life = 1.6 + Math.random() * 0.8;
+        }
+        alive = Math.max(alive, 2.6);
       }
-      geo.attributes.color.needsUpdate = true;
-      alive = Math.max(alive, 2.4);
+      geo.attributes.tint.needsUpdate = true;
+      geo.attributes.size.needsUpdate = true;
       points.visible = true;
       MF.sfx.play("choc");
     }
     return {
-      /** Tire le bouquet « seed » (le même chez tous les joueurs). */
+      /** Tire le bouquet « seed » (le même chez tous les joueurs) : gerbes rondes et deux figures. */
       launch(seed) {
         const rnd = MF.rng(seed | 0), colors = [MF.PAL.red, MF.PAL.yellow, MF.PAL.blue, MF.PAL.green, MF.PAL.pink, MF.PAL.orange, "#ffffff"];
-        for (let i = 0; i < 7; i++) queue.push({ at: clock + 0.35 + i * 0.42 + rnd() * 0.2, x: SKY.x + (rnd() - 0.5) * 22, y: 14 + rnd() * 9, z: SKY.z + (rnd() - 0.5) * 10, color: colors[Math.floor(rnd() * colors.length)] });
+        const names = Object.keys(SHAPES), first = Math.floor(rnd() * names.length), second = (first + 1 + Math.floor(rnd() * (names.length - 1))) % names.length;
+        const el = world.renderer && world.renderer.domElement;
+        material.uniforms.scale.value = el ? el.height * 0.55 : 400;
+        let at = clock + 0.3;
+        for (let i = 0; i < 4; i++, at += 0.38 + rnd() * 0.2) queue.push({ at, x: SKY.x + (rnd() - 0.5) * 24, y: 13 + rnd() * 9, z: SKY.z + (rnd() - 0.5) * 10, color: colors[Math.floor(rnd() * colors.length)] });
+        queue.push({ at: at + 0.2, x: SKY.x - 5, y: 19, z: SKY.z, shape: names[first] });
+        for (let i = 0; i < 3; i++) queue.push({ at: at + 1.3 + i * 0.45, x: SKY.x + (rnd() - 0.5) * 26, y: 12 + rnd() * 6, z: SKY.z + (rnd() - 0.5) * 10, color: colors[Math.floor(rnd() * colors.length)] });
+        queue.push({ at: at + 3.1, x: SKY.x + 5, y: 20, z: SKY.z + 2, shape: names[second] });
+        for (let i = 0; i < 4; i++) queue.push({ at: at + 4.4 + i * 0.3, x: SKY.x + (rnd() - 0.5) * 28, y: 13 + rnd() * 10, z: SKY.z + (rnd() - 0.5) * 12, color: colors[Math.floor(rnd() * colors.length)] });
+        queue.sort((p, q) => p.at - q.at);
         MF.sfx.play("swing");
       },
+      /** Durée du bouquet (s), pour la caméra de celui qui l'a tiré. */
+      DURATION: 8.6,
       update(dt) {
         clock += dt;
-        while (queue.length && queue[0].at <= clock) {
-          const q = queue.shift();
-          burst(q.x, q.y, q.z, q.color);
-        }
+        while (queue.length && queue[0].at <= clock) burst(queue.shift());
         if (alive <= 0) {
           if (points.visible && !queue.length) points.visible = false;
           return queue.length > 0;
@@ -220,18 +388,34 @@
           const p = parts[i];
           if (p.life <= 0) continue;
           p.life -= dt;
+          p.age += dt;
           if (p.life <= 0) {
             pos[i * 3 + 1] = -999;
+            tint[i * 4 + 3] = 0;
             continue;
           }
-          p.vx *= drag;
-          p.vz *= drag;
-          p.vy = p.vy * drag - 4.2 * dt;
-          pos[i * 3] += p.vx * dt;
-          pos[i * 3 + 1] += p.vy * dt;
-          pos[i * 3 + 2] += p.vz * dt;
+          if (p.shape) {
+            // vers sa place dans la figure (en 0,5 s), un léger scintillement, puis elle retombe en s'éteignant
+            const k = 1 - Math.exp(-dt / (p.hold * 0.35));
+            pos[i * 3] += (p.tx - pos[i * 3]) * k;
+            pos[i * 3 + 1] += (p.ty - pos[i * 3 + 1]) * k;
+            pos[i * 3 + 2] += (p.tz - pos[i * 3 + 2]) * k;
+            if (p.life < 0.9) {
+              p.ty -= dt * (1.5 + (0.9 - p.life) * 4);
+              tint[i * 4 + 3] = p.life / 0.9;
+            } else tint[i * 4 + 3] = 0.82 + 0.18 * Math.sin(p.age * 18 + i);
+          } else {
+            p.vx *= drag;
+            p.vz *= drag;
+            p.vy = p.vy * drag - 4.2 * dt;
+            pos[i * 3] += p.vx * dt;
+            pos[i * 3 + 1] += p.vy * dt;
+            pos[i * 3 + 2] += p.vz * dt;
+            tint[i * 4 + 3] = Math.min(1, p.life / 0.7);
+          }
         }
         geo.attributes.position.needsUpdate = true;
+        geo.attributes.tint.needsUpdate = true;
         return true;
       },
     };
@@ -292,6 +476,30 @@
     board(terrace, "DEEP WORK LOUNGE", -4.5, 14.73, 3.02, { w: 0.9, h: 0.2, y: 1.55, top: 0.13, posts: false, bg: "#ff7f6b", color: "#ffffff", border: "#ffffff" });
     board(terrace, "RAMEN PROFITABLE · TABLE FOR 4", -0.95, 11.15, 1.33, { w: 1.1, h: 0.2, y: 1.97, top: 0.13, posts: false, bg: MF.PAL.yellow });
 
+    /* ---- Le moulin en fête : enseigne dans le pignon sud, fanions sous le toit, ampoules, bâche du
+       sponsor principal entre les deux étages. Le mur (relevé par rayons sur la page du moulin) va de
+       (−6, 6,0) à (2,6, 8,0), son milieu est en (−1,7, 7,0) et le faîte à 11,2 m ; rien n'est changé à
+       la maison : tout est accroché devant. */
+    {
+      const nx = -0.226, nz = 0.974, MID = 0.579; // normale du mur (vers la terrasse), milieu du pignon
+      const wall = (t, out, y) => ({ x: -5.7 + 6.9 * t + nx * out, y, z: 6.1 + 1.57 * t + nz * out });
+      const hang = (mesh, t, out, y) => {
+        const c = wall(t, out, y);
+        mesh.position.set(c.x, c.y, c.z);
+        mesh.rotation.y = Math.atan2(nx, nz);
+        terrace.add(mesh);
+      };
+      hang(MF.sign("DREAM MILL FEST", { w: 4.2, h: 0.8, bg: MF.PAL.red, color: "#ffffff", border: MF.PAL.yellow }), MID, 0.2, 8.7);
+      hang(MF.sponsors.board("fest-moulin", 4.6, 0.85, { kicker: "Mill banner · main sponsor" }), MID, 0.16, 4.3);
+      terrace.add(MF.bunting(wall(-0.02, 0.45, 7.5), wall(1.18, 0.45, 7.5), { sag: 0.4 }));
+      terrace.add(P.lights(wall(0, 0.32, 6.25), wall(1.16, 0.32, 6.25), { sag: 0.3 }));
+      // deux guirlandes par-dessus la terrasse : vers le lampadaire (qui existe) et vers un mât de fête
+      const mast = { x: 0.6, z: 16.2 };
+      put(terrace, MF.pole(4.7), mast.x, mast.z);
+      terrace.add(MF.bunting(wall(0.0, 0.45, 7.45), { x: -7.7, y: 5.6, z: 15.3 }, { sag: 1.1 }));
+      terrace.add(MF.bunting(wall(1.16, 0.45, 7.45), { x: mast.x, y: H(mast.x, mast.z) + 4.6, z: mast.z }, { sag: 1.1 }));
+    }
+
     /* ---- La pointe de la terrasse : on y passe par le petit pont du bief */
     const point = zone("Pointe_de_la_terrasse", 9, 11, 110);
     put(point, P.cart("hotdog"), 12.8, 7.6, -0.5);
@@ -308,16 +516,23 @@
     knob.userData.live = true;
     board(point, "SHIP IT · LAUNCH DAY FIREWORKS", BUTTON.x + 1.3, BUTTON.z - 0.4, 0.5, { w: 3.2, y: by, bg: MF.PAL.red, color: "#ffffff", border: MF.PAL.yellow, top: 2.3 });
     board(point, "IF YOU'RE NOT EMBARRASSED BY V1, YOU SHIPPED TOO LATE", BUTTON.x + 1.3, BUTTON.z - 0.4, 0.5, { w: 3.2, y: by, h: 0.24, top: 1.9, posts: false });
-    const show = fireworks(ctx.root || point.parent);
-    let pressed = 0, cool = 0, quiet = 0; // quiet : pas deux bouquets à moins de 3 s (même venus d'un autre joueur)
+    const show = fireworks(ctx.root || point.parent, world);
+    let pressed = 0, cool = 0, quiet = 0, watching = 0; // quiet : pas deux bouquets à moins de 9 s (même venus d'un autre joueur)
     const fire = (seed) => {
-      if (quiet > 0) return;
-      quiet = 3;
+      if (quiet > 0) return false;
+      quiet = show.DURATION + 0.6;
       pressed = 0.25;
       show.launch(seed);
       world.invalidate();
+      return true;
     };
-    if (net) net.on("ship", (d) => Array.isArray(d) && Number.isFinite(d[0]) && fire(d[0]));
+    if (net)
+      net.on("ship", (d, peer) => {
+        if (!Array.isArray(d) || !Number.isFinite(d[0]) || !fire(d[0])) return;
+        if (ctx.hud && ctx.hud.toast) ctx.hud.toast("🚀 " + ((peer && peer.name) || "Someone") + " shipped it! Fireworks above the lake");
+      });
+    // Celui qui appuie regarde le ciel : debout au bouton, caméra levée vers la baie, le temps du bouquet.
+    const showSeat = { id: "ship-view", show: true, stand: true, laptop: false, x: BUTTON.x, y: by, z: BUTTON.z - 0.75, heading: 0.5, cam: { x: BUTTON.x + 0.9, y: by + 3.7, z: BUTTON.z - 2.4, sway: 0 }, look: { x: SKY.x, y: 17, z: SKY.z }, exit: { x: BUTTON.x, z: BUTTON.z - 0.9 } };
     places.add({
       id: "ship-it",
       x: BUTTON.x,
@@ -326,12 +541,16 @@
       icon: "🚀",
       title: "Ship it",
       verb: "Push the button",
-      when: () => cool <= 0,
+      when: () => cool <= 0 && quiet <= 0,
       run() {
         const seed = Math.floor(Math.random() * 1e9);
-        cool = 5;
+        cool = show.DURATION + 1;
+        if (!fire(seed)) return;
         if (net) net.send("ship", [seed]);
-        fire(seed);
+        if (MF.app && MF.app.sit) {
+          MF.app.sit(showSeat);
+          watching = show.DURATION;
+        }
       },
     });
 
@@ -500,6 +719,11 @@
         let dirty = false;
         if (cool > 0) cool -= dt;
         if (quiet > 0) quiet -= dt;
+        if (watching > 0) {
+          watching -= dt;
+          // fin du bouquet : on reprend la promenade (si l'on ne s'est pas déjà levé)
+          if (watching <= 0 && riding() === showSeat && MF.app.stand) MF.app.stand();
+        }
         if (pressed > 0) {
           pressed -= dt;
           knob.position.y = pressed > 0 ? 0.97 : 1.02;

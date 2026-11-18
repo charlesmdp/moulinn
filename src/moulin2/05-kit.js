@@ -349,12 +349,22 @@
     const pxH = 96, pxW = 512;
     let current = text, colour = o.color || "#ffffff", bg = o.bg || "rgba(30,20,10,0.72)";
     const draw = (ctx, W, H) => {
-      ctx.font = `400 54px ${MF.FONT}`;
-      const tw = Math.min(W - 40, ctx.measureText(current).width + 44);
+      // deux lignes (« nom\nce sur quoi il travaille ») : le nom en haut, le reste plus petit, en jaune
+      const [first, second] = String(current).split("\n");
+      ctx.font = `400 ${second ? 42 : 54}px ${MF.FONT}`;
+      let tw = ctx.measureText(first).width + 44;
+      if (second) {
+        ctx.font = `400 28px ${MF.FONT}`;
+        tw = Math.max(tw, ctx.measureText(second).width + 44);
+      }
+      tw = Math.min(W - 40, tw);
       ctx.fillStyle = bg;
-      roundRect(ctx, (W - tw) / 2, 10, tw, H - 20, 30);
+      roundRect(ctx, (W - tw) / 2, second ? 2 : 10, tw, second ? H - 4 : H - 20, second ? 22 : 30);
       ctx.fill();
-      MF.fitText(ctx, current, W / 2, H / 2 + 3, tw - 30, 60, { color: colour });
+      if (second) {
+        MF.fitText(ctx, first, W / 2, 31, tw - 30, 44, { color: colour });
+        MF.fitText(ctx, second, W / 2, 71, tw - 30, 30, { color: "#ffd54a" });
+      } else MF.fitText(ctx, first, W / 2, H / 2 + 3, tw - 30, 60, { color: colour });
     };
     const tex = MF.canvasTexture(pxW, pxH, draw);
     MF.whenFont(() => tex.redraw());

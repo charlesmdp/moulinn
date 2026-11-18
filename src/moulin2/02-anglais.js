@@ -34,15 +34,15 @@
     ". Couronnes à facettes, bouleaux et vieux arbres adaptés pour cette maquette. Textures stylisées préparées pour le moulin. Modèles GLB sélectionnés intégrés dans le fichier et fournis dans les sources.": ". Faceted crowns, birches and old trees adapted for this model. Stylised textures prepared for the mill. Selected GLB models embedded in the file and provided with the sources.",
 
     // --- chargement
-    "Ouverture de la maquette…": "Opening the model…",
-    "Préparation du jeu…": "Preparing the game…",
+    "Ouverture de la maquette…": "Raising the big top…",
+    "Préparation du jeu…": "Setting up the fairground…",
     "Préparation de la maquette": "Preparing the model",
     "Préparation de la prairie…": "Preparing the meadow…",
     "Préparation de la visite du domaine…": "Preparing the tour of the estate…",
     "Préparation des matières…": "Preparing materials…",
     "Préparation du rendu…": "Preparing the renderer…",
     "Chargement…": "Loading…",
-    "Chargement du moulin…": "Loading the mill…",
+    "Chargement du moulin…": "Opening the gates…",
     "Téléchargement des ressources…": "Downloading assets…",
     "Construction du jardin…": "Building the garden…",
     "Construction du terrain…": "Building the terrain…",
@@ -355,7 +355,7 @@
   /** Textes composés : motif → anglais (les morceaux variables repassent par le dictionnaire). */
   const PATTERNS = [
     [/^Changer de vue, mode actuel : (.*)$/, (m) => "Switch view, current mode: " + text(m[1])],
-    [/^Chargement des ressources : (\d+)\/(\d+)$/, (m) => "Loading assets: " + m[1] + "/" + m[2]],
+    [/^Chargement des ressources : (\d+)\/(\d+)$/, (m) => "Lighting the bulbs: " + m[1] + "/" + m[2]],
     [/^Ressenti (.*)$/, (m) => "Feels like " + m[1]],
     [/^(\d+) % de risque$/, (m) => m[1] + "% chance"],
     [/^humidité (\d+) %$/, (m) => "humidity " + m[1] + "%"],

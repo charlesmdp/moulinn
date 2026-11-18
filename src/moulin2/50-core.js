@@ -302,8 +302,9 @@
       hud.prompt(null);
       look.yaw = look.pitch = 0;
       look.zoom = 1;
-      hud.seat({ ambience: MF.ambience.mode });
-      MF.ambience.play(true); // assis, on travaille : l'ambiance choisie remplace l'orgue de foire
+      // seat.show : on regarde un spectacle (feu d'artifice) : pas de barre de travail ni d'ambiance
+      hud.seat(seat.show ? null : { ambience: MF.ambience.mode });
+      if (!seat.show) MF.ambience.play(true); // assis, on travaille : l'ambiance choisie remplace l'orgue de foire
       MF.sfx.play("clic");
       world.invalidate();
     }
@@ -387,6 +388,22 @@
       if (st.isPrivate) url.searchParams.set("salon", st.code);
       return url.href;
     }
+    // la carte du parc : petite dans un coin, en grand avec M ; un clic sur une pastille y emmène
+    const map = MF.ParkMap.create({
+      world,
+      hud,
+      entries,
+      presence,
+      net,
+      play: (id) => enter(id),
+      go(x, z, heading) {
+        if (active) leave();
+        if (seated) stand();
+        world.player.walk && world.player.walk();
+        world.player.teleport(x, z, heading || 0);
+        world.invalidate();
+      },
+    });
     // lieux du menu : on y est porté d'un clic (debout, hors de tout jeu)
     const SPOTS = { deck: [-31, 21.6, 0], terrace: [-4.6, 11.6, 0], camp: [28.6, 40.4, 0], wheel: [-57.4, -68, -Math.PI / 2], balloon: [-99.4, -4, Math.PI / 2], carousel: [73.8, -12.2, 0], gate: [1.4, -81.5, 0] };
     hud.on((action, value) => {
@@ -553,6 +570,7 @@
         hud.prompt(best || (place && { id: place.id, icon: place.icon, title: place.title, verb: place.verb, action: "place" }));
       }
       if (site && site.update && site.update(dt, time, world.camera)) dirty = true;
+      map.update(dt, !!active);
       uiTimer -= dt;
       if (uiTimer <= 0) {
         uiTimer = 0.25;

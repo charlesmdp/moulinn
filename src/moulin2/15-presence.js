@@ -464,7 +464,8 @@
               a.tag.scale.set(a.tagSize[0] * k, a.tagSize[1] * k, 1);
             }
           }
-          const label = r.sitting && r.peer.bio ? r.peer.name + " · " + r.peer.bio : r.peer.name;
+          // ce sur quoi il travaille s'affiche sous son nom, qu'il marche ou qu'il soit assis
+          const label = r.peer.bio ? r.peer.name + "\n" + r.peer.bio : r.peer.name;
           if (r.name !== label) {
             r.name = label;
             a.tag.userData.set(label);

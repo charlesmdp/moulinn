@@ -199,7 +199,7 @@
         // d'abord les lieux où l'on se retrouve (on y est porté d'un clic), puis les jeux
         panels.games.innerHTML =
           `<div class="fete-games fete-spots">` +
-          [["deck", "💻", "Founders' Deck", "66 seats by the pond · sit & work"], ["terrace", "🛋️", "Mill Terrace", "Sofa, table for 4, stone skipping, fireworks button"], ["camp", "🔥", "Lumber Camp", "Campfire, hammocks, 3 lumberjack games"], ["wheel", "🎡", "The Tim Ferriss Wheel", "Hilltop · the 4-hour ride (takes a minute)"], ["balloon", "🎈", "Up and to the Right", "Hot-air balloon over the valley"], ["carousel", "🎠", "The Pivot", "Carousel on the Green"], ["gate", "🎪", "Main Gate", "Back to the entrance"]]
+          [["deck", "💻", "Founders' Deck", "66 seats by the pond · sit & work"], ["terrace", "🛋️", "Mill Terrace", "Sofa, table for 4, stone skipping, fireworks button"], ["camp", "🔥", "Lumber Camp", "Campfire, hammocks, 3 lumberjack games"], ["wheel", "🎡", "The Tim Ferriss Wheel", "Hilltop · 38 m high · the 4-hour ride (takes 84 s)"], ["balloon", "🎈", "Up and to the Right", "Hot-air balloon over the valley"], ["carousel", "🎠", "The Pivot", "Carousel on the Green"], ["gate", "🎪", "Main Gate", "Back to the entrance"]]
             .map(([id, icon, title, sub]) => `<button type="button" class="fete-game-card is-spot" data-spot="${id}"><span class="fete-game-icon" aria-hidden="true">${icon}</span><b>${title}</b><small>${sub}</small></button>`)
             .join("") +
           `</div><div class="fete-games">` +

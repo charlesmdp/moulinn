@@ -9,7 +9,7 @@
   const TAU = Math.PI * 2;
 
   // Grande roue : sur le plateau, disque dans le plan nord-sud, tourné vers la vallée (à l'est).
-  const WHEEL = { x: -62, z: -68, r: 10, hub: 11.7, n: 12, period: 52 };
+  const WHEEL = { x: -62, z: -68, r: 18, hub: 19.9, n: 16, period: 84, spread: 8 }; // 38 m de haut : on la voit de tout le domaine
   // Carrousel : au milieu du pré.
   const CAROUSEL = { x: 73.8, z: -5.8, r: 4.2, n: 8, period: 13 }; // entre la pêche aux canards et les tamponneuses
 
@@ -28,10 +28,10 @@
     // deux chevalets en A, de part et d'autre du disque (le long de x)
     for (const sx of [-1, 1]) {
       for (const sz of [-1, 1]) {
-        const leg = MF.box(0.28, Math.hypot(W.hub, 4.6), 0.28, steel, { x: sx * 1.7, y: W.hub / 2, z: sz * 2.3, rx: -sz * Math.atan2(4.6, W.hub), parent: wg, cast: true });
+        const leg = MF.box(0.4, Math.hypot(W.hub, W.spread), 0.4, steel, { x: sx * 1.7, y: W.hub / 2, z: (sz * W.spread) / 2, rx: -sz * Math.atan2(W.spread, W.hub), parent: wg, cast: true });
         leg.userData.keep = true;
       }
-      MF.box(0.3, 0.3, 9.6, steel, { x: sx * 1.7, y: 0.25, parent: wg });
+      MF.box(0.3, 0.3, W.spread * 2 + 0.6, steel, { x: sx * 1.7, y: 0.25, parent: wg });
       MF.box(0.2, 0.2, 4.4, steel, { x: sx * 1.7, y: W.hub * 0.52, parent: wg });
     }
     MF.cyl(0.32, 0.32, 3.9, red, { y: W.hub, rz: Math.PI / 2, parent: wg, seg: 10 });
@@ -41,7 +41,7 @@
     sign.position.set(4.9, 3.4, 0);
     sign.rotation.y = Math.PI / 2;
     wg.add(sign);
-    const sub = MF.sign("THE 4-HOUR RIDE · (IT TAKES A MINUTE)", { w: 3.4, h: 0.3, px: 128, bg: MF.PAL.cream, color: MF.PAL.ink, double: true });
+    const sub = MF.sign("THE 4-HOUR RIDE · (IT TAKES 84 SECONDS)", { w: 3.4, h: 0.3, px: 128, bg: MF.PAL.cream, color: MF.PAL.ink, double: true });
     sub.position.set(4.9, 2.92, 0);
     sub.rotation.y = Math.PI / 2;
     wg.add(sub);
@@ -64,8 +64,8 @@
         MF.box(0.07, W.r, 0.07, i % 2 ? steel : red, { x: sx * 1.15, y: (Math.sin(a) * W.r) / 2, z: (Math.cos(a) * W.r) / 2, rx: Math.PI / 2 - a, parent: spokes });
       }
     }
-    for (let i = 0; i < 36; i++) {
-      const a = (i / 36) * TAU, c = MF.props.BULBS[i % MF.props.BULBS.length];
+    for (let i = 0; i < 48; i++) {
+      const a = (i / 48) * TAU, c = MF.props.BULBS[i % MF.props.BULBS.length];
       MF.sphere(0.12, MF.mat(c, { emissive: c, emissiveIntensity: 0.9 }), { x: 1.3, y: Math.sin(a) * W.r, z: Math.cos(a) * W.r, parent: spokes, seg: 6 });
     }
     MF.freeze(spokes);
