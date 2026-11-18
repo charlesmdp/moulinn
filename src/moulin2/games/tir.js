@@ -12,7 +12,8 @@
   const CX = 51; // axe du stand (x) ; le comptoir est au nord (z = −4,5), la toile de fond au sud (z = 1,25)
   const COUNTER_Z = -4.5, BACK_Z = 1.25, HALF = 4.8;
   const DURATION = 60, WAVE = 8;
-  const POINTS = { c: 10, d: 25, b: 25, o: 15, g: 50 };
+  const POINTS = { c: 10, d: 25, b: 25, o: 15, g: 50, x: 20 }; // x : prime de série (5 touches d'affilée)
+  const STREAK = 5;
   const N = { c: 12, d: 3, b: 2, o: 5, g: 1 };
   const RADIUS = { c: 0.15, d: 0.24, b: 0.24, o: 0.23, g: 0.16 };
   const MAG = 6, RELOAD = 1.2, RATE = 0.3;
@@ -22,7 +23,7 @@
     title: "Shooting Gallery",
     icon: "🎯",
     color: MF.PAL.orange,
-    blurb: "60 seconds · cans, targets, balloons",
+    blurb: "60 seconds · cans, targets, balloons · 5 hits in a row: +20",
     station: { x: CX, z: -7.5, heading: 0 },
     kiosk: { x: CX - HALF - 1.3, z: COUNTER_Z - 0.9, heading: 0 }, // au coin du stand, hors de la ligne de tir
     minPlayers: 1,
@@ -31,6 +32,8 @@
     help: "Aim with the mouse and click to shoot (or arrows and Space; on touch: tap the target). 6 pellets per magazine.",
     rank: (list) => list.slice().sort((a, b) => (b.score || 0) - (a.score || 0) || (a.name < b.name ? -1 : 1)),
     describe: (r) => (r.score || 0) + " points",
+    board: { label: "Best score", better: "high", value: (r) => r.score, format: (v) => v + " pts" },
+    hall: { x: CX + HALF + 1.3, z: COUNTER_Z - 0.9, heading: 0 },
 
     create(ctx) {
       const { world, session, hud, input, group, camera } = ctx;
@@ -209,7 +212,7 @@
 
       const aim = { x: 0, y: 0.1 }; // viseur, en coordonnées d'écran −1…1
       const ray = { o: new THREE.Vector3(), d: new THREE.Vector3() }, tmp = new THREE.Vector3(), aimPoint = new THREE.Vector3();
-      let cross = null, ammo = MAG, reload = 0, cool = 0, kick = 0, reported = false, lastBoard = 0, sway = 0, warned = false, shotsFired = 0;
+      let cross = null, ammo = MAG, reload = 0, cool = 0, kick = 0, reported = false, lastBoard = 0, sway = 0, warned = false, shotsFired = 0, streak = 0, bonus = 0;
       const scoreOf = (uid) => {
         let s = 0;
         for (const [key, c] of session.claims) if (c.u === uid) s += POINTS[key.split(":")[1][0]] || 0;
@@ -244,12 +247,18 @@
         const px = ((aim.x + 1) / 2) * hud.root.clientWidth, py = ((1 - aim.y) / 2) * hud.root.clientHeight;
         if (best && session.claim(best.key)) {
           const pts = POINTS[best.type];
+          // série : toutes les 5 touches sans raté, une prime (réclamée comme une cible : tout le monde la compte)
+          if (++streak % STREAK === 0 && session.claim("k" + bonus++ + ":x" + ctx.self.uid)) {
+            hud.flash(streak + " in a row! +" + POINTS.x, { color: MF.PAL.yellow, hold: 0.8 });
+            MF.sfx.play("bravo");
+          }
           burst(best.x, best.y, best.z, best.type === "o" ? 6 : 4);
           session.send("pan", [best.x, best.y, best.z]);
           hud.pop(best.type === "g" ? "Bullseye! +" + pts : "+" + pts, px, py - 30, { color: best.type === "g" ? "#ffe45c" : undefined });
           MF.sfx.play(best.type === "o" ? "pop" : best.type === "g" ? "bravo" : "ting");
         } else {
-          // dans la toile : petit impact
+          // dans la toile : petit impact (et la série repart de zéro)
+          streak = 0;
           const k = (BACK_Z - 0.05 - ray.o.z) / (ray.d.z || 1e-6);
           const ix = ray.o.x + ray.d.x * k, iy = ray.o.y + ray.d.y * k;
           burst(ix, iy, BACK_Z - 0.06, 2);
@@ -263,7 +272,7 @@
         aim,
         enter() {
           input.use({ layout: "pointer", buttons: [{ id: "a", label: "FIRE", key: "Space" }] });
-          hud.stats([{ key: "score", label: "Score" }, { key: "time", label: "Time" }, { key: "ammo", label: "Pellets" }]);
+          hud.stats([{ key: "score", label: "Score" }, { key: "time", label: "Time" }, { key: "ammo", label: "Pellets" }, { key: "streak", label: "Streak" }]);
           hud.hint(input.touch ? "Tap a target to shoot it" : "Aim with the mouse, click to shoot · or arrows and Space");
           cross = hud.widget("fete-cross");
           aim.x = 0;
@@ -283,6 +292,8 @@
             reload = cool = 0;
             reported = warned = false;
             shotsFired = 0;
+            streak = 0;
+            bonus = 0;
           }
         },
         update(dt, time) {
@@ -344,6 +355,7 @@
             flashMesh.visible = kick > 0.08;
             const left = Math.max(0, DURATION - Math.max(0, t));
             hud.set("score", scoreOf(ctx.self.uid));
+            hud.set("streak", streak ? "×" + streak : "–");
             hud.set("time", Math.ceil(left) + " s");
             hud.set("ammo", reload > 0 ? "…" : ammo + " / " + MAG);
             if (running && left < 10 && !warned) {

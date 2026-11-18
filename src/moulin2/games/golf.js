@@ -57,6 +57,8 @@
       return r.strokes + " strokes (" + (d > 0 ? "+" + d : d === 0 ? "par" : d) + ")";
     },
 
+    board: { label: "Fewest strokes", better: "low", value: (r) => r.strokes, variant: (o) => (o.holes || 9) + " holes", format: (v) => v + " strokes" },
+
     create(ctx) {
       const { world, session, hud, input, group, camera } = ctx;
       const THREE = world.THREE;

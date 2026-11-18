@@ -70,6 +70,8 @@
     help: "Move the rod with the mouse (or arrows), hold the click or Space to dip the hook into a ring. Gently: the line swings!",
     rank: (list) => list.slice().sort((a, b) => (b.score || 0) - (a.score || 0) || (a.name < b.name ? -1 : 1)),
     describe: (r) => (r.score || 0) + " points",
+    board: { label: "Best catch", better: "high", value: (r) => r.score, format: (v) => v + " pts" },
+    hall: { x: BX - 4.7, z: BZ - 0.4, heading: Math.PI / 2 },
 
     create(ctx) {
       const { world, session, hud, input, group, camera } = ctx;
