@@ -145,7 +145,7 @@
       MF.box(0.3, 0.06, 0.34, cabColors[i % cabColors.length], { y: 0.2, parent: body }); // selle
       MF.cone(0.05, 0.34, MF.PAL.yellow, { y: 0.14, z: -0.5, rx: -2.2, parent: body, seg: 5 }); // queue
       MF.freeze(body);
-      const seat = { id: "horse-" + i, x: C.x, y: cy, z: C.z, heading: 0, moving: true, ride: "carousel", exit: { x: C.x, z: C.z - C.r - 1.6 }, back: 2.4, up: 1.5, a, rr };
+      const seat = { id: "horse-" + i, x: C.x, y: cy, z: C.z, heading: 0, moving: true, ride: "carousel", exit: { x: C.x, z: C.z - C.r - 1.6 }, back: 2.4, up: 1.5, a, rr, laptop: false, sit: 0.55 };
       horses.push({ horse, seat, a, rr, i });
     }
     const csign = MF.sign("CAROUSEL", { w: 2.6, h: 0.55, bg: MF.PAL.yellow, color: MF.PAL.red, border: MF.PAL.red, double: true });

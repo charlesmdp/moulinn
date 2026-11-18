@@ -5891,11 +5891,14 @@ float clothHem23=1.-smoothstep(1.06,1.38,position.y);float clothWave23=sin(uAvat
                 vo = We.carDriving ? 0.56 : 0.424,
                 fo = Math.cos(ut),
                 Do = Math.sin(ut),
-                ho = new n.Vector3(
-                  eo * fo * Q,
-                  (mo - (We.carDriving ? 0.63 : 0.94)) * Q + Oe,
-                  (vo - eo * Do + (We.carDriving ? 0.17 : 0.12)) * Q,
-                );
+                // V32 (fête) : laptop32 = assis avec un ordinateur sur les genoux, les mains sur le clavier
+                ho = We.laptop32
+                  ? new n.Vector3(Ut * 0.12, Oe + 0.2, 0.36)
+                  : new n.Vector3(
+                      eo * fo * Q,
+                      (mo - (We.carDriving ? 0.63 : 0.94)) * Q + Oe,
+                      (vo - eo * Do + (We.carDriving ? 0.17 : 0.12)) * Q,
+                    );
               (Ct([q["upperarm_" + Vt], q["lowerarm_" + Vt]], Mt[It], ho, 10),
                 Ct(
                   [q["thigh_" + Vt], q["calf_" + Vt]],
@@ -11210,8 +11213,35 @@ lawnWorld20=(modelMatrix*lawnP20).xyz;`,
         Eo(f),
         n.markDirty());
     }
+    // V32 (fête) : le personnage du moulin assis à une place donnée (pouf, manège), commandes coupées.
+    // seat32 = { x, y, z, heading, seat, tilt, car, laptop } ; il prend la pose « assis » de la voiture.
+    let seat32 = null;
+    function seatTick32(f) {
+      const s = seat32;
+      (v.visible = !0), (De.visible = !1);
+      v.position.set(s.x, s.y, s.z);
+      k.position.set(0, (s.seat ?? 0.5) - W, 0); // bassin à « seat » mètres au-dessus de la place
+      k.rotation.set(s.tilt || 0, s.heading || 0, 0, "YXZ");
+      v.updateMatrixWorld(!0);
+      H.update(f, { speed: 0, distance: 0, running: !1, grounded: !0, verticalSpeed: 0, riding: !0, steering: 0, quadScale: 1, carDriving: s.car !== !1, laptop32: s.laptop !== !1, ...Bt() });
+      n.markDirty();
+    }
+    globalThis.MoulinV32 &&
+      ((globalThis.MoulinV32.seat32 = (f) => {
+        if (!H) return !1;
+        seat32 = f || null;
+        seat32 || ((De.visible = !0), Ge.enabled || (v.visible = !1));
+        n.markDirty();
+        return !0;
+      }),
+      // un autre exemplaire du personnage (joueurs distants de la fête) : { group, update(dt, état), bones… }
+      (globalThis.MoulinV32.figure32 = () => (Ce && xe ? xe(t, { asset: Ce }) : null)),
+      (globalThis.MoulinV32.figureState32 = Bt));
     function Do(f) {
-      if (((f = _e(f, 0, 0.06)), (wn.value = performance.now() / 1e3), !Ge.enabled)) return;
+      if (((f = _e(f, 0, 0.06)), (wn.value = performance.now() / 1e3), !Ge.enabled)) {
+        seat32 && H && seatTick32(f);
+        return;
+      }
       let J =
           Ge.forward +
           (kt.has("z") || kt.has("w") || kt.has("arrowup") ? 1 : 0) -

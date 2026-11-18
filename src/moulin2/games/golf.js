@@ -14,9 +14,14 @@
 
   const LEN = 8.6, WID = 2.3, HW = WID / 2; // un trou : 8,6 × 2,3 m ; u le long (0…LEN), v en travers (−HW…HW)
   const BALL = 0.055, CUP = 0.095, MAX_STROKES = 7, VMAX = 8.5, TURN_LIMIT = 40;
-  const COLS = [99.8, 109.8], ROWS = [-9.3, -6.9, -4.5, -2.1, 0.3];
-  // Emplacements en serpentin : [colonne, rangée, sens] (sens 1 : on joue vers l'est ; −1 : vers l'ouest)
-  const PLACES = [[0, 0, 1], [1, 0, 1], [1, 1, -1], [0, 1, -1], [0, 2, 1], [1, 2, 1], [1, 3, -1], [0, 3, -1], [0, 4, 1]];
+  // Les neuf trous sont posés en couronne autour d'un rond-point, sur le plateau de la colline :
+  // chacun a son orientation, on tourne autour comme sur un vrai mini-golf (et le panneau du trou est
+  // sur le côté du départ, hors de la vue du joueur). PLACES : [x, z du départ, angle du trou].
+  const RING = { x: -136, z: -14, r: 15.5 };
+  const PLACES = Array.from({ length: 9 }, (_, i) => {
+    const t = ((20 + i * 40) * Math.PI) / 180, r = RING.r + (i % 2 ? 1.1 : -1.1), a = t + Math.PI / 2 + ((i % 3) - 1) * 0.22;
+    return [RING.x + Math.cos(t) * r - Math.cos(a) * (LEN / 2), RING.z + Math.sin(t) * r - Math.sin(a) * (LEN / 2), a];
+  });
   const HOLES = [
     { name: "Warm-up", par: 2, tee: [0.9, 0], cup: [7.6, 0], circles: [[4.3, -0.78, 0.2], [4.3, 0.78, 0.2]] },
     { name: "The Dogleg", par: 2, tee: [0.9, -0.6], cup: [7.6, -0.6], walls: [[4.3, -HW, 4.3, 0.3], [6.0, HW, 7.3, 0.25]] },
@@ -42,9 +47,11 @@
     title: "Mill Mini-Golf",
     icon: "⛳",
     color: MF.PAL.green,
-    blurb: "9 holes · take turns",
-    station: { x: 98, z: -4.5, heading: Math.PI / 2 },
-    kiosk: { x: 98.4, z: -9.6, heading: Math.PI / 2 },
+    blurb: "9 holes in a ring on the hilltop · take turns",
+    station: { x: RING.x + RING.r + 3.2, z: RING.z, heading: -Math.PI / 2 },
+    kiosk: { x: RING.x + RING.r + 3.6, z: RING.z - 3.4, heading: -Math.PI / 2 },
+    hall: { x: RING.x + RING.r + 3.6, z: RING.z + 3.4, heading: -Math.PI / 2 },
+    range: 90,
     minPlayers: 1,
     maxPlayers: 8,
     maxTime: 1500,
@@ -66,17 +73,19 @@
       /* ---------------------------------------------------------------- les neuf trous (une fois) */
       const felt = MF.mat("#35a852"), wood = MF.mat(MF.PAL.wood), stone = MF.mat("#b9b3a6"), blue = MF.mat("#3fa9f5");
       const holes = HOLES.map((def, i) => {
-        const [c, r, dir] = PLACES[i];
-        const ox = dir > 0 ? COLS[c] : COLS[c] + LEN, oz = ROWS[r];
-        const cx = COLS[c] + LEN / 2;
+        const [px, pz, angle] = PLACES[i];
+        const ca = Math.cos(angle), sa = Math.sin(angle);
+        // du repère du trou (u le long, v en travers) au monde
+        const wx = (u, v) => px + ca * u - sa * v, wz = (u, v) => pz + sa * u + ca * v;
         let y = 0;
-        for (const dx of [0, LEN / 2, LEN]) for (const dz of [-HW, HW]) y = Math.max(y, world.heightAt(COLS[c] + dx, oz + dz));
+        for (const u of [0, LEN / 2, LEN]) for (const v of [-HW, HW]) y = Math.max(y, world.heightAt(wx(u, v), wz(u, v)));
         y += 0.12;
-        const h = Object.assign({ i, ox, oz, dir, y, cx }, def);
-        // du repère du trou (u, v) au monde
-        h.X = (u) => ox + dir * u;
-        h.Z = (v) => oz + dir * v;
-        const g = MF.group({ name: "Trou_" + (i + 1), parent: group });
+        const h = Object.assign({ i, px, pz, angle, ca, sa, y, wx, wz }, def);
+        // Le décor est construit dans le repère du trou (x = u, z = v), puis le groupe est tourné d'un bloc.
+        const ox = 0, oz = 0, cx = LEN / 2, dir = 1;
+        h.X = (u) => u;
+        h.Z = (v) => v;
+        const g = MF.group({ name: "Trou_" + (i + 1), x: px, z: pz, ry: -angle, parent: group });
         MF.box(LEN + 0.24, 0.5, WID + 0.24, wood, { x: cx, y: y - 0.26, z: oz, parent: g, cast: true });
         MF.box(LEN, 0.02, WID, felt, { x: cx, y: y, z: oz, parent: g });
         const beam = (u0, v0, u1, v1, hgt = 0.1, mat = wood) => {
@@ -134,11 +143,11 @@
         MF.cyl(0.012, 0.012, 0.75, MF.PAL.white, { x: h.X(def.cup[0]), y: y + 0.38, z: h.Z(def.cup[1]), parent: g, seg: 5 });
         MF.box(0.24, 0.15, 0.01, i === 8 ? MF.PAL.yellow : MF.PAL.red, { x: h.X(def.cup[0]) + 0.12, y: y + 0.68, z: h.Z(def.cup[1]), parent: g });
         MF.cyl(0.11, 0.11, 0.008, MF.PAL.white, { x: h.X(def.tee[0]), y: y + 0.013, z: h.Z(def.tee[1]), parent: g, seg: 12 });
+        // panneau du trou : sur le côté du départ (derrière, il bouchait la vue de celui qui vise)
         const sign = MF.sign(i + 1 + " · par " + def.par, { w: 0.9, h: 0.3, bg: MF.PAL.green, color: "#ffffff", border: "#ffffff", double: true });
-        sign.position.set(h.X(-0.25), y + 0.75, oz);
-        sign.rotation.y = Math.PI / 2;
+        sign.position.set(0.5, y + 0.62, -HW - 0.4);
         g.add(sign);
-        MF.cyl(0.025, 0.025, 0.7, MF.PAL.woodDark, { x: h.X(-0.25), y: y + 0.3, z: oz, parent: g, seg: 5 });
+        MF.cyl(0.025, 0.025, 0.6, MF.PAL.woodDark, { x: 0.5, y: y + 0.25, z: -HW - 0.4, parent: g, seg: 5 });
         const sp = MF.sponsors.banner("golf-" + (i + 1), 1.8, 0.42, { lift: 0.5 });
         sp.position.set(h.X(LEN + 0.42), y - 0.3, oz);
         sp.rotation.y = Math.PI / 2;
@@ -352,8 +361,9 @@
         ray.o.copy(camera.position);
         ray.d.set(P.nx, P.ny, 0.5).unproject(camera).sub(ray.o).normalize();
         const k = (h.y - ray.o.y) / (ray.d.y || -1e-6);
-        out.u = (ray.o.x + ray.d.x * k - h.ox) * h.dir;
-        out.v = (ray.o.z + ray.d.z * k - h.oz) * h.dir;
+        const dx = ray.o.x + ray.d.x * k - h.px, dz = ray.o.z + ray.d.z * k - h.pz;
+        out.u = dx * h.ca + dz * h.sa;
+        out.v = -dx * h.sa + dz * h.ca;
         return k > 0;
       }
       const p0 = { u: 0, v: 0 }, p1 = { u: 0, v: 0 };
@@ -399,8 +409,8 @@
         // flèche de visée posée sur le feutre
         const len = 0.5 + (my.drag || my.charging ? my.power : 0.35) * 1.6;
         arrowG.visible = !my.rolling;
-        arrowG.position.set(h.X(e.u), h.y + 0.03, h.Z(e.v));
-        arrowG.rotation.y = Math.atan2(h.dir * Math.cos(my.aim), h.dir * Math.sin(my.aim));
+        arrowG.position.set(h.wx(e.u, e.v), h.y + 0.03, h.wz(e.u, e.v));
+        arrowG.rotation.y = Math.atan2(Math.cos(h.angle + my.aim), Math.sin(h.angle + my.aim));
         shaft.scale.z = len;
         shaft.position.z = 0.1 + len / 2;
         tip.position.z = 0.1 + len + 0.1;
@@ -467,7 +477,8 @@
             arrowG.visible = false;
             if (ctx.active()) {
               sway += dt;
-              MF.cam.set(camera, { x: 96.2, y: world.heightAt(98, -4.5) + 6.8, z: -4.5 + Math.sin(sway * 0.2) * 2 }, { x: 108, y: 1.2, z: -4.5 }, 55);
+              // vue d'ensemble de la couronne des neuf trous, depuis l'entrée
+              MF.cam.set(camera, { x: RING.x + RING.r + 10, y: world.heightAt(RING.x, RING.z) + 11, z: RING.z + Math.sin(sway * 0.2) * 4 }, { x: RING.x - 2, y: world.heightAt(RING.x, RING.z) + 0.5, z: RING.z }, 55);
             }
             return true;
           }
@@ -520,7 +531,7 @@
                 // sous le par : une pluie de confettis sur le trou (trou en un : le grand jeu)
                 if (d.n < h.par || d.n === 1) {
                   party = party || MF.props.confetti(group, 30);
-                  const cx = h.X(h.cup[0]), cz = h.Z(h.cup[1]);
+                  const cx = h.wx(h.cup[0], h.cup[1]), cz = h.wz(h.cup[0], h.cup[1]);
                   party.burst(cx, world.heightAt(cx, cz) + 0.4, cz, d.n === 1 ? 30 : 14, d.n === 1 ? 1.4 : 1);
                   if (d.n === 1) MF.sfx.play("bravo");
                 }
@@ -556,7 +567,7 @@
             const r = p.uid === ctx.self.uid ? my.rolling : remotes.get(p.uid) && remotes.get(p.uid).obj.u !== undefined ? remotes.get(p.uid).obj : null;
             const u = r ? r.u : e.u, v = r ? r.v : e.v;
             m.visible = !e.gone && (!e.done || !!r); // rentrée ou ramassée : la balle n'est plus sur le feutre
-            m.position.set(h.X(u), h.y + BALL * 1.35 + 0.01, h.Z(v));
+            m.position.set(h.wx(u, v), h.y + BALL * 1.35 + 0.01, h.wz(u, v));
           }
           if (!ctx.active()) return true;
 
@@ -564,11 +575,13 @@
           const e = mine || null;
           if (myGo && e && !my.rolling) {
             const du = h.cup[0] - e.u, dv = h.cup[1] - e.v, l = Math.hypot(du, dv) || 1;
-            camTo.set(h.X(e.u - (du / l) * 2.7), h.y + 2.1, h.Z(e.v - (dv / l) * 2.7));
-            lookTo.set(h.X(e.u + (du / l) * 2.2), h.y, h.Z(e.v + (dv / l) * 2.2));
+            const bu = e.u - (du / l) * 2.7, bv = e.v - (dv / l) * 2.7, fu = e.u + (du / l) * 2.2, fv = e.v + (dv / l) * 2.2;
+            camTo.set(h.wx(bu, bv), h.y + 2.1, h.wz(bu, bv));
+            lookTo.set(h.wx(fu, fv), h.y, h.wz(fu, fv));
           } else {
-            camTo.set(h.cx, h.y + 7.4, h.oz + 4.4);
-            lookTo.set(h.cx, h.y, h.oz - 0.2);
+            // vue d'ensemble du trou, depuis l'extérieur de la couronne
+            camTo.set(h.wx(LEN / 2, -4.6), h.y + 7.4, h.wz(LEN / 2, -4.6));
+            lookTo.set(h.wx(LEN / 2, 0.2), h.y, h.wz(LEN / 2, 0.2));
           }
           if (snap) {
             camPos.copy(camTo);

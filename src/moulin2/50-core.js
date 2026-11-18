@@ -85,7 +85,7 @@
       console.error("[Fête du Moulin] décor", error);
     }
     // mon ordinateur, porté dans le dos
-    const wear = () => world.player.wear && world.player.wear(MF.laptops.backpack(net.self.kit));
+    const wear = () => world.player.wear && world.player.wear(net.self.kit, net.self.color);
     wear();
 
     /* ---------------------------------------------------------------- les jeux */
@@ -268,7 +268,7 @@
       if (world.player.walk) world.player.walk();
       world.player.setEnabled(false);
       seated = seat;
-      presence.setSeat({ x: seat.x, y: seat.y, z: seat.z, heading: seat.heading });
+      presence.setSeat(seat); // la place entière : hauteur d'assise, ordinateur sur les genoux ou non
       world.dom.classList.add("fete-in-game");
       hud.prompt(null);
       hud.seat({ bio: net.self.bio });
@@ -355,7 +355,7 @@
       return url.href;
     }
     // lieux du menu : on y est porté d'un clic (debout, hors de tout jeu)
-    const SPOTS = { deck: [30.3, 38, -Math.PI / 2], wheel: [-57.4, -68, -Math.PI / 2], carousel: [73.8, -12.2, 0], gate: [1.4, -81.5, 0] };
+    const SPOTS = { deck: [-31, 21.6, 0], wheel: [-57.4, -68, -Math.PI / 2], carousel: [73.8, -12.2, 0], gate: [1.4, -81.5, 0] };
     hud.on((action, value) => {
       if (action === "spot" && SPOTS[value]) {
         if (active) leave();
@@ -370,8 +370,8 @@
       else if (action === "profile") {
         net.setProfile(value);
         saveProfile(net.self);
-        if (value.kit !== undefined) wear();
-        if (seated) presence.setSeat({ x: seated.x, y: seated.y, z: seated.z, heading: seated.heading });
+        if (value.kit !== undefined || value.color !== undefined) wear();
+        if (seated) presence.setSeat(seated);
       } else if (action === "place") places.run(value);
       else if (action === "stand") stand();
       else if (action === "music") {
@@ -479,7 +479,7 @@
         // assis : vue par-dessus l'épaule, vers l'étang (ou vers la vallée, depuis un manège)
         dirty = true;
         nearDef = nearPlace = null;
-        if (seated.moving) presence.setSeat({ x: seated.x, y: seated.y, z: seated.z, heading: seated.heading }, true);
+        if (seated.moving) presence.setSeat(seated, true);
         const h = seated.heading, sway = Math.sin(time * 0.22) * 0.25;
         const back = seated.back ?? 2.7, up = seated.up ?? 1.75, side = seated.moving ? 0 : 0.9 + sway;
         const to = seated.look || { x: seated.x + Math.sin(h) * 9, y: seated.y + 0.7, z: seated.z + Math.cos(h) * 9 };

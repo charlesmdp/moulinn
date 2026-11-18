@@ -1,7 +1,8 @@
 // La Fête du Moulin — course de bateaux télécommandés sur le Grand étang.
 //
-// 1 à 8 skippers, 3 ou 5 tours. Le parcours (134 m) part devant la terrasse du moulin, descend le
-// long de la rive est, vire au sud, fait une épingle à l'ouest et remonte en longeant l'îlot.
+// 1 à 8 skippers, 1 à 3 tours. Le « grand tour » (environ 260 m) part devant la terrasse du moulin,
+// descend toute la rive est, passe au nord de la grande île, file vers le sud-ouest jusqu'à la
+// petite île, vire, remonte le long de la rive ouest et revient par le Ponton des fondateurs.
 // Même principe que les voitures RC (chacun pilote son bateau et envoie sa position aux autres),
 // avec une conduite de bateau : de l'inertie, ça glisse, et le gouvernail n'agit qu'avec de la vitesse.
 // Pour le spectacle : un tremplin flottant sur la ligne droite sud (on décolle, on retombe dans une
@@ -13,13 +14,16 @@
 
   // Tracé (x, z) dans le sens de la course ; le premier point est la ligne de départ. Vérifié sur le
   // relevé : au moins 4,5 m d'eau libre de chaque côté, îlot compris.
-  const COURSE = [[-4, 23], [9, 26], [12.5, 39], [8, 53], [-8, 58], [-24, 55.5], [-29.5, 51], [-24, 48], [-13, 50], [-4, 43.5], [-3, 32]];
+  const COURSE = [
+    [-4, 23], [9, 27], [11, 40], [6, 54], [-6, 64], [-22, 70], [-38, 71], [-52, 73], [-61, 80], [-64, 89], [-70, 93], [-76, 91],
+    [-80, 84], [-77, 78], [-70, 73.5], [-59, 68.5], [-50, 60], [-40, 52], [-28, 47.5], [-13, 50], [-4, 43.5], [-3, 32],
+  ];
   const WIDTH = 5; // largeur du chenal balisé (m)
   const BOAT_R = 0.5; // rayon d'encombrement d'un bateau
   const GRACE = 30; // secondes laissées aux autres après l'arrivée du premier
   const B = { vmax: 10.5, acc: 6.5, rev: 2.6, drag: 0.2, turn: 2.05, grip: 2.4, g: 11 };
-  const RAMP = { near: [-6, 57.6], len: 2.6, height: 0.75, half: 1.0 }; // tremplin flottant (au milieu du chenal)
-  const NITRO = [[10.6, 31, 1], [-21.5, 56, -1], [-9, 47.4, 1], [-3.6, 28, -1]]; // bidons : point proche du tracé, côté
+  const RAMP = { near: [-46, 57], len: 2.6, height: 0.75, half: 1.0 }; // tremplin flottant (ligne droite du retour, face au ponton)
+  const NITRO = [[10.5, 33, 1], [-14, 67.5, -1], [-57, 76.5, 1], [-78.5, 81, -1], [-55, 64.5, 1], [-20, 49, -1]]; // bidons : point proche du tracé, côté
   const NITRO_TIME = 2.2;
   const TRAIL = 22; // points du sillage
 
@@ -61,18 +65,18 @@
     title: "RC Boat Race",
     icon: "🚤",
     color: MF.PAL.blue,
-    blurb: "1–8 skippers · jump ramp, nitro cans · 3 or 5 laps",
+    blurb: "Grand tour of the lake · jump ramp, nitro cans · 1 to 3 laps",
     station: { x: -10, z: 14.6, heading: 0 },
     kiosk: { x: -13.4, z: 15.2, heading: 0 },
     hall: { x: -6.4, z: 15.2, heading: 0 },
     minPlayers: 1,
     maxPlayers: 8,
     maxTime: 300,
-    options: [{ key: "laps", label: "Laps", values: [3, 5], default: 3, format: (v) => v + " laps" }],
+    options: [{ key: "laps", label: "Laps", values: [1, 2, 3], default: 2, format: (v) => v + (v > 1 ? " laps" : " lap") }],
     help: "Arrows or WASD: throttle and rudder (it only bites with speed) · C: back in the channel. Grab the yellow nitro cans for a burst of speed, and hit the floating ramp flat out to fly.",
     rank: (list) => list.slice().sort((a, b) => (a.time ? 0 : 1) - (b.time ? 0 : 1) || (a.time || 0) - (b.time || 0) || (b.dist || 0) - (a.dist || 0)),
     describe: (r) => (r.time ? MF.time(r.time) : "did not finish"),
-    board: { label: "Best race time", better: "low", value: (r) => r.time, variant: (o) => (o.laps || 3) + " laps", format: (v) => MF.time(v) },
+    board: { label: "Best race time", better: "low", value: (r) => r.time, variant: (o) => (o.laps || 2) + ((o.laps || 2) > 1 ? " laps" : " lap"), format: (v) => MF.time(v) },
 
     create(ctx) {
       const { world, session, hud, input, group, camera } = ctx;
@@ -117,7 +121,13 @@
         b.add(num);
         marks.push({ x, z, r: 0.52 });
       };
-      [[12, 1], [29, 1], [45, 1], [62, 1], [79, 1], [84.5, 1], [90, 1], [102, 1], [113, 1]].forEach(([s, side], i) => bigBuoy(s, side, i + 1));
+      // une grosse bouée à l'intérieur de chaque virage marqué du tracé
+      let nBuoy = 0;
+      COURSE.forEach(([x, z], i) => {
+        const a = COURSE[(i + COURSE.length - 1) % COURSE.length], b = COURSE[(i + 1) % COURSE.length];
+        const h0 = Math.atan2(x - a[0], z - a[1]), h1 = Math.atan2(b[0] - x, b[1] - z), turn = MF.angleDiff(h0, h1);
+        if (i && Math.abs(turn) > 0.5) bigBuoy(path.nearest(x, z).s, turn > 0 ? -1 : 1, ++nBuoy);
+      });
       // ligne de départ : deux mâts sur flotteurs et une banderole
       const start = path.at(0), startHeading = Math.atan2(start.tx, start.tz);
       const gate = MF.group({ name: "Depart_des_bateaux", x: start.x, y: level, z: start.z, ry: startHeading, parent: deco });
@@ -479,7 +489,7 @@
           if (!ctx.active()) return dirty;
           const st = session.state, phase = st ? st.phase : "lobby";
           if (me && (phase === "countdown" || phase === "run")) {
-            const t = session.time(), laps = st.opts.laps || 3;
+            const t = session.time(), laps = st.opts.laps || 2;
             sail(dt, phase === "countdown" || t < 0 || finished);
             place(me.boat, me.x, me.z, me.h, me.speed, me.steer, time, me.alt);
             effects(dt, time);

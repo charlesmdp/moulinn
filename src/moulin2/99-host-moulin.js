@@ -26,23 +26,27 @@
         }
         return { name: r.name, level: r.level, poly: r.poly, x0, x1, z0, z1 };
       });
-      // L'ordinateur porté dans le dos suit le haut du buste du personnage du moulin (os « spine_03 »).
-      let worn = null, chest = null, figure = null;
-      const spot3 = new THREE.Vector3();
-      function carry() {
-        if (!worn) return;
-        const a = player.getAudioState();
-        if (!figure || !figure.parent) {
-          figure = game.scene.getObjectByName("Promeneur_sweat_bordeaux") || null;
-          chest = figure ? figure.getObjectByName("spine_03") || figure.getObjectByName("spine_02") : null;
+      // L'ordinateur porté dans le dos est accroché à l'os du haut du dos du personnage du moulin : il
+      // suit la marche et la course. Assis, il est caché (l'ordinateur est alors ouvert sur les genoux).
+      let worn = null, figure = null, sitting = false;
+      const body = () => {
+        if (!figure || !figure.parent) figure = game.scene.getObjectByName("Promeneur_sweat_bordeaux") || null;
+        return figure;
+      };
+      function wearNow(kit, color) {
+        if (worn) {
+          if (worn.parent) worn.parent.remove(worn);
+          MF.dispose(worn);
+          worn = null;
         }
-        const show = !!a.enabled && hooks.getMode() === "play" && !!chest;
-        if (worn.visible !== show) worn.visible = show;
-        if (!show) return;
-        chest.getWorldPosition(spot3);
-        const h = a.heading;
-        worn.position.set(spot3.x - Math.sin(h) * 0.13, spot3.y + 0.17, spot3.z - Math.cos(h) * 0.13);
-        worn.rotation.y = h;
+        const root = body(), frame = root && root.getObjectByName("Visiteur_modele_humain_importe");
+        if (!frame) return;
+        const bones = {};
+        for (const name of ["spine_03", "spine_02"]) bones[name] = frame.getObjectByName(name);
+        worn = MF.Presence.strapOn(frame, bones, kit, color);
+        if (worn) worn.visible = !sitting;
+        MF.Presence.tintFigure(root, color);
+        hooks.markDirty();
       }
       const world = {
         THREE,
@@ -76,6 +80,9 @@
         islands: hooks.islands || [],
         trees: game.forest && game.forest.records ? game.forest.records : [],
         solids: [].concat(player.physicalBuildings || [], player.solidRects || []),
+        /** Un autre exemplaire du personnage du moulin (joueur distant) : { group, update(dt, état), bones, hipHeight }. */
+        figure: V32.figure32 ? () => V32.figure32() : null,
+        figureState: V32.figureState32 || null,
         player: {
           pose() {
             const a = player.getAudioState();
@@ -89,14 +96,14 @@
             if (hooks.getMode() !== "play") hooks.setMode("play");
           },
           walking: () => hooks.getMode() === "play" && player.enabled,
-          /** Porte un objet dans le dos du personnage (l'ordinateur-sac à dos) ; remplace le précédent. */
-          wear(object) {
-            if (worn) MF.dispose(worn);
-            worn = object;
-            if (worn) {
-              worn.userData.live = true;
-              game.scene.add(worn);
-            }
+          /** Mon ordinateur dans le dos (modèle « kit ») et mon sweat à ma couleur. */
+          wear: (kit, color) => wearNow(kit, color),
+          /** Assoit le vrai personnage en { x, y, z, heading, seat, tilt, laptop } (null : debout) ; false si impossible. */
+          sit(pose) {
+            if (!V32.seat32) return false;
+            sitting = !!pose;
+            if (worn) worn.visible = !sitting;
+            return V32.seat32(pose);
           },
         },
         invalidate: () => hooks.markDirty(),
@@ -112,9 +119,7 @@
           // la boule à neige « Météo » montre le moulin seul : on y cache la fête
           const globe = hooks.getMode() === "globe";
           if (app.root.visible === globe) app.root.visible = !globe;
-          const dirty = app.update(dt, time);
-          carry();
-          return dirty;
+          return app.update(dt, time);
         },
       };
     },

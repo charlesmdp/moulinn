@@ -104,6 +104,21 @@
     laptop.position.set(0, -0.2 - (D * scale) / 2, -0.012);
     g.add(laptop);
     const strap = MF.mat("#33363f");
+    if (o.straps === false) {
+      // sur le vrai personnage : pas de bretelles devant (elles traversaient le buste), juste deux
+      // attaches courtes en haut du dos et un liseré à la couleur du joueur pour bien voir l'ordinateur
+      for (const side of [-1, 1]) MF.box(0.045, 0.05, 0.07, strap, { x: side * 0.1 * scale, y: -0.2 + 0.02, z: 0.03, parent: g });
+      if (o.color) {
+        const rim = MF.mat(o.color, { unique: true });
+        const w = W * scale + 0.03, h = D * scale + 0.03, y = -0.2 - (D * scale) / 2;
+        MF.box(w, 0.018, 0.03, rim, { y: y + h / 2, z: -0.012, parent: g });
+        MF.box(w, 0.018, 0.03, rim, { y: y - h / 2, z: -0.012, parent: g });
+        for (const side of [-1, 1]) MF.box(0.018, h, 0.03, rim, { x: (side * w) / 2, y, z: -0.012, parent: g });
+        g.userData.rim = rim;
+      }
+      g.userData = Object.assign(g.userData, { laptop, model: laptop.userData.model });
+      return g;
+    }
     for (const side of [-1, 1]) {
       const x = side * 0.105;
       MF.box(0.038, 0.016, chest + 0.06, strap, { x, y: 0.035, z: chest / 2 + 0.012, parent: g }); // par-dessus l'épaule

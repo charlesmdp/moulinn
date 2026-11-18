@@ -1,8 +1,8 @@
 // La Fête du Moulin — course de drones en vue embarquée (FPV).
 //
-// 1 à 8 pilotes, 2 ou 3 tours d'un parcours de 191 m autour du moulin : onze portes (des anneaux
-// tenus par des ballons) à franchir dans l'ordre — au-dessus de la cour, du bassin de la véranda, au
-// ras du Grand étang, par-dessus le toit de la dépendance, puis en piqué vers l'allée. Le pilotage
+// 1 à 8 pilotes, 1 à 3 tours d'un parcours de 340 m : vingt portes (des anneaux tenus par des
+// ballons) à franchir dans l'ordre — au-dessus de la cour, du bassin de la véranda, une grande
+// boucle au ras du Grand étang, par-dessus le toit de la dépendance, puis en piqué vers l'allée. Le pilotage
 // est volontairement simple : le drone tient son altitude tout seul et vise celle de la prochaine
 // porte si on ne touche pas aux commandes de montée. Chacun simule son drone et l'envoie aux autres.
 (function () {
@@ -11,7 +11,13 @@
 
   // Portes : x, z, hauteur au-dessus du sol (ou de l'eau). Couloir vérifié sur le relevé : au moins
   // 2,5 m des bâtiments et 1,5 m des couronnes d'arbres. La porte 0 est aussi la ligne des tours.
-  const GATES = [[1.5, -28, 3], [1, -18, 3.5], [13, -15, 4], [26, -6, 2.2], [22, 9, 3], [8, 24, 1.6], [-13, 27.5, 2.5], [-29, 14, 11.5], [-28, 5, 12.5], [-10, -18, 6], [0, -38, 2.6]];
+  // Après la porte 6, une grande boucle au ras du Grand étang : rive est, nord de la grande île, rive
+  // ouest, passage devant le Ponton des fondateurs, puis retour par l'est de l'îlot.
+  const GATES = [
+    [1.5, -28, 3], [1, -18, 3.5], [13, -15, 4], [26, -6, 2.2], [22, 9, 3], [8, 24, 1.6],
+    [11, 41, 2.4], [3, 57, 2.6], [-15, 68, 3], [-36, 68, 3.2], [-50, 58, 3], [-42, 47, 2.8], [-27, 44, 2.6], [-12, 48, 2.6], [0, 33, 2.5],
+    [-13, 27.5, 2.5], [-29, 14, 11.5], [-28, 5, 12.5], [-10, -18, 6], [0, -38, 2.6],
+  ];
   const START = { x: 9.5, z: -35, up: 2.5 }; // arche de départ, franchie vers l'ouest
   const PADS = [[11.2, -35.8], [11.2, -34.2], [13.2, -35.8], [13.2, -34.2], [11.2, -37.4], [11.2, -32.6], [13.2, -37.4], [13.2, -32.6]];
   const RING = 2.1; // rayon des anneaux (m)
@@ -51,19 +57,19 @@
     title: "FPV Drone Race",
     icon: "🚁",
     color: MF.PAL.teal,
-    blurb: "1–8 pilots · 11 gates around the mill · thread the bullseye for turbo",
+    blurb: "1–8 pilots · 20 gates around the mill and over the lake · thread the bullseye for turbo",
     station: { x: 15.2, z: -35, heading: -Math.PI / 2 },
     kiosk: { x: 15.4, z: -31.2, heading: -Math.PI / 2 },
     hall: { x: 15.4, z: -38.8, heading: -Math.PI / 2 },
-    range: 110,
+    range: 170,
     minPlayers: 1,
     maxPlayers: 8,
     maxTime: 300,
-    options: [{ key: "laps", label: "Laps", values: [2, 3], default: 3, format: (v) => v + " laps" }],
+    options: [{ key: "laps", label: "Laps", values: [1, 2, 3], default: 2, format: (v) => v + (v > 1 ? " laps" : " lap") }],
     help: "Arrows or WASD: fly and turn · I / K: up, down · J / L: strafe · Space: turbo · E: switch view · C: reset. Fly through the very middle of a ring (“Bullseye!”) and your turbo is ready again at once.",
     rank: (list) => list.slice().sort((a, b) => (a.time ? 0 : 1) - (b.time ? 0 : 1) || (a.time || 0) - (b.time || 0) || (b.gates || 0) - (a.gates || 0)),
     describe: (r) => (r.time ? MF.time(r.time) : "did not finish"),
-    board: { label: "Best race time", better: "low", value: (r) => r.time, variant: (o) => (o.laps || 3) + " laps", format: (v) => MF.time(v) },
+    board: { label: "Best race time", better: "low", value: (r) => r.time, variant: (o) => (o.laps || 2) + ((o.laps || 2) > 1 ? " laps" : " lap"), format: (v) => MF.time(v) },
 
     create(ctx) {
       const { world, session, hud, input, group, camera } = ctx;
@@ -125,7 +131,7 @@
       });
       MF.freeze(deco);
       // obstacles : arbres proches du parcours, bâtiments
-      const trees = (world.trees || []).filter((t) => t.x > -48 && t.x < 42 && t.z > -52 && t.z < 42).map((t) => ({ x: t.x, z: t.z, g: H(t.x, t.z), h: t.height || 10, r: 0.22 * (t.height || 10) }));
+      const trees = (world.trees || []).filter((t) => t.x > -66 && t.x < 42 && t.z > -52 && t.z < 78).map((t) => ({ x: t.x, z: t.z, g: H(t.x, t.z), h: t.height || 10, r: 0.22 * (t.height || 10) }));
       const solids = (world.solids || []).filter((r) => r.y1 - r.y0 > 1.5);
 
       /* ---------------------------------------------------------------- drones */
@@ -378,7 +384,7 @@
           if (!ctx.active()) return dirty;
           const st = session.state, phase = st ? st.phase : "lobby";
           if (me && (phase === "countdown" || phase === "run")) {
-            const t = session.time(), laps = st.opts.laps || 3;
+            const t = session.time(), laps = st.opts.laps || 2;
             const total = laps * N + 1; // la porte 1 ouvre le premier tour, puis on la repasse à chaque tour
             fly(dt, phase === "countdown" || t < 0 || finished);
             if (input.state.hit.b) chase = !chase;
