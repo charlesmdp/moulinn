@@ -7,7 +7,7 @@
 (function () {
   "use strict";
   const MF = globalThis.MoulinFete;
-  const FROGS = 8, NEAR = 2.4, REACH = 8.2;
+  const FROGS = 8, NEAR = 2.4, REACH = 8.2, DECK = 2.1; // DECK : hauteur de l'estrade (m)
   // nénuphars : distance, écart latéral, rayon, points, vitesse de dérive
   const PADS = [[3.6, -1.5, 0.55, 10, 0.5], [3.9, 1.4, 0.55, 10, -0.6], [6.0, -0.4, 0.5, 20, 0.8], [6.4, 2.0, 0.5, 20, -0.7], [6.2, -2.6, 0.5, 20, 0.6], [8.8, 0.9, 0.42, 50, 1.0], [9.2, -1.6, 0.42, 50, -0.9]];
 
@@ -19,12 +19,19 @@
     blurb: "8 frogs · land them on the lily pads, early adopters to mainstream",
     help: "Aim left or right with the mouse, hold the click to set the range and release to launch a frog. Near pads 10, middle pads 20, golden pads at the back 50. The pads drift, and a pad only counts once.",
     hint: "Aim, hold to set the range, release to launch",
-    at: { x: 34.4, z: -5.5, face: Math.PI / 2 },
+    at: { x: 31.4, z: -5.5, face: Math.PI / 2 },
     stall: false,
     size: { w: 3, d: 1.2 },
-    hall: [3.0, 2.6],
+    hall: [-2.2, 8.0],
     maxTime: 110,
-    cam: { y: 2.3, z: 2.4, look: [0, 0.2, -5.2], fov: 50 },
+    cam: { y: 2.3, z: 2.4, look: [0, -1.5, -6], fov: 50 },
+    // Une estrade au-dessus de la berge : les roseaux et les rochers du bord du bassin bouchaient la
+    // vue depuis le sol. On y monte par un escalier, côté est ; la catapulte est au bout, face à l'eau.
+    before(ctx) {
+      const w = ctx.world, g0 = w.groundAt ? w.groundAt(38.9, -5.5) : w.heightAt(38.9, -5.5);
+      MF.decks.rect(w, ctx.group, { x: 33.0, z: -5.5, w: 2.8, l: 5.4, heading: Math.PI / 2, y: DECK, rails: "lr", posts: true, name: "estrade-grenouilles" });
+      MF.decks.stairs(w, ctx.group, { from: [38.9, -5.5, g0 + 0.03], to: [35.7, -5.5, DECK], width: 2.2, name: "estrade-grenouilles-acces" });
+    },
     cross: false,
     button: "LAUNCH",
     stats: [{ key: "frogs", label: "Frogs" }],
@@ -38,9 +45,9 @@
       MF.box(0.16, 0.05, 1.3, MF.PAL.wood, { parent: arm });
       MF.cyl(0.14, 0.11, 0.06, MF.PAL.red, { y: 0.05, z: -0.55, parent: arm, seg: 10 });
       const sign = MF.sign("CROSSING THE CHASM", { w: 2.8, h: 0.46, bg: "#27ae60", color: "#ffffff", border: "#ffffff", double: true });
-      sign.position.set(0, 2.5, 5.9);
+      sign.position.set(0, 2.5, 4.2);
       d.add(sign);
-      for (const sx of [-1, 1]) MF.cyl(0.04, 0.04, 2.5, MF.PAL.woodDark, { x: sx * 1.4, y: 1.25, z: 5.9, parent: d, seg: 6 });
+      for (const sx of [-1, 1]) MF.cyl(0.04, 0.04, 2.5, MF.PAL.woodDark, { x: sx * 1.3, y: 1.25, z: 4.2, parent: d, seg: 6 });
       const pads = PADS.map(([dist, x, r, pts, drift], i) => {
         const g = MF.group({ parent: b.live });
         MF.cyl(r, r, 0.03, pts === 50 ? "#f5c531" : pts === 20 ? "#7bd07a" : "#3fae5a", { parent: g, seg: 16 });
@@ -67,6 +74,16 @@
       const from = new THREE.Vector3(), land = new THREE.Vector3();
       let left = FROGS, busy = false, aim = 0, flick = 0, splash = 9;
 
+      /** Dérive lente des nénuphars, en travers et un peu en profondeur. */
+      function drift(t) {
+        for (const p of pads) {
+          p.x = p.x0 + Math.sin(t * 0.55 * p.drift + p.phase) * 0.9;
+          p.z = -p.dist - 0.35 + Math.cos(t * 0.4 * p.drift + p.phase) * 0.35;
+          p.g.position.set(p.x, WY, p.z);
+          p.g.rotation.y = t * 0.2 * p.drift;
+        }
+      }
+      drift(0);
       function launch(power) {
         busy = true;
         const frog = pool[FROGS - left];
@@ -109,15 +126,13 @@
             g.visible = false;
           }
         },
+        // en salle d'attente aussi, les nénuphars dérivent à leur place (et non au pied de la catapulte)
+        idle() {
+          drift(b.time || 0);
+        },
         update() {
           const t = Math.max(0, b.t);
-          for (const p of pads) {
-            // dérive lente, en travers et un peu en profondeur
-            p.x = p.x0 + Math.sin(t * 0.55 * p.drift + p.phase) * 0.9;
-            p.z = -p.dist - 0.35 + Math.cos(t * 0.4 * p.drift + p.phase) * 0.35;
-            p.g.position.set(p.x, WY, p.z);
-            p.g.rotation.y = t * 0.2 * p.drift;
-          }
+          drift(t);
           flick = Math.max(0, flick - b.dt);
           arm.rotation.x = flick > 0 ? 0.5 : -0.22;
           if (splash < 1) {

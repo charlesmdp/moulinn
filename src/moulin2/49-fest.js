@@ -20,6 +20,136 @@
   const BUTTON = { x: 10.8, z: 14.4 };
   const SKY = { x: 2, z: 27 }; // le feu d'artifice éclate au-dessus de la baie nord du Grand étang
 
+  // Dans un hamac : quelques phrases de « The 4-Hour Workweek » (Tim Ferriss), une toutes les cinq
+  // secondes ; chacune s'efface en poussière. De courtes citations, avec leur source.
+  const QUOTES = [
+    "Focus on being productive instead of busy.",
+    "What we fear doing most is usually what we most need to do.",
+    "Conditions are never perfect.",
+    "“Someday” is a disease that will take your dreams to the grave with you.",
+    "Being busy is a form of laziness: lazy thinking and indiscriminate action.",
+    "Lack of time is actually lack of priorities.",
+    "Less is not laziness.",
+    "The timing is never right.",
+    "Ask for forgiveness, not permission.",
+    "Emphasize strengths, don't fix weaknesses.",
+    "Things in excess become their opposite.",
+    "Distress is bad, eustress is good.",
+    "Slow down and remember this: most things make no difference.",
+  ];
+  const SOURCE = "Tim Ferriss, The 4-Hour Workweek";
+  /** Bandeau de citations (canevas 2D par-dessus la vue) : apparition, lecture, puis poussière. */
+  function dustQuotes(host) {
+    if (typeof document === "undefined" || !host) return { show() {} };
+    const W = 960, H = 230, cv = document.createElement("canvas"), c = cv.getContext("2d");
+    cv.width = W;
+    cv.height = H;
+    // dans un cadre à part : les styles de la page étirent tout canevas posé directement dans la vue
+    const box = document.createElement("div");
+    box.className = "fete-dust";
+    box.hidden = true;
+    box.appendChild(cv);
+    (host.querySelector(".fete-ui") || host).appendChild(box);
+    let on = false, index = Math.floor(Math.random() * QUOTES.length), phase = "read", t = 0, parts = [], raf = 0, last = 0;
+    function draw(alpha) {
+      c.clearRect(0, 0, W, H);
+      c.globalAlpha = alpha;
+      c.textAlign = "center";
+      c.textBaseline = "middle";
+      c.font = `400 40px ${MF.FONT}`;
+      // coupe en lignes de 880 px au plus
+      const words = QUOTES[index].split(" "), lines = [];
+      let line = "";
+      for (const w of words) {
+        const test = line ? line + " " + w : w;
+        if (c.measureText(test).width > 880 && line) {
+          lines.push(line);
+          line = w;
+        } else line = test;
+      }
+      lines.push(line);
+      const y0 = 92 - (lines.length - 1) * 24;
+      c.lineJoin = "round";
+      c.lineWidth = 8;
+      c.strokeStyle = "rgba(43, 26, 16, 0.85)";
+      c.fillStyle = "#fff6d8";
+      lines.forEach((l, i) => {
+        c.strokeText(l, W / 2, y0 + i * 48);
+        c.fillText(l, W / 2, y0 + i * 48);
+      });
+      c.font = `400 22px ${MF.FONT}`;
+      c.lineWidth = 5;
+      c.strokeText("— " + SOURCE, W / 2, y0 + lines.length * 48 + 6);
+      c.fillStyle = "#ffd54a";
+      c.fillText("— " + SOURCE, W / 2, y0 + lines.length * 48 + 6);
+      c.globalAlpha = 1;
+    }
+    function toDust() {
+      const img = c.getImageData(0, 0, W, H).data;
+      parts = [];
+      for (let y = 0; y < H; y += 3)
+        for (let x = 0; x < W; x += 3) {
+          const k = (y * W + x) * 4;
+          if (img[k + 3] < 110) continue;
+          // la poussière part de gauche à droite, emportée vers le haut à droite
+          parts.push({ x, y, vx: 50 + Math.random() * 150, vy: -25 - Math.random() * 70, life: 0.5 + Math.random() * 0.7, delay: (x / W) * 0.75 + Math.random() * 0.12, col: `rgb(${img[k]},${img[k + 1]},${img[k + 2]})`, wob: Math.random() * 6.28 });
+        }
+    }
+    function frame(now) {
+      if (!on) return;
+      const dt = Math.min(0.05, (now - last) / 1000);
+      last = now;
+      t += dt;
+      if (phase === "read") {
+        draw(Math.min(1, t / 0.5));
+        if (t >= 3.9) {
+          draw(1);
+          toDust();
+          phase = "dust";
+          t = 0;
+        }
+      } else {
+        c.clearRect(0, 0, W, H);
+        let alive = 0;
+        for (const p of parts) {
+          const k = t - p.delay;
+          if (k < 0) {
+            c.globalAlpha = 1;
+            c.fillStyle = p.col;
+            c.fillRect(p.x, p.y, 3, 3);
+            alive++;
+          } else if (k < p.life) {
+            const u = k / p.life;
+            c.globalAlpha = 1 - u;
+            c.fillStyle = p.col;
+            c.fillRect(p.x + p.vx * k + Math.sin(k * 9 + p.wob) * 5, p.y + p.vy * k, 2.6 * (1 - u * 0.5), 2.6 * (1 - u * 0.5));
+            alive++;
+          }
+        }
+        c.globalAlpha = 1;
+        if (!alive || t > 1.1) {
+          phase = "read";
+          t = 0;
+          index = (index + 1) % QUOTES.length;
+        }
+      }
+      raf = requestAnimationFrame(frame);
+    }
+    return {
+      show(v) {
+        if (on === !!v) return;
+        on = !!v;
+        box.hidden = !on;
+        if (on) {
+          phase = "read";
+          t = 0;
+          last = performance.now();
+          raf = requestAnimationFrame(frame);
+        } else cancelAnimationFrame(raf);
+      },
+    };
+  }
+
   /** Feu d'artifice : un seul nuage de points (un appel de dessin), des gerbes qui retombent. */
   function fireworks(parent, count = 540) {
     const THREE = globalThis.THREE;
@@ -112,6 +242,7 @@
     const riding = () => (MF.app && MF.app.seated && MF.app.seated()) || null;
     const taken = (s) => presence.list().some((r) => r.sitting && Math.hypot(r.tx - s.x, r.tz - s.z) < 0.34 && Math.abs(r.ty - s.y) < 1.5);
     const fixed = []; // places fixes qui ont une pose à elles (hamac, table) : les autres joueurs y sont dessinés pareil
+    const reader = dustQuotes(world.dom);
     const seatPlace = (s, title, verb, icon, r = 1.0) => places.add({ id: s.id, x: s.x, z: s.z, r, icon, title, verb, when: () => !taken(s), run: () => MF.app && MF.app.sit(s) });
     /** Panneau sur deux piquets, lisible des deux côtés. */
     const board = (parent, text, x, z, heading, o = {}) => {
@@ -229,7 +360,8 @@
       const y = H(x, z), g = MF.group({ name: "Hamac", x, y, z, ry: h, parent: camp });
       for (const s of [-1, 1]) MF.cyl(0.05, 0.06, 1.3, MF.PAL.woodDark, { z: s * 1.4, y: 0.65, rx: s * 0.2, parent: g, seg: 6, cast: true });
       for (let k = -2; k <= 2; k++) MF.box(0.9, 0.04, 0.54, cloth[i], { y: 0.62 - (1 - Math.abs(k) / 2) * 0.2, z: k * 0.48, rx: -Math.sign(k) * 0.2, parent: g });
-      const seat = { id: "hammock-" + i, x, y, z, heading: h, sit: 0.56, tilt: -0.6, back: 2.4, up: 1.6, exit: { x: x + Math.cos(h) * 1.1, z: z - Math.sin(h) * 1.1 } };
+      // allongé pour de bon (lying : la pose debout, renversée sur le dos), sans ordinateur : on lit
+      const seat = { id: "hammock-" + i, hammock: true, x, y, z, heading: h, sit: 0.5, tilt: -1.42, lying: true, laptop: false, back: 2.5, up: 1.9, exit: { x: x + Math.cos(h) * 1.1, z: z - Math.sin(h) * 1.1 } };
       seatPlace(seat, "The 4-Hour Workweek", "Lie in the hammock", "🌴", 1.1);
       fixed.push(seat);
     });
@@ -294,11 +426,18 @@
     MF.sphere(4.4, MF.PAL.red, { y: 8.6, parent: shell, seg: 18, cast: true }).scale.set(1, 1.12, 1);
     for (const [y, r, c] of [[10.6, 3.75, MF.PAL.yellow], [8.6, 4.42, "#ffffff"], [6.6, 3.75, MF.PAL.yellow]]) MF.torus(r, 0.36, c, { y, rx: Math.PI / 2, parent: shell, seg: 24, tubeSeg: 6 });
     MF.cone(1.9, 2.2, MF.PAL.red, { y: 3.9, rx: Math.PI, parent: shell, seg: 14 });
-    MF.box(1.9, 0.9, 1.9, "#b98350", { y: 0.75, parent: shell, cast: true });
-    MF.box(2.0, 0.1, 2.0, "#8a5a33", { y: 1.22, parent: shell });
+    // nacelle d'osier creuse : un plancher, quatre parois à hauteur de taille, un rebord
+    MF.box(1.9, 0.08, 1.9, "#8a5a33", { y: 0.34, parent: shell, cast: true });
+    for (const [bx, bz, bw, bd] of [[0, -0.92, 1.9, 0.07], [0, 0.92, 1.9, 0.07], [-0.92, 0, 0.07, 1.9], [0.92, 0, 0.07, 1.9]]) {
+      MF.box(bw, 0.86, bd, "#b98350", { x: bx, y: 0.79, z: bz, parent: shell, cast: true });
+      MF.box(bw + 0.06, 0.07, bd + 0.06, "#8a5a33", { x: bx, y: 1.24, z: bz, parent: shell });
+    }
+    // le brûleur, sous la gorge de l'enveloppe
+    MF.cyl(0.16, 0.2, 0.3, MF.PAL.steel, { y: 2.55, parent: shell, seg: 8 });
+    MF.cone(0.14, 0.5, MF.mat("#ffb02e", { emissive: "#ff7a1a", emissiveIntensity: 1 }), { y: 2.95, parent: shell, seg: 6 });
     for (const [sx, sz] of [[-1, -1], [-1, 1], [1, -1], [1, 1]]) MF.cyl(0.02, 0.02, 2.2, "#5d4630", { x: sx * 0.9, y: 2.3, z: sz * 0.9, rz: sx * 0.12, rx: -sz * 0.12, parent: shell, seg: 4 });
     MF.freeze(shell);
-    const seats = [[-0.45, -0.45], [0.45, -0.45], [-0.45, 0.45], [0.45, 0.45]].map(([dx, dz], i) => ({ id: "balloon-" + i, dx, dz, x: B.x + dx, y: gy + 0.3, z: B.z + dz, heading: Math.PI / 2, moving: true, ride: "balloon", laptop: false, sit: 0.55, back: 3.2, up: 2.6, look: { x: 0, y: 0, z: 0 }, exit: { x: B.x - 3.2, z: B.z } }));
+    const seats = [[-0.45, -0.45], [0.45, -0.45], [-0.45, 0.45], [0.45, 0.45]].map(([dx, dz], i) => ({ id: "balloon-" + i, dx, dz, x: B.x + dx, y: gy + 0.38, z: B.z + dz, heading: Math.PI / 2, moving: true, ride: "balloon", laptop: false, stand: true, back: 3.4, up: 3.1, look: { x: 0, y: 0, z: 0 }, exit: { x: B.x - 3.2, z: B.z } }));
     let lift = 0, back = 0; // hauteur du vol (0…1) ; secondes avant le retour au sol
     places.add({
       id: "balloon",
@@ -330,7 +469,7 @@
       balloon.rotation.y = Math.sin(time * 0.12) * 0.3 * lift;
       for (const s of seats) {
         s.x = x + s.dx;
-        s.y = y + 0.3;
+        s.y = y + 0.38; // debout sur le plancher de la nacelle
         s.z = z + s.dz;
         s.look.x = x + 60;
         s.look.y = y - 14 * lift;
@@ -372,6 +511,7 @@
           dirty = true;
         }
         const seat = riding();
+        reader.show(!!(seat && seat.hammock));
         if (fields.visible || (seat && seat.ride === "balloon")) {
           pose(clock());
           dirty = true;

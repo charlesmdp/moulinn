@@ -1,4 +1,5 @@
-// La Fête du Moulin — Bounce Rate (les ricochets, depuis la terrasse du moulin).
+// La Fête du Moulin — Bounce Rate (les ricochets, depuis la rive sud du Grand étang : un petit
+// ponton au-dessus des joncs, face au chenal qui longe l'île).
 //
 // Cinq galets à faire ricocher sur le Grand étang. On vise à la souris (gauche, droite), on
 // maintient le clic pour doser : trop mou, le galet coule ; trop fort, il plonge ; au bon endroit
@@ -18,10 +19,15 @@
     blurb: "5 stones to skip across the lake · here, a high bounce rate is good",
     help: "Aim left or right with the mouse, hold the click and release near 80 % of the gauge: too soft and the stone sinks, too hard and it dives. 10 points per skip, plus 50 when a skip lands inside a floating ring.",
     hint: "Aim, hold, release near 80 % for the most skips",
-    at: { x: -2.7, z: 17.2, face: Math.PI },
+    at: { x: -63.5, z: 119.9, face: 0 },
     stall: false,
     size: { w: 3, d: 1.0 },
-    hall: [-2.4, 0.9],
+    hall: [2.8, 4.8],
+    before(ctx) {
+      const w = ctx.world, g0 = w.groundAt ? w.groundAt(-63.5, 124.4) : w.heightAt(-63.5, 124.4);
+      MF.decks.rect(w, ctx.group, { x: -63.5, z: 120.6, w: 2.8, l: 4.2, heading: 0, y: 0.8, rails: "lr", posts: true, name: "ponton-ricochets" });
+      MF.decks.stairs(w, ctx.group, { from: [-63.5, 124.4, g0 + 0.03], to: [-63.5, 122.7, 0.8], width: 2.2, name: "ponton-ricochets-acces", rails: false, steps: false });
+    },
     maxTime: 100,
     cam: { y: 1.75, z: 2.0, look: [0, 0.5, -12], fov: 50 },
     cross: false,
@@ -30,16 +36,16 @@
     board: { label: "Best score", better: "high", value: (r) => r.score, format: (v) => v + " pts" },
     setup(b) {
       const THREE = b.THREE, d = b.decor, world = b.world;
-      // niveau de l'eau devant la terrasse, dans le repère du jeu
+      // niveau de l'eau devant le ponton, dans le repère du jeu
       const at = b.toWorld(0, -8), pond = world.waterAt(at.x, at.z);
       const WY = (pond ? pond.level : 0) - b.root.position.y + 0.03;
       // un panier de galets, l'enseigne posée sur le muret, les trois bouées-cibles
       MF.cyl(0.32, 0.26, 0.3, "#8a5a33", { x: 0.9, y: 0.15, z: 0.4, parent: d, seg: 12 });
       for (let i = 0; i < 5; i++) MF.sphere(0.09, "#8f979b", { x: 0.9 + Math.cos(i * 1.3) * 0.14, y: 0.34, z: 0.4 + Math.sin(i * 1.3) * 0.14, parent: d, seg: 7 }).scale.set(1, 0.45, 1);
       const sign = MF.sign("BOUNCE RATE", { w: 2.1, h: 0.46, bg: "#3fa9f5", color: "#ffffff", border: "#ffffff", double: true });
-      sign.position.set(0, 2.5, 5.5); // au-dessus du lanceur, derrière lui : on la lit en arrivant de la terrasse
+      sign.position.set(0, 2.6, 4.9); // derrière le lanceur, au pied du ponton : on la lit en arrivant par le pré
       d.add(sign);
-      for (const sx of [-1, 1]) MF.cyl(0.04, 0.04, 2.5, MF.PAL.woodDark, { x: sx * 1.1, y: 1.25, z: 5.5, parent: d, seg: 6 });
+      for (const sx of [-1, 1]) MF.cyl(0.04, 0.04, 3.1, MF.PAL.woodDark, { x: sx * 1.1, y: 1.05, z: 4.9, parent: d, seg: 6 });
       const rings = TARGETS.map(([x, z], i) => {
         const g = MF.group({ x, y: WY, z, parent: d });
         MF.torus(1.0, 0.09, [MF.PAL.red, MF.PAL.yellow, MF.PAL.green][i], { rx: Math.PI / 2, parent: g, seg: 24, tubeSeg: 6 });

@@ -228,6 +228,9 @@
 .fete-seatbar { position: absolute; left: 50%; bottom: 14px; transform: translateX(-50%); display: flex; align-items: center; gap: 8px; padding: 6px 8px 6px 12px; background: var(--cream); border: 3px solid var(--ink); border-radius: 16px; box-shadow: 0 4px 0 var(--ink); pointer-events: auto; font-size: 20px; max-width: calc(100% - 20px); }
 .fete-seatbar .fete-input { width: min(260px, 46vw); margin: 0; }
 .fete-seatbar[hidden] { display: none; }
+.fete-dust { position: absolute; left: 50%; top: 13%; transform: translateX(-50%); width: min(960px, 94vw); pointer-events: none; z-index: 3; }
+.fete-dust canvas { display: block; position: static; width: 100% !important; height: auto !important; }
+.fete-dust[hidden] { display: none; }
 .fete-seat-sound { display: flex; gap: 4px; }
 .fete-seat-mode { width: 34px; height: 34px; border: 3px solid var(--ink); border-radius: 10px; background: #fff; font-size: 16px; line-height: 1; cursor: pointer; padding: 0; }
 .fete-seat-mode[aria-pressed="true"] { background: var(--yellow); box-shadow: 0 2px 0 var(--ink); transform: translateY(-1px); }
