@@ -93,6 +93,7 @@
       }
       return {
         reset() {
+          jack.setHat(b.ctx.self.hat);
           queue = [0, 0];
           while (queue.length < SHOWN + 1) next();
           side = -1;

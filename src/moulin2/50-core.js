@@ -33,14 +33,14 @@
       const p = JSON.parse(localStorage.getItem(PROFILE_KEY));
       // « connu » : il a déjà choisi son pseudo ET son ordinateur (sinon on lui repose la question)
       if (p && p.name)
-        return { name: String(p.name).slice(0, 18), color: MF.PLAYER_COLORS.includes(p.color) ? p.color : MF.PLAYER_COLORS[0], kit: MF.laptops.valid(p.kit), bio: String(p.bio || "").slice(0, 40), known: !!p.kit };
+        return { name: String(p.name).slice(0, 18), color: MF.PLAYER_COLORS.includes(p.color) ? p.color : MF.PLAYER_COLORS[0], kit: MF.laptops.valid(p.kit), bio: String(p.bio || "").slice(0, 40), hat: MF.hats.valid(p.hat), logo: typeof p.logo === "string" ? p.logo : "", known: !!p.kit };
     } catch (e) {}
     const kits = MF.laptops.list;
-    return { name: "Miller " + (10 + Math.floor(Math.random() * 90)), color: MF.PLAYER_COLORS[Math.floor(Math.random() * MF.PLAYER_COLORS.length)], kit: kits[Math.floor(Math.random() * kits.length)].id, bio: "", known: false };
+    return { name: "Miller " + (10 + Math.floor(Math.random() * 90)), color: MF.PLAYER_COLORS[Math.floor(Math.random() * MF.PLAYER_COLORS.length)], kit: kits[Math.floor(Math.random() * kits.length)].id, bio: "", hat: "straw", logo: "", known: false };
   }
   function saveProfile(p) {
     try {
-      localStorage.setItem(PROFILE_KEY, JSON.stringify({ name: p.name, color: p.color, kit: p.kit, bio: p.bio }));
+      localStorage.setItem(PROFILE_KEY, JSON.stringify({ name: p.name, color: p.color, kit: p.kit, bio: p.bio, hat: p.hat, logo: p.logo }));
     } catch (e) {}
   }
 
@@ -95,7 +95,7 @@
           if (active) active.session.leave();
         } catch (e) {}
       });
-    const net = MF.Net.create({ name: profile.name, color: profile.color, kit: profile.kit, bio: profile.bio, room: options.room !== undefined ? options.room : params.get("salon"), rtc: options.rtc, relayUrls: options.relayUrls, turn: options.turn });
+    const net = MF.Net.create({ name: profile.name, color: profile.color, kit: profile.kit, bio: profile.bio, hat: profile.hat, logo: profile.logo, room: options.room !== undefined ? options.room : params.get("salon"), rtc: options.rtc, relayUrls: options.relayUrls, turn: options.turn });
     const presence = MF.Presence.create({ net, world });
     const sessions = MF.Sessions.create({ net, presence, now: options.now });
     const input = MF.Input.create({ dom: world.dom, mobile: world.mobile });
@@ -114,7 +114,7 @@
       console.error("[Fête du Moulin] décor", error);
     }
     // mon ordinateur, porté dans le dos
-    const wear = () => world.player.wear && world.player.wear(net.self.kit, net.self.color);
+    const wear = () => world.player.wear && world.player.wear(net.self.kit, net.self.color, net.self.hat, net.self.logo);
     wear();
 
     /* ---------------------------------------------------------------- les jeux */
@@ -348,7 +348,7 @@
       if (hud.panel() === "players") {
         const me = presence.activity();
         hud.setPlayers({
-          self: { name: net.self.name, color: net.self.color, kit: net.self.kit, bio: net.self.bio },
+          self: { name: net.self.name, color: net.self.color, kit: net.self.kit, bio: net.self.bio, hat: MF.hats.valid(net.self.hat), logo: net.self.logo },
           players: [{ name: net.self.name, color: net.self.color, self: true, doing: doing(me.game, me.state) }].concat(presence.list().map((r) => ({ name: r.peer.name, color: r.peer.color, self: false, doing: doing(r.game, r.state) }))),
           room: { label: st.label, isPrivate: st.isPrivate, code: st.code },
           net: netText(st),
@@ -420,7 +420,7 @@
       else if (action === "profile") {
         net.setProfile(value);
         saveProfile(net.self);
-        if (value.kit !== undefined || value.color !== undefined) wear();
+        if (value.kit !== undefined || value.color !== undefined || value.hat !== undefined || value.logo !== undefined) wear();
         if (seated) presence.setSeat(seated);
       } else if (action === "place") places.run(value);
       else if (action === "stand") stand();

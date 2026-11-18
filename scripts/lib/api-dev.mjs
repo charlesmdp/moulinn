@@ -1,10 +1,12 @@
-// /api/scores pour les serveurs locaux (scripts/serve.mjs, scripts/labo.mjs) : la vraie fonction du
-// site (functions/api/scores.js), avec un faux espace de stockage gardé dans .build/scores-dev.json.
-// SANS_SCORES=1 imite un site où le stockage n'est pas branché (la fonction répond 501).
+// /api/scores et /api/sponsors pour les serveurs locaux (scripts/serve.mjs, scripts/labo.mjs) : les
+// vraies fonctions du site (functions/api/*.js), avec un faux espace de stockage gardé dans
+// .build/scores-dev.json. SANS_SCORES=1 imite un site où le stockage n'est pas branché (501).
+// La clé du propriétaire des sponsors vaut ADS_KEY, ou « cle-locale » à défaut (SANS_ADS_KEY=1 : aucune).
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { onRequestGet, onRequestPost } from "../../functions/api/scores.js";
+import * as sponsors from "../../functions/api/sponsors.js";
 
 const file = path.join(path.dirname(fileURLToPath(import.meta.url)), "..", "..", ".build", "scores-dev.json");
 const SCORES = {
@@ -27,17 +29,21 @@ const SCORES = {
   },
 };
 
-/** Répond à la requête si elle vise /api/scores ; renvoie vrai dans ce cas. */
+/** Répond à la requête si elle vise /api/scores ou /api/sponsors ; renvoie vrai dans ce cas. */
 export function api(request, response) {
   const url = new URL(request.url, "http://localhost");
-  if (url.pathname !== "/api/scores") return false;
+  const ads = url.pathname === "/api/sponsors";
+  if (url.pathname !== "/api/scores" && !ads) return false;
   const env = process.env.SANS_SCORES ? {} : { SCORES };
+  if (!process.env.SANS_ADS_KEY) env.ADS_KEY = process.env.ADS_KEY || "cle-locale";
   const chunks = [];
   request.on("data", (c) => chunks.push(c));
   request.on("end", async () => {
     try {
       const body = Buffer.concat(chunks).toString("utf8");
-      const res = request.method === "POST" ? await onRequestPost({ request: { text: async () => body }, env }) : await onRequestGet({ env });
+      const req = { url: url.href, headers: { get: (name) => request.headers[String(name).toLowerCase()] || null }, text: async () => body };
+      const fn = ads ? sponsors : { onRequestGet, onRequestPost };
+      const res = request.method === "POST" ? await fn.onRequestPost({ request: req, env }) : await fn.onRequestGet({ request: req, env });
       response.writeHead(res.status, Object.fromEntries(res.headers)).end(await res.text());
     } catch (error) {
       response.writeHead(500).end(String(error));

@@ -28,22 +28,24 @@
       });
       // L'ordinateur porté dans le dos est accroché à l'os du haut du dos du personnage du moulin : il
       // suit la marche et la course. Assis, il est caché (l'ordinateur est alors ouvert sur les genoux).
-      let worn = null, figure = null, sitting = false;
+      let worn = null, hat = null, figure = null, sitting = false;
       const body = () => {
         if (!figure || !figure.parent) figure = game.scene.getObjectByName("Promeneur_sweat_bordeaux") || null;
         return figure;
       };
-      function wearNow(kit, color) {
-        if (worn) {
-          if (worn.parent) worn.parent.remove(worn);
-          MF.dispose(worn);
-          worn = null;
-        }
+      function wearNow(kit, color, hatId, logo) {
+        for (const old of [worn, hat])
+          if (old) {
+            if (old.parent) old.parent.remove(old);
+            MF.dispose(old);
+          }
+        worn = hat = null;
         const root = body(), frame = root && root.getObjectByName("Visiteur_modele_humain_importe");
         if (!frame) return;
         const bones = {};
         for (const name of ["spine_03", "spine_02"]) bones[name] = frame.getObjectByName(name);
-        worn = MF.Presence.strapOn(frame, bones, kit, color);
+        worn = MF.Presence.strapOn(frame, bones, kit, color, logo);
+        hat = MF.hats.fit(frame, hatId, color);
         if (worn) worn.visible = !sitting;
         MF.Presence.tintFigure(frame, color); // seulement le personnage : pas la lampe, la pelle ni le quad
         hooks.markDirty();
@@ -97,7 +99,7 @@
           },
           walking: () => hooks.getMode() === "play" && player.enabled,
           /** Mon ordinateur dans le dos (modèle « kit ») et mon sweat à ma couleur. */
-          wear: (kit, color) => wearNow(kit, color),
+          wear: (kit, color, hatId, logo) => wearNow(kit, color, hatId, logo),
           /** Assoit le vrai personnage en { x, y, z, heading, seat, tilt, laptop } (null : debout) ; false si impossible. */
           sit(pose) {
             if (!V32.seat32) return false;

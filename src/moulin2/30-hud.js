@@ -119,7 +119,7 @@
 
     /* ---------------------------------------------------------------- clics */
     root.addEventListener("click", (ev) => {
-      const t = ev.target.closest("[data-open],[data-close],[data-act],[data-game],[data-spot],[data-sound],[data-music],[data-ambience],[data-color],[data-kit],[data-copy],[data-private],[data-public],[data-fold]");
+      const t = ev.target.closest("[data-open],[data-close],[data-act],[data-game],[data-spot],[data-sound],[data-music],[data-ambience],[data-color],[data-kit],[data-hat],[data-logo-clear],[data-copy],[data-private],[data-public],[data-fold]");
       if (!t || !root.contains(t)) return;
       if (t.dataset.open) return openPanel(t.dataset.open);
       if (t.hasAttribute("data-close")) return openPanel(null);
@@ -137,6 +137,8 @@
       if (t.hasAttribute("data-fold")) return top10.classList.toggle("is-folded");
       if (t.dataset.color) return act("profile", { color: t.dataset.color });
       if (t.dataset.kit) return act("profile", { kit: t.dataset.kit });
+      if (t.dataset.hat) return act("profile", { hat: t.dataset.hat });
+      if (t.hasAttribute("data-logo-clear")) return act("profile", { logo: "" });
       if (t.hasAttribute("data-copy")) return act("copy");
       if (t.hasAttribute("data-private")) {
         const input = panels.players.querySelector("[data-code]");
@@ -156,6 +158,12 @@
     root.addEventListener("change", (ev) => {
       if (ev.target.matches("[data-name]")) act("profile", { name: ev.target.value });
       if (ev.target.matches("[data-bio]")) act("profile", { bio: ev.target.value });
+      if (ev.target.matches("[data-logo]") && ev.target.files && ev.target.files[0])
+        // l'image du capot : 96 × 64 pixels, quelques kilo-octets (elle voyage avec le profil)
+        MF.shrinkImage(ev.target.files[0], { w: 96, h: 64, max: 12000 }).then(
+          (logo) => act("profile", { logo }),
+          (error) => hud.toast(error.message),
+        );
     });
     // les touches tapées dans un champ ne doivent pas faire marcher le personnage
     root.addEventListener("keydown", (ev) => {
@@ -231,6 +239,12 @@
           MF.PLAYER_COLORS.map((c) => `<button type="button" data-color="${c}" style="--c:${c}" aria-pressed="${c === model.self.color}" aria-label="Color"></button>`).join("") +
           `</div>
           <h3>Your laptop</h3>${laptopPicker(model.self.kit, "data-kit")}
+          <div class="fete-row fete-logo-row"><i class="fete-logo-thumb"${model.self.logo ? ` style="background-image:url(${esc(model.self.logo)})"` : ""}></i><label class="fete-btn"><input type="file" accept="image/*" data-logo hidden>${model.self.logo ? "Change the image" : "Put your logo on the lid"}</label>${model.self.logo ? `<button type="button" class="fete-btn" data-logo-clear>Remove</button>` : ""}</div>
+          <h3>Your hat</h3>
+          <div class="fete-hats">` +
+          MF.hats.list.map((h) => `<button type="button" data-hat="${h.id}" aria-pressed="${h.id === model.self.hat}" title="${esc(h.ref)}"><i>${h.icon}</i><span>${esc(h.name)}</span></button>`).join("") +
+          `</div>
+          <p class="fete-note">“${esc((MF.hats.list.find((h) => h.id === model.self.hat) || MF.hats.list[0]).ref)}”</p>
           <h3>What are you building?</h3>
           <input type="text" class="fete-input" data-bio maxlength="40" value="${esc(model.self.bio || "")}" placeholder="shown under your name, to everyone" aria-label="What you are building" autocomplete="off" spellcheck="false">
           <h3>Play with friends</h3>

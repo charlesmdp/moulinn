@@ -85,9 +85,9 @@
    * Accroche l'ordinateur-sac à dos à l'os du haut du dos d'un exemplaire du personnage du moulin :
    * il suit alors la marche et la course. frame : le groupe du personnage (avant vers +z).
    */
-  function strapOn(frame, bones, id, color) {
+  function strapOn(frame, bones, id, color, logo) {
     const THREE = globalThis.THREE;
-    const pack = MF.laptops.backpack(id, { scale: 1.3, straps: false, color });
+    const pack = MF.laptops.backpack(id, { scale: 1.3, straps: false, color, logo });
     const bone = bones && (bones.spine_03 || bones.spine_02);
     if (!bone) return null;
     frame.updateMatrixWorld(true);
@@ -132,10 +132,6 @@
       const core = MF.group({ parent: body });
       MF.box(0.42, 0.58, 0.25, shirt, { y: 1.12, parent: core });
       MF.sphere(0.165, SKIN, { y: 1.59, parent: core, seg: 12 });
-      // chapeau de paille : large bord, calotte, ruban à la couleur du joueur
-      MF.cyl(0.33, 0.33, 0.03, "#e9c46a", { y: 1.7, parent: core, seg: 16 });
-      MF.cyl(0.15, 0.17, 0.13, "#e9c46a", { y: 1.77, parent: core, seg: 12 });
-      MF.cyl(0.174, 0.174, 0.045, shirt, { y: 1.735, parent: core, seg: 12 });
       // chaque membre et le tronc d'un seul bloc : une dizaine d'appels de dessin au lieu de vingt-cinq
       for (const part of legs.concat(arms, core)) MF.freeze(part);
     }
@@ -146,26 +142,45 @@
     tag.position.y = 2.22;
     g.add(tag);
     // L'ordinateur du joueur : fermé dans le dos (bretelles), ou ouvert sur les genoux quand il est assis.
-    const avatar = { group: g, body, legs, arms, tag, shirt, fig, color, shadow, phase: 0, kit: null, pack: null, lap: null, sitting: false };
+    const avatar = { group: g, body, legs, arms, tag, shirt, fig, color, shadow, phase: 0, kit: null, logo: "", hat: null, cap: null, pack: null, lap: null, sitting: false };
+    /** Le chapeau choisi : à la place du chapeau de paille du personnage, ou posé sur la tête du bonhomme. */
+    avatar.setHat = function (id, force) {
+      if (!MF.hats) return;
+      id = MF.hats.valid(id);
+      if (avatar.hat === id && !force) return;
+      avatar.hat = id;
+      if (avatar.cap) MF.dispose(avatar.cap);
+      avatar.cap = null;
+      if (fig) avatar.cap = MF.hats.fit(fig.group, id, avatar.color);
+      else if (id !== "none") {
+        avatar.cap = MF.hats.build(id, avatar.color);
+        avatar.cap.position.y = 1.685;
+        avatar.cap.userData.live = true;
+        body.add(avatar.cap);
+      }
+    };
     avatar.setColor = function (c) {
       avatar.color = c;
       shirt.color.copy(MF.color(c));
       if (fig) tintFigure(fig.group, c);
       if (avatar.pack && avatar.pack.userData.rim) avatar.pack.userData.rim.color.copy(MF.color(c));
+      if (avatar.hat) avatar.setHat(avatar.hat, true);
     };
-    avatar.setKit = function (id) {
+    avatar.setKit = function (id, logo) {
       if (!MF.laptops) return;
       id = MF.laptops.valid(id);
-      if (avatar.kit === id) return;
+      logo = logo || "";
+      if (avatar.kit === id && avatar.logo === logo) return;
       avatar.kit = id;
+      avatar.logo = logo;
       for (const old of [avatar.pack, avatar.lap]) if (old) MF.dispose(old);
-      if (fig) avatar.pack = strapOn(fig.group, fig.bones, id, avatar.color);
+      if (fig) avatar.pack = strapOn(fig.group, fig.bones, id, avatar.color, logo);
       else {
-        avatar.pack = MF.freeze(MF.laptops.backpack(id));
+        avatar.pack = MF.freeze(MF.laptops.backpack(id, { logo }));
         avatar.pack.position.set(0, 1.4, -0.125);
         body.add(avatar.pack);
       }
-      avatar.lap = MF.laptops.build(id, { open: 0.95 });
+      avatar.lap = MF.laptops.build(id, { open: 0.95, logo });
       avatar.lap.scale.setScalar(1.15);
       avatar.lap.rotation.y = Math.PI; // l'écran regarde le joueur
       avatar.lap.position.set(0, fig ? 0.6 : 0.93, fig ? 0.42 : 0.5);
@@ -229,6 +244,7 @@
       arms[1].rotation.x = swing * 0.8;
     };
     avatar.setKit(kit);
+    avatar.setHat("straw");
     return avatar;
   }
 
@@ -296,16 +312,17 @@
     });
 
     // Assis à une place de l'espace de travail : on reste visible des autres, à sa place.
-    let seat = null, selfAvatar = null, selfLap = null, lapKit = null;
+    let seat = null, selfAvatar = null, selfLap = null, lapKit = null, lapLogo = "";
     /** Mon vrai personnage assis à ma place, ordinateur ouvert sur les genoux ; false si le monde ne sait pas faire. */
     function seatSelf() {
       if (!world.player.sit) return false;
       if (world.player.sit(seat ? { x: seat.x, y: seat.y, z: seat.z, heading: seat.heading || 0, seat: seat.sit, tilt: seat.tilt, laptop: seat.laptop !== false, stand: !!seat.stand, lying: !!seat.lying } : null) === false) return false;
       const want = !!seat && seat.laptop !== false && !seat.stand && !seat.lying;
-      if (want && (!selfLap || lapKit !== net.self.kit)) {
+      if (want && (!selfLap || lapKit !== net.self.kit || lapLogo !== net.self.logo)) {
         if (selfLap) MF.dispose(selfLap);
         lapKit = net.self.kit;
-        selfLap = MF.laptops.build(lapKit, { open: 0.95 });
+        lapLogo = net.self.logo;
+        selfLap = MF.laptops.build(lapKit, { open: 0.95, logo: lapLogo });
         selfLap.scale.setScalar(1.15);
         selfLap.userData.live = true;
         root.add(selfLap);
@@ -368,7 +385,8 @@
           selfAvatar.group.visible = !!seat;
           if (seat) {
             selfAvatar.setColor(net.self.color);
-            selfAvatar.setKit(net.self.kit);
+            selfAvatar.setKit(net.self.kit, net.self.logo);
+            selfAvatar.setHat(net.self.hat);
             selfAvatar.setSit(true);
             selfAvatar.group.position.set(seat.x, seat.y, seat.z);
             selfAvatar.body.rotation.y = seat.heading || 0;
@@ -392,6 +410,7 @@
         return list.sort((a, b) => a.since - b.since || (a.uid < b.uid ? -1 : 1));
       },
       update(dt, time) {
+        if (MF.hats) MF.hats.tick(time);
         // envoi de ma position
         sendTimer -= dt;
         const p = localPose();
@@ -444,8 +463,12 @@
           a.group.position.set(r.x, r.y, r.z);
           a.body.rotation.y = r.heading;
           // marche : jambes et bras en opposition, d'après la distance parcourue
-          if (a.kit !== MF.laptops.valid(r.peer.kit)) {
-            a.setKit(r.peer.kit);
+          if (a.kit !== MF.laptops.valid(r.peer.kit) || a.logo !== (r.peer.logo || "")) {
+            a.setKit(r.peer.kit, r.peer.logo);
+            moving = true;
+          }
+          if (MF.hats && a.hat !== MF.hats.valid(r.peer.hat)) {
+            a.setHat(r.peer.hat);
             moving = true;
           }
           if (a.sitting !== !!r.sitting || (a.place || null) !== (r.sitting ? at : null)) {

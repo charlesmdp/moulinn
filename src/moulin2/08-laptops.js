@@ -62,6 +62,22 @@
     }
   }
 
+  /**
+   * L'image choisie par le joueur, collée sur le capot (à l'endroit quand l'ordinateur est ouvert
+   * ou porté dans le dos : le haut de l'image est du côté opposé à la charnière).
+   */
+  function sticker(m, lid, src) {
+    const THREE = T(), img = new Image(), tex = new THREE.Texture(img);
+    tex.encoding = THREE.sRGBEncoding;
+    img.onload = () => (tex.needsUpdate = true);
+    img.src = src;
+    const mat = new THREE.MeshBasicMaterial({ map: tex, transparent: true, toneMapped: false });
+    const mesh = MF.mesh(new THREE.PlaneGeometry(W - 0.07, ((W - 0.07) * 2) / 3), mat, { y: m.tl + 0.003, z: D / 2, parent: lid, receive: false });
+    mesh.rotation.set(Math.PI / 2, Math.PI, 0);
+    mesh.userData.live = true;
+    return mesh;
+  }
+
   /** Ordinateur posé à plat : base au sol (y = 0), bord avant vers +z, charnière vers −z. */
   function build(id, o = {}) {
     const m = byId.get(valid(id));
@@ -83,7 +99,8 @@
       const len = 0.05 + rnd() * 0.16;
       MF.box(len, 0.002, 0.009, ["#ffffff", "#1c2733", "#ffd166", "#1c2733"][i % 4], { x: -(W - 0.07) / 2 + len / 2 + (i % 3) * 0.012, y: -0.004, z: 0.04 + i * 0.024, parent: lid });
     }
-    decorate(m, lid);
+    if (o.logo) sticker(m, lid, o.logo);
+    else decorate(m, lid);
     const open = MF.clamp(o.open ?? 0, 0, 1);
     lid.rotation.x = -open * 1.92;
     panel.visible = open > 0.05;
@@ -98,7 +115,7 @@
   function backpack(id, o = {}) {
     const chest = o.chest || 0.25, scale = o.scale || 1.12;
     const g = MF.group({ name: "Ordinateur_sac_a_dos" });
-    const laptop = build(id, { open: 0 });
+    const laptop = build(id, { open: 0, logo: o.logo });
     laptop.scale.setScalar(scale);
     laptop.rotation.x = -Math.PI / 2; // debout contre le dos, capot vers l'arrière, charnière en bas
     laptop.position.set(0, -0.2 - (D * scale) / 2, -0.012);

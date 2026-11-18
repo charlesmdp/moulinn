@@ -66,6 +66,7 @@
       let x = 0, v = 0, push = 0, nextPush = 0, fell = 0, splash = 9, step = 0, y = 0, vy = 0, stun = 0, wasA = false;
       return {
         reset() {
+          jack.setHat(b.ctx.self.hat);
           x = v = push = fell = step = y = vy = stun = 0;
           nextPush = 1.2;
           ring.visible = false;

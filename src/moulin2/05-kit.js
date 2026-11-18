@@ -474,6 +474,58 @@
     MF.cone(r * 0.16, r * 0.2, hex, { y: -0.01, rx: Math.PI, parent: g, seg: 6 });
     return g;
   };
+  /**
+   * Réduit une image choisie par l'utilisateur (fichier) et la rend en « data: » d'au plus max
+   * caractères : WebP, sinon PNG, sinon JPEG sur fond blanc ; plus petite si elle pèse encore trop.
+   * o.w, o.h : taille en pixels ; o.free : garde le rapport de l'image (sinon elle est centrée dans w × h).
+   */
+  MF.shrinkImage = function (file, o = {}) {
+    return new Promise((resolve, reject) => {
+      if (!file || !/^image\//.test(file.type || "")) return reject(new Error("This file is not an image"));
+      const url = URL.createObjectURL(file), img = new Image();
+      img.onerror = () => {
+        URL.revokeObjectURL(url);
+        reject(new Error("This image cannot be read"));
+      };
+      img.onload = () => {
+        URL.revokeObjectURL(url);
+        const max = o.max || 12000;
+        let W = o.w || 96, H = o.h || 64;
+        for (let pass = 0; pass < 5; pass++) {
+          let cw = W, ch = H;
+          if (o.free) {
+            const k = Math.min(W / img.width, H / img.height, 1);
+            cw = Math.max(1, Math.round(img.width * k));
+            ch = Math.max(1, Math.round(img.height * k));
+          }
+          const c = document.createElement("canvas");
+          c.width = cw;
+          c.height = ch;
+          const k = Math.min(cw / img.width, ch / img.height), dw = img.width * k, dh = img.height * k;
+          c.getContext("2d").drawImage(img, (cw - dw) / 2, (ch - dh) / 2, dw, dh);
+          for (const [type, quality] of [["image/webp", 0.82], ["image/png"], ["image/jpeg", 0.74]]) {
+            let source = c;
+            if (type === "image/jpeg") {
+              source = document.createElement("canvas");
+              source.width = cw;
+              source.height = ch;
+              const f = source.getContext("2d");
+              f.fillStyle = "#ffffff";
+              f.fillRect(0, 0, cw, ch);
+              f.drawImage(c, 0, 0);
+            }
+            const data = source.toDataURL(type, quality);
+            if (data.startsWith("data:" + type) && data.length <= max) return resolve(data);
+          }
+          W = Math.round(W * 0.72);
+          H = Math.round(H * 0.72);
+        }
+        reject(new Error("This image is too heavy, try a simpler one"));
+      };
+      img.src = url;
+    });
+  };
+
   MF.dispose = function (object) {
     if (!object) return;
     if (object.parent) object.parent.remove(object);

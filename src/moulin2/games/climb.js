@@ -90,6 +90,7 @@
       }
       return {
         reset() {
+          jack.setHat(b.ctx.self.hat);
           h = slip = done = combo = gust = 0;
           last = "";
           lastTap = -9;

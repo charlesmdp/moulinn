@@ -246,9 +246,10 @@
       walk() {},
       walking: () => P.enabled,
       /** L'ordinateur-sac à dos : ici le personnage est celui de la fête, il suffit de changer de modèle. */
-      wear(kit, color) {
-        avatar.setKit(kit);
+      wear(kit, color, hat, logo) {
+        avatar.setKit(kit, logo);
         if (avatar.setColor && color) avatar.setColor(color);
+        avatar.setHat(hat);
       },
     },
     invalidate() {},
