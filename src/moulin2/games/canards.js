@@ -160,7 +160,7 @@
             d.paint.emissive.copy(MF.color(p.kind === "gold" ? "#ff9d00" : "#000000"));
           }
           const r = LANES[d.lane], w = 0.62 - d.lane * 0.11;
-          const a = d.a0 + t * w;
+          const a = d.a0 + (t + (t * t) / 150) * w; // la ronde accélère : deux fois plus vite à la fin
           d.x = BX + Math.cos(a) * r;
           d.z = BZ + Math.sin(a) * r;
           d.live = !gone;

@@ -99,13 +99,13 @@
                 tension = 0.45;
                 reeled = 0;
                 MF.sfx.play("clic");
-              } else if (t > at0 + 0.75) {
+              } else if (t > at0 + Math.max(0.42, 0.75 - t / 150)) { // touches de plus en plus brèves
                 b.hud.pop("Missed the bite", ...b.screen(bob.position));
                 cast(t);
               }
             } else if (state === "reel") {
               const K = KINDS[kind];
-              jerk += (b.rand() - 0.5) * K[2] * 9 * b.dt;
+              jerk += (b.rand() - 0.5) * K[2] * (1 + t / 45) * 9 * b.dt; // les poissons se débattent de plus en plus
               jerk *= 1 - 2.5 * b.dt;
               tension += ((b.hold ? 0.95 : -0.85) + jerk) * b.dt;
               dip = 0.1 + Math.sin(t * 20) * 0.03;

@@ -3,7 +3,8 @@
 // 30 secondes. On mâche en alternant gauche et droite (← →, ou clic à gauche puis à droite) :
 // six bouchées par hot-dog. Mais chaque bouchée fait monter la jauge « gorge » : si elle déborde,
 // on s'étouffe une seconde et demie. Il faut donc trouver son rythme. Le score est le nombre de
-// hot-dogs (et de bouchées entamées, en dixièmes).
+// hot-dogs (et de bouchées entamées, en dixièmes). Plus on en a mangé, plus chaque bouchée
+// remplit la gorge : le rythme qui marchait au début fait s'étouffer à la fin.
 (function () {
   "use strict";
   const MF = globalThis.MoulinFete;
@@ -73,7 +74,7 @@
             last = b.tap;
             chew = 0.12;
             bites++;
-            throat += RISE;
+            throat += RISE * (1 + eaten * 0.09); // chaque hot-dog avalé passe un peu moins bien que le précédent
             MF.sfx.play("clic");
             if (bites >= BITES) {
               bites = 0;

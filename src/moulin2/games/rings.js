@@ -100,7 +100,9 @@
           marker.visible = b.playing && left > 0 && !!p;
           if (p) {
             // la main tremble : le repère décrit une petite boucle autour du viseur
-            marker.position.set(MF.clamp(p.x, -1.25, 1.25) + Math.sin(t * 2.3) * 0.15, TOP, MF.clamp(p.z, -1.4, 0.35) + Math.sin(t * 3.1 + 1) * 0.11);
+            // … de plus en plus fort et de plus en plus vite, d'anneau en anneau
+            const n = RINGS - left, amp = 1 + n * 0.09, fast = 1 + n * 0.06;
+            marker.position.set(MF.clamp(p.x, -1.25, 1.25) + Math.sin(t * 2.3 * fast) * 0.15 * amp, TOP, MF.clamp(p.z, -1.4, 0.35) + Math.sin(t * 3.1 * fast + 1) * 0.11 * amp);
           }
           // souris : on lance au clic ; doigt : on vise en le posant, on lance en le levant
           if (b.playing && left > 0 && p && (b.input.touch ? b.release : b.press)) toss();

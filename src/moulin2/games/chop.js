@@ -80,7 +80,9 @@
       const next = () => {
         // jamais deux branches opposées de suite au ras : on doit toujours pouvoir passer
         const r = b.rand(), last = queue[queue.length - 1] || 0;
-        const s = r < 0.36 ? -1 : r < 0.72 ? 1 : 0;
+        // de plus en plus de branches à mesure que le tronc descend (72 % des rondins au début, 92 % au bout de 40)
+        const more = Math.min(0.1, cut / 400);
+        const s = r < 0.36 + more ? -1 : r < 0.72 + 2 * more ? 1 : 0;
         queue.push(last && s && s !== last && queue.length > 1 && queue[queue.length - 2] === 0 ? s : last && s === -last ? 0 : s);
       };
       function show() {
