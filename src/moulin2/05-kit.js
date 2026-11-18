@@ -217,6 +217,7 @@
       m.emissiveIntensity = options.emissiveIntensity ?? 0.5;
     }
     if (!options.unique) matCache.set(key, m);
+    else m.userData.unique = true; // repeint en cours de jeu : MF.freeze ne le fond pas dans le décor peint
     return m;
   };
 

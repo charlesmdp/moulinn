@@ -5,9 +5,12 @@
 //
 // Le plan (x vers l'est, z vers le sud, le moulin est en 0, 0) :
 //   Entrée (0, −84)           portail, arche, guichet, poteau indicateur
-//   L'Allée des stands        le long de l'allée du moulin, côté est : sept baraques de jeux
-//   La Colline (plateau NO)   grand escalier depuis l'entrée ; grande roue, circuit RC, piste des drones
-//   Le Pré (prairie est)      manèges et grands jeux : carrousel, tamponneuses, tir, canards, mini-golf
+//   L'Allée des stands        le long de l'allée du moulin, côté est : High Striker, taupes, skee-ball, anneaux
+//   La terrasse basse         piste d'envol des drones (leur parcours fait le tour du moulin)
+//   La Colline (plateau NO)   grand escalier depuis l'entrée ; chamboule-tout, pistolets à eau, corn hole,
+//                             grande roue, circuit RC
+//   Le Pré (prairie est)      manèges et grands jeux : tir, canards, lance-citrouilles, carrousel,
+//                             tamponneuses, mini-golf ; le Grand étang : course de bateaux
 //   Le Ponton des fondateurs  rive est du grand étang : gradins et poufs pour travailler face à l'eau
 //
 //   MF.site.kiosk(def, world)            panneau du stand d'un jeu (au point def.station)
@@ -224,19 +227,19 @@
       put(
         gate,
         Pp.signpost([
-          { text: "THE MIDWAY · 7 GAME BOOTHS", color: MF.PAL.red, dir: 0 },
-          { text: "HILLTOP · FERRIS WHEEL · RACEWAY", color: MF.PAL.blue, dir: -Math.PI / 2 },
+          { text: "THE MIDWAY · GAME BOOTHS", color: MF.PAL.red, dir: 0 },
+          { text: "HILLTOP · WHEEL · RACEWAY · BOOTHS", color: MF.PAL.blue, dir: -Math.PI / 2 },
           { text: "THE GREEN · RIDES", color: MF.PAL.green, dir: 0.7 },
           { text: "FOUNDERS' DECK · SIT & WORK", color: MF.PAL.purple, dir: 0.15 },
         ]),
-        4.9,
-        -75.2,
+        -2.3,
+        -71.6,
       );
       for (const [x, z, c] of [[-2.6, -86.6, MF.PAL.red], [5.6, -86.8, MF.PAL.yellow], [-3.0, -74.2, MF.PAL.blue]]) put(gate, Pp.flag(c, 4.6), x, z);
       // grand escalier de bois vers le plateau de la colline
       const S = MF.site.stairway;
       MF.decks.stairs(world, gate, { from: [S.x0, S.z, H(S.x0, S.z) + 0.05], to: [S.x1, S.z, H(S.x1, S.z) + 0.05], width: 3, name: "colline" });
-      const top = MF.sign("HILLTOP ↑ FERRIS WHEEL · RC RACEWAY · DRONES", { w: 3.4, h: 0.5, bg: MF.PAL.blue, color: "#ffffff", border: MF.PAL.yellow, double: true });
+      const top = MF.sign("HILLTOP ↑ FERRIS WHEEL · RC RACEWAY · 3 BOOTHS", { w: 3.4, h: 0.5, bg: MF.PAL.blue, color: "#ffffff", border: MF.PAL.yellow, double: true });
       top.position.set(S.x0 + 0.2, H(S.x0, S.z) + 3.3, S.z);
       top.rotation.y = Math.PI / 2;
       gate.add(top);
@@ -257,19 +260,20 @@
       }
       put(midway, Pp.cart("popcorn"), 5.2, -50.6, Math.PI / 2);
       put(midway, Pp.cart("candy"), 5.3, -79.4, Math.PI / 2);
-      for (const [x, z, h] of [[7.6, -70.2, 0.3], [7.4, -59.3, -0.2], [7.8, -64.7, 1.2]]) put(midway, Pp.bale(), x, z, h);
-      for (const [x, z] of [[7.3, -75.6], [7.5, -53.9]]) put(midway, Pp.barrel(), x, z);
-      put(midway, Pp.bin(), 3.6, -69);
+      // paille, tonneaux et poubelle sur le bas-côté ouest : le côté est est celui des baraques et de leurs joueurs
+      for (const [x, z, h] of [[-2.5, -68.4, 0.3], [-2.6, -57.4, -0.2], [-2.3, -60.2, 1.2]]) put(midway, Pp.bale(), x, z, h);
+      for (const [x, z] of [[-2.4, -66.2], [-2.5, -54.6]]) put(midway, Pp.barrel(), x, z);
+      put(midway, Pp.bin(), -2.2, -78.2);
       // la terrasse basse : escalier depuis l'allée, tables, limonade
       const L = MF.site.terrace;
       MF.decks.stairs(world, midway, { from: [L.stair[0], L.stair[2], H(L.stair[0], L.stair[2]) + 0.03], to: [L.stair[1], L.stair[2], H(L.stair[1], L.stair[2]) + 0.03], width: 2.4, name: "terrasse", rails: false });
       put(midway, Pp.picnic(), 8.3, -30.4, 0.4);
       put(midway, Pp.picnic(), 8.0, -46.6, -0.2);
-      put(midway, Pp.cart("lemonade"), 7.4, -34.6, 1.9);
+      put(midway, Pp.cart("lemonade"), 7.6, -43.6, 1.9); // hors de l'axe d'envol des drones
       put(
         midway,
         Pp.signpost([
-          { text: "MORE BOOTHS", color: MF.PAL.red, dir: 1.4 },
+          { text: "DRONE AIRFIELD", color: MF.PAL.teal, dir: 1.4 },
           { text: "THE GREEN · RIDES", color: MF.PAL.green, dir: 1.1 },
           { text: "FOUNDERS' DECK", color: MF.PAL.purple, dir: 0.2 },
         ]),
@@ -288,8 +292,8 @@
         hill,
         Pp.signpost([
           { text: "FERRIS WHEEL", color: MF.PAL.pink, dir: -1.25 },
-          { text: "RC RACEWAY", color: MF.PAL.red, dir: -1.75 },
-          { text: "DRONE AIRFIELD", color: MF.PAL.teal, dir: -2.6 },
+          { text: "RC RACEWAY", color: MF.PAL.red, dir: -0.87 },
+          { text: "BOTTLES · WATER GUNS · CORN HOLE", color: MF.PAL.teal, dir: -2.2 },
           { text: "BACK TO THE MIDWAY", color: MF.PAL.blue, dir: Math.PI / 2 },
         ]),
         S.x1 - 5.6,
@@ -303,13 +307,13 @@
       MF.cyl(0.09, 0.07, 0.5, MF.PAL.blue, { y: 1.3, rz: Math.PI / 2 - 0.2, parent: scope, seg: 10 });
       put(hill, scope, -28.4, -77.6, 0);
       for (const [x, z, c] of [[-27.8, -86.4, MF.PAL.red], [-56, -86.5, MF.PAL.yellow], [-27.9, -71.5, MF.PAL.green]]) put(hill, Pp.flag(c, 5), x, z);
-      for (const [x, z] of [[-45, -80], [-58, -58], [-72, -78]]) put(hill, Pp.lamp(3.6), x, z);
+      for (const [x, z] of [[-39.6, -78.2], [-58, -58], [-72, -78]]) put(hill, Pp.lamp(3.6), x, z);
     }
 
     /* ---- Le Pré : lampadaires et guirlandes, coin repas ; le carrousel est un manège (plus bas) */
     const green = zone("Pre", 80, -6, 110);
     {
-      const posts = [[44.5, -13.6], [57, -12.6], [69, -13.2], [75.2, 1.6], [86, 2.4], [97.6, 2.2], [97.8, -12.4], [110, 2.6], [119.6, -4]];
+      const posts = [[44.5, -13.6], [55.4, -10.4], [69, -13.2], [75.2, 1.6], [79.6, 4.2], [97.6, 2.2], [97.8, -12.4], [110, 2.6], [119.6, -4]];
       let prev = null;
       posts.forEach(([x, z], i) => {
         put(green, Pp.lamp(3.5), x, z);
@@ -317,8 +321,8 @@
         if (prev && Math.hypot(p.x - prev.x, p.z - prev.z) < 16 && i !== 3 && i !== 6) green.add(Pp.lights(prev, p, { sag: 0.7 }));
         prev = p;
       });
-      put(green, Pp.picnic(), 43.6, -9.6, 0.2);
-      put(green, Pp.picnic(), 43.8, -5.2, -0.3);
+      put(green, Pp.picnic(), 43.2, -10.4, 0.2);
+      put(green, Pp.picnic(), 42.6, -7.4, -0.3);
       put(green, Pp.cart("hotdog"), 44.2, -1.2, 2.2);
       put(green, Pp.bin(), 46.4, -11.8);
       put(

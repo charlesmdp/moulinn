@@ -11,7 +11,7 @@
   // Grande roue : sur le plateau, disque dans le plan nord-sud, tourné vers la vallée (à l'est).
   const WHEEL = { x: -62, z: -68, r: 10, hub: 11.7, n: 12, period: 52 };
   // Carrousel : au milieu du pré.
-  const CAROUSEL = { x: 61.5, z: -6.6, r: 4.2, n: 8, period: 13 };
+  const CAROUSEL = { x: 73.8, z: -5.8, r: 4.2, n: 8, period: 13 }; // entre la pêche aux canards et les tamponneuses
 
   function build(ctx) {
     const { world, places, zone } = ctx;

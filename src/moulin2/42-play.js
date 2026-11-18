@@ -201,9 +201,23 @@
   /* ------------------------------------------------------------------ décor fusionné */
   /**
    * Fusionne le décor immobile d'un groupe : tous les maillages qui partagent un matériau deviennent un
-   * seul maillage (un seul appel de dessin au lieu de dizaines). À appeler une fois le décor construit.
-   * Ce qui bouge doit porter userData.live = true (lui et ses enfants sont laissés tels quels).
+   * seul maillage (un seul appel de dessin au lieu de dizaines). Mieux : tous les volumes de couleur
+   * unie (matériau mat sans texture, ni transparence, ni lueur) sont fondus en un seul maillage
+   * « peint », la couleur passant dans les sommets — une zone entière se dessine alors en un appel.
+   * À appeler une fois le décor construit. Ce qui bouge doit porter userData.live = true (lui et ses
+   * enfants sont laissés tels quels) ; un matériau repeint en cours de jeu doit être créé « unique ».
    */
+  const paints = {};
+  /** Matériau commun du décor peint (couleur portée par les sommets). */
+  const paint = (flat, side) => {
+    const key = (flat ? "f" : "s") + side;
+    if (!paints[key]) {
+      paints[key] = new (T().MeshLambertMaterial)({ vertexColors: true, flatShading: !!flat, side });
+      paints[key].userData.paint = true;
+    }
+    return paints[key];
+  };
+  const plain = (m) => m.isMeshLambertMaterial && !m.map && !m.alphaMap && !m.transparent && m.opacity === 1 && !m.vertexColors && m.emissive.getHex() === 0 && !(m.userData && m.userData.unique);
   MF.freeze = function (root) {
     const THREE = T();
     root.updateMatrixWorld(true);
@@ -211,26 +225,31 @@
     const buckets = new Map();
     (function collect(o) {
       if (o.userData && o.userData.live) return;
-      if (o.isMesh && !o.isInstancedMesh && o.visible && o.geometry && o.geometry.attributes.position && !Array.isArray(o.material) && !o.geometry.attributes.color) {
-        const key = o.material.uuid + (o.castShadow ? "c" : "") + (o.receiveShadow ? "r" : "");
-        if (!buckets.has(key)) buckets.set(key, { material: o.material, cast: o.castShadow, receive: o.receiveShadow, list: [] });
-        buckets.get(key).list.push(o);
+      if (o.isMesh && !o.isInstancedMesh && o.visible && o.geometry && o.geometry.attributes.position && !Array.isArray(o.material)) {
+        const mat = o.material, baked = !!(mat.userData && mat.userData.paint && o.geometry.attributes.color);
+        const painted = baked || (plain(mat) && !o.geometry.attributes.color);
+        if (painted || !o.geometry.attributes.color) {
+          const target = painted ? paint(mat.flatShading, mat.side) : mat;
+          const key = target.uuid + (o.castShadow ? "c" : "") + (o.receiveShadow ? "r" : "");
+          if (!buckets.has(key)) buckets.set(key, { material: target, painted, cast: o.castShadow, receive: o.receiveShadow, list: [] });
+          buckets.get(key).list.push(o);
+        }
       }
       for (const c of o.children.slice()) collect(c);
     })(root);
     const m = new THREE.Matrix4(), n3 = new THREE.Matrix3(), v = new THREE.Vector3();
     for (const b of buckets.values()) {
-      if (b.list.length < 2) continue;
+      if (b.list.length < 2 && !(b.painted && !b.list[0].geometry.attributes.color)) continue;
       let nv = 0, ni = 0;
       for (const o of b.list) {
         nv += o.geometry.attributes.position.count;
         ni += o.geometry.index ? o.geometry.index.count : o.geometry.attributes.position.count;
       }
-      const pos = new Float32Array(nv * 3), nor = new Float32Array(nv * 3), uv = new Float32Array(nv * 2);
+      const pos = new Float32Array(nv * 3), nor = new Float32Array(nv * 3), uv = new Float32Array(nv * 2), col = b.painted ? new Float32Array(nv * 3) : null;
       const idx = nv > 65535 ? new Uint32Array(ni) : new Uint16Array(ni);
       let vo = 0, io = 0;
       for (const o of b.list) {
-        const g = o.geometry, P = g.attributes.position, N = g.attributes.normal, U = g.attributes.uv;
+        const g = o.geometry, P = g.attributes.position, N = g.attributes.normal, U = g.attributes.uv, C = g.attributes.color, tint = o.material.color;
         m.multiplyMatrices(inv, o.matrixWorld);
         n3.getNormalMatrix(m);
         for (let i = 0; i < P.count; i++) {
@@ -249,6 +268,12 @@
             uv[(vo + i) * 2] = U.getX(i);
             uv[(vo + i) * 2 + 1] = U.getY(i);
           }
+          if (col) {
+            // déjà peint (fusion d'un sous-groupe) : on reprend ses couleurs ; sinon celle de son matériau
+            col[k] = C ? C.getX(i) : tint.r;
+            col[k + 1] = C ? C.getY(i) : tint.g;
+            col[k + 2] = C ? C.getZ(i) : tint.b;
+          }
         }
         if (g.index) for (let i = 0; i < g.index.count; i++) idx[io++] = g.index.getX(i) + vo;
         else for (let i = 0; i < P.count; i++) idx[io++] = vo + i;
@@ -260,6 +285,7 @@
       geo.setAttribute("position", new THREE.BufferAttribute(pos, 3));
       geo.setAttribute("normal", new THREE.BufferAttribute(nor, 3));
       geo.setAttribute("uv", new THREE.BufferAttribute(uv, 2));
+      if (col) geo.setAttribute("color", new THREE.BufferAttribute(col, 3));
       geo.setIndex(new THREE.BufferAttribute(idx, 1));
       const mesh = new THREE.Mesh(geo, b.material);
       mesh.castShadow = b.cast;
