@@ -35,6 +35,19 @@ export const RULES = {
   dunk: ["high", 1, 500],
   darts: ["high", 1, 5000],
   hoops: ["high", 1, 500],
+  // Dream Mill Fest : étangs, rivière, arbres, terrasse, plateau
+  chop: ["high", 1, 300],
+  axe: ["high", 1, 400],
+  climb: ["low", 2, 300],
+  skip: ["high", 1, 3000],
+  eat: ["high", 1, 400],
+  frogs: ["high", 1, 1000],
+  logroll: ["high", 1, 900],
+  fish: ["high", 1, 5000],
+  derby: ["low", 5, 600],
+  maze: ["low", 4, 900],
+  pinata: ["high", 1, 5000],
+  welly: ["high", 1, 200],
 };
 const KEY = "top10:v1";
 const MAX_VARIANTS = 4;

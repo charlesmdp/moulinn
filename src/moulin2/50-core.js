@@ -24,7 +24,7 @@
     if (!def || !def.id || typeof def.create !== "function") throw new Error("Jeu de la fête invalide");
     if (!MF.games.some((g) => g.id === def.id)) MF.games.push(def);
   };
-  const ORDER = ["rc", "bateaux", "drones", "autos", "citrouilles", "golf", "tir", "canards", "striker", "moles", "skee", "rings", "bottles", "water", "cornhole"];
+  const ORDER = ["rc", "bateaux", "drones", "autos", "citrouilles", "golf", "tir", "canards", "striker", "moles", "skee", "rings", "bottles", "water", "cornhole", "skip", "eat", "frogs", "logroll", "fish", "derby", "chop", "axe", "climb", "pinata", "maze", "welly"];
   const PROFILE_KEY = "fete-profil";
   const NEAR = 3.4; // distance (m) à laquelle un stand propose de jouer
 

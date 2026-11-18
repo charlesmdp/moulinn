@@ -12,13 +12,16 @@
 //     stall: { w, d, h, colors } | false,
 //     duration,                    // secondes ; absent : le jeu décide de la fin (b.finish())
 //     cam: { y, z, look: [x, y, z], fov }, stats: [{ key, label }], button: "THROW",
-//     setup(b) → { reset(b), update(b), hud?(b), result?(b), camX?(b) }
+//     before(ctx, toWorld),        // facultatif : planchers et pontons à poser avant tout
+//     hall: [x, z],                // facultatif : place du tableau du top 10, dans le repère du stand
+//     setup(b) → { reset(b), update(b), hud?(b), result?(b), camX?(b), view?(b, de, vers) }
 //   })
 //
 // L'objet b (donné à setup puis à chaque image) :
 //   b.decor  groupe du décor fixe (fusionné après setup)      b.live   groupe des objets mobiles
 //   b.ray    rayon du viseur { o, d } dans le repère du stand   b.aim    viseur à l'écran (−1…1)
 //   b.press / b.hold / b.release   clic, doigt ou Espace         b.playing  la partie court
+//   b.tap    "L" ou "R" à l'instant d'une frappe à gauche ou à droite (flèches, ou côté du clic)
 //   b.t, b.dt, b.time, b.left      heure de partie, pas, horloge, secondes restantes
 //   b.score, b.add(points, texte?, point?)   score et petit « +10 » qui s'envole
 //   b.rand()  hasard commun à tous les joueurs (graine de la partie)
@@ -34,7 +37,7 @@
     const S = Object.assign({ w: 4.2, d: 3.2, h: 2.6 }, spec.stall || spec.size || {}); // spec.size : emprise d'un jeu sans baraque
     const sin = Math.sin(face), cos = Math.cos(face);
     const toWorld = (lx, lz) => ({ x: A.x + cos * lx + sin * lz, z: A.z - sin * lx + cos * lz });
-    const stand = toWorld(0, S.d / 2 + 1.8), hallAt = toWorld(S.w / 2 + 0.8, S.d / 2 + 0.5);
+    const stand = toWorld(0, S.d / 2 + 1.8), hallAt = spec.hall ? toWorld(spec.hall[0], spec.hall[1]) : toWorld(S.w / 2 + 0.8, S.d / 2 + 0.5);
     const DUR = spec.duration || 0;
     const CAM = Object.assign({ x: 0, y: 1.62, z: S.d / 2 + 1.8, look: [0, 1.25, -S.d / 2], fov: 46 }, spec.cam);
 
@@ -59,6 +62,7 @@
 
       create(ctx) {
         const { world, session, hud, input, group, camera } = ctx, THREE = world.THREE;
+        if (spec.before) spec.before(ctx, toWorld); // pontons et planchers du jeu, posés avant de relever les hauteurs
         const root = MF.group({ name: "Baraque_" + spec.id, x: A.x, y: world.heightAt(A.x, A.z) + 0.02, z: A.z, ry: face, parent: group });
         const decor = MF.group({ parent: root }), live = MF.group({ parent: root });
         if (spec.stall !== false) decor.add(MF.props.stall(Object.assign({ title: spec.title.toUpperCase(), skirt: 0.45 }, S)));
@@ -67,12 +71,12 @@
         const tmp = new THREE.Vector3(), from = new THREE.Vector3(), to = new THREE.Vector3();
         const aim = { x: 0, y: 0, keys: false, px: 0, py: 0 };
         const scores = new Map(), flights = [];
-        let cross = null, reported = false, sway = 0, lastSent = -1, sentAt = 0, lastBoard = 0, wasHold = false, rng = MF.rng(1), party = null, charging = false, phaseOfCharge = 0;
+        let cross = null, reported = false, sway = 0, lastSent = -1, sentAt = 0, lastBoard = 0, wasHold = false, rng = MF.rng(1), party = null, charging = false, phaseOfCharge = 0, wasX = 0;
 
         const b = {
           THREE, world, ctx, root, decor, live, hud, input, session, camera, S, DUR,
           ray: { o: new THREE.Vector3(), d: new THREE.Vector3(0, 0, -1) },
-          aim, score: 0, t: 0, dt: 0, time: 0, left: DUR, playing: false, press: false, hold: false, release: false, slot: 0, over: false, opts: {},
+          aim, score: 0, t: 0, dt: 0, time: 0, left: DUR, playing: false, press: false, hold: false, release: false, tap: null, slot: 0, over: false, opts: {}, toWorld,
           rand: () => rng(),
           /** Hauteur du terrain sous un point du stand, dans son repère (0 au centre). */
           ground(lx, lz) {
@@ -201,8 +205,11 @@
             const n = st.roster.length, slot = Math.max(0, session.slot());
             b.slot = slot;
             const off = game.camX ? game.camX(b) : MF.clamp((slot - (n - 1) / 2) * 0.7, -(S.w / 2 - 0.8), S.w / 2 - 0.8);
-            from.set(CAM.x + off, CAM.y, CAM.z).applyMatrix4(root.matrixWorld);
-            to.set(CAM.look[0] + off * (game.camX ? 1 : 0.3), CAM.look[1], CAM.look[2]).applyMatrix4(root.matrixWorld);
+            from.set(CAM.x + off, CAM.y, CAM.z);
+            to.set(CAM.look[0] + off * (game.camX ? 1 : 0.3), CAM.look[1], CAM.look[2]);
+            if (game.view) game.view(b, from, to); // caméra mobile (grimper, descendre la rivière…), dans le repère du stand
+            from.applyMatrix4(root.matrixWorld);
+            to.applyMatrix4(root.matrixWorld);
             MF.cam.set(camera, from, to, CAM.fov);
             camera.updateMatrixWorld();
             // viseur : souris (ou doigt posé), sinon flèches
@@ -222,6 +229,10 @@
             b.ray.d.set(aim.x, aim.y, 0.5).unproject(camera).applyMatrix4(inv).sub(b.ray.o).normalize();
             if (cross) cross.style.transform = `translate(${(((aim.x + 1) / 2) * hud.root.clientWidth).toFixed(1)}px, ${(((1 - aim.y) / 2) * hud.root.clientHeight).toFixed(1)}px)`;
             const hold = !!(P.isDown || K.a);
+            // « tape à gauche, tape à droite » : flèches (ou A/D), ou clic du côté gauche ou droit de l'écran
+            const kx = K.x < -0.5 ? -1 : K.x > 0.5 ? 1 : 0;
+            b.tap = kx && kx !== wasX ? (kx < 0 ? "L" : "R") : hold && !wasHold && !K.a ? (aim.x < 0 ? "L" : "R") : null;
+            wasX = kx;
             b.press = hold && !wasHold;
             b.release = !hold && wasHold;
             b.hold = hold;
