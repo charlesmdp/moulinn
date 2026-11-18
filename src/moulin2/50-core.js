@@ -354,8 +354,15 @@
       if (st.isPrivate) url.searchParams.set("salon", st.code);
       return url.href;
     }
+    // lieux du menu : on y est porté d'un clic (debout, hors de tout jeu)
+    const SPOTS = { deck: [30.3, 38, -Math.PI / 2], wheel: [-57.4, -68, -Math.PI / 2], carousel: [73.8, -12.2, 0], gate: [1.4, -81.5, 0] };
     hud.on((action, value) => {
-      if (action === "enter") enter(value);
+      if (action === "spot" && SPOTS[value]) {
+        if (active) leave();
+        if (seated) stand();
+        world.player.teleport(...SPOTS[value]);
+        world.invalidate();
+      } else if (action === "enter") enter(value);
       else if (action === "leave") leave();
       else if (action === "start") active && active.session.requestStart();
       else if (action === "replay") active && active.session.requestLobby();

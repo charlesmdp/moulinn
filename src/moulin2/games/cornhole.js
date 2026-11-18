@@ -114,7 +114,7 @@
           if (!busy) aimX = MF.clamp(b.aim.x * 1.5, -1.0, 1.0);
           marker.position.x = aimX * 0.55;
           marker.visible = b.playing && !busy && left > 0;
-          if (busy || !left) return void b.charge();
+          if (busy || !left) return; // un sac à la fois : pas de jauge pendant le vol
           const power = b.charge(0.95);
           if (power !== null) toss(power);
         },

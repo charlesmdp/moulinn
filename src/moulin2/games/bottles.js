@@ -129,7 +129,7 @@
             bt.g.rotation.x -= bt.spin * b.dt;
             if (bt.g.position.y < 0.1) bt.g.visible = false;
           }
-          if (busy || !left) return void b.charge();
+          if (busy || !left) return; // une balle à la fois : pas de jauge pendant le vol
           const power = b.charge(1.15, "Wind-up");
           if (power !== null) throwBall(power);
         },

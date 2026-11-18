@@ -119,13 +119,17 @@
 
     /* ---------------------------------------------------------------- clics */
     root.addEventListener("click", (ev) => {
-      const t = ev.target.closest("[data-open],[data-close],[data-act],[data-game],[data-sound],[data-music],[data-color],[data-kit],[data-copy],[data-private],[data-public],[data-fold]");
+      const t = ev.target.closest("[data-open],[data-close],[data-act],[data-game],[data-spot],[data-sound],[data-music],[data-color],[data-kit],[data-copy],[data-private],[data-public],[data-fold]");
       if (!t || !root.contains(t)) return;
       if (t.dataset.open) return openPanel(t.dataset.open);
       if (t.hasAttribute("data-close")) return openPanel(null);
       if (t.dataset.game) {
         openPanel(null);
         return act("enter", t.dataset.game);
+      }
+      if (t.dataset.spot) {
+        openPanel(null);
+        return act("spot", t.dataset.spot);
       }
       if (t.hasAttribute("data-sound")) return act("sound", soundBtn.getAttribute("aria-pressed") !== "true");
       if (t.hasAttribute("data-music")) return act("music", musicBtn.getAttribute("aria-pressed") !== "true");
@@ -191,8 +195,13 @@
         const sig = JSON.stringify(list);
         if (panels.games._sig === sig) return;
         panels.games._sig = sig;
+        // d'abord les lieux où l'on se retrouve (on y est porté d'un clic), puis les jeux
         panels.games.innerHTML =
-          `<div class="fete-games">` +
+          `<div class="fete-games fete-spots">` +
+          [["deck", "💻", "Founders' Deck", "65 seats by the pond · sit & work"], ["wheel", "🎡", "Ferris Wheel", "Hilltop · ride with a view"], ["carousel", "🎠", "Carousel", "On the Green"], ["gate", "🎪", "Main Gate", "Back to the entrance"]]
+            .map(([id, icon, title, sub]) => `<button type="button" class="fete-game-card is-spot" data-spot="${id}"><span class="fete-game-icon" aria-hidden="true">${icon}</span><b>${title}</b><small>${sub}</small></button>`)
+            .join("") +
+          `</div><div class="fete-games">` +
           list
             .map((g) => {
               const live = g.phase === "run" || g.phase === "countdown";

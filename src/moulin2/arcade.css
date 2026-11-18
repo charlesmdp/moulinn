@@ -92,6 +92,8 @@
   display: grid; grid-template-columns: auto 1fr; column-gap: 9px; align-items: center; text-align: left; padding: 9px 10px;
   background: #fff; border: 3px solid var(--ink); border-radius: 15px; box-shadow: 0 4px 0 var(--ink);
 }
+.fete-spots { margin-bottom: 12px; padding-bottom: 12px; border-bottom: 3px dashed rgba(43, 26, 16, 0.25); }
+.fete-game-card.is-spot { background: #eaf7ff; }
 .fete-game-card:hover { background: #fffbe9; }
 .fete-game-card:active { transform: translateY(3px); box-shadow: 0 1px 0 var(--ink); }
 .fete-game-icon { grid-row: span 3; font-size: 30px; line-height: 1; }

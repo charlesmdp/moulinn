@@ -19,24 +19,36 @@ LES ADRESSES DU SITE
 /3D/      la même page avec la Vue 3D en plus ;
 /build/   la vue 3D et l'atelier Aménager ;
 /jeu/     le jeu « Pas touche à mes trésors » (seule façon d'y accéder) ;
-/moulin2/ la Fête du Moulin : huit jeux multijoueurs dans le moulin 3D (page
-          publique, faite pour être partagée).
+/moulin2/ la Fête du Moulin : quinze jeux multijoueurs, une grande roue et un
+          ponton pour travailler, dans le moulin 3D (page publique, faite pour
+          être partagée).
 /moulin/, /3D/ et /build/ ne sont pas indexées par les moteurs de recherche.
 Le mot de passe est une simple barrière (seule son empreinte est publiée).
 
 LA FETE DU MOULIN (/moulin2/)
-Le moulin 3D tel quel (rien n'est changé à la maison ni au terrain), avec huit
-jeux de fête foraine posés par-dessus, à jouer de 1 à 8 : course de voitures
-RC sur l'allée et la cour, course de bateaux sur le Grand étang, mini-golf de
-9 trous (chacun son tour, le plus loin du trou joue), stand de tir (60 s),
-pêche aux canards (75 s), auto-tamponneuses (90 s, avec des robots quand on
-est peu nombreux), lancer de citrouilles par-dessus l'étang intermédiaire,
-course de drones en vue embarquée autour du moulin.
+Le moulin 3D tel quel (rien n'est changé à la maison ni au terrain), installé
+en champ de foire à l'américaine, tout en volumes 3D, en anglais :
+- l'Allée des stands (l'allée du moulin) : High Striker, Whack-a-Mole,
+  Skee-Ball, Ring Toss ;
+- la terrasse basse : piste d'envol des drones (portes autour du moulin) ;
+- la Colline, par le grand escalier : Milk Bottles, Water Gun Race, Corn Hole,
+  la grande roue (on y monte) et le circuit des voitures RC ;
+- le Pré : stand de tir, pêche aux canards, lance-citrouilles (au lance-pierre,
+  vue de profil), carrousel, auto-tamponneuses, mini-golf ;
+- le Grand étang : course de bateaux, et sur la rive le Founders' Deck, 65
+  poufs en gradins pour s'asseoir avec son ordinateur face à l'eau.
+En arrivant, on choisit son nom, sa couleur et son ordinateur (porté dans le
+dos). Une musique d'orgue de foire tourne en boucle (bouton pour la couper).
+Top 10 : chaque jeu a son tableau à côté du stand, affiché aussi pendant la
+partie. Pour que les scores soient communs à tous et gardés pour toujours, il
+faut une fois, dans Cloudflare : créer un espace KV, puis dans le projet Pages,
+Settings > Functions > KV namespace bindings, lier la variable SCORES à cet
+espace et redéployer. Sans cela, chaque navigateur garde ses propres scores.
 Multijoueur sans serveur : tous ceux qui ouvrent /moulin2/ au même moment se
 retrouvent dans le même salon ; /moulin2/?salon=mon-code ouvre un salon privé
 à partager, /moulin2/?jeu=rc mène droit à un jeu. Les navigateurs se parlent
 directement (WebRTC) après s'être trouvés par des relais publics.
-Sponsors : 31 emplacements (arches, bâches, toile de fond du tir, bouées,
+Sponsors : des emplacements (arches, bâches, toile de fond du tir, bouées,
 télécommandes…) décrits dans le fichier moulin2/sponsors.json ; un emplacement
 libre affiche « YOUR BRAND HERE ».
 

@@ -26,7 +26,7 @@
   const PADS = [[-97, -80], [-102, -46.8]];
   // bâches (côté extérieur) et piles de pneus (intérieur des virages serrés) : point proche, côté
   const BANNERS = [["rc-bache-1", -74, -62, 1, 3.6], ["rc-bache-2", -93, -80.3, 1, 3.6], ["rc-bache-3", -121, -68, 1, 3.6], ["rc-bache-4", -90, -33, 1, 3.0]];
-  const TYRES = [[-79, -77, -1], [-117, -77, -1], [-118, -60, -1], [-89, -58, 1], [-117, -38, -1], [-75.5, -38.5, -1]];
+  const TYRES = [[-79, -77, -1], [-117, -77, -1], [-118, -60, -1], [-89, -58, 1], [-117, -38, -1]]; // pas au dernier virage : la caméra de la grille y passe
   const CAR_R = 0.36; // rayon d'encombrement d'une voiture (m)
   const GRACE = 30; // secondes laissées aux autres après l'arrivée du premier
   const C = { vmax: 14.5, vgrass: 7.5, vrev: 4, acc: 11.5, brake: 19, drag: 0.27, turn: 3.0, grip: 7.5, gripGrass: 4.5, gripDrift: 1.6, g: 15 };

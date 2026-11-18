@@ -110,7 +110,7 @@
           if (p && !busy) aimX = MF.clamp(p.x, -0.66, 0.66);
           marker.position.x = aimX * 0.9;
           marker.visible = b.playing && !busy;
-          if (busy || !left) return void b.charge();
+          if (busy || !left) return; // une boule à la fois : pas de jauge pendant le vol
           const power = b.charge(1.0);
           if (power !== null) roll(power);
         },
