@@ -59,8 +59,9 @@
   /* ------------------------------------------------------------------ personnage des autres joueurs */
   const SKIN = "#e8b48c";
   /**
-   * Sweat du personnage du moulin à la couleur du joueur. Les matériaux « bordeaux » (sweat, capuche,
-   * bords-côtes) sont copiés une fois puis repeints ; leur nuance d'origine (clair, foncé) est gardée.
+   * Le personnage du moulin aux couleurs du joueur : son sweat bordeaux (et ses bords-côtes), son
+   * t-shirt blanc d'été et le ruban de son chapeau de paille. Les matériaux concernés sont copiés
+   * une fois (chaque exemplaire a les siens) puis repeints ; la nuance d'origine est gardée.
    */
   function tintFigure(root, color) {
     const base = MF.color(color);
@@ -68,13 +69,16 @@
       if (!o.isMesh || !o.material || !o.material.color || Array.isArray(o.material)) return;
       let m = o.material;
       if (!m.userData.fete) {
-        const c = m.color;
-        const wine = /sweat/i.test(m.name || "") || (c.r > 0.06 && c.r < 0.3 && c.g < c.r * 0.45 && c.b < c.r * 0.6);
-        if (!wine) return void (m.userData.fete = { skip: true });
+        const c = m.color, name = m.name || "";
+        let k = 0;
+        if (/sweat/i.test(name) || (c.r > 0.06 && c.r < 0.3 && c.g < c.r * 0.45 && c.b < c.r * 0.6)) k = 0.62 * MF.clamp(c.r / 0.129, 0.6, 1.6); // sweat, capuche, bords-côtes
+        else if (c.r > 0.3 && c.g < c.r * 0.15 && c.b < c.r * 0.15) k = 0.95; // ruban rouge du chapeau
+        else if (o.isSkinnedMesh && !m.map && c.r > 0.7 && c.g > 0.7 && c.b > 0.55 && !/yeux|eye|peau|skin/i.test(name)) k = 0.85; // t-shirt d'été
+        if (!k) return void (m.userData.fete = { skip: true });
         m = o.material = m.clone();
-        m.userData.fete = { k: MF.clamp(c.r / 0.129, 0.6, 1.6) };
+        m.userData.fete = { k };
       }
-      if (!m.userData.fete.skip) m.color.copy(base).multiplyScalar(0.62 * m.userData.fete.k);
+      if (!m.userData.fete.skip) m.color.copy(base).multiplyScalar(m.userData.fete.k);
     });
   }
   /**
@@ -125,12 +129,15 @@
         MF.box(0.095, 0.3, 0.11, SKIN, { y: -0.39, parent: shoulder });
         arms.push(shoulder);
       }
-      MF.box(0.42, 0.58, 0.25, shirt, { y: 1.12, parent: body });
-      MF.sphere(0.165, SKIN, { y: 1.59, parent: body, seg: 12 });
+      const core = MF.group({ parent: body });
+      MF.box(0.42, 0.58, 0.25, shirt, { y: 1.12, parent: core });
+      MF.sphere(0.165, SKIN, { y: 1.59, parent: core, seg: 12 });
       // chapeau de paille : large bord, calotte, ruban à la couleur du joueur
-      MF.cyl(0.33, 0.33, 0.03, "#e9c46a", { y: 1.7, parent: body, seg: 16 });
-      MF.cyl(0.15, 0.17, 0.13, "#e9c46a", { y: 1.77, parent: body, seg: 12 });
-      MF.cyl(0.174, 0.174, 0.045, shirt, { y: 1.735, parent: body, seg: 12 });
+      MF.cyl(0.33, 0.33, 0.03, "#e9c46a", { y: 1.7, parent: core, seg: 16 });
+      MF.cyl(0.15, 0.17, 0.13, "#e9c46a", { y: 1.77, parent: core, seg: 12 });
+      MF.cyl(0.174, 0.174, 0.045, shirt, { y: 1.735, parent: core, seg: 12 });
+      // chaque membre et le tronc d'un seul bloc : une dizaine d'appels de dessin au lieu de vingt-cinq
+      for (const part of legs.concat(arms, core)) MF.freeze(part);
     }
     const shadow = MF.blob(0.42, 0.38);
     shadow.position.y = 0.03;
@@ -154,7 +161,7 @@
       for (const old of [avatar.pack, avatar.lap]) if (old) MF.dispose(old);
       if (fig) avatar.pack = strapOn(fig.group, fig.bones, id, avatar.color);
       else {
-        avatar.pack = MF.laptops.backpack(id);
+        avatar.pack = MF.freeze(MF.laptops.backpack(id));
         avatar.pack.position.set(0, 1.4, -0.125);
         body.add(avatar.pack);
       }

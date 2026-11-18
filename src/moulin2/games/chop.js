@@ -58,7 +58,8 @@
           const t = MF.group({ x: sx * R, y: SEG / 2, parent: g });
           MF.box(0.9, 0.13, 0.13, "#7a4a22", { x: sx * 0.45, parent: t });
           MF.sphere(0.34, "#3f9a4a", { x: sx * 0.95, y: 0.1, parent: t, seg: 8 }).scale.set(1.2, 0.8, 1);
-          return t;
+          t.visible = false;
+          return MF.freeze(t);
         });
         logs.push({ g, twigs, side: 0 });
       }

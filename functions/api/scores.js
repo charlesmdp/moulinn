@@ -47,7 +47,7 @@ export const RULES = {
   derby: ["low", 5, 600],
   maze: ["low", 4, 900],
   pinata: ["high", 1, 5000],
-  welly: ["high", 1, 200],
+  welly: ["high", 1, 700],
 };
 const KEY = "top10:v1";
 const MAX_VARIANTS = 4;

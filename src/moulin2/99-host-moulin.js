@@ -45,7 +45,7 @@
         for (const name of ["spine_03", "spine_02"]) bones[name] = frame.getObjectByName(name);
         worn = MF.Presence.strapOn(frame, bones, kit, color);
         if (worn) worn.visible = !sitting;
-        MF.Presence.tintFigure(root, color);
+        MF.Presence.tintFigure(frame, color); // seulement le personnage : pas la lampe, la pelle ni le quad
         hooks.markDirty();
       }
       const world = {

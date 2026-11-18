@@ -87,7 +87,7 @@ await test("insert : une ligne par nom, la meilleure", () => {
 });
 await test("chaque jeu de la fête a son tableau, et la fonction connaît ses règles", () => {
   const defs = games();
-  ok(defs.length === 15, defs.length + " jeux déclarés au lieu de 15");
+  ok(defs.length === 27, defs.length + " jeux déclarés au lieu de 27");
   for (const def of defs) {
     ok(def.board, def.id + " : pas de tableau (def.board)");
     const rule = RULES[def.id];

@@ -1,4 +1,4 @@
-// Essai des quinze jeux de la fête dans le banc d'essai (scripts/labo.mjs), avec un vrai navigateur :
+// Essai des vingt-sept jeux de la fête dans le banc d'essai (scripts/labo.mjs), avec un vrai navigateur :
 // chaque jeu est ouvert, lancé et joué quelques secondes d'horloge simulée ; aucune erreur ne doit
 // sortir. À relancer après tout changement du relief ou d'un jeu.
 //
@@ -57,7 +57,7 @@ try {
     console.log(`  ${good ? "✓" : "✗"} ${id} : stand ${r.stand ? "praticable" : "HORS SOL PRATICABLE"}, partie « ${r.phase} », ${r.appels} appels de dessin`);
   }
   if (errors.length) console.log("  ✗ erreurs de la page : " + errors.slice(0, 5).join(" | "));
-  failed = bad > 0 || errors.length > 0 || Object.keys(out).length < 15;
+  failed = bad > 0 || errors.length > 0 || Object.keys(out).length < 27;
   console.log(`\n${Object.keys(out).length} jeux essayés, ${failed ? "des problèmes" : "aucun problème"}`);
 } catch (error) {
   console.log("  ✗ " + String(error.message || error));
