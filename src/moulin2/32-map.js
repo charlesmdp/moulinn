@@ -15,7 +15,7 @@
   // Zones (rubans) et allées de la fête (pointillés) : tracés à la main sur le plan du domaine.
   const ZONES = [
     ["MAIN GATE", 32, -86], ["THE MIDWAY", 36, -64], ["HILLTOP", -50, -52], ["THE PLATEAU", -132, 48], ["THE MILL", -24, -14], ["LUMBER CAMP", 64, 42],
-    ["THE GREEN", 64, 16], ["EAST MEADOW", 140, 14], ["FOUNDERS' DECK", -66, 30], ["SOUTH SHORE", -52, 137], ["GRAND ÉTANG", -24, 64],
+    ["THE GREEN", 64, 16], ["EAST MEADOW", 140, 14], ["FOUNDERS' DECK", -66, 30], ["SOUTH SHORE", -6, 128], ["GRAND ÉTANG", -24, 64],
   ];
   const PATHS = [
     [[2, -88], [1, -72], [0, -57], [-2.3, -43], [-3.4, -34], [-1.2, -27], [-0.5, -18]], // l'allée du moulin
@@ -50,7 +50,7 @@
     if (typeof document === "undefined" || !hud || !hud.root) return { update() {}, open() {}, close() {}, poi() {} };
     const px = (x) => (x - X0) * S, pz = (z) => (z - Z0) * S;
     const pois = POIS.map(([icon, title, x, z]) => ({ icon, title, x, z }));
-    for (const [x, z, heading] of (MF.fest && MF.fest.AD_BOOTHS) || []) pois.push({ icon: "📣", title: "Ad Booth · put your brand in the fair", x: x + Math.sin(heading) * 1.35, z: z + Math.cos(heading) * 1.35 });
+    for (const [x, z, heading, where] of (MF.fest && MF.fest.AD_BOOTHS) || []) pois.push({ icon: "📣", title: "Ad Booth · " + where, x: x + Math.sin(heading) * 1.35, z: z + Math.cos(heading) * 1.35 });
     const base = document.createElement("canvas"); // le plan (dessiné une fois)
     base.width = W;
     base.height = H;

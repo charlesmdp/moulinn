@@ -146,7 +146,7 @@
           if (b.playing && !done) {
             const near = track.nearest(car.x, car.z, s, true) || { s, d: 0 };
             s = near.s;
-            const off = Math.abs(near.d) > HW, brake = K.a || K.y < -0.5 || (b.hold && !K.x);
+            const off = Math.abs(near.d) > HW, brake = K.a || K.y < -0.5 || (b.hold && !K.x && !b.input.touch); // au doigt, on dirige en le posant : seul le bouton freine
             const speed = Math.hypot(car.vx, car.vz);
             // direction : flèches (gauche et droite du pilote), sinon vers le point visé
             const rate = TURN * MF.clamp(speed / 3, 0.25, 1) * dt;

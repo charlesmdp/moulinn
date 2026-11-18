@@ -16,15 +16,15 @@
   "use strict";
   const MF = (globalThis.MoulinFete = globalThis.MoulinFete || {});
   const TAU = Math.PI * 2;
-  // Guichets des sponsors : [x, z, cap] (le cap est la direction vers laquelle regarde le comptoir).
+  // Guichets des sponsors : [x, z, cap, lieu] (le cap est la direction vers laquelle regarde le comptoir).
   const AD_BOOTHS = [
-    [7.5, -79.5, -Math.PI / 2], // l'entrée
-    [60, 2, Math.PI], // le pré (The Green)
-    [-24, 17, 0], // vers le ponton des fondateurs
-    [-91, 3, Math.PI], // le bord du plateau, près de la montgolfière
-    [150, -6, -Math.PI / 2], // le pré de l'est
-    [-68, 128, Math.PI], // la rive sud
-    [40, 36, -Math.PI / 2], // le camp des bûcherons
+    [7.5, -79.5, -Math.PI / 2, "Main Gate"],
+    [60, 2, Math.PI, "The Green"],
+    [-24, 17, 0, "Founders' Deck"],
+    [-91, 3, Math.PI, "Plateau"],
+    [150, -6, -Math.PI / 2, "East Meadow"],
+    [-68, 128, Math.PI, "South Shore"],
+    [40, 36, -Math.PI / 2, "Lumber Camp"],
   ];
   const BALLOON = { x: -95, z: -4, rise: 34, drift: 18, period: 72 }; // un vol toutes les 72 s : 18 s au sol, montée, palier, descente
   const BUTTON = { x: 10.8, z: 14.4 };
@@ -750,7 +750,7 @@
 
     /* ---- Les guichets des sponsors (« Ad Booth ») : à l'entrée et dans chaque coin du parc. On y
        ouvre le formulaire : marque, slogan, site, image ; aperçu pour soi, demande au propriétaire. */
-    AD_BOOTHS.forEach(([x, z, heading], i) => {
+    AD_BOOTHS.forEach(([x, z, heading, where], i) => {
       const g = MF.group({ name: "Guichet_sponsors" }), blue = "#2f7fd8";
       MF.box(2.0, 1.0, 0.9, blue, { y: 0.5, parent: g, cast: true });
       MF.box(2.2, 0.07, 1.1, MF.PAL.woodDark, { y: 1.035, parent: g });
@@ -770,7 +770,7 @@
       const home = zone("Guichet_" + i, x, z, 70);
       put(home, MF.freeze(g), x, z, heading);
       const px = x + Math.sin(heading) * 1.35, pz = z + Math.cos(heading) * 1.35;
-      places.add({ id: "ads-" + i, x: px, z: pz, r: 2.1, icon: "📣", title: "Ad Booth · put your brand in the fair", verb: "Open", run: () => ctx.hud && ctx.hud.openPanel("sponsors") });
+      places.add({ id: "ads-" + i, x: px, z: pz, r: 2.1, icon: "📣", title: "Ad Booth (" + where + ") · put your brand in the fair", verb: "Open", run: () => ctx.hud && ctx.hud.openPanel("sponsors") });
     });
 
     MF.fest.fixed = fixed;

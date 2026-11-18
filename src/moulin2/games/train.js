@@ -189,7 +189,7 @@
             // direction : flèches (on tourne), sinon vers le point visé au sol
             if (K.x) me.a -= K.x * TURN * dt;
             else if (!b.aim.keys && b.hit(LIFT + 0.3, "y", target)) me.a += MF.clamp(MF.angleDiff(me.a, Math.atan2(target.x - me.x, target.z - me.z)), -TURN * dt, TURN * dt);
-            const boost = (K.a || b.hold) && me.n > 2;
+            const boost = (K.a || (b.hold && !b.input.touch)) && me.n > 2; // au doigt, on dirige en le posant : seul le bouton accélère
             if (boost) {
               burn += dt;
               if (burn > 0.7) {
