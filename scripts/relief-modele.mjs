@@ -5,7 +5,8 @@
 // Ouvre la page du moulin (site construit, recalage désactivé) et écrit
 // scripts/donnees/relief-modele.json : la hauteur du relief sur une grille de 3 m (zéro : surface
 // du grand étang), la distance à l'eau de chaque point, les étangs avec leur niveau, les îles, les
-// cours d'eau et les bâtiments. scripts/relief.mjs compare ce relief aux altitudes de l'IGN.
+// cours d'eau, les bâtiments et les ouvrages dont les niveaux sont fixés à la main (allée, cour,
+// terrasse, escaliers, murets…). scripts/relief.mjs compare ce relief aux altitudes de l'IGN.
 // À relancer si le relief du plan, les étangs ou les cours d'eau changent.
 import fs from "node:fs";
 import path from "node:path";
@@ -36,6 +37,21 @@ try {
     const iles = (context.hooks.islands || []).map((poly) => poly.map((p) => [r2(p[0]), r2(p[1])]));
     const canaux = (game.channels || []).map((c) => ({ nom: c.name, largeur: r2(c.maxWidth || c.width || 1.5), trace: (c.line || []).map((p) => [r2(p[0]), r2(p[1])]) }));
     const batiments = ((game.player && game.player.physicalBuildings) || []).map((b) => ({ nom: b.name, cx: r2(b.cx), cz: r2(b.cz), angle: r2(b.angle), u0: r2(b.u0), u1: r2(b.u1), v0: r2(b.v0), v1: r2(b.v1) }));
+    // Ouvrages aux niveaux fixés à la main dans le plan : ils ne suivent pas le sol, le recalage
+    // les contourne. On relève leurs tracés (suites de points [x, z]).
+    const layout = game.siteLayout || {};
+    const ouvrages = [];
+    const collect = (nom, value, key) => {
+      if (!value || typeof value !== "object" || key === "direction") return;
+      if (Array.isArray(value)) {
+        const pair = (v) => Array.isArray(v) && v.length === 2 && v.every((n) => typeof n === "number");
+        if (pair(value)) ouvrages.push({ nom, points: [[r2(value[0]), r2(value[1])]] });
+        else if (value.length && value.every(pair)) ouvrages.push({ nom, points: value.map((v) => [r2(v[0]), r2(v[1])]) });
+        else for (const v of value) collect(nom, v, key);
+      } else for (const k of Object.keys(value)) collect(nom, value[k], k);
+    };
+    for (const nom of ["drive", "forecourt", "upperTerrace", "upperTerraceParts", "stairs", "hillRoutes", "hillWalls", "seat", "rearWall", "rearBed", "rockFace", "camellia", "fountain", "cars"]) collect(nom, layout[nom], nom);
+    const allee = Array.isArray(layout.drive) && Array.isArray(layout.driveLevels) ? { points: layout.drive.map((p) => [r2(p[0]), r2(p[1])]), niveaux: layout.driveLevels.map(r2) } : null;
     const inside = (x, z, poly) => {
       let res = false;
       for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
@@ -78,12 +94,14 @@ try {
       iles,
       canaux,
       batiments,
+      ouvrages,
+      allee,
     };
   });
   if (errors.length) console.log("Erreurs de la page :", errors.slice(0, 3).join(" | "));
   fs.writeFileSync(out, JSON.stringify(data));
   const hs = data.h.map((v) => v / 100);
-  console.log(`Écrit : scripts/donnees/relief-modele.json — ${data.nx} × ${data.nz} points tous les ${data.pas} m, emprise x ${data.emprise.x0}…${data.emprise.x1}, z ${data.emprise.z0}…${data.emprise.z1}, hauteurs de ${Math.min(...hs).toFixed(1)} à ${Math.max(...hs).toFixed(1)} m ; ${data.etangs.length} étangs (${data.etangs.map((e) => e.nom + " " + e.niveau).join(", ")}).`);
+  console.log(`Écrit : scripts/donnees/relief-modele.json — ${data.nx} × ${data.nz} points tous les ${data.pas} m, emprise x ${data.emprise.x0}…${data.emprise.x1}, z ${data.emprise.z0}…${data.emprise.z1}, hauteurs de ${Math.min(...hs).toFixed(1)} à ${Math.max(...hs).toFixed(1)} m ; ${data.etangs.length} étangs (${data.etangs.map((e) => e.nom + " " + e.niveau).join(", ")}) ; ${data.ouvrages.length} tracés d'ouvrages.`);
 } finally {
   await close();
 }
