@@ -119,7 +119,8 @@
         if (tg.type === "d" || tg.type === "b") {
           const span = HALF * 2 - 0.8, duck = tg.type === "d";
           const speed = duck ? 1.25 : 1.9, n = duck ? N.d : N.b;
-          let u = (t * speed + (i * span) / n + (duck ? 0 : 1.7)) % span;
+          // les rangées accélèrent au fil de la partie : une fois et demie plus vite à la fin
+          let u = ((t + (t * t) / 120) * speed + (i * span) / n + (duck ? 0 : 1.7)) % span;
           if (!duck) u = span - u; // les cocardes défilent dans l'autre sens
           tg.x = CX - span / 2 + u;
           tg.y = RAIL[duck ? 0 : 1];

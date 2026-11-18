@@ -19,6 +19,7 @@
 //
 // L'objet b (donné à setup puis à chaque image) :
 //   b.decor  groupe du décor fixe (fusionné après setup)      b.live   groupe des objets mobiles
+//   b.level  lancers déjà faits dans la partie : b.charge accélère avec lui (spec.ramp : pente, 0,11 par défaut)
 //   b.ray    rayon du viseur { o, d } dans le repère du stand   b.aim    viseur à l'écran (−1…1)
 //   b.press / b.hold / b.release   clic, doigt ou Espace         b.playing  la partie court
 //   b.tap    "L" ou "R" à l'instant d'une frappe à gauche ou à droite (flèches, ou côté du clic)
@@ -50,7 +51,7 @@
       station: { x: stand.x, z: stand.z, heading: face + Math.PI },
       kiosk: false, // la baraque porte déjà son nom au fronton : seul le rond au sol marque la place
       hall: { x: hallAt.x, z: hallAt.z, heading: face },
-      range: 70,
+      range: spec.range || 70, // au-delà, le stand n'est pas dessiné (spec.range : un repère visible de loin)
       minPlayers: 1,
       maxPlayers: spec.maxPlayers || 6,
       maxTime: spec.maxTime || DUR + 25,
@@ -107,7 +108,10 @@
               return null;
             }
             if (b.hold) {
-              phaseOfCharge = charging ? phaseOfCharge + b.dt * rate : 0;
+              // de plus en plus vite à chaque lancer (b.level : nombre de lancers déjà faits), et, passé le
+              // troisième, la jauge ne repart plus de zéro : on ne peut pas compter dans sa tête
+              const fast = rate * (1 + Math.min(1.3, b.level * (spec.ramp ?? 0.11)));
+              phaseOfCharge = charging ? phaseOfCharge + b.dt * fast : b.level >= 3 ? rng() * 0.7 : 0;
               charging = true;
               const u = phaseOfCharge % 2;
               b.power = u < 1 ? u : 2 - u;
@@ -117,6 +121,7 @@
             if (!charging) return null;
             charging = false;
             hud.gauge(null);
+            b.level++;
             return Math.max(0.02, b.power);
           },
           /** Vol en cloche : l'objet va de `a` à `c` en `dur` secondes, en montant de `apex` au milieu. */
@@ -174,7 +179,7 @@
           onPhase(state, prev) {
             if (state && state.phase === "countdown" && (!prev || prev.phase !== "countdown")) {
               rng = MF.rng(state.seed || 1);
-              Object.assign(b, { score: 0, over: false, opts: state.opts || {} });
+              Object.assign(b, { score: 0, over: false, level: 0, opts: state.opts || {} });
               reported = false;
               lastSent = -1;
               charging = false;

@@ -21,6 +21,7 @@
     [-111, -32.5], [-100, -32], [-89, -33], [-80, -34.5], [-75, -38.5],
   ];
   const WIDTH = 3.8; // largeur de la piste (m)
+  const NG = 8; // portes de contrôle par tour
   // tremplin (sur la ligne droite sud) et bandes d'accélération : repérés par un point proche du tracé
   const JUMP = { near: [-102, -32], len: 3.4, height: 0.62 };
   const PADS = [[-97, -80], [-102, -46.8]];
@@ -81,10 +82,10 @@
     maxPlayers: 8,
     maxTime: 300,
     options: [{ key: "laps", label: "Laps", values: [3, 5], default: 3, format: (v) => v + " laps" }],
-    help: "Arrows or WASD: accelerate, brake, steer · Space: handbrake (drift) · C: back on track. Hit the throttle right on “Go!” for a rocket start; the chevron pads give a boost.",
+    help: "Arrows or WASD: accelerate, brake, steer · Space: handbrake (drift) · C: back on track. Drive through the eight numbered gates in order: a missed gate stops your progress until you go back through it. Hold a slide, then straighten up, for a drift boost. Hit the throttle right on “Go!” for a rocket start; the chevron pads give a boost.",
     // Arrivés d'abord (au temps), puis les autres selon la distance parcourue.
     rank: (list) => list.slice().sort((a, b) => (a.time ? 0 : 1) - (b.time ? 0 : 1) || (a.time || 0) - (b.time || 0) || (b.dist || 0) - (a.dist || 0)),
-    describe: (r) => (r.time ? MF.time(r.time) : "did not finish"),
+    describe: (r) => (r.time ? MF.time(r.time) + (r.best ? " · best lap " + MF.time(r.best, 1) : "") : "did not finish"),
     board: { label: "Best race time", better: "low", value: (r) => r.time, variant: (o) => (o.laps || 3) + " laps", format: (v) => MF.time(v) },
 
     create(ctx) {
@@ -149,6 +150,27 @@
         for (const e of [-1, 1]) obstacles.add(x + Math.cos(b.rotation.y) * e * (w / 2), z - Math.sin(b.rotation.y) * e * (w / 2), 0.1);
       };
       for (const [id, x, z, side, w] of BANNERS) banner(id, near(x, z), side, w);
+      // Portes de contrôle : huit portes numérotées à franchir dans l'ordre. Couper à travers le pré ne
+      // sert à rien : la progression s'arrête à la première porte manquée, tant qu'on n'y est pas repassé.
+      const gateS = Array.from({ length: NG }, (_, k) => ((k + 0.5) * L) / NG);
+      gateS.forEach((gs, k) => {
+        const p = path.at(gs), a = Math.atan2(p.tx, p.tz);
+        const g = MF.group({ name: "Porte_" + (k + 1), x: p.x, y: world.heightAt(p.x, p.z), z: p.z, ry: a, parent: deco });
+        for (const e of [-1, 1]) {
+          MF.cyl(0.07, 0.07, 2.5, k % 2 ? MF.PAL.blue : MF.PAL.red, { x: e * (WIDTH / 2 + 0.45), y: 1.25, parent: g, seg: 8, cast: true });
+          obstacles.add(p.x + Math.cos(a) * e * (WIDTH / 2 + 0.45), p.z - Math.sin(a) * e * (WIDTH / 2 + 0.45), 0.12);
+        }
+        MF.box(WIDTH + 1.0, 0.16, 0.08, "#ffffff", { y: 2.5, parent: g });
+        const num = MF.sign(String(k + 1), { w: 0.6, h: 0.5, px: 96, bg: MF.PAL.ink, color: "#ffffff", border: MF.PAL.yellow, double: true });
+        num.position.y = 2.95;
+        g.add(num);
+      });
+      // la prochaine porte : un chevron lumineux au-dessus d'elle
+      const nextMark = MF.cone(0.3, 0.6, MF.mat("#39e6ff", { emissive: "#39e6ff", emissiveIntensity: 0.9 }), { rx: Math.PI, parent: group, seg: 4 });
+      nextMark.userData.live = true;
+      nextMark.visible = false;
+      /** Distance, depuis le départ, de la porte de rang n (0, 1, 2… : on en franchit huit par tour). */
+      const gateDist = (n) => Math.floor(n / NG) * L + gateS[n % NG];
       // piles de pneus à l'intérieur des deux virages serrés
       const tyres = (s, side) => {
         const p = path.at(s), off = side * (WIDTH / 2 + 0.35);
@@ -266,7 +288,7 @@
         }
         me.car.paint.color.copy(MF.color(ctx.self.color));
         const g = gridSpot(slot);
-        Object.assign(me, { x: g.x, z: g.z, y: H(g.x, g.z), h: g.h, vx: 0, vz: 0, vy: 0, air: false, s: g.s, dist: g.s - L, steer: 0, speed: 0, lastHit: 0, boost: 0, padCool: 0, launched: false, lapStart: 0, best: 0, gas: true, gasAt: -99 });
+        Object.assign(me, { x: g.x, z: g.z, y: H(g.x, g.z), h: g.h, vx: 0, vz: 0, vy: 0, air: false, s: g.s, dist: g.s - L, prog: g.s - L, gate: 0, missed: 0, drift: 0, slide: 0, lastLap: 0, steer: 0, speed: 0, lastHit: 0, boost: 0, padCool: 0, launched: false, lapStart: 0, best: 0, gas: true, gasAt: -99 });
         MF.seat(me.car.group, track, me.x, me.z, me.h, 0, me.y);
         camState.x = undefined;
         finished = false;
@@ -286,6 +308,11 @@
       }
       /** Replace la voiture au milieu de la piste, à l'arrêt (touche C, sortie de piste, chute à l'eau). */
       function reset() {
+        // porte manquée : on repart juste avant elle
+        if (me.prog > gateDist(me.gate)) {
+          me.prog = gateDist(me.gate) - 3;
+          me.s = (((me.prog % L) + L) % L);
+        }
         const p = path.at(me.s);
         Object.assign(me, { x: p.x, z: p.z, y: H(p.x, p.z), h: Math.atan2(p.tx, p.tz), vx: 0, vz: 0, vy: 0, air: false });
         camState.x = undefined;
@@ -327,7 +354,21 @@
           me.steer = MF.damp(me.steer, steerIn, 14, dt);
           const k = MF.clamp(Math.abs(vf) / 2.2, 0, 1) * (1 - 0.32 * MF.clamp(Math.abs(vf) / C.vmax, 0, 1));
           me.h -= me.steer * C.turn * k * Math.sign(vf || 1) * dt * (hand ? 1.25 : 1);
-          vl -= vl * Math.min(1, (hand ? C.gripDrift : onTrack ? C.grip : C.gripGrass) * dt);
+          // adhérence : elle baisse quand on braque fort à grande vitesse (la voiture glisse un peu) ;
+          // au frein à main, elle décroche franchement
+          const fast = MF.clamp(Math.abs(vf) / C.vmax, 0, 1), loose = 1 - 0.55 * fast * Math.abs(me.steer);
+          vl -= vl * Math.min(1, (hand ? C.gripDrift : (onTrack ? C.grip : C.gripGrass) * loose) * dt);
+          // dérapage tenu plus de 0,7 s puis repris : petit coup d'accélérateur, comme en kart
+          if (Math.abs(vl) > 2.4 && Math.abs(vf) > 5) me.drift += dt;
+          else {
+            if (me.drift > 0.7 && Math.abs(vl) < 1.4 && !hand) {
+              vf += Math.min(3.2, 1.4 + me.drift * 1.2);
+              me.boost = Math.max(me.boost, 0.5);
+              hud.flash("Drift boost!", { color: "#ffb347", hold: 0.5 });
+              MF.sfx.play("swing");
+            }
+            if (Math.abs(vl) < 1.4) me.drift = 0;
+          }
         } else me.steer = MF.damp(me.steer, 0, 6, dt);
         const nfx = Math.sin(me.h), nfz = Math.cos(me.h);
         // en virage, la vitesse suit le nouveau cap moins vite que le nez : c'est ce qui fait déraper
@@ -374,7 +415,23 @@
         if (ds > L / 2) ds -= L;
         else if (ds < -L / 2) ds += L;
         me.s = n2.s;
-        me.dist += ds;
+        // progression physique, et progression comptée : celle-ci ne dépasse pas une porte non franchie
+        const before2 = me.prog, gd = gateDist(me.gate);
+        me.prog += ds;
+        if (before2 < gd && me.prog >= gd && ds < 3 && Math.abs(n2.d) <= WIDTH / 2 + 0.6) {
+          me.gate++;
+          me.missed = 0;
+        } else if (me.prog > gd + 2.5 && !locked) {
+          me.missed -= dt;
+          if (me.missed <= 0) {
+            me.missed = 2.5;
+            hud.flash("Gate " + ((me.gate % NG) + 1) + " missed: go back through it (or press C)", { color: MF.PAL.red, hold: 1.4 });
+            MF.sfx.play("perdu");
+          }
+        }
+        me.dist = Math.min(me.prog, gateDist(me.gate) - 0.05);
+        // l'angle de glisse (pour l'allure de la voiture)
+        me.slide = MF.damp(me.slide, me.air ? 0 : MF.clamp(Math.atan2(vl, Math.abs(vf) + 2) * 0.9, -0.6, 0.6), 10, dt);
         const water = world.waterAt(me.x, me.z);
         const lost = Math.abs(n2.d) > WIDTH / 2 + 5.5 || (water && me.y < water.level - 0.05);
         offTimer = lost ? offTimer + dt : 0;
@@ -418,7 +475,7 @@
         remotes,
         enter() {
           input.use({ layout: "radio", radio: { kicker: "REMOTE CONTROL", brand: MF.sponsors.brand("rc-telecommande") }, buttons: [{ id: "a", label: "BRAKE", key: "Space" }, { id: "c", label: "RESET", key: "C" }] });
-          hud.stats([{ key: "lap", label: "Lap" }, { key: "time", label: "Time" }, { key: "pos", label: "Position" }]);
+          hud.stats([{ key: "lap", label: "Lap" }, { key: "time", label: "Race" }, { key: "cur", label: "This lap" }, { key: "best", label: "Best lap" }, { key: "pos", label: "Position" }]);
           hud.hint(input.touch ? "Left stick: throttle · right stick: steering" : "Arrows or WASD: drive · Space: handbrake · C: reset");
           sway = 0;
         },
@@ -459,8 +516,13 @@
               }
             }
             drive(dt, phase === "countdown" || t < 0 || finished);
-            MF.seat(me.car.group, track, me.x, me.z, me.h, 0, me.y);
+            MF.seat(me.car.group, track, me.x, me.z, me.h - me.slide, 0, me.y); // en glisse, la caisse se met en travers
             spinWheels(me.car, me.speed, me.steer, dt);
+            // le chevron de la prochaine porte
+            const gp = path.at(gateS[me.gate % NG]);
+            nextMark.visible = phase === "run" && !finished;
+            nextMark.position.set(gp.x, world.heightAt(gp.x, gp.z) + 3.9 + Math.sin(t * 5) * 0.12, gp.z);
+            nextMark.rotation.y = t * 2;
             me.car.shadow.position.y = 0.02 - (me.y - H(me.x, me.z));
             if (!engine) engine = MF.sfx.loop("moteur");
             engine.set(0.55 + Math.abs(me.speed) / C.vmax, finished ? 0.25 : 0.7);
@@ -470,6 +532,7 @@
                 if (me.lap !== undefined && lap > me.lap) {
                   const lapTime = t - me.lapStart;
                   me.lapStart = t;
+                  me.lastLap = lapTime;
                   const record = !me.best || lapTime < me.best;
                   if (record) me.best = lapTime;
                   hud.flash((lap === laps ? "Final lap! " : "Lap " + lap + " / " + laps + " · ") + MF.time(lapTime, 1) + (record && lap > 2 ? " (your best)" : ""), { color: lap === laps ? MF.PAL.yellow : "#ffffff" });
@@ -481,7 +544,9 @@
                 finished = true;
                 const rows = ranking().filter((r) => r.time);
                 hud.flash("Finished! " + MF.ordinal(rows.length + 1), { color: MF.PAL.yellow, hold: 3 });
-                session.report({ time: Math.round(t * 1000) / 1000, dist: Math.round(me.dist) });
+                const lastLap = t - me.lapStart;
+                if (!me.best || lastLap < me.best) me.best = lastLap;
+                session.report({ time: Math.round(t * 1000) / 1000, dist: Math.round(me.dist), best: Math.round(me.best * 100) / 100 });
               } else {
                 // le premier est arrivé : il reste 30 secondes aux autres
                 const first = Object.values(st.results).some((r) => r && r.time);
@@ -497,6 +562,8 @@
             } else if (phase === "countdown") me.lap = undefined;
             hud.set("lap", lap + " / " + laps);
             hud.set("time", MF.time(Math.max(0, t), 1));
+            hud.set("cur", finished ? "–" : MF.time(Math.max(0, t - me.lapStart), 1));
+            hud.set("best", me.best ? MF.time(me.best, 1) : me.lastLap ? MF.time(me.lastLap, 1) : "–");
             remotes.send([me.x, me.y, me.z, me.h, me.speed, me.steer], [Math.round(me.dist), finished ? 1 : 0]);
             MF.cam.fov(camera, 60 + MF.clamp(Math.abs(me.speed) / C.vmax, 0, 1.4) * 9);
             MF.cam.chase(camera, camState, me, me.h, { dist: 2.8, height: 1.1, look: 1.4, up: 0.3, rate: 7, turn: 4.5, clear: 0.35 }, dt, H);

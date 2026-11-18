@@ -1,12 +1,14 @@
 // La Fête du Moulin — High Striker (le jeu de force : « faites sonner la cloche »).
 //
-// Trois coups de maillet. L'aiguille de la jauge court de plus en plus vite : on frappe (clic,
-// doigt ou Espace) quand elle est au plus haut. Le palet monte le long de la tour selon la force ;
-// tout en haut, la cloche sonne (+50). Le score est la somme des trois coups.
+// Cinq coups de maillet, en deux temps. D'abord la force : l'aiguille de la jauge court de plus en
+// plus vite, et passe de plus en plus brièvement en haut ; on l'arrête (clic, doigt ou Espace) au
+// plus haut. Puis la précision : un repère balaie le tampon ; on frappe quand il est au centre
+// (un coup décentré perd jusqu'à la moitié de sa force). Le palet monte selon la force transmise ;
+// tout en haut, la cloche sonne (+50). Le score est la somme des cinq coups.
 (function () {
   "use strict";
   const MF = globalThis.MoulinFete;
-  const H = 5.2, BASE = 0.5, SWINGS = 3, RATES = [1.5, 2.1, 2.8];
+  const H = 5.2, BASE = 0.5, SWINGS = 5, RATES = [1.5, 2.0, 2.6, 3.2, 3.8], SLIDE = [2.2, 2.9, 3.7, 4.6, 5.6];
   const RANKS = ["Feather", "Rookie", "Lumberjack", "Strongman", "HERCULES!"];
 
   MF.booth({
@@ -14,14 +16,14 @@
     title: "High Striker",
     icon: "🔔",
     color: MF.PAL.red,
-    blurb: "3 swings · ring the bell",
-    help: "Three swings of the mallet. Click (or tap, or Space) when the power needle is at the top: the puck shoots up the tower. Ring the bell for +50.",
-    hint: "Click when the power needle is at the top",
-    touchHint: "Tap when the power needle is at the top",
+    blurb: "5 swings, each one harder · power, then precision · ring the bell",
+    help: "Five swings of the mallet, in two clicks each. First the power: stop the needle at the top. Then the precision: a marker sweeps across the pad, strike when it is dead centre (an off-centre hit loses up to half its force). Every swing is faster than the last. Ring the bell for +50.",
+    hint: "Click 1: needle at the top · click 2: marker in the centre of the pad",
+    touchHint: "Tap 1: needle at the top · tap 2: marker in the centre of the pad",
     at: { x: 10.6, z: -73.4, face: -Math.PI / 2 },
     stall: false,
     size: { w: 3, d: 4.8 },
-    maxTime: 75,
+    maxTime: 110,
     cam: { y: 1.7, z: 4.1, look: [0, 2.95, -0.9], fov: 62 },
     cross: false,
     button: "STRIKE",
@@ -55,7 +57,14 @@
       MF.cyl(0.035, 0.035, 1.5, MF.PAL.wood, { y: 0.75, parent: mallet, seg: 6 });
       MF.cyl(0.2, 0.2, 0.5, "#3b3b46", { y: 1.5, rx: Math.PI / 2, parent: mallet, seg: 12 });
       mallet.rotation.set(0, 0, 0.5);
-      let swing = 0, state = "aim", at = 0, power = 0, bell = false, level = 0;
+      // le repère de précision : un anneau blanc qui balaie le tampon, et sa cible au centre
+      const target = MF.torus(0.09, 0.02, MF.mat(MF.PAL.yellow, { basic: true }), { y: 0.535, z: 0.6, rx: Math.PI / 2, parent: d, seg: 14, tubeSeg: 4 });
+      void target;
+      const slider = MF.torus(0.13, 0.03, MF.mat("#ffffff", { basic: true }), { y: 0.55, z: 0.6, rx: Math.PI / 2, parent: b.live, seg: 14, tubeSeg: 4 });
+      slider.visible = false;
+      let swing = 0, state = "aim", at = 0, power = 0, raw = 0, off = 0, bell = false, level = 0;
+      /** Position du repère (−1…1) : de plus en plus vite, et irrégulière à partir du quatrième coup. */
+      const slide = (t) => (swing < 3 ? Math.sin(t * SLIDE[swing]) : Math.sin(t * SLIDE[swing]) * 0.7 + Math.sin(t * SLIDE[swing] * 2.3 + 1) * 0.3);
       return {
         reset() {
           swing = 0;
@@ -70,12 +79,25 @@
             mallet.rotation.z = 0.5;
             return;
           }
+          slider.visible = state === "aim2";
           if (state === "aim") {
-            const u = (t * RATES[swing]) % 2;
-            power = u < 1 ? u : 2 - u;
-            b.hud.gauge(power, "Power");
-            mallet.rotation.z = 0.5 + power * 0.25;
+            // l'aiguille : aller-retour ; à partir du troisième coup elle file en haut (courbe) et hésite
+            const jitter = swing >= 3 ? 1 + 0.35 * Math.sin(t * 5.3) : 1, u = (t * RATES[swing] * jitter) % 2, tri = u < 1 ? u : 2 - u;
+            raw = swing >= 2 ? Math.pow(tri, 1.7) : tri;
+            b.hud.gauge(raw, "Power · stop at the top");
+            mallet.rotation.z = 0.5 + raw * 0.25;
             if (b.press) {
+              state = "aim2";
+              at = t;
+              MF.sfx.play("clic");
+            }
+          } else if (state === "aim2") {
+            off = slide(t - at + 0.6);
+            slider.position.x = off * 0.26;
+            b.hud.gauge((off + 1) / 2, "Precision · strike at 50 %");
+            if (b.press || t - at > 4) {
+              // un coup décentré transmet moins de force : jusqu'à −50 % au bord du tampon
+              power = raw * (1 - Math.pow(Math.min(1, Math.abs(off)), 1.4) * 0.5);
               state = "swing";
               at = t;
               b.hud.gauge(null);
@@ -100,7 +122,7 @@
               const pts = Math.round(Math.pow(power, 1.3) * 100) + (bell ? 50 : 0);
               const rank = RANKS[Math.min(RANKS.length - 1, Math.floor(power * RANKS.length))];
               b.add(pts, false);
-              b.hud.flash((bell ? "DING! " : "") + rank + " +" + pts, { color: bell ? MF.PAL.yellow : "#ffffff", hold: 1.1 });
+              b.hud.flash((bell ? "DING! " : "") + rank + " +" + pts + (Math.abs(off) > 0.45 ? " · off-centre" : ""), { color: bell ? MF.PAL.yellow : "#ffffff", hold: 1.1 });
               MF.sfx.play(bell ? "bravo" : power > 0.5 ? "ting" : "toc");
               if (bell) b.confetti(0, BASE + H + 0.4, Z + 0.3, 22);
             }

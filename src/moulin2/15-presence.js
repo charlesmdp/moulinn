@@ -146,7 +146,7 @@
     tag.position.y = 2.22;
     g.add(tag);
     // L'ordinateur du joueur : fermé dans le dos (bretelles), ou ouvert sur les genoux quand il est assis.
-    const avatar = { group: g, body, legs, arms, tag, shirt, fig, color, phase: 0, kit: null, pack: null, lap: null, sitting: false };
+    const avatar = { group: g, body, legs, arms, tag, shirt, fig, color, shadow, phase: 0, kit: null, pack: null, lap: null, sitting: false };
     avatar.setColor = function (c) {
       avatar.color = c;
       shirt.color.copy(MF.color(c));

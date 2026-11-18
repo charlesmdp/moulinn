@@ -71,8 +71,10 @@
       let mine = 0, done = 0, robots = [], spraying = false, lastPts = 0;
 
       const sway = (lane, t) => {
-        lane.head.position.x = lane.x + 0.27 * Math.sin(t * 1.7 + lane.phase) + 0.08 * Math.sin(t * 4.3 + lane.phase * 2);
-        lane.head.position.y = 1.5 + 0.07 * Math.sin(t * 2.9 + lane.phase);
+        // plus le ballon gonfle, plus le clown s'agite (jusqu'à 70 % d'amplitude en plus, et des à-coups)
+        const f = MF.clamp(lane.fill || 0, 0, 1);
+        lane.head.position.x = lane.x + (0.27 + 0.19 * f) * Math.sin(t * 1.7 + lane.phase) + (0.08 + 0.13 * f) * Math.sin(t * 4.3 + lane.phase * 2);
+        lane.head.position.y = 1.5 + (0.07 + 0.09 * f) * Math.sin(t * 2.9 + lane.phase);
       };
       const show = (lane) => {
         lane.balloon.visible = !lane.popped;
