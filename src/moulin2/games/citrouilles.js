@@ -1,442 +1,603 @@
-// La Fête du Moulin — lancer de citrouilles.
+// La Fête du Moulin — lance-citrouilles (« Pumpkin Slingshot »).
 //
-// Chacun a sa catapulte sur la rive sud de l'étang intermédiaire et cinq (ou huit) citrouilles à
-// envoyer sur les cibles : quatre grandes cibles à anneaux sur la rive d'en face (50, 30 ou 10 points)
-// et trois bassines qui dérivent sur l'eau (20 points). On règle la direction, on maintient pour
-// charger (la jauge monte et redescend), on relâche. Un vent, le même pour tous, dévie les tirs.
-// Tout le monde tire en même temps : chaque joueur simule ses citrouilles et annonce ses lancers ;
-// les autres rejouent la même trajectoire et voient le même impact.
+// Un lance-pierre géant au bord de l'étang intermédiaire ; sur l'eau, trois radeaux portent des
+// échafaudages de caisses, de planches et de tonneaux où des corbeaux se sont installés. On tire la
+// citrouille en arrière (souris ou doigt), une ligne de points montre la trajectoire, on relâche :
+// la citrouille part, les piles s'écroulent, tout ce qui tombe du radeau finit à l'eau.
+//   +500 par corbeau délogé, +50 par pièce renversée, +1000 par citrouille restante si tous les
+//   corbeaux sont partis. Six citrouilles par partie.
+// La vue est de profil, comme dans un jeu de lance-pierre : le lancer est simulé dans le plan
+// vertical du tir (u : distance vers le nord depuis le lance-pierre, y : hauteur). Chacun joue sur
+// son propre décor (le même pour tous, tiré de la graine de la partie) ; on voit passer les
+// citrouilles des autres, et les scores se comparent à la fin.
 (function () {
   "use strict";
   const MF = globalThis.MoulinFete;
 
-  const PAD = { x: 58, z: -16.6 }; // milieu de la ligne des catapultes ; on tire vers le nord (−z)
-  const LANE = 1.7; // écart entre deux catapultes (m)
-  const BANK = [ // cibles de la rive nord : x, z, rayon, hauteur du centre au-dessus du sol
-    { x: 52, z: -45.4, r: 1.5, up: 1.7 },
-    { x: 56.6, z: -46.9, r: 1.5, up: 1.7 },
-    { x: 60.2, z: -44.3, r: 1.5, up: 1.7 },
-    { x: 55, z: -49.6, r: 1.25, up: 3.4 },
+  const SX = 58, SZ = -16.6; // le lance-pierre ; on tire vers le nord (z décroissant)
+  const RAFTS = [12.4, 17.2, 22.0]; // distance des radeaux (m)
+  const RAFT_W = 3.5, G = 9.8, VMAX = 19.5, PULL = 2.3, SHOTS = 6, DURATION = 150;
+  const PR = 0.33; // rayon d'une citrouille
+  // pièces : largeur, hauteur, masse, couleur
+  const KINDS = {
+    crate: { w: 0.7, h: 0.7, m: 3, c: "#b98350" },
+    plank: { w: 1.6, h: 0.16, m: 1.6, c: "#d9b27a" },
+    post: { w: 0.16, h: 1.2, m: 1.2, c: "#a8733f" },
+    barrel: { w: 0.72, h: 0.86, m: 4, c: "#8a5a2c" },
+    bale: { w: 1.1, h: 0.55, m: 2, c: "#e2b84a" },
+  };
+  // échafaudages : [pièce ou "crow", décalage sur le radeau (m), hauteur du pied (m)]
+  const LAYOUTS = [
+    [["post", -0.62, 0], ["post", 0.62, 0], ["plank", 0, 1.2], ["crow", 0, 1.36], ["crow", 0, 0], ["bale", 1.15, 0]],
+    [["crate", -0.45, 0], ["crate", 0.45, 0], ["plank", 0, 0.7], ["crate", 0, 0.86], ["crow", 0, 1.56], ["barrel", -1.25, 0], ["crow", -1.25, 0.86]],
+    [["barrel", -0.6, 0], ["barrel", 0.6, 0], ["plank", 0, 0.86], ["post", -0.55, 1.02], ["post", 0.55, 1.02], ["plank", 0, 2.22], ["crow", 0, 2.38], ["crow", 0, 1.02]],
   ];
-  const RAFTS = [ // bassines flottantes : x moyen, z, amplitude et vitesse de la dérive
-    { x: 53, z: -29, a: 4, w: 0.27, p: 0 },
-    { x: 59.5, z: -33, a: 4.5, w: 0.21, p: 2 },
-    { x: 55, z: -36.6, a: 3.5, w: 0.33, p: 4 },
-  ];
-  const TILT = 0.52; // les cibles de la rive sont couchées en arrière (rad) : la citrouille arrive presque de face
-  const G = 9.8, DRAG = 0.012, TIME_LIMIT = 90;
-  const speedOf = (p) => 9 + 12 * p; // vitesse de départ selon la jauge (0…1)
-
-  function buildPumpkin() {
-    const g = MF.group({ name: "Citrouille" });
-    MF.sphere(0.24, MF.PAL.orange, { parent: g, seg: 10 }).scale.set(1, 0.8, 1);
-    for (let i = 0; i < 6; i++) MF.sphere(0.11, "#ff9d3d", { x: Math.cos(i * 1.047) * 0.17, z: Math.sin(i * 1.047) * 0.17, parent: g, seg: 6 }).scale.set(1, 1.5, 1);
-    MF.cyl(0.03, 0.04, 0.1, MF.PAL.green, { y: 0.2, parent: g, seg: 5 });
-    return MF.freeze(g);
-  }
-  /** Catapulte de fête : bâti en bois, bras qui bascule autour d'un axe, contrepoids. Avant vers −z. */
-  function buildCatapult(color) {
-    const g = MF.group({ name: "Catapulte" });
-    MF.box(1.1, 0.12, 1.9, MF.PAL.wood, { y: 0.1, parent: g, cast: true });
-    for (const side of [-1, 1]) {
-      MF.box(0.1, 1.35, 0.12, MF.PAL.woodDark, { x: side * 0.42, y: 0.78, z: -0.25, rx: 0.22, parent: g, cast: true });
-      MF.box(0.1, 1.35, 0.12, MF.PAL.woodDark, { x: side * 0.42, y: 0.78, z: 0.3, rx: -0.22, parent: g });
-      MF.cyl(0.2, 0.2, 0.1, MF.PAL.black, { x: side * 0.6, y: 0.2, z: 0.6, rz: Math.PI / 2, parent: g, seg: 10 });
-      MF.cyl(0.2, 0.2, 0.1, MF.PAL.black, { x: side * 0.6, y: 0.2, z: -0.6, rz: Math.PI / 2, parent: g, seg: 10 });
-    }
-    MF.cyl(0.05, 0.05, 1.0, MF.PAL.steel, { y: 1.4, z: 0.02, rz: Math.PI / 2, parent: g, seg: 6 });
-    const arm = MF.group({ y: 1.4, z: 0.02, parent: g });
-    arm.userData.live = true; // le bras bascule
-    MF.box(0.09, 0.09, 2.3, MF.PAL.wood, { z: 0.45, parent: arm });
-    MF.box(0.36, 0.36, 0.36, MF.mat(color), { z: -0.62, y: -0.1, parent: arm }); // contrepoids à la couleur du joueur
-    MF.cyl(0.3, 0.22, 0.14, MF.PAL.woodDark, { z: 1.58, y: 0.08, parent: arm, seg: 10 }); // panier
-    const load = buildPumpkin();
-    load.position.set(0, 0.3, 1.58);
-    arm.add(load);
-    MF.freeze(g);
-    return { group: g, arm, load, swing: 0 };
-  }
 
   MF.registerGame({
     id: "citrouilles",
-    title: "Pumpkin Toss",
+    title: "Pumpkin Slingshot",
     icon: "🎃",
     color: MF.PAL.orange,
-    blurb: "Catapult across the pond",
-    station: { x: PAD.x, z: PAD.z + 2.6, heading: Math.PI },
-    kiosk: { x: PAD.x + 8.6, z: PAD.z + 2.2, heading: Math.PI },
+    blurb: "Pull back, let go, knock the crows off",
+    station: { x: SX, z: SZ + 2.6, heading: Math.PI },
+    kiosk: { x: SX + 3.4, z: SZ + 2.4, heading: Math.PI },
+    hall: { x: SX - 3.4, z: SZ + 2.4, heading: Math.PI },
+    range: 110,
     minPlayers: 1,
     maxPlayers: 8,
-    maxTime: TIME_LIMIT + 30,
-    options: [{ key: "shots", label: "Pumpkins", values: [5, 8], default: 5, format: (v) => v + " shots" }],
-    help: "← →: aim · ↑ ↓: elevation · hold Space (or click) to charge, release to launch. Mind the wind!",
+    maxTime: DURATION + 15,
+    help: "Drag back anywhere and release to launch (or ← → power, ↑ ↓ angle, Space). Topple the stacks on the rafts: 500 per crow, 50 per piece, 1000 per pumpkin left once every crow is gone.",
     rank: (list) => list.slice().sort((a, b) => (b.score || 0) - (a.score || 0) || (a.name < b.name ? -1 : 1)),
-    describe: (r) => (r.score || 0) + " points",
+    describe: (r) => (r.score || 0) + " pts",
+    board: { label: "Best score", better: "high", value: (r) => r.score, format: (v) => v + " pts" },
 
     create(ctx) {
       const { world, session, hud, input, group, camera } = ctx;
       const THREE = world.THREE;
-      const H = world.heightAt;
-      const pond = world.waterAt(56, -32);
-      const WL = pond ? pond.level : -0.42;
-      const Y0 = H(PAD.x, PAD.z);
+      const pond = world.waterAt(SX, SZ - 15);
+      const WATER = pond ? pond.level : -0.42;
+      const DECK = world.heightAt(SX, SZ) + 0.12; // plancher du pas de tir
+      const REST = { u: 0, y: DECK + 2.25 }; // la citrouille au repos dans la poche
+      const RAFT_Y = WATER + 0.36;
+      /** Plan du tir → monde. */
+      const wx = () => SX, wz = (u) => SZ - u;
 
       /* ---------------------------------------------------------------- décor (une fois) */
-      const deco = MF.group({ name: "Lancer_de_citrouilles", parent: group });
-      MF.box(15.5, 0.3, 2.6, MF.PAL.wood, { x: PAD.x, y: Y0 - 0.05, z: PAD.z, parent: deco });
-      const sp = MF.sponsors.banner("citrouilles-fronton", 5, 0.95, { lift: 0.35 });
-      sp.position.set(PAD.x - 6.4, H(PAD.x - 6.4, PAD.z - 1.9), PAD.z - 1.9);
-      sp.rotation.y = 0.35;
-      deco.add(sp);
-      for (let i = 0; i < 5; i++) { // tas de citrouilles
-        const p = buildPumpkin();
-        p.position.set(PAD.x + 8.4 + (i % 3) * 0.5 - (i > 2 ? 0.25 : 0), Y0 + 0.28 + (i > 2 ? 0.36 : 0), PAD.z + 0.2 + (i % 2) * 0.3);
-        deco.add(p);
-      }
-      // manche à air : elle montre d'où vient le vent et sa force
-      const sockPole = MF.pole(3.4, { color: MF.PAL.white, top: MF.PAL.red });
-      sockPole.position.set(PAD.x + 9.6, H(PAD.x + 9.6, PAD.z - 1), PAD.z - 1);
-      deco.add(sockPole);
-      const sock = MF.group({ x: PAD.x + 9.6, y: sockPole.position.y + 3.3, z: PAD.z - 1, parent: deco });
-      sock.userData.live = true; // elle tourne avec le vent
-      MF.cone(0.22, 1.3, MF.PAL.red, { z: 0.65, rx: -Math.PI / 2, parent: sock, seg: 8 });
-      // cibles de la rive nord : disque à anneaux couché en arrière, sur un chevalet, bâche du sponsor dessous
-      const ringTex = MF.canvasTexture(256, 256, (c, W) => {
-        [["#ffffff", 1], [MF.PAL.red, 0.66], [MF.PAL.yellow, 0.33]].forEach(([col, k]) => {
-          c.fillStyle = col;
-          c.beginPath();
-          c.arc(W / 2, W / 2, (W / 2) * k * 0.98, 0, 6.3);
-          c.fill();
-        });
-        c.strokeStyle = "#2b1a10";
-        c.lineWidth = 8;
-        c.beginPath();
-        c.arc(W / 2, W / 2, W / 2 - 5, 0, 6.3);
-        c.stroke();
-      });
-      const ringMat = new THREE.MeshBasicMaterial({ map: ringTex, transparent: true });
-      const normal = new THREE.Vector3(0, Math.sin(TILT), Math.cos(TILT)); // face aux lanceurs (sud) et vers le haut
-      for (const t of BANK) {
-        t.gy = H(t.x, t.z);
-        t.cy = t.gy + t.up;
-        const g = MF.group({ name: "Cible", x: t.x, y: t.cy, z: t.z, parent: deco });
-        MF.mesh(new THREE.CircleGeometry(t.r, 28), ringMat, { rx: -TILT, parent: g });
-        MF.cyl(t.r, t.r, 0.08, MF.PAL.woodDark, { rx: Math.PI / 2 - TILT, z: -0.06, parent: g, seg: 20, cast: true });
-        for (const side of [-1, 1]) MF.cyl(0.05, 0.06, t.up + 0.2, MF.PAL.woodDark, { x: side * t.r * 0.6, y: -t.up / 2 - 0.1, z: -0.5, parent: g, seg: 6 });
-        const b = MF.sponsors.banner("citrouilles-cibles", 2.6, 0.55, { lift: 0.1, posts: t.up > 2.5 });
-        b.position.set(t.x, t.up > 2.5 ? t.cy - t.r - 0.8 : t.gy, t.z + (t.up > 2.5 ? -0.4 : 1.25));
+      const deco = MF.group({ name: "Lance_citrouilles", parent: group });
+      MF.box(3.6, 0.14, 3.6, MF.decks.WOOD, { x: SX, y: DECK - 0.07, z: SZ + 0.6, parent: deco });
+      MF.box(3.6, DECK - world.heightAt(SX, SZ - 1) + 0.9, 0.12, MF.decks.BEAM, { x: SX, y: DECK - 0.55, z: SZ - 1.2, parent: deco });
+      // le lance-pierre : une fourche de bois
+      MF.cyl(0.13, 0.17, 1.5, MF.PAL.woodDark, { x: SX, y: DECK + 0.75, z: SZ, parent: deco, seg: 8, cast: true });
+      for (const side of [-1, 1]) MF.cyl(0.09, 0.12, 1.5, MF.PAL.woodDark, { x: SX + side * 0.5, y: DECK + 2.05, z: SZ, rz: -side * 0.42, parent: deco, seg: 8, cast: true });
+      const FORK = [{ x: SX - 0.78, y: DECK + 2.7 }, { x: SX + 0.78, y: DECK + 2.7 }];
+      // réserve de citrouilles et bannière
+      const stock = [];
+      const banner = MF.sponsors.banner("citrouilles-fronton", 3.2, 0.8);
+      banner.position.set(SX - 3.1, DECK, SZ + 0.4);
+      banner.rotation.y = Math.PI / 2;
+      deco.add(banner);
+      deco.add(MF.sign("PUMPKIN SLINGSHOT", { w: 3.6, h: 0.6, bg: MF.PAL.orange, color: "#ffffff", border: MF.PAL.ink, x: SX + 2.6, y: DECK + 2.9, z: SZ + 1.6, ry: -Math.PI / 2 }));
+      for (const dz of [-1.5, 1.5]) MF.cyl(0.05, 0.06, 3.2, MF.PAL.woodDark, { x: SX + 2.6, y: DECK + 1.6, z: SZ + 1.6 + dz, parent: deco, seg: 6 });
+      for (let i = 0; i < 2; i++) {
+        const b = MF.props.bale();
+        b.position.set(SX + 1.2 + i * 0.3, DECK, SZ + 1.9 - i * 0.6);
+        b.rotation.y = 0.4 * i;
         deco.add(b);
       }
-      // bassines flottantes
-      const rafts = RAFTS.map((r) => {
-        const g = MF.group({ name: "Bassine_flottante", x: r.x, y: WL, z: r.z, parent: deco });
-        g.userData.live = true; // elle dérive
-        MF.box(2.0, 0.14, 2.0, MF.PAL.wood, { y: 0.05, parent: g });
-        MF.cyl(0.9, 0.78, 0.5, MF.PAL.red, { y: 0.36, parent: g, seg: 16, open: true });
-        MF.cyl(0.78, 0.78, 0.04, MF.PAL.white, { y: 0.14, parent: g, seg: 16 });
-        MF.cyl(0.92, 0.92, 0.07, MF.PAL.white, { y: 0.6, parent: g, seg: 16, open: true });
-        return Object.assign({ group: g, cx: r.x }, r);
-      });
-      const raftX = (r, t) => r.x + Math.sin(t * r.w + r.p) * r.a;
+      // radeaux : rondins, petit mât avec le fanion du sponsor
+      const flagTex = MF.sponsors.texture("citrouilles-cibles", { w: 2.4, h: 0.8, kicker: "Raft flag" });
+      for (const u of RAFTS) {
+        for (let i = 0; i < 7; i++) MF.cyl(0.2, 0.2, 2.2, i % 2 ? "#a8733f" : "#b98350", { x: SX, y: RAFT_Y - 0.2, z: wz(u - RAFT_W / 2 + 0.25 + i * 0.5), rz: Math.PI / 2, parent: deco, seg: 8, cast: true });
+        for (const s of [-1, 1]) MF.box(0.14, 0.1, RAFT_W, MF.decks.BEAM, { x: SX + s * 0.8, y: RAFT_Y - 0.02, z: wz(u), parent: deco });
+        MF.cyl(0.03, 0.03, 2.0, MF.PAL.white, { x: SX - 1.0, y: RAFT_Y + 1.0, z: wz(u + RAFT_W / 2 - 0.2), parent: deco, seg: 5 });
+        MF.plane(0.9, 0.3, new THREE.MeshBasicMaterial({ map: flagTex, side: THREE.DoubleSide }), { x: SX - 1.0, y: RAFT_Y + 1.82, z: wz(u + RAFT_W / 2 - 0.2) + 0.47, ry: Math.PI / 2, parent: deco, receive: false });
+      }
       MF.freeze(deco);
 
-      /* ---------------------------------------------------------------- catapultes, citrouilles, éclats */
-      const pults = new Map(); // uid → catapulte (une par joueur de la partie)
-      const laneX = (slot, n) => PAD.x + (slot - (n - 1) / 2) * LANE;
-      function syncPults() {
-        const st = session.state;
-        const roster = st && st.phase !== "lobby" ? st.roster : session.players();
-        const want = new Set(roster.map((p) => p.uid));
-        for (const [uid, c] of pults) if (!want.has(uid)) {
-          group.remove(c.group);
-          MF.dispose(c.group);
-          pults.delete(uid);
+      /* ---------------------------------------------------------------- pièces, corbeaux, citrouilles */
+      const live = MF.group({ name: "Pieces", parent: group });
+      live.userData.live = true;
+      function pumpkinMesh() {
+        const g = MF.group({});
+        const body = MF.sphere(PR, MF.PAL.orange, { parent: g, seg: 12, cast: true });
+        body.scale.set(1, 0.84, 1);
+        for (let i = 0; i < 6; i++) MF.sphere(PR * 0.5, "#f07a1c", { x: Math.sin((i / 6) * 6.283) * PR * 0.62, z: Math.cos((i / 6) * 6.283) * PR * 0.62, parent: g, seg: 6 }).scale.set(1, 1.45, 1);
+        MF.cyl(0.035, 0.05, 0.14, MF.PAL.green, { y: PR * 0.86, parent: g, seg: 5 });
+        MF.freeze(g);
+        return g;
+      }
+      function crowMesh() {
+        const g = MF.group({});
+        MF.sphere(0.27, "#23232b", { y: 0.27, parent: g, seg: 10, cast: true }).scale.set(0.9, 1, 1.1);
+        MF.sphere(0.17, "#23232b", { y: 0.58, z: 0.08, parent: g, seg: 8 });
+        MF.cone(0.06, 0.2, MF.PAL.yellow, { y: 0.56, z: 0.3, rx: Math.PI / 2, parent: g, seg: 5 });
+        for (const s of [-1, 1]) {
+          MF.sphere(0.035, "#ffffff", { x: s * 0.07, y: 0.63, z: 0.2, parent: g, seg: 5 });
+          MF.box(0.05, 0.3, 0.26, "#15151b", { x: s * 0.25, y: 0.3, rz: s * 0.3, parent: g });
         }
-        roster.forEach((p, i) => {
-          let c = pults.get(p.uid);
-          if (!c) {
-            c = buildCatapult(p.color);
-            group.add(c.group);
-            pults.set(p.uid, c);
+        MF.cyl(0.13, 0.13, 0.04, MF.PAL.red, { y: 0.74, z: 0.08, parent: g, seg: 8 }); // petit chapeau
+        MF.cyl(0.08, 0.08, 0.1, MF.PAL.red, { y: 0.8, z: 0.08, parent: g, seg: 8 });
+        MF.freeze(g);
+        return g; // le bec vers +z : vers le lance-pierre (au sud)
+      }
+      let pieces = []; // { kind, w, h, m, u, y, a, vu, vy, va, state, sup, mesh, crow, scored }
+      /** Demi-largeur (le long du tir) et demi-hauteur d'une pièce, compte tenu de son angle. */
+      const hu = (p) => (p.crow ? 0.27 : (Math.abs(Math.cos(p.a)) * p.w + Math.abs(Math.sin(p.a)) * p.h) / 2);
+      const hy = (p) => (p.crow ? 0.3 : (Math.abs(Math.cos(p.a)) * p.h + Math.abs(Math.sin(p.a)) * p.w) / 2);
+      const top = (p) => (p.crow ? p.y + 0.6 : p.y + hy(p));
+      const foot = (p) => (p.crow ? p.y : p.y - hy(p));
+      function clearPieces() {
+        for (const p of pieces) {
+          live.remove(p.mesh);
+          MF.dispose(p.mesh);
+        }
+        pieces = [];
+      }
+      function buildPieces(seed) {
+        clearPieces();
+        const rnd = MF.rng((seed >>> 0) + 17);
+        const order = [0, 1, 2].sort(() => rnd() - 0.5);
+        RAFTS.forEach((u0, i) => {
+          const flip = rnd() < 0.5 ? -1 : 1;
+          for (const [kind, du, y0] of LAYOUTS[order[i]]) {
+            const crow = kind === "crow";
+            const k = crow ? { w: 0.54, h: 0.6, m: 1, c: "" } : KINDS[kind];
+            const mesh = crow
+              ? crowMesh()
+              : kind === "barrel"
+                ? MF.group({}, MF.cyl(0.36, 0.36, 0.86, k.c, { seg: 10, cast: true }), MF.cyl(0.375, 0.375, 0.06, "#33363f", { y: 0.25, seg: 10 }), MF.cyl(0.375, 0.375, 0.06, "#33363f", { y: -0.25, seg: 10 }))
+                : MF.group({}, MF.box(1.0, k.h, k.w, k.c, { cast: true }), MF.box(1.02, k.h * 0.14, k.w + 0.02, "#7a5028", { y: k.h * 0.36 }), MF.box(1.02, k.h * 0.14, k.w + 0.02, "#7a5028", { y: -k.h * 0.36 }));
+            live.add(mesh);
+            pieces.push({ kind, crow, w: k.w, h: k.h, m: k.m, u: u0 + du * flip, y: RAFT_Y + y0 + (crow ? 0 : k.h / 2), a: 0, vu: 0, vy: 0, va: 0, state: "static", mesh, sup: [], raft: i });
           }
-          c.x = laneX(i, roster.length);
-          c.group.position.set(c.x, Math.max(H(c.x, PAD.z), Y0) + 0.1, PAD.z);
         });
-      }
-      const shots = []; // citrouilles en vol : { mesh, x, y, z, vx, vy, vz, mine, alive }
-      for (let i = 0; i < 12; i++) {
-        const mesh = buildPumpkin();
-        mesh.visible = false;
-        group.add(mesh);
-        shots.push({ mesh, alive: false });
-      }
-      const bits = [];
-      for (let i = 0; i < 18; i++) {
-        const m = MF.sphere(0.09, i % 3 ? MF.PAL.orange : MF.PAL.white, { parent: group, seg: 5 });
-        m.visible = false;
-        bits.push({ mesh: m, life: 0, vx: 0, vy: 0, vz: 0 });
-      }
-      let bitIx = 0;
-      function burst(x, y, z, n, water) {
-        for (let i = 0; i < n; i++) {
-          const b = bits[bitIx++ % bits.length];
-          b.mesh.position.set(x, y, z);
-          b.mesh.material = MF.mat(water ? MF.PAL.white : i % 3 ? MF.PAL.orange : "#ffd27a");
-          b.mesh.visible = true;
-          b.life = 0.7;
-          b.vx = (Math.random() - 0.5) * 5;
-          b.vy = 2 + Math.random() * 4;
-          b.vz = (Math.random() - 0.5) * 5;
-        }
-      }
-      let wind = 0; // vent de travers (m/s, + vers l'est), tiré de la graine
-      const windOf = (seed) => Math.round((MF.rng((seed >>> 0) ^ 0x9e3779b9)() * 2 - 1) * 28) / 10;
-      function launch(d, mine) {
-        const s = shots.find((q) => !q.alive);
-        if (!s) return null;
-        Object.assign(s, { x: d[0], y: d[1], z: d[2], vx: d[3], vy: d[4], vz: d[5], mine, alive: true, age: 0 });
-        s.mesh.visible = true;
-        return s;
-      }
-      /** Fait avancer une citrouille ; renvoie les points marqués à l'impact (null tant qu'elle vole). */
-      const pv = new THREE.Vector3(), pc = new THREE.Vector3();
-      function fly(s, dt, t) {
-        const ox = s.x, oy = s.y, oz = s.z;
-        s.vx += (wind - s.vx) * 0.09 * dt - s.vx * DRAG * dt;
-        s.vy -= G * dt;
-        s.vz -= s.vz * DRAG * dt;
-        s.x += s.vx * dt;
-        s.y += s.vy * dt;
-        s.z += s.vz * dt;
-        s.age += dt;
-        if (s.mesh) {
-          s.mesh.position.set(s.x, s.y, s.z);
-          s.mesh.rotation.x -= dt * 7;
-        }
-        // cibles de la rive : la citrouille traverse-t-elle le plan du disque, à l'intérieur ?
-        for (const tg of BANK) {
-          const d0 = (ox - tg.x) * normal.x + (oy - tg.cy) * normal.y + (oz - tg.z) * normal.z;
-          const d1 = (s.x - tg.x) * normal.x + (s.y - tg.cy) * normal.y + (s.z - tg.z) * normal.z;
-          if (d0 > 0 && d1 <= 0) {
-            const k = d0 / (d0 - d1);
-            pv.set(ox + (s.x - ox) * k - tg.x, oy + (s.y - oy) * k - tg.cy, oz + (s.z - oz) * k - tg.z);
-            const r = pv.length();
-            if (r <= tg.r + 0.2) return end(s, r < tg.r * 0.33 ? 50 : r < tg.r * 0.66 ? 30 : 10, false);
+        // qui repose sur quoi (pour l'écroulement)
+        for (const p of pieces) {
+          for (const q of pieces) {
+            if (q === p || q.crow) continue;
+            if (Math.abs(top(q) - foot(p)) < 0.04 && Math.abs(q.u - p.u) < hu(q) + hu(p) - 0.03) p.sup.push(q);
           }
+          p.onRaft = Math.abs(foot(p) - RAFT_Y) < 0.04;
         }
-        const w = world.waterAt(s.x, s.z);
-        if (w && s.y <= w.level + 0.62) {
-          for (const r of rafts) if (Math.hypot(s.x - raftX(r, t), s.z - r.z) < 0.98) return end(s, 20, false);
-          if (s.y <= w.level) return end(s, 0, true);
+        place();
+      }
+      function place() {
+        for (const p of pieces) {
+          p.mesh.visible = p.state !== "gone";
+          p.mesh.position.set(wx(), p.y, wz(p.u));
+          p.mesh.rotation.x = p.a; // tourne dans le plan du tir
         }
-        if (s.y <= H(s.x, s.z) + 0.15) return end(s, 0, false);
-        return s.age > 9 ? end(s, 0, false) : null;
       }
-      function end(s, points, water) {
-        s.alive = false;
-        if (!s.mesh) return points || 0; // tir d'essai (simulate) : ni éclats ni bruit
-        s.mesh.visible = false;
-        burst(s.x, Math.max(s.y, water ? WL : -9), s.z, points ? 9 : 6, water);
-        const near = ctx.active() || session.players().length > 0;
-        if (near) MF.sfx.play(water ? "plouf" : points ? "pop" : "toc");
-        return points || 0;
-      }
-      session.on("tir", (d, peer) => {
-        if (!Array.isArray(d) || d.length < 6) return;
-        launch(d, false);
-        const c = pults.get(peer.uid);
-        if (c) c.swing = 0.0001;
-      });
-      const scores = new Map(); // uid → points (annoncés par chacun)
-      session.on("score", (d, peer) => scores.set(peer.uid, +d || 0));
 
-      // repère de visée : pointillés de la trajectoire prévue (sans le vent)
+      // mes citrouilles : une en vol au plus ; celles des autres : fantômes en vol simple
+      const ball = { mesh: pumpkinMesh(), on: false, u: 0, y: 0, vu: 0, vy: 0, bounces: 0, spin: 0, age: 0 };
+      live.add(ball.mesh);
+      const loaded = pumpkinMesh(); // celle qui attend dans la poche
+      live.add(loaded);
+      const ghosts = [];
+      for (let i = 0; i < 6; i++) {
+        const m = pumpkinMesh();
+        m.visible = false;
+        live.add(m);
+        ghosts.push({ mesh: m, on: false, u: 0, y: 0, vu: 0, vy: 0 });
+      }
+      // élastiques (deux barres étirées de la fourche à la poche) et points de trajectoire
+      const bands = FORK.map(() => MF.box(0.05, 0.05, 1, "#3a2a1a", { parent: live }));
       const dots = [];
-      for (let i = 0; i < 12; i++) {
-        const m = MF.sphere(0.07, MF.mat(MF.PAL.white, { basic: true }), { parent: group, seg: 5 });
-        m.visible = false;
-        dots.push(m);
+      for (let i = 0; i < 16; i++) {
+        const d = MF.sphere(0.09 - i * 0.003, MF.mat("#ffffff", { basic: true }), { parent: live, seg: 5 });
+        d.visible = false;
+        dots.push(d);
       }
-      const me = { az: 0, el: 0.78, power: 0, charging: false, dir: 1, left: 0, score: 0, cool: 0, follow: null, hold: 0 };
-      let reported = false, lastBoard = 0, sway = 0, camK = 0;
-      const camPos = new THREE.Vector3(), camLook = new THREE.Vector3();
+      for (let i = 0; i < SHOTS; i++) {
+        const m = pumpkinMesh();
+        m.position.set(SX - 1.1 + (i % 3) * 0.5, DECK + PR * 0.84, SZ + 1.4 + Math.floor(i / 3) * 0.55);
+        live.add(m);
+        stock.push(m);
+      }
+      const splashes = [];
+      for (let i = 0; i < 5; i++) {
+        const ring = MF.mesh(new THREE.RingGeometry(0.3, 0.42, 20), MF.mat("#ffffff", { opacity: 0.8, unique: true }), { rx: -Math.PI / 2, parent: live });
+        ring.visible = false;
+        splashes.push({ ring, t: 9 });
+      }
+      let splashIx = 0;
+      function splash(u, size = 1) {
+        const s = splashes[splashIx++ % splashes.length];
+        s.ring.position.set(wx(), WATER + 0.03, wz(u));
+        s.t = 0;
+        s.size = size;
+        s.ring.visible = true;
+        if (ctx.active() || session.players().length) MF.sfx.play("plouf");
+      }
+      const feathers = MF.props.confetti(group, 36);
+      const v3 = new THREE.Vector3();
+      /** Point du plan de tir → pixels de l'écran. */
+      function screen(u, y) {
+        v3.set(wx(), y, wz(u)).project(camera);
+        return [((v3.x + 1) / 2) * hud.root.clientWidth, ((1 - v3.y) / 2) * hud.root.clientHeight];
+      }
 
-      function play(dt, t, running, st) {
-        const S = input.state, P = S.pointer;
-        const c = pults.get(ctx.self.uid);
-        if (!c) return;
-        me.az = MF.clamp(me.az + S.x * 0.6 * dt, -0.5, 0.5);
-        me.el = MF.clamp(me.el + S.y * 0.5 * dt, 0.5, 1.1);
-        if (P.isDown && !input.touch) me.az = MF.clamp(me.az + (P.nx - (me.pnx ?? P.nx)) * 0.9, -0.5, 0.5); // glisser pour affiner
-        if (P.isDown && input.touch) me.az = MF.clamp(me.az + (P.nx - (me.pnx ?? P.nx)) * 1.2, -0.5, 0.5);
-        me.pnx = P.nx;
-        me.cool = Math.max(0, me.cool - dt);
-        const holding = running && me.left > 0 && me.cool <= 0 && (S.a || P.isDown);
-        if (holding) {
-          if (!me.charging) {
-            me.charging = true;
-            me.power = 0;
-            me.dir = 1;
-          }
-          // la jauge monte et redescend : tout l'art est de relâcher au bon moment
-          me.power += me.dir * dt / 1.25;
-          if (me.power >= 1) {
-            me.power = 1;
-            me.dir = -1;
-          } else if (me.power <= 0.04 && me.dir < 0) me.dir = 1;
-          hud.gauge(me.power, "Power");
-        } else if (me.charging) {
-          me.charging = false;
-          hud.gauge(null);
-          const v = speedOf(me.power), ch = Math.cos(me.el);
-          const d = [c.x + Math.sin(me.az) * 0.4, c.group.position.y + 2.7, PAD.z - 1.2, Math.sin(me.az) * ch * v, Math.sin(me.el) * v, -Math.cos(me.az) * ch * v];
-          me.follow = launch(d, true);
-          session.send("tir", d.map((n) => Math.round(n * 1000) / 1000));
-          c.swing = 0.0001;
-          me.left--;
-          me.cool = 1.3;
-          MF.sfx.play("swing");
-          if (me.left === 1) hud.flash("Last pumpkin!", { color: MF.PAL.yellow });
+      /* ---------------------------------------------------------------- la partie de chacun */
+      let score = 0, shots = SHOTS, reported = false, settle = 0, aim = { angle: 0.62, power: 0.72 }, drag = null, sway = 0, lastShot = -9, bonusDone = false, warned = false, builtFor = -1;
+      const awake = (p) => {
+        if (p.state !== "static") return;
+        p.state = "dyn";
+        if (!p.crow && !p.scored) {
+          p.scored = true;
+          gain(50, p.u, p.y);
         }
-        // bras de ma catapulte : il recule en chargeant
-        if (!c.swing) c.arm.rotation.x = -0.5 - (me.charging ? me.power * 0.45 : 0);
-        c.group.rotation.y = -me.az;
-        c.load.visible = me.left > 0 && me.cool <= 0.4 && !c.swing;
-        // pointillés : début de la trajectoire à la puissance actuelle
-        const v = speedOf(me.charging ? me.power : 0.5), ch = Math.cos(me.el);
-        for (let i = 0; i < dots.length; i++) {
-          const k = (i + 1) * 0.11;
-          dots[i].visible = running && me.left > 0 && me.cool <= 0;
-          dots[i].position.set(c.x + Math.sin(me.az) * (0.4 + ch * v * k), c.group.position.y + 2.7 + Math.sin(me.el) * v * k - 0.5 * G * k * k, PAD.z - 1.2 - Math.cos(me.az) * ch * v * k);
-        }
-        // caméra : derrière la catapulte ; elle accompagne un instant la citrouille en vol
-        const f = me.follow;
-        const flying = f && f.alive;
-        if (f && !f.alive) {
-          me.hold += dt;
-          if (me.hold > 1.1) {
-            me.follow = null;
-            me.hold = 0;
+        // ce qui reposait dessus perd son appui
+        for (const q of pieces) {
+          if (q.state !== "static" || !q.sup.includes(p)) continue;
+          q.sup = q.sup.filter((s) => s !== p);
+          const held = q.sup.filter((s) => s.state === "static");
+          if (q.onRaft) continue;
+          if (!held.length || held.every((s) => Math.abs(s.u - q.u) > hu(s))) {
+            // plus rien dessous, ou porte-à-faux : il bascule à son tour
+            q.va += (held.length ? Math.sign(q.u - held[0].u) : Math.sign(q.u - p.u) || 1) * -1.5;
+            awake(q);
           }
         }
-        camK = MF.damp(camK, f ? 1 : 0, f ? 2.2 : 3, dt);
-        const fx = f ? f.x : c.x, fz = f ? f.z : PAD.z, fy = f ? Math.max(f.y, Y0) : Y0;
-        camPos.set(c.x - Math.sin(me.az) * 4.6 + (fx - c.x) * 0.5 * camK, Y0 + 3.3 + Math.max(0, fy - Y0) * 0.35 * camK, PAD.z + Math.cos(me.az) * 4.6 + (fz - PAD.z) * 0.55 * camK);
-        camLook.set(c.x + Math.sin(me.az) * 14 + (fx - c.x - Math.sin(me.az) * 14) * camK * 0.85, Y0 + 2.2 + (fy - Y0 - 2.2) * camK * 0.7, PAD.z - 14 + (fz - PAD.z + 14) * camK * 0.85);
-        MF.cam.set(camera, camPos, camLook, 55);
-        void flying;
+      };
+      function gain(pts, u, y, text) {
+        score += pts;
+        if (ctx.active()) {
+          const [px, py] = screen(u, y + 0.5);
+          hud.pop(text || "+" + pts, px, py, { color: pts >= 500 ? "#ffe45c" : undefined });
+        }
       }
+      function pop(p) {
+        if (p.state === "gone") return;
+        p.state = "gone";
+        p.mesh.visible = false;
+        feathers.burst(wx(), p.y + 0.3, wz(p.u), 14, 0.7);
+        gain(500, p.u, p.y);
+        if (ctx.active()) MF.sfx.play("pop");
+        // un corbeau parti libère ce qui s'appuyait… rien ne s'appuie sur un corbeau
+      }
+      /** Point le plus proche d'un rectangle tourné (pièce p) pour un point (u, y) : renvoie la normale et la distance. */
+      function nearest(p, u, y) {
+        const c = Math.cos(p.a), s = Math.sin(p.a);
+        const du = u - p.u, dy = y - p.y;
+        // repère de la pièce : l'angle tourne dans le plan (u vers la droite de la caméra, y vers le haut)
+        const lx = du * c + dy * s, ly = -du * s + dy * c;
+        const cx = MF.clamp(lx, -p.w / 2, p.w / 2), cy = MF.clamp(ly, -p.h / 2, p.h / 2);
+        const ex = lx - cx, ey = ly - cy;
+        const d = Math.hypot(ex, ey);
+        if (d < 1e-6) return { d: 0, nu: -Math.sign(du) || -1, ny: 0, lx: cx, ly: cy };
+        return { d, nu: (ex * c - ey * s) / d, ny: (ex * s + ey * c) / d, lx: cx, ly: cy };
+      }
+      const raftAt = (u) => RAFTS.some((r) => Math.abs(u - r) < RAFT_W / 2);
+      function stepPieces(dt) {
+        let moving = false;
+        for (const p of pieces) {
+          if (p.state !== "dyn") continue;
+          moving = true;
+          p.vy -= G * dt;
+          p.u += p.vu * dt;
+          p.y += p.vy * dt;
+          p.a += p.va * dt;
+          const half = p.crow ? 0 : hy(p), halfW = hu(p);
+          const low = p.y - half; // le dessous de la pièce
+          // une pièce qui tombe réveille ou écrase ce qu'elle rencontre
+          for (const q of pieces) {
+            if (q === p || q.state === "gone") continue;
+            const qc = q.crow ? q.y + 0.3 : q.y, pc = p.crow ? p.y + 0.3 : p.y;
+            if (Math.abs(q.u - p.u) > hu(q) + halfW || Math.abs(qc - pc) > hy(q) + (p.crow ? 0.3 : half)) continue;
+            const speed = Math.hypot(p.vu, p.vy);
+            if (q.crow && speed > 1.4) pop(q);
+            else if (q.state === "static" && !q.crow && speed > 2.2 && low < top(q) - 0.12) {
+              q.vu += p.vu * 0.45;
+              q.vy += Math.max(0, p.vy * 0.2);
+              q.va += (Math.random() - 0.5) * 2;
+              p.vu *= 0.55;
+              p.vy *= 0.55;
+              awake(q);
+            } else if (q.state === "static" && !q.crow && p.vy < 0 && low < top(q) && low > top(q) - 0.3 && Math.abs(q.u - p.u) < hu(q) + halfW * 0.4) {
+              // se pose sur une pièce restée debout
+              p.y = top(q) + half;
+              p.vy *= -0.15;
+              p.vu *= 0.6;
+              if (settle1(p, dt)) rest(p, [q]);
+            }
+          }
+          if (p.state !== "dyn") continue;
+          if (low <= RAFT_Y && raftAt(p.u) && p.vy <= 0 && low > RAFT_Y - 0.5) {
+            if (p.crow && p.vy < -3) {
+              pop(p);
+              continue;
+            }
+            p.y = RAFT_Y + half;
+            p.vy *= -0.22;
+            p.vu *= 0.7;
+            if (settle1(p, dt)) rest(p, []);
+          } else if (p.y < WATER - 0.1) {
+            splash(p.u, p.crow ? 0.7 : 1);
+            if (p.crow) pop(p);
+            else {
+              p.state = "gone";
+              p.mesh.visible = false;
+            }
+          }
+        }
+        return moving;
+      }
+      /**
+       * Une pièce qui touche un appui : debout sur un petit côté, elle bascule dès qu'elle penche trop ;
+       * sinon elle revient à plat. Renvoie vrai quand elle peut s'immobiliser.
+       */
+      function settle1(p, dt) {
+        if (p.crow) return Math.abs(p.vy) < 0.7 && Math.abs(p.vu) < 0.6;
+        const quarter = Math.round(p.a / (Math.PI / 2)) * (Math.PI / 2);
+        const lean = p.a - quarter;
+        const upright = Math.abs(Math.round(p.a / (Math.PI / 2))) % 2 === 0;
+        const bw = upright ? p.w : p.h, bh = upright ? p.h : p.w; // base et hauteur dans cette position
+        const critical = Math.atan2(bw, bh) * 0.8;
+        p.va *= 1 - Math.min(1, 4 * dt); // le frottement de l'appui freine la rotation
+        if (Math.abs(lean) > critical) p.va += Math.sign(lean) * 11 * dt; // elle part à la renverse
+        else {
+          p.va -= lean * 45 * dt; // elle retombe sur sa base
+          p.va *= 1 - Math.min(1, 10 * dt);
+        }
+        // une poussée de côté fait pencher ce qui est haut et étroit
+        if (bh > bw * 1.5 && Math.abs(p.vu) > 0.3) p.va -= (p.vu / bh) * 4 * dt;
+        p.life = (p.life || 0) + dt;
+        return p.life > 5 || (Math.abs(lean) < 0.08 && Math.abs(p.va) < 0.6 && Math.abs(p.vy) < 0.8 && Math.abs(p.vu) < 0.6);
+      }
+      /** La pièce s'immobilise là où elle est, couchée ou debout (angle ramené au quart de tour le plus proche). */
+      function rest(p, sup) {
+        const low = foot(p);
+        p.state = "static";
+        p.vu = p.vy = p.va = 0;
+        p.life = 0;
+        p.sup = sup;
+        p.onRaft = !sup.length;
+        if (!p.crow) {
+          p.a = Math.round(p.a / (Math.PI / 2)) * (Math.PI / 2);
+          p.y = (sup.length ? top(sup[0]) : RAFT_Y) + hy(p);
+        } else p.y = sup.length ? top(sup[0]) : Math.max(RAFT_Y, low);
+      }
+      function stepBall(dt) {
+        if (!ball.on) return false;
+        ball.age += dt;
+        // pas fins : la citrouille est rapide
+        const n = Math.max(1, Math.ceil((Math.hypot(ball.vu, ball.vy) * dt) / 0.12));
+        const h = dt / n;
+        for (let i = 0; i < n && ball.on; i++) {
+          ball.vy -= G * h;
+          ball.u += ball.vu * h;
+          ball.y += ball.vy * h;
+          for (const p of pieces) {
+            if (p.state === "gone") continue;
+            if (p.crow) {
+              if (Math.hypot(p.u - ball.u, p.y + 0.3 - ball.y) < PR + 0.3) pop(p);
+              continue;
+            }
+            const c = nearest(p, ball.u, ball.y);
+            if (c.d >= PR) continue;
+            const vn = ball.vu * c.nu + ball.vy * c.ny;
+            ball.u += c.nu * (PR - c.d);
+            ball.y += c.ny * (PR - c.d);
+            if (vn >= 0) continue;
+            const impact = -vn, mb = 4;
+            if (impact > 1.3 || p.state === "dyn") {
+              // la pièce encaisse : elle part, tourne, et ce qu'elle portait tombe
+              const j = ((1.35 * impact) * (mb * p.m)) / (mb + p.m);
+              awake(p);
+              p.vu -= (c.nu * j) / p.m;
+              p.vy -= (c.ny * j) / p.m;
+              // couple : bras de levier (du centre de la pièce au point touché) × poussée
+              const ru = ball.u - c.nu * PR - p.u, ry = ball.y - c.ny * PR - p.y;
+              p.va += ((ru * -c.ny - ry * -c.nu) * j) / ((p.m * (p.w * p.w + p.h * p.h)) / 12 + 0.05);
+              ball.vu = (ball.vu + (c.nu * j) / mb) * 0.55;
+              ball.vy = (ball.vy + (c.ny * j) / mb) * 0.55;
+              if (ctx.active()) MF.sfx.play(impact > 6 ? "choc" : "toc");
+            } else {
+              ball.vu -= 1.4 * vn * c.nu;
+              ball.vy -= 1.4 * vn * c.ny;
+            }
+            ball.bounces += 1;
+          }
+          if (!ball.on) break;
+          if (ball.y - PR <= RAFT_Y && raftAt(ball.u) && ball.vy < 0 && ball.y > RAFT_Y - 0.3) {
+            ball.y = RAFT_Y + PR;
+            ball.vy *= -0.3;
+            ball.vu *= 0.5;
+            ball.bounces += 1.5;
+            if (ctx.active()) MF.sfx.play("toc");
+          } else if (ball.u < 9.2 && ball.y - PR < world.heightAt(SX, wz(ball.u)) && ball.u > 0.5) {
+            // retombée sur la berge
+            ball.on = false;
+          } else if (ball.y < WATER) {
+            splash(ball.u, 1.3);
+            ball.on = false;
+          }
+          if (ball.bounces > 4 || ball.age > 7 || ball.u > 34 || (ball.bounces >= 1.5 && Math.hypot(ball.vu, ball.vy) < 1.2)) ball.on = false;
+        }
+        ball.spin += dt * 6;
+        ball.mesh.visible = ball.on;
+        ball.mesh.position.set(wx(), ball.y, wz(ball.u));
+        ball.mesh.rotation.x = -ball.spin;
+        return true;
+      }
+      const velocity = (a) => ({ vu: Math.cos(a.angle) * a.power * VMAX, vy: Math.sin(a.angle) * a.power * VMAX });
+      function launch() {
+        const v = velocity(aim);
+        Object.assign(ball, { on: true, u: REST.u, y: REST.y, vu: v.vu, vy: v.vy, bounces: 0, age: 0 });
+        shots--;
+        settle = 0;
+        lastShot = session.time();
+        stock.forEach((m, i) => (m.visible = i < shots - 1));
+        MF.sfx.play("swing");
+        session.send("lance", [Math.round(v.vu * 100) / 100, Math.round(v.vy * 100) / 100, score]);
+      }
+      const scores = new Map();
+      session.on("lance", (d, peer) => {
+        if (!Array.isArray(d)) return;
+        scores.set(peer.uid, +d[2] || 0);
+        const g = ghosts.find((x) => !x.on);
+        if (g) Object.assign(g, { on: true, u: REST.u, y: REST.y, vu: MF.clamp(+d[0] || 0, -VMAX, VMAX), vy: MF.clamp(+d[1] || 0, -VMAX, VMAX) });
+      });
+      session.on("pts", (d, peer) => scores.set(peer.uid, +d || 0));
+
+      function reset(seed) {
+        buildPieces(seed);
+        builtFor = seed;
+        score = 0;
+        shots = SHOTS;
+        reported = bonusDone = warned = false;
+        settle = 0;
+        lastShot = -9;
+        ball.on = false;
+        ball.mesh.visible = false;
+        drag = null;
+        scores.clear();
+        stock.forEach((m, i) => (m.visible = i < shots - 1));
+      }
+      buildPieces(1);
 
       return {
-        me,
-        shots,
-        pults,
-        rafts,
-        bank: BANK,
-        raftX,
-        speedOf,
-        /** Où retomberait un tir (pour les essais) : direction, hausse, puissance, x de la catapulte, heure. */
-        simulate(az, el, power, x, t) {
-          const v = speedOf(power), ch = Math.cos(el);
-          const s = { x: x + Math.sin(az) * 0.4, y: H(x, PAD.z) + 2.78, z: PAD.z - 1.2, vx: Math.sin(az) * ch * v, vy: Math.sin(el) * v, vz: -Math.cos(az) * ch * v, alive: true, age: 0, mesh: null };
-          let pts = null;
-          for (let i = 0; i < 900 && pts === null; i++) pts = fly(s, 1 / 60, t + i / 60);
-          return { points: pts || 0, x: s.x, z: s.z };
-        },
+        pieces: () => pieces,
+        ball,
+        aim,
+        launch: () => launch(),
+        score: () => score,
+        shots: () => shots,
         enter() {
           input.use({ layout: "pointer", buttons: [{ id: "a", label: "LAUNCH", key: "Space" }] });
-          hud.stats([{ key: "score", label: "Score" }, { key: "left", label: "Pumpkins" }, { key: "wind", label: "Wind" }, { key: "time", label: "Time" }]);
-          hud.hint(input.touch ? "Drag to aim · hold LAUNCH to charge, release to fire" : "← → aim · ↑ ↓ elevation · hold Space or click to charge, release to launch");
+          hud.stats([{ key: "score", label: "Score" }, { key: "left", label: "Pumpkins" }, { key: "crows", label: "Crows" }]);
+          hud.hint(input.touch ? "Drag back anywhere, release to launch" : "Drag back with the mouse and release · or ← → power, ↑ ↓ angle, Space");
           sway = 0;
         },
         leave() {
           for (const d of dots) d.visible = false;
-          hud.gauge(null);
         },
         idle() {
-          for (const [, c] of pults) {
-            group.remove(c.group);
-            MF.dispose(c.group);
-          }
-          pults.clear();
-          for (const s of shots) {
-            s.alive = false;
-            s.mesh.visible = false;
+          for (const g of ghosts) {
+            g.on = false;
+            g.mesh.visible = false;
           }
         },
         onPhase(state, prev) {
-          if (state && state.phase === "countdown" && (!prev || prev.phase !== "countdown")) {
-            scores.clear();
-            wind = windOf(state.seed);
-            reported = false;
-            Object.assign(me, { az: 0, el: 0.78, power: 0, charging: false, left: state.opts.shots || 5, score: 0, cool: 0, follow: null });
-            for (const s of shots) {
-              s.alive = false;
-              s.mesh.visible = false;
-            }
-          }
+          if (state && state.phase === "countdown" && (!prev || prev.phase !== "countdown")) reset(state.seed);
         },
         update(dt, time) {
           const st = session.state, phase = st ? st.phase : "lobby";
           const t = session.time();
-          const running = !!st && phase === "run" && t < TIME_LIMIT;
-          if (st && st.seed && phase !== "lobby") wind = windOf(st.seed);
-          syncPults();
-          const tt = running || phase === "countdown" ? Math.max(0, t) : time;
-          for (const r of rafts) r.group.position.x = raftX(r, tt);
-          sock.rotation.y = wind >= 0 ? Math.PI / 2 : -Math.PI / 2;
-          sock.scale.z = 0.35 + Math.abs(wind) / 2.8;
-          for (const s of shots) {
-            if (!s.alive) continue;
-            const pts = fly(s, dt, tt);
-            if (pts === null || !s.mine) continue;
-            me.score += pts;
-            session.send("score", me.score);
-            if (ctx.active()) hud.flash(pts >= 50 ? "Bullseye! +50" : pts ? "+" + pts : world.waterAt(s.x, s.z) ? "Splash!" : "Missed…", { color: pts ? MF.PAL.yellow : "#ffffff", hold: 1.2 });
-            if (pts >= 30) MF.sfx.play("bravo");
-          }
-          for (const b of bits) {
-            if (b.life <= 0) continue;
-            b.life -= dt;
-            b.vy -= 12 * dt;
-            b.mesh.position.x += b.vx * dt;
-            b.mesh.position.y += b.vy * dt;
-            b.mesh.position.z += b.vz * dt;
-            if (b.life <= 0) b.mesh.visible = false;
-          }
-          for (const [, c] of pults) {
-            // bras qui bascule d'un coup au lancer, puis revient
-            if (!c.swing) continue;
-            c.swing += dt;
-            c.arm.rotation.x = c.swing < 0.14 ? -0.9 + (c.swing / 0.14) * 1.9 : MF.lerp(1.0, -0.5, MF.clamp((c.swing - 0.14) / 0.9, 0, 1));
-            if (c.swing > 1.1) {
-              c.swing = 0;
-              c.arm.rotation.x = -0.5;
+          const running = !!st && phase === "run";
+          // les citrouilles des autres : vol simple, plouf
+          for (const g of ghosts) {
+            if (!g.on) continue;
+            g.vy -= G * dt;
+            g.u += g.vu * dt;
+            g.y += g.vy * dt;
+            g.mesh.visible = true;
+            g.mesh.position.set(wx() + 0.9, g.y, wz(g.u));
+            if (g.y < WATER || g.u > 34) {
+              g.on = false;
+              g.mesh.visible = false;
+              if (g.y < WATER) splash(g.u, 1);
             }
           }
+          for (const s of splashes) {
+            if (s.t > 1) continue;
+            s.t += dt * 1.6;
+            s.ring.scale.setScalar((0.6 + s.t * 3.2) * (s.size || 1));
+            s.ring.material.opacity = Math.max(0, 0.8 * (1 - s.t));
+            if (s.t > 1) s.ring.visible = false;
+          }
+          feathers.update(dt);
+          const mine = ctx.active() && !!st && session.inRoster() && (phase === "run" || phase === "countdown");
+          if (mine && st.seed !== builtFor) reset(st.seed);
+          const flying = stepBall(dt);
+          const tumbling = stepPieces(dt);
+          place();
           if (!ctx.active()) return true;
-          const mine = !!st && session.inRoster() && (phase === "run" || phase === "countdown");
+
+          const aspect = camera.aspect || 1.6;
           if (mine) {
-            play(dt, t, running && !reported, st);
-            hud.set("score", me.score);
-            hud.set("left", me.left + " / " + (st.opts.shots || 5));
-            hud.set("wind", (wind > 0.05 ? "→ " : wind < -0.05 ? "← " : "") + Math.abs(wind).toFixed(1) + " m/s");
-            hud.set("time", Math.ceil(Math.max(0, TIME_LIMIT - Math.max(0, t))) + " s");
-            // fini : plus de citrouilles (et la dernière est retombée), ou temps écoulé
-            const flying = shots.some((s) => s.alive && s.mine);
-            if (phase === "run" && !reported && ((me.left <= 0 && !flying && !me.follow) || t >= TIME_LIMIT)) {
-              reported = true;
-              for (const d of dots) d.visible = false;
-              session.report({ score: me.score });
+            // vue de profil, depuis l'est : le lance-pierre à gauche, les radeaux à droite
+            const mid = (RAFTS[2] + RAFT_W / 2 + 1 - 3) / 2, half = (RAFTS[2] + RAFT_W / 2 + 1 + 3) / 2 + 0.6;
+            const fov = aspect < 1 ? 62 : 42;
+            const dist = MF.clamp(half / (Math.tan((fov * Math.PI) / 360) * aspect), 16, 64);
+            MF.cam.set(camera, { x: SX + dist, y: WATER + 4.6 + dist * 0.06, z: wz(mid) }, { x: SX, y: WATER + 3.4, z: wz(mid) }, fov);
+            camera.updateMatrixWorld();
+            const P = input.state.pointer, S = input.state;
+            const canShoot = running && !reported && shots > 0 && !ball.on && !tumbling && t - lastShot > 0.5;
+            // viser : on tire en arrière depuis n'importe où ; le lancer part dans l'autre sens
+            if (canShoot && P.down) drag = { x: P.nx, y: P.ny };
+            if (drag && P.isDown && canShoot) {
+              // un geste d'un cinquième de l'écran donne la pleine puissance
+              const du = (drag.x - P.nx) * half * 0.45, dy = ((drag.y - P.ny) * half * 0.45) / aspect;
+              const len = Math.hypot(du, dy);
+              if (len > 0.15) {
+                aim.power = MF.clamp(len / PULL, 0.12, 1);
+                aim.angle = MF.clamp(Math.atan2(dy, Math.max(0.05, du)), -0.25, 1.35);
+              }
+            } else if (S.x || S.y) {
+              aim.power = MF.clamp(aim.power + S.x * 0.5 * dt, 0.12, 1);
+              aim.angle = MF.clamp(aim.angle + S.y * 0.7 * dt, -0.25, 1.35);
             }
-            if (time - lastBoard > 0.3) {
-              lastBoard = time;
-              hud.board(st.roster.map((p) => ({ name: p.name, color: p.color, self: p.uid === ctx.self.uid, score: p.uid === ctx.self.uid ? me.score : scores.get(p.uid) || 0 })).sort((a, b) => b.score - a.score).map((r) => ({ name: r.name, color: r.color, self: r.self, text: r.score + " pts" })));
+            const released = drag && (P.up || !P.isDown);
+            if (canShoot && ((released && aim.power > 0.14) || S.hit.a)) launch();
+            if (!P.isDown) drag = null;
+            // la poche, les élastiques, la trajectoire
+            const pull = canShoot ? aim.power * PULL * (drag || S.x || S.y ? 1 : 0.35) : 0;
+            const pu = REST.u - Math.cos(aim.angle) * pull, py = REST.y - Math.sin(aim.angle) * pull;
+            loaded.visible = canShoot || (running && shots > 0 && !ball.on);
+            loaded.position.set(wx(), py, wz(pu));
+            FORK.forEach((f, i) => {
+              const b = bands[i];
+              const ax = f.x, ay = f.y, az = SZ, bx = wx(), by = loaded.visible ? py : REST.y, bz = loaded.visible ? wz(pu) : SZ;
+              b.position.set((ax + bx) / 2, (ay + by) / 2, (az + bz) / 2);
+              b.scale.z = Math.hypot(ax - bx, ay - by, az - bz);
+              b.lookAt(bx, by, bz);
+            });
+            const v = velocity(aim);
+            dots.forEach((d, i) => {
+              const tt = 0.09 * (i + 1);
+              d.visible = canShoot && (!!drag || S.x !== 0 || S.y !== 0 || input.touch === false);
+              if (d.visible) d.position.set(wx(), REST.y + v.vy * tt - 0.5 * G * tt * tt, wz(REST.u + v.vu * tt));
+            });
+            // fin de coup, fin de partie
+            const crows = pieces.filter((p) => p.crow && p.state !== "gone").length;
+            if (running && !reported) {
+              if (!flying && !tumbling) settle += dt;
+              else settle = 0;
+              if (!crows && !bonusDone && !flying && !tumbling) {
+                bonusDone = true;
+                if (shots > 0) {
+                  gain(1000 * shots, RAFTS[1], RAFT_Y + 3, "ALL CLEAR! +" + 1000 * shots);
+                  hud.flash("All clear! +" + 1000 * shots, { color: MF.PAL.yellow, hold: 2 });
+                  MF.sfx.play("bravo");
+                }
+              }
+              const out = (!crows && bonusDone) || (shots <= 0 && !flying && settle > 1.2) || t >= DURATION;
+              if (out && settle > 0.9) {
+                reported = true;
+                session.report({ score, crows: pieces.filter((p) => p.crow).length - crows, left: shots });
+              }
+              if (t > DURATION - 15 && !warned) {
+                warned = true;
+                hud.flash("15 seconds left!", { color: MF.PAL.yellow });
+              }
             }
+            hud.set("score", score);
+            hud.set("left", Math.max(0, shots));
+            hud.set("crows", crows);
+            if (running && Math.floor(time * 2) !== Math.floor((time - dt) * 2)) session.send("pts", score);
+            hud.board(
+              st.roster
+                .map((p) => ({ name: p.name, color: p.color, self: p.uid === ctx.self.uid, score: p.uid === ctx.self.uid ? score : scores.get(p.uid) || 0 }))
+                .sort((a, b) => b.score - a.score)
+                .map((r) => ({ name: r.name, color: r.color, self: r.self, text: r.score + " pts" })),
+            );
           } else {
+            loaded.visible = false;
             for (const d of dots) d.visible = false;
             sway += dt;
-            MF.cam.set(camera, { x: PAD.x + Math.sin(sway * 0.2) * 3.5, y: Y0 + 5.2, z: PAD.z + 8.5 }, { x: PAD.x, y: Y0 + 0.5, z: PAD.z - 14 }, 52);
+            MF.cam.set(camera, { x: SX + 13 + Math.sin(sway * 0.2) * 2, y: DECK + 6.5, z: SZ + 7 }, { x: SX, y: WATER + 1.5, z: wz(13) }, 50);
           }
           return true;
         },
