@@ -1,0 +1,16 @@
+/assets/*
+  Cache-Control: public, max-age=31536000, immutable
+/
+  Cache-Control: public, max-age=0, must-revalidate
+/index.html
+  Cache-Control: public, max-age=0, must-revalidate
+/moulin/
+  Cache-Control: public, max-age=0, must-revalidate
+/moulin/index.html
+  Cache-Control: public, max-age=0, must-revalidate
+/moulin2/
+  Cache-Control: public, max-age=0, must-revalidate
+/moulin2/index.html
+  Cache-Control: public, max-age=0, must-revalidate
+/moulin2/sponsors.json
+  Cache-Control: public, max-age=300

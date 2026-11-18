@@ -1,0 +1,279 @@
+// Construit le site statique publié dans dist/ à partir de src/.
+//
+//  src/portail.html        page d'accueil « / » : mot de passe qui mène au moulin (jeton {{gate:hash}})
+//  src/index.html          page du moulin (/moulin/, /3D/, /build/), avec les jetons {{asset:styles}} et {{asset:start}}
+//  src/start.js            chargeur progressif, avec le jeton {{asset:app}}
+//  src/app/v32/*.js        modules de la version 32 (ordre alphabétique)
+//  src/app/moulin.js       jeu complet (V31 dé-minifiée, avec les points d'accroche V32)
+//  src/styles/*.css        base.css puis les feuilles V32 (ordre alphabétique)
+//  src/moulin2/            « La Fête du Moulin » (/moulin2/) : jeux multijoueurs posés sur le moulin 3D
+//                          (NN-*.js, puis games/*.js, puis 99-host-moulin.js ; arcade.css ; p2p-entry.mjs).
+//                          Cette page est en anglais : 02-anglais.js traduit aussi l'habillage du moulin.
+//  src/static/             ressources inchangées (déjà nommées d'après leur contenu)
+//
+// Le résultat est préparé dans .build/dist puis remplace dist/ d'un seul coup.
+
+import { build, transform } from "esbuild";
+import crypto from "node:crypto";
+import fs from "node:fs/promises";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+import vm from "node:vm";
+
+const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
+const src = path.join(root, "src");
+const stage = path.join(root, ".build", "dist");
+const dist = path.join(root, "dist");
+const target = ["es2020", "safari15"];
+
+const hash = (content) => crypto.createHash("sha256").update(content).digest("hex").slice(0, 12);
+
+// Mot de passe de la page d'accueil « / » (minuscules, sans espaces autour). Simple barrière : seule
+// son empreinte SHA-256 est publiée, et /moulin/ reste ouvert à qui connaît l'adresse.
+const GATE_PASSWORD = "azerty";
+
+// Adresse publique du site, sans « / » final (par exemple "https://moulin.example.fr"). Elle sert
+// seulement à la page /moulin2/ : les réseaux sociaux (X, LinkedIn…) n'affichent l'image de partage
+// que si son adresse est complète. Vide : la page est publiée sans image de partage.
+const SITE_URL = process.env.SITE_URL || "";
+
+async function listFiles(dir, extension) {
+  try {
+    return (await fs.readdir(dir))
+      .filter((name) => name.endsWith(extension))
+      .sort()
+      .map((name) => path.join(dir, name));
+  } catch (error) {
+    if (error.code === "ENOENT") return [];
+    throw error;
+  }
+}
+
+async function concat(files, separator = "\n;\n") {
+  const parts = [];
+  for (const file of files) parts.push(await fs.readFile(file, "utf8"));
+  return parts.join(separator);
+}
+
+async function emit(name, extension, content, report) {
+  const file = `assets/${name}.${hash(content)}.${extension}`;
+  await fs.writeFile(path.join(stage, file), content);
+  report.files[file] = Buffer.byteLength(content);
+  return file;
+}
+
+async function minifyJs(code, sourcefile) {
+  const result = await transform(code, {
+    loader: "js",
+    minify: true,
+    target,
+    legalComments: "inline",
+    sourcefile,
+  });
+  for (const warning of result.warnings) console.warn(`${sourcefile}: ${warning.text}`);
+  return result.code;
+}
+
+async function main() {
+  const started = Date.now();
+  const report = { version: 32, builtAt: new Date().toISOString(), files: {} };
+  await fs.rm(path.join(root, ".build"), { recursive: true, force: true });
+  await fs.mkdir(path.join(stage, "assets"), { recursive: true });
+
+  // Ressources inchangées : copiées telles quelles.
+  await fs.cp(path.join(src, "static"), stage, { recursive: true });
+
+  // Jeu : modules V32 d'abord (ils s'enregistrent sur globalThis), puis le jeu qui démarre.
+  const appFiles = [...(await listFiles(path.join(src, "app", "v32"), ".js")), path.join(src, "app", "moulin.js")];
+  // Vérification de syntaxe fichier par fichier : l'erreur cite le bon fichier et la bonne ligne.
+  for (const file of appFiles)
+    await transform(await fs.readFile(file, "utf8"), { loader: "js", sourcefile: path.relative(root, file) }).catch((error) => {
+      throw new Error(error.message);
+    });
+  const app = await minifyJs(await concat(appFiles), "moulin.js");
+  const appFile = await emit("moulin", "js", app, report);
+
+  // Police des titres et des boutons (Lilita One, licence SIL OFL), commune au jeu /jeu/ et à la fête.
+  const jeuFontFile = await emit("lilita-one", "woff2", await fs.readFile(path.join(src, "jeu", "fonts", "lilita-one-latin.woff2")), report);
+
+  // La Fête du Moulin (/moulin2/) : un second script chargé avant le jeu du moulin, sur cette page
+  // seulement. Ordre : socle (fichiers numérotés avant 60), jeux, puis branchement sur le moulin.
+  const feteDir = path.join(src, "moulin2");
+  const feteAll = await listFiles(feteDir, ".js");
+  const feteOrder = (file) => parseInt(path.basename(file), 10) || 0;
+  // FETE_JEUX=rc,golf node scripts/build.mjs : ne garder que ces jeux (mise au point, jamais pour publier).
+  const feteOnly = process.env.FETE_JEUX ? process.env.FETE_JEUX.split(",") : null;
+  const feteGames = (await listFiles(path.join(feteDir, "games"), ".js")).filter((f) => !feteOnly || feteOnly.includes(path.basename(f, ".js")));
+  const feteFiles = [...feteAll.filter((f) => feteOrder(f) < 60), ...feteGames, ...feteAll.filter((f) => feteOrder(f) >= 60)];
+  for (const file of feteFiles)
+    await transform(await fs.readFile(file, "utf8"), { loader: "js", sourcefile: path.relative(root, file) }).catch((error) => {
+      throw new Error(error.message);
+    });
+  // /moulin2 est en anglais : le dictionnaire de 02-anglais.js (le même que dans le navigateur) sert
+  // ici à traduire le HTML de la page, pour que l'écran de chargement soit déjà en anglais.
+  const anglaisBox = {};
+  vm.runInNewContext(await fs.readFile(path.join(feteDir, "02-anglais.js"), "utf8"), anglaisBox);
+  const anglais = anglaisBox.MoulinFeteAnglais;
+  const htmlDecode = (s) => s.replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&nbsp;/g, "\u00a0").replace(/&amp;/g, "&");
+  const htmlEncode = (s, attribute) => {
+    const text = s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+    return attribute ? text.replace(/"/g, "&quot;") : text;
+  };
+  const englishPage = (page) =>
+    page
+      .split(/(<script\b[\s\S]*?<\/script>|<style\b[\s\S]*?<\/style>)/)
+      .map((part, i) =>
+        i % 2
+          ? part
+          : part
+              .replace(/(?<=\s)(title|aria-label|placeholder|alt)="([^"]*)"/g, (all, name, value) => {
+                const t = anglais.translate(htmlDecode(value), true);
+                return t === null ? all : `${name}="${htmlEncode(t, true)}"`;
+              })
+              .replace(/>([^<>]+)</g, (all, text) => {
+                const t = anglais.translate(htmlDecode(text), false);
+                return t === null ? all : ">" + htmlEncode(t) + "<";
+              }),
+      )
+      .join("");
+  // Connexion directe entre navigateurs (Trystero, licence MIT) : fichier à part, chargé à la demande.
+  const p2p = await build({ entryPoints: [path.join(feteDir, "p2p-entry.mjs")], bundle: true, format: "iife", minify: true, target, write: false, legalComments: "none", logLevel: "warning" });
+  const p2pFile = await emit("p2p", "js", "/* Trystero 0.27 — https://github.com/dmotz/trystero — licence MIT (voir LICENCES.txt) */\n" + p2p.outputFiles[0].text, report);
+  const feteSource = (await concat(feteFiles)).replaceAll("{{asset:p2p}}", p2pFile);
+  const feteFile = await emit("arcade", "js", await minifyJs(feteSource, "arcade.js"), report);
+  const feteCssSource = (await fs.readFile(path.join(feteDir, "arcade.css"), "utf8")).replaceAll("{{asset:fete-font}}", path.basename(jeuFontFile));
+  const feteCss = await transform(feteCssSource, { loader: "css", minify: true, target: ["safari15"] });
+  const feteCssFile = await emit("arcade", "css", feteCss.code, report);
+  if (/\{\{asset:/.test(feteSource + feteCss.code)) throw new Error("Jeton {{asset:…}} non remplacé dans la fête");
+
+  // Styles.
+  const styleFiles = await listFiles(path.join(src, "styles"), ".css");
+  styleFiles.sort((a, b) => (a.endsWith("base.css") ? -1 : b.endsWith("base.css") ? 1 : a.localeCompare(b)));
+  const css = await transform(await concat(styleFiles, "\n"), { loader: "css", minify: true, target: ["safari15"] });
+  const cssFile = await emit("styles", "css", css.code, report);
+
+  // Chargeur.
+  let start = await fs.readFile(path.join(src, "start.js"), "utf8");
+  start = start.replaceAll("{{asset:app}}", appFile).replaceAll("{{asset:arcade}}", feteFile);
+  const startFile = await emit("start", "js", await minifyJs(start, "start.js"), report);
+
+  // Page.
+  let html = await fs.readFile(path.join(src, "index.html"), "utf8");
+  html = html.replaceAll("{{asset:styles}}", cssFile).replaceAll("{{asset:start}}", startFile);
+  if (/\{\{asset:/.test(html)) throw new Error("Jeton {{asset:…}} non remplacé dans index.html");
+  // Trois adresses pour la même page : /moulin (Personnage, Vue libre, Météo), /3D (avec la vue 3D)
+  // et /build (vue 3D et atelier « Aménager »), pour que l'atelier ne soit ouvert qu'à qui connaît
+  // l'adresse. Les pages lisent les ressources à la racine (<base>). Elles ne sont pas indexées par
+  // les moteurs de recherche : on y entre par le mot de passe de « / » ou en connaissant l'adresse.
+  const pageFor = (route) => {
+    const drop = (mode) => {
+      const button = new RegExp(`\\n[ \\t]*<button type="button" data-mode="${mode}"[^\\n]*?</button>`);
+      if (!button.test(page)) throw new Error(`Bouton « ${mode} » introuvable dans index.html`);
+      page = page.replace(button, "");
+    };
+    let page = html.replace(/<p data-help-route="([^"]+)">.*?<\/p>/g, (paragraph, routes) =>
+      routes.split(" ").includes(route) ? paragraph.replace(/ data-help-route="[^"]+"/, "") : "",
+    );
+    if (route !== "3d" && route !== "build") drop("orbit");
+    if (route !== "build") drop("editor");
+    if (route) {
+      if (!page.includes('<html lang="fr">') || !page.includes("<head>")) throw new Error("En-tête de index.html inattendu");
+      page = page
+        .replace('<html lang="fr">', `<html lang="fr" data-route="${route}">`)
+        .replace("<head>", '<head>\n<base href="../">' + (route === "moulin2" ? "" : '\n<meta name="robots" content="noindex,nofollow">'));
+    }
+    if (route === "moulin2") {
+      // La fête est publique (indexée, partageable) et en anglais : textes de la page, titre,
+      // description, styles.
+      page = englishPage(page).replace('<html lang="fr" data-route="moulin2">', '<html lang="en" data-route="moulin2">');
+      if (!page.includes('<html lang="en" data-route="moulin2">')) throw new Error("En-tête de index.html inattendu (langue)");
+      const title = "Dream Mill Fest · 35 multiplayer fairground games in a 3D garden";
+      const description = "Bumper cars, a pumpkin slingshot, lumberjack games, a rubber duck derby, fishing, mini-golf, RC car, boat and drone races, a Ferris wheel, a hot-air balloon, a campfire and a deck to sit and work by the pond: 27 fairground games for 1 to 8 players, right in your browser, in the 3D garden of an old watermill in Brittany.";
+      const swap = (pattern, text) => {
+        if (!pattern.test(page)) throw new Error("En-tête de index.html inattendu (" + pattern + ")");
+        page = page.replace(pattern, text);
+      };
+      swap(/<title>[^<]*<\/title>/, `<title>${title}</title>`);
+      swap(/<meta name="description" content="[^"]*">/, `<meta name="description" content="${description}">`);
+      swap(
+        /<link rel="stylesheet" href="[^"]+">/,
+        (link) =>
+          `${link}\n<link rel="stylesheet" href="${feteCssFile}">\n<meta property="og:type" content="website">\n<meta property="og:title" content="${title}">\n<meta property="og:description" content="${description}">\n<meta name="twitter:card" content="summary_large_image">\n<meta name="twitter:title" content="${title}">\n<meta name="twitter:description" content="${description}">` +
+          (SITE_URL
+            ? `\n<link rel="canonical" href="${SITE_URL}/moulin2/">\n<meta property="og:url" content="${SITE_URL}/moulin2/">\n<meta property="og:image" content="${SITE_URL}/moulin2/partage.jpg">\n<meta property="og:image:width" content="1200">\n<meta property="og:image:height" content="630">\n<meta name="twitter:image" content="${SITE_URL}/moulin2/partage.jpg">`
+            : ""),
+      );
+    }
+    return page;
+  };
+  for (const [dir, route] of [["moulin", "moulin"], ["3D", "3d"], ["build", "build"], ["moulin2", "moulin2"]]) {
+    await fs.mkdir(path.join(stage, dir), { recursive: true });
+    await fs.writeFile(path.join(stage, dir, "index.html"), pageFor(route));
+  }
+
+  // Jeu « Pas touche à mes trésors » : page /jeu/ et ses scripts (socle, simulation, modèles,
+  // personnages, effets, rendu, interface, puis main.js qui démarre la partie).
+  const jeuDir = path.join(src, "jeu");
+  const jeuFiles = [];
+  for (const part of ["core", "sim", "models", "fx", "actors", "render", "ui"]) jeuFiles.push(...(await listFiles(path.join(jeuDir, part), ".js")));
+  jeuFiles.push(path.join(jeuDir, "main.js"));
+  for (const file of jeuFiles)
+    await transform(await fs.readFile(file, "utf8"), { loader: "js", sourcefile: path.relative(root, file) }).catch((error) => {
+      throw new Error(error.message);
+    });
+  const jeuFile = await emit("jeu", "js", await minifyJs(await concat(jeuFiles), "jeu.js"), report);
+  // Seul BufferGeometryUtils sert encore (fusion de géométries des effets) : plus de modèle GLB à charger.
+  const vendorFiles = ["BufferGeometryUtils.js"].map((f) => path.join(jeuDir, "vendor", f));
+  const jeuVendorFile = await emit("jeu-vendor", "js", await minifyJs(await concat(vendorFiles), "jeu-vendor.js"), report);
+  // (La police Lilita One est émise plus haut ; sa licence est jointe à côté de la page du jeu.)
+  const jeuCssSource = (await fs.readFile(path.join(jeuDir, "jeu.css"), "utf8")).replaceAll("{{asset:jeu-font}}", path.basename(jeuFontFile));
+  const jeuCss = await transform(jeuCssSource, { loader: "css", minify: true, target: ["safari15"] });
+  const jeuCssFile = await emit("jeu", "css", jeuCss.code, report);
+  let jeuBoot = await fs.readFile(path.join(jeuDir, "boot.js"), "utf8");
+  jeuBoot = jeuBoot.replaceAll("{{asset:jeu-js}}", "../" + jeuFile).replaceAll("{{asset:jeu-vendor}}", "../" + jeuVendorFile);
+  const jeuBootFile = await emit("jeu-boot", "js", await minifyJs(jeuBoot, "jeu-boot.js"), report);
+  let jeuHtml = await fs.readFile(path.join(jeuDir, "index.html"), "utf8");
+  jeuHtml = jeuHtml.replaceAll("{{asset:jeu-css}}", "../" + jeuCssFile).replaceAll("{{asset:jeu-boot}}", "../" + jeuBootFile);
+  if (/\{\{asset:/.test(jeuHtml + jeuBoot + jeuCss.code)) throw new Error("Jeton {{asset:…}} non remplacé dans le jeu");
+  await fs.mkdir(path.join(stage, "jeu"), { recursive: true });
+  await fs.writeFile(path.join(stage, "jeu", "index.html"), jeuHtml);
+  await fs.copyFile(path.join(jeuDir, "fonts", "OFL-LilitaOne.txt"), path.join(stage, "jeu", "OFL-LilitaOne.txt"));
+
+  // Accueil « / » : le mot de passe qui mène à /moulin/ (servie aussi pour toute adresse inconnue,
+  // qu'elle renvoie vers /moulin/, /3D/, /build/ ou /jeu/ quand seule la casse diffère).
+  const gateHash = crypto.createHash("sha256").update(GATE_PASSWORD.trim().toLowerCase()).digest("hex");
+  const gateHtml = (await fs.readFile(path.join(src, "portail.html"), "utf8")).replaceAll("{{gate:hash}}", gateHash);
+  if (/\{\{(asset|gate):/.test(gateHtml)) throw new Error("Jeton non remplacé dans portail.html");
+  await fs.writeFile(path.join(stage, "index.html"), gateHtml);
+
+  // Vérification : chaque ressource citée par le chargeur et la page existe.
+  const referenced = new Set([...`${html}\n${start}\n${jeuHtml}\n${jeuBoot}\n${feteSource}\n${feteCssFile}`.matchAll(/assets\/[A-Za-z0-9_.-]+\.[a-z0-9]+/g)].map((m) => m[0]));
+  const plan = JSON.parse(await fs.readFile(path.join(stage, "assets", path.basename(start.match(/assets\/garden-assets\.[a-f0-9]+\.json/)[0])), "utf8"));
+  for (const texture of Object.values(plan.textures || {})) referenced.add(texture.uri);
+  for (const file of referenced) {
+    await fs.access(path.join(stage, file)).catch(() => {
+      throw new Error(`Ressource manquante : ${file}`);
+    });
+  }
+
+  let total = 0;
+  let count = 0;
+  for await (const entry of await fs.opendir(path.join(stage, "assets"))) {
+    total += (await fs.stat(path.join(stage, "assets", entry.name))).size;
+    count++;
+  }
+  report.assets = { count, bytes: total };
+  report.durationMs = Date.now() - started;
+  await fs.writeFile(path.join(root, ".build", "build-report.json"), JSON.stringify(report, null, 2));
+
+  await fs.rm(dist, { recursive: true, force: true });
+  await fs.rename(stage, dist);
+  console.log(
+    `dist/ prêt : ${count} ressources, ${(total / 1048576).toFixed(2)} Mo · ${appFile} (${(Buffer.byteLength(app) / 1024).toFixed(0)} Ko) · ${report.durationMs} ms`,
+  );
+}
+
+main().catch((error) => {
+  console.error(error);
+  process.exit(1);
+});

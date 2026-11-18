@@ -1,0 +1,262 @@
+<!doctype html>
+<html lang="en" data-route="moulin2">
+<head>
+<base href="../">
+<meta charset="utf-8">
+<script>
+/* Adresses /3D et /build tapées autrement (/3d, /Build…) : vers la page dédiée. */
+(function(){var r=document.documentElement.getAttribute("data-route")||"",m=/^(.*?\/)(3d|build)\/?$/i.exec(location.pathname);if(m&&m[2].toLowerCase()!==r)location.replace(m[1]+(m[2].toLowerCase()==="3d"?"3D/":"build/")+location.search+location.hash);})();
+</script>
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="description" content="Bumper cars, a pumpkin slingshot, lumberjack games, a rubber duck derby, fishing, mini-golf, RC car, boat and drone races, a Ferris wheel, a hot-air balloon, a campfire and a deck to sit and work by the pond: 27 fairground games for 1 to 8 players, right in your browser, in the 3D garden of an old watermill in Brittany.">
+<title>Dream Mill Fest · 35 multiplayer fairground games in a 3D garden</title>
+
+
+<link rel="stylesheet" href="assets/styles.833300f19fc2.css">
+<link rel="stylesheet" href="assets/arcade.df42993118d1.css">
+<meta property="og:type" content="website">
+<meta property="og:title" content="Dream Mill Fest · 35 multiplayer fairground games in a 3D garden">
+<meta property="og:description" content="Bumper cars, a pumpkin slingshot, lumberjack games, a rubber duck derby, fishing, mini-golf, RC car, boat and drone races, a Ferris wheel, a hot-air balloon, a campfire and a deck to sit and work by the pond: 27 fairground games for 1 to 8 players, right in your browser, in the 3D garden of an old watermill in Brittany.">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Dream Mill Fest · 35 multiplayer fairground games in a 3D garden">
+<meta name="twitter:description" content="Bumper cars, a pumpkin slingshot, lumberjack games, a rubber duck derby, fishing, mini-golf, RC car, boat and drone races, a Ferris wheel, a hot-air balloon, a campfire and a deck to sit and work by the pond: 27 fairground games for 1 to 8 players, right in your browser, in the 3D garden of an old watermill in Brittany.">
+<script defer src="assets/start.0b8152b48843.js"></script>
+</head>
+<body>
+<main>
+<header><h1>The Dream Mill</h1><p>Version 31 · Explore and landscape</p></header>
+<div id="moulin-vallee-3d" class="game19 game22" data-build="31" data-mode="orbit" data-editor-collapsed="false">
+
+  <div class="moulin-toolbar">
+    <button class="btn mode-trigger31" type="button" data-mode-trigger31 aria-expanded="false" aria-controls="moulin-modes31" aria-label="Switch view"><span class="game22-mode-icon" data-mode-icon31 aria-hidden="true"></span><span data-mode-label31>Character</span><svg class="mode-chevron31" viewBox="0 0 12 12" aria-hidden="true"><path d="m2 4 4 4 4-4"/></svg></button>
+    <div class="mode-switch" id="moulin-modes31" role="group" aria-label="Tour mode">
+      <button type="button" data-mode="fly" aria-pressed="false"><span class="game22-mode-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="m3 4 18 8-8 3-3 7-7-18Zm0 0 10 11"/></svg></span><span>Free view</span></button>
+      <button type="button" data-mode="play" aria-pressed="false"><span class="game22-mode-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><circle cx="12" cy="5" r="3"/><path d="M7 22v-4l-2-2 3-6h8l3 6-2 2v4M10 14v8m4-8v8"/></svg></span><span>Character</span></button>
+      <button type="button" data-mode="globe" aria-pressed="false" aria-label="Weather and the mill's snow globe" title="Weather at the mill"><span class="game22-mode-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><circle cx="9" cy="8.5" r="3.4"/><path d="M9 2.5v1.2M3 8.5h1.2M4.8 4.3l.9.9M13.2 4.3l-.9.9"/><path d="M8.5 19.5h9a3.6 3.6 0 0 0 .4-7.2 4.8 4.8 0 0 0-9.1 1.3 3 3 0 0 0-.3 5.9Z"/></svg></span><span class="globe26-long">Weather</span><span class="globe26-short">Weather</span></button>
+    </div>
+    <div class="game19-actions"><button class="btn" type="button" data-ui-settings aria-expanded="false" aria-controls="moulin-settings-19" title="Viewpoints, weather and quality"><span aria-hidden="true">☷</span><span class="game19-action-label">Settings</span></button><button class="btn" type="button" data-fullscreen aria-pressed="false" title="Go full screen"><span aria-hidden="true"><svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M8 3H3v5m13-5h5v5M3 16v5h5m13-5v5h-5"/></svg></span><span class="game19-action-label" data-fullscreen-label>Full screen</span></button></div>
+  </div>
+  <section class="game19-settings" id="moulin-settings-19" data-settings-panel aria-label="Tour settings" hidden>
+    <div class="game19-settings-title"><strong>The tour</strong><button class="btn" type="button" data-settings-close aria-label="Close settings">Close</button></div>
+<section class="ambience20-panel" aria-label="Wind and ambient sound">
+  <div class="ambience20-heading"><strong>Wind &amp; ambience</strong><span>At the garden's pace</span></div>
+  <label class="ambience20-wind" for="moulin-wind20"><span>Wind</span><select id="moulin-wind20" data-wind20><option value="0">None</option><option value="1" selected>Light</option><option value="2">Moderate</option><option value="3">Strong</option><option value="4">Very strong</option></select></label>
+  <button class="btn ambience20-sound" type="button" data-sound20 aria-pressed="false">Turn sound on</button>
+  <label class="ambience20-volume" for="moulin-volume20"><span>Volume <output data-volume-value20 for="moulin-volume20">55 %</output></span><input id="moulin-volume20" data-volume20 type="range" min="0" max="100" step="1" value="55" aria-label="Ambient sound volume"></label>
+  <label class="smoke21-control"><input type="checkbox" data-smoke21 checked><span>Chimney smoke<small>Two light plumes that follow the wind</small></span></label>
+  <p class="ambience20-status" data-audio-status20 role="status">Sound off · turn it on whenever you like</p>
+</section>
+
+    <div class="viz-row">
+      <label class="sr-only" for="moulin-view">Viewpoint</label>
+      <select class="form-select" id="moulin-view" data-view>
+        <option value="depart23">Start of the driveway</option><option value="jeu" selected>The mill · game landscape</option><option value="cosy20">Mill and garden</option><option value="realiste">Light and materials</option><option value="eaurive">Water at the foot of the terrace</option>
+        <option value="ambiance">Landscape and weather</option>
+        <option value="terrasse">The mill and the footbridges</option>
+        <option value="facade">The outbuilding and its left wing</option>
+        <option value="oiseaux">The swan and the geese</option>
+        <option value="promenade">At garden level</option>
+        <option value="photo">Front and gardens · drone view</option>
+        <option value="roue">The water wheel</option>
+        <option value="vannes">The two sluice gates and the millrace</option>
+        <option value="jardins">Gardens · without trees</option>
+        <option value="colline">The hill · without trees</option>
+        <option value="drone">Drone view of the ponds</option>
+        <option value="bief">The millrace on the terrace</option>
+        <option value="veranda">The conservatory and its pool</option>
+        <option value="pont">The bridge and the waterfall</option>
+        <option value="riviere">Millrace and river in the valley</option>
+        <option value="moulin">The mill and the island</option>
+        <option value="dependance">The outbuilding and the hill</option><option value="arriere">Back of the outbuilding</option><option value="fontaine">Little rockery fountain</option><option value="rocaille">Wall and rockery facing the mill</option><option value="cour">Courtyard, cars and carport</option><option value="hautmur">Land behind the wall</option><option value="escalier">Stairs under the camellias</option><option value="paliers">Garden terraces and stairs</option><option value="colline">The whole hill</option><option value="fauteuil">Armchair under the pines</option><option value="sousbois">Upper woodland path</option><option value="entree">Entrance and two low walls</option><option value="terrasse">Table and coral lounge set</option><option value="bois">Restored wooden bridge</option><option value="hydrologie">Plan of the ponds and streams</option><option value="petitbassin">Small pool and river past the bridge</option><option value="implantation">Building plan (without trees)</option><option value="pelouses">Lawn plan</option><option value="rive">Slope of the opposite bank</option><option value="sentiers">Woodland paths</option><option value="eau">Water and banks</option>
+        <option value="ensemble">The whole valley</option>
+        <option value="etage">From upstairs</option>
+        <option value="plan">Top view</option>
+      </select>
+      <select class="form-select quality-select" data-quality aria-label="Render quality"><option value="balanced" selected>Balanced · 30 fps</option><option value="detail">Detailed · 60 fps</option><option value="fast">Power saver · 24 fps</option></select>
+      <select class="form-select weather-select" data-weather aria-label="Weather"><option value="sun">Sun</option><option value="clouds">Overcast</option><option value="rain">Rain</option><option value="storm">Storm</option><option value="snow">Snow</option></select>
+      <label class="game22-night-setting"><span>Ambience</span><select class="form-select" data-night-mode22 aria-label="Landscape lighting"><option value="day">Day</option><option value="stars">Starry night</option><option value="black">Dark night</option></select></label>
+      <button class="btn" type="button" data-trees aria-pressed="true">Trees</button>
+      <button class="btn" type="button" data-motion aria-pressed="true">Animations</button>
+      <button class="btn" type="button" data-entry23>Restart from the entrance</button>
+      <button class="btn" type="button" data-reset title="Back to the chosen viewpoint">Recenter</button>
+    </div>
+  <div class="source-bar"><span data-source-state role="status">Shipped version · no local edits loaded</span><button class="btn" type="button" data-compare hidden>View the shipped version</button></div>
+  <details class="game19-help"><summary>Controls</summary><p>Character: WASD or arrows, Shift to run, drag to turn the camera. On a phone: joystick on the left (you run; “Walk” slows down) and look around on the right.</p></details>
+  </section>
+  <button class="btn game19-editor-toggle" type="button" data-editor-collapse aria-expanded="true" aria-controls="moulin-editor-19"><span aria-hidden="true">☷</span> <span data-editor-collapse-label>Hide tools</span></button>
+  <div class="game19-toast" data-shell-status role="status" aria-live="polite" hidden></div>
+  <div class="globe26-bar" data-globe26-bar hidden><button type="button" data-globe26-rotate aria-pressed="false">Spin</button><button type="button" data-globe26-recenter>Recenter the mill</button></div>
+  <div class="flight-bar" data-flight-bar hidden>
+    <span><b>WASD</b> move and strafe · <b>Mouse</b> look · <b>Space / Ctrl</b> up / down · <b>Shift</b> speed up</span>
+    <label>Speed <input type="range" min="2" max="25" value="6" step="1" data-flight-speed><output data-flight-speed-value>6 m/s</output></label>
+    <label><input type="checkbox" data-flight-collision checked> Stay above ground</label>
+    <button class="btn" type="button" data-flight-start>Back to the garden</button>
+  </div>
+  <div class="moulin-workspace">
+    <div class="moulin-canvas" data-scene>
+      <div class="moulin-loading" data-loading><strong>Raising the big top…</strong><p data-load-detail>Setting up the fairground…</p><p data-load-help>Sur iPhone, ouvre l’adresse HTTPS du site dans Safari ou Chrome. Le fichier local ne suffit pas pour cette version.</p><button class="btn" data-retry type="button" hidden>Reload</button></div>
+      <div class="touch-flight" aria-label="Touch movement"><div class="touch-pad"><button data-fly-key="z" aria-label="Forward">↑</button><div><button data-fly-key="q" aria-label="Left">←</button><button data-fly-key="s" aria-label="Back">↓</button><button data-fly-key="d" aria-label="Right">→</button></div></div><div class="touch-lift"><button data-fly-key=" " aria-label="Up">+</button><button data-fly-key="control" aria-label="Down">−</button></div></div>
+      <div class="fly-hint" data-fly-hint hidden>Click the view to steer with the mouse · Esc to release the mouse</div>
+      <div class="canvas-note" data-orbit-note>Drag to rotate · Scroll to zoom · Right-click to pan</div>
+    </div>
+    <aside class="editor-panel" data-editor-panel id="moulin-editor-19" aria-label="Éditeur du paysage" hidden>
+      <div class="panel-title"><div><span class="eyebrow">L’ATELIER DU MOULIN</span><h2>Aménager le jardin</h2></div><span class="editor-badge">V28</span></div>
+      <label class="game19-navigate"><input type="checkbox" data-editor-navigate><span>Déplacer la vue<small>Suspend les outils, autorise les gestes tactiles</small></span></label>
+      <div class="history-actions"><button class="btn" type="button" data-undo disabled>↶ Annuler</button><button class="btn" type="button" data-redo disabled>↷ Rétablir</button></div>
+      <fieldset><legend>Sélection et arbres</legend><div class="tool-grid two">
+        <button class="btn" type="button" data-tool="select" aria-pressed="true">Sélectionner un élément</button><button class="btn" type="button" data-tool="add" aria-pressed="false">Planter un arbre</button>
+      </div></fieldset>
+      <div data-tool-panel="add" hidden>
+        <label class="field">Arbre à planter<select data-add-species><option value="oak">Feuillu à bouquets</option><option value="pine">Sapin à étages</option><option value="birch">Bouleau fin</option><option value="old">Vieux chêne étalé</option></select></label>
+        <p class="hint">Cliquez sur le sol pour planter. Passez à « Sélectionner » pour déplacer l’arbre.</p>
+      </div>
+      <div data-tool-panel="select add">
+        <p class="hint">Échap : revenir en vue libre depuis cette position.</p><p class="hint" data-selection-empty>Cliquez sur un arbre ou un objet, puis glissez-le vers sa nouvelle place. Clic droit pour déplacer la vue ; Alt + glisser pour tourner.</p>
+        <div class="tree-details" data-tree-details hidden>
+          <p class="selected-name" data-tree-name>Arbre sélectionné</p>
+          <label class="field">Type<select data-tree-species><option value="oak">Feuillu à bouquets</option><option value="pine">Sapin à étages</option><option value="birch">Bouleau fin</option><option value="old">Vieux chêne étalé</option></select></label>
+          <label class="slider-field"><span>Hauteur <output data-tree-height-value></output></span><input type="range" min="1" max="45" step=".1" data-tree-height value="16"></label>
+          <label class="slider-field"><span>Diamètre du tronc <output data-tree-diameter-value></output></span><input type="range" min=".05" max="3" step=".01" data-tree-diameter value=".7"></label>
+          <label class="slider-field"><span>Largeur de la couronne <output data-tree-spread-value></output></span><input type="range" min=".35" max="2" step=".01" data-tree-spread value="1"></label>
+          <details><summary>Position précise</summary><div class="coordinates"><label>X (m)<input type="number" data-tree-x step=".1"></label><label>Z (m)<input type="number" data-tree-z step=".1"></label></div></details>
+          <div class="tool-grid two"><button class="btn" type="button" data-tree-duplicate>Dupliquer</button><button class="btn" type="button" data-tree-delete>Supprimer</button></div>
+        </div>
+      </div>
+
+      <div data-object-details hidden class="tree-details game19-object-details">
+        <p class="selected-name" data-object-name>Objet sélectionné</p>
+        <label class="field">Modèle<select data-object-type aria-label="Modèle de l’objet"></select></label>
+        <div class="editor-precision-grid">
+          <label>X (m)<input type="number" data-object-x step=".1"></label>
+          <label>Z (m)<input type="number" data-object-z step=".1"></label>
+          <label>Décalage vertical (m)<input type="number" data-object-yOffset step=".05" min="-5" max="20" value="0"></label>
+          <label>Rotation (°)<input type="number" data-object-rotation step="5" value="0"></label>
+          <label>Taille ×<input type="number" data-object-scale min=".1" max="5" step=".05" value="1"></label>
+          <label>Variante<select data-object-variant><option value="0">Naturelle</option><option value="1">Variante 2</option><option value="2">Variante 3</option><option value="3">Variante 4</option></select></label>
+        </div>
+        <div class="object-colour21" data-object-color-panel hidden>
+  <label class="field">Couleur<input type="color" data-object-color value="#b6a58b" aria-label="Couleur de l’objet"></label>
+  <div class="object-colour21-palette" aria-label="Couleurs proposées">
+    <button type="button" data-object-color-preset="#b6a58b" style="--swatch:#b6a58b" aria-label="Beige naturel" title="Beige naturel"></button>
+    <button type="button" data-object-color-preset="#e7e2d5" style="--swatch:#e7e2d5" aria-label="Blanc cassé" title="Blanc cassé"></button>
+    <button type="button" data-object-color-preset="#d0cbbb" style="--swatch:#d0cbbb" aria-label="Écru grisé" title="Écru grisé"></button>
+    <button type="button" data-object-color-preset="#9b8062" style="--swatch:#9b8062" aria-label="Bois brun" title="Bois brun"></button>
+    <button type="button" data-object-color-preset="#838579" style="--swatch:#838579" aria-label="Gris pierre" title="Gris pierre"></button>
+  </div>
+  <button class="btn" type="button" data-object-color-reset>Couleur naturelle</button>
+</div>
+<div class="tool-grid two"><button class="btn" type="button" data-object-duplicate>Dupliquer</button><button class="btn" type="button" data-object-delete>Supprimer</button></div>
+      </div>
+      <fieldset class="game19-catalog"><legend>Objets et plantations</legend>
+        <label class="sr-only" for="moulin-catalog-search">Rechercher dans le catalogue</label>
+        <input id="moulin-catalog-search" data-catalog-search type="search" placeholder="Transat, fougère, amphore…" autocomplete="off">
+        <label class="sr-only" for="moulin-catalog-category">Catégorie du catalogue</label>
+        <select id="moulin-catalog-category" data-catalog-category><option value="all">Tout le catalogue</option><option value="Mobilier">Mobilier</option><option value="Jardin">Jardin</option><option value="Végétation">Végétation</option><option value="Sous-bois">Sous-bois</option><option value="Bambous">Bambous</option><option value="Berges">Berges · Carex</option><option value="Décoration">Décoration</option></select>
+        <div class="game19-catalog-grid" data-catalog-grid aria-label="Modèles à placer"></div>
+        <p class="game19-catalog-current" data-catalog-current>Choisis un objet dans le catalogue.</p>
+        <div class="tool-grid two"><button class="btn" type="button" data-tool="object" aria-pressed="false">Placer l’objet</button><button class="btn" type="button" data-tool="scatter" aria-pressed="false">Peindre des massifs</button></div>
+      </fieldset>
+      <div data-tool-panel="object scatter" hidden>
+        <div class="editor-precision-grid"><label>Rotation (°)<input type="number" data-placement-rotation step="5" value="0"></label><label>Taille ×<input type="number" data-placement-scale min=".1" max="5" step=".05" value="1"></label></div>
+        <label class="field" data-tool-panel="scatter" hidden>Espacement (m)<input type="number" data-scatter-spacing min="1" max="8" step=".25" value="2"></label>
+        <p class="hint">Choisis un modèle, puis touche le sol pour le placer. Pour les massifs, garde le doigt ou le clic appuyé en avançant.</p>
+      </div>
+      <details class="game19-object-index"><summary>Objets placés <span data-object-count>0</span></summary><label class="sr-only" for="moulin-object-list">Sélectionner un objet placé</label><select id="moulin-object-list" data-object-list><option value="">Choisir un objet…</option></select></details>
+            <fieldset><legend>Les berges des étangs</legend><button class="btn wide" type="button" data-tool="shore" aria-pressed="false">Remodeler une berge</button></fieldset>
+      <div data-tool-panel="shore" hidden>
+        <label class="field">Étang à modifier<select data-shore-pond aria-label="Étang à modifier"></select></label>
+        <button class="btn wide" type="button" data-shore-focus>Voir cet étang de dessus</button>
+        <label class="field">Largeur du geste (m)<input type="range" data-shore-radius min="3" max="18" step="1" value="8"></label>
+        <p class="hint">Glisse le contour doré vers la terre ou vers l’eau, puis applique. Les ponts et les arrivées du bief restent en place. Clic droit ou « Naviguer » pour déplacer la vue.</p>
+        <div class="tool-grid two"><button class="btn primary" type="button" data-shore-apply disabled>Appliquer la berge</button><button class="btn" type="button" data-shore-cancel disabled>Annuler l’aperçu</button></div>
+        <button class="btn wide" type="button" data-shore-reset>Revenir au contour d’origine</button>
+      </div>
+
+<fieldset><legend>Le relief</legend><div class="tool-grid two">
+        <button class="btn" type="button" data-tool="raise" aria-pressed="false">Get on</button><button class="btn" type="button" data-tool="lower" aria-pressed="false">Dig</button>
+        <button class="btn" type="button" data-tool="flatten" aria-pressed="false">Aplanir</button><button class="btn" type="button" data-tool="smooth" aria-pressed="false">Lisser</button>
+        <button class="btn" type="button" data-tool="ramp" aria-pressed="false">Pente avec aperçu</button><button class="btn" type="button" data-tool="terrace" aria-pressed="false">Plateau avec aperçu</button>
+        <button class="btn wide" type="button" data-tool="restore" aria-pressed="false">Restaurer le relief</button>
+      </div></fieldset>
+      <div data-tool-panel="raise lower flatten smooth restore" hidden>
+        <label class="slider-field"><span>Rayon <output data-brush-radius-value>4 m</output></span><input type="range" min=".5" max="30" value="4" step=".1" data-brush-radius></label>
+        <label class="slider-field"><span>Force <output data-brush-strength-value>0.6</output></span><input type="range" min=".05" max="6" value=".6" step=".05" data-brush-strength></label>
+        <div class="editor-precision-grid"><label>Rayon exact (m)<input type="number" min=".5" max="30" step=".1" value="4" data-brush-radius-exact></label><label>Force (m/s)<input type="number" min=".05" max="6" step=".05" value=".6" data-brush-strength-exact></label></div>
+        <p class="hint">Maintiens le clic ou le doigt pour modeler. Les végétaux enracinés dans le sol modifié sont retirés. Annuler les restaure.</p>
+      </div>
+      <div data-tool-panel="raise lower flatten smooth ramp terrace restore" hidden>
+        <label class="field">Douceur des bords (%)<input type="number" min="0" max="100" step="5" value="45" data-brush-falloff></label>
+      </div>
+      <div data-tool-panel="flatten terrace ramp" hidden>
+        <label class="field">Altitude du côté plat (m)<input type="number" min="-12" max="100" step=".05" value="1.1" data-terrain-altitude></label>
+        <button type="button" class="btn wide" data-terrain-sample-altitude>Prendre la hauteur d’un point du sol</button>
+      </div>
+      <div data-tool-panel="ramp terrace" hidden class="terrain-stage21">
+        <p class="hint" data-tool-panel="ramp">1. Touche le centre du côté plat. 2. Touche le côté qui doit monter. La grille montre le résultat avant validation.</p>
+        <p class="hint" data-tool-panel="terrace">Touche le centre du plateau, ajuste sa hauteur, puis applique quand l’aperçu te convient.</p>
+        <div class="editor-precision-grid">
+          <label>Largeur (m)<input type="number" min="1" max="60" step=".25" value="6" data-terrain-width></label>
+          <label>Longueur totale (m)<input type="number" min="1" max="60" step=".25" value="10" data-terrain-length></label>
+          <label>Direction (°)<input type="number" min="0" max="360" step="5" value="0" data-terrain-angle></label>
+          <label data-tool-panel="ramp">Montée (m)<input type="number" min="-12" max="12" step=".1" value="2" data-terrain-delta></label>
+        </div>
+        <label class="field" data-tool-panel="ramp"><span><input type="checkbox" checked data-terrain-one-sided> Garder la moitié arrière plane</span></label>
+        <p class="terrain-legend21"><span class="fill21">Vert : ajouter</span> · <span class="cut21">Orange : creuser</span> · <span class="protected21">Rouge : protégé</span></p>
+        <p class="hint">Poignée verte : emplacement · dorée : direction et longueur · bleue : largeur. Tu peux aussi utiliser les valeurs ci-dessus.</p>
+        <p class="terrain-status21" data-terrain-preview-status role="status" aria-live="polite">Place un aperçu dans la scène.</p>
+        <div data-terrain-preview-actions hidden>
+          <div class="tool-grid two"><button type="button" class="btn" data-terrain-preview-move>Replacer le centre</button><button type="button" class="btn" data-terrain-preview-direction>Choisir le côté haut</button><button type="button" class="btn" data-terrain-rotate="-15">Tourner −15°</button><button type="button" class="btn" data-terrain-rotate="15">Tourner +15°</button></div>
+          <button type="button" class="btn wide primary" data-terrain-preview-apply disabled>Appliquer le relief</button>
+          <button type="button" class="btn wide" data-terrain-preview-cancel>Annuler cet aperçu</button>
+        </div>
+      </div>
+      <p class="editor-note" data-terrain-resolution-note data-tool-panel="raise lower flatten smooth ramp terrace restore" hidden>Les bâtiments, berges et escaliers restent protégés. La grille suit la précision du terrain existant. L’aperçu ne modifie rien avant « Appliquer ».</p>
+      <fieldset><legend>Les sentiers</legend><div class="tool-grid two"><button class="btn" type="button" data-tool="path" aria-pressed="false">Tracer des feuilles</button><button class="btn" type="button" data-tool="path-select" aria-pressed="false">Choisir / retirer</button></div></fieldset>
+      <div data-tool-panel="path" hidden>
+        <label class="slider-field"><span>Largeur <output data-path-width-value>1.2 m</output></span><input type="range" min=".6" max="4" value="1.2" step=".1" data-path-width></label>
+        <p class="hint">Touche les points du parcours, puis termine le tracé. Les feuilles suivent le relief.</p>
+        <div class="path-counter" data-path-count>0 point</div>
+        <button class="btn wide" type="button" data-path-back disabled>Retirer le dernier point</button>
+        <div class="tool-grid two"><button class="btn" type="button" data-path-finish disabled>Finish</button><button class="btn" type="button" data-path-cancel disabled>Effacer le tracé</button></div>
+      </div>
+      <div data-path-selection hidden><p data-path-selected-name></p><button type="button" class="btn wide" data-path-delete-selected>Supprimer ce sentier</button></div>
+      <details class="paths-index21" open><summary>Sentiers présents, y compris ceux d’origine</summary><p class="hint">Choisis un nom pour le voir dans la scène. Supprimer et Annuler fonctionnent aussi pour les sentiers d’origine.</p><p class="hint" data-path-empty hidden>Aucun sentier visible.</p><div data-path-list></div><div data-path-restore-list></div></details>
+      <p class="editor-status" data-editor-status role="status" aria-live="polite"></p>
+      <div class="save-box">
+        <p data-save-state>Les retouches sont conservées dans ce navigateur.</p>
+        <button type="button" class="btn wide primary" data-export-edits>Exporter mes retouches</button>
+        <button type="button" class="btn wide" data-import-edits>Importer mes retouches</button>
+        <input type="file" data-import-file accept="application/json,.json" hidden>
+        <p class="hint">Le HTML contient la maquette. Vos retouches restent dans ce navigateur. Pour les transférer ou me les renvoyer, exportez le JSON.</p>
+      </div>
+    </aside>
+  </div>
+  
+  
+</div>
+
+
+
+
+
+
+
+
+<footer><span>Free tour: WASD + mouse · Editor: trees, terrain and paths</span><span>Terrain and dimensions estimated from photographs</span></footer><details class="asset-credits"><summary>Material and model credits</summary>Trunks, firs, rocks and tufts: <a href="https://kenney.nl/assets/nature-kit" target="_blank" rel="noopener">Kenney Nature Kit, CC0</a>. Faceted crowns, birches and old trees adapted for this model. Stylised textures prepared for the mill. Selected GLB models embedded in the file and provided with the sources.</details>
+</main>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<noscript><div style="position:fixed;inset:0;z-index:1000;background:#203c34;color:white;padding:28px;font:18px system-ui">This game needs JavaScript. Open its HTTPS address directly in Safari or Chrome rather than in a file preview.</div></noscript></body>
+</html>

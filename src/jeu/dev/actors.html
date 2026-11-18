@@ -1,0 +1,595 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Galerie des ennemis</title>
+<style>
+  :root { --bg: #1d2418; --panel: rgba(20, 24, 18, 0.84); --ink: #f4efe1; --accent: #ffd23a; --muted: #a9b49a; }
+  html, body { margin: 0; height: 100%; background: var(--bg); color: var(--ink); font: 13px/1.3 system-ui, -apple-system, "Segoe UI", sans-serif; overflow: hidden; }
+  canvas { display: block; }
+  #ui { position: fixed; left: 8px; top: 8px; max-width: min(680px, calc(100vw - 16px)); background: var(--panel); border-radius: 10px; padding: 8px 10px; backdrop-filter: blur(4px); }
+  #ui h1 { font-size: 14px; margin: 0 0 6px; color: var(--accent); display: flex; justify-content: space-between; gap: 8px; }
+  #ui h1 button { padding: 0 8px; }
+  #ui.folded .row, #ui.folded #stats { display: none; }
+  #ui .row { display: flex; flex-wrap: wrap; gap: 4px; margin: 4px 0; }
+  #ui .row b { font-size: 11px; color: var(--muted); align-self: center; min-width: 52px; }
+  #ui button { font: inherit; font-size: 12px; border: 0; border-radius: 6px; padding: 4px 7px; background: #3a4431; color: var(--ink); cursor: pointer; }
+  #ui button.on { background: var(--accent); color: #2a2206; font-weight: 600; }
+  #ui button.ev { background: #4b3a52; }
+  #ui button.ty { background: #2f3e4c; }
+  #stats { color: var(--muted); font: 11px/1.35 ui-monospace, Menlo, monospace; white-space: pre-wrap; margin-top: 4px; max-height: 30vh; overflow: auto; }
+  #portraits { position: fixed; left: 8px; bottom: 8px; display: flex; flex-wrap: wrap; gap: 6px; max-width: calc(100vw - 16px); }
+  #portraits .chip { display: flex; align-items: center; gap: 4px; padding: 3px 7px 3px 3px; border-radius: 999px; font-size: 11px; background: rgba(20, 24, 18, 0.82); color: #f4efe1; }
+  #portraits .chip.light { background: #f6efdc; color: #2b2317; }
+  #portraits .chip svg { width: 36px; height: 36px; display: block; }
+  #portraits .chip.small svg { width: 28px; height: 28px; }
+  @media (max-width: 700px) { #portraits { gap: 3px; } #portraits .chip span { display: none; } #portraits .chip svg { width: 28px; height: 28px; } }
+  .label { position: fixed; transform: translate(-50%, -100%); font-size: 11px; font-weight: 600; color: #fff; text-shadow: 0 1px 2px #000, 0 0 4px #000; pointer-events: none; white-space: nowrap; }
+  .label.r1 { color: var(--accent); }
+  .label.r2 { color: #ff9a6a; }
+  body.clean #ui, body.clean .label, body.clean #portraits { display: none; }
+  body.nolabels .label { display: none; }
+  /* planche des portraits (?portraits) */
+  #sheet { display: none; position: fixed; inset: 0; overflow: auto; padding: 16px; background: #2a3322; }
+  body.sheet #sheet { display: block; }
+  body.sheet canvas, body.sheet #ui, body.sheet #portraits { display: none; }
+  #sheet table { border-collapse: collapse; }
+  #sheet td { padding: 6px 10px; vertical-align: middle; }
+  #sheet td.dark { background: #1b2016; }
+  #sheet td.light { background: #f3ead2; }
+  #sheet td.name { font-size: 12px; min-width: 190px; }
+  #sheet svg { display: block; }
+  /* vignettes de lisibilité (?vignettes) : rendu à l'échelle du jeu, agrandi sans lissage */
+  body.vign canvas { image-rendering: pixelated; }
+  #vlegend { display: none; position: fixed; inset: 0; pointer-events: none; }
+  body.vign #vlegend { display: block; }
+  #vlegend div { position: absolute; transform: translateX(-50%); font-size: 11px; font-weight: 600; color: #f4efe1; text-shadow: 0 1px 2px #000; white-space: nowrap; }
+</style>
+</head>
+<body>
+<div id="ui">
+  <h1><span>Pas touche à mes trésors — les ennemis</span><button id="fold" title="Replier le panneau">−</button></h1>
+  <div class="row" id="types"></div>
+  <div class="row" id="ranks"></div>
+  <div class="row" id="states"></div>
+  <div class="row" id="events"></div>
+  <div class="row" id="views"></div>
+  <div id="stats"></div>
+</div>
+<div id="portraits"></div>
+<div id="sheet"></div>
+<div id="vlegend"></div>
+<script src="../../static/assets/engine-0.40e246fcf208.js"></script>
+<script src="../../static/assets/engine-1.f10ee4887053.js"></script>
+<script src="../core/00-ptmt.js"></script>
+<script src="../sim/00-data.js"></script>
+<script src="../fx/05-kit.js"></script>
+<script src="../actors/10-actors.js"></script>
+<script src="../actors/11-types.js"></script>
+<script src="../actors/12-overlay.js"></script>
+<script src="../actors/13-mounts.js"></script>
+<script src="../ui/06-portraits.js"></script>
+<script>
+// Galerie des ennemis : tous les types × rangs sur une route large, vue du jeu (orthographique inclinée
+// à 58°) ou gros plans, états et événements, porteurs de gemme, montgolfière soulevée avec son ombre,
+// tracteur qui libère trois agriculteurs, korrigan qui disparaît et réapparaît plus loin.
+//   ?view=jeu|tel|jeu2|jeu4|top|close|three|back|side|face|far   ?rank=0|1|2   ?solo=type   ?types=a,b
+//   ?count=N (défilé)   ?state=moving,carrying,…   ?idle   ?clean   ?portraits[&big]
+//   ?vignettes[&px=36&cell=56&zoom=3]  planche de vignettes : chaque variante rendue à l'échelle du jeu
+//   (px par case), agrandie sans lissage, pour vérifier qu'on reconnaît chaque type d'un coup d'œil.
+(async function () {
+  "use strict";
+  const params = new URLSearchParams(location.search);
+  let view = params.get("view") || "jeu";
+  const count = Number(params.get("count") || 0);
+  const solo = params.get("solo");
+  const only = params.get("rank");
+  const typesParam = params.get("types");
+  const vignettes = params.has("vignettes");
+  const mobile = params.has("mobile") || matchMedia("(pointer: coarse)").matches;
+  if (params.has("clean")) document.body.classList.add("clean");
+  const uiEl = document.getElementById("ui"), foldEl = document.getElementById("fold");
+  foldEl.onclick = () => { uiEl.classList.toggle("folded"); foldEl.textContent = uiEl.classList.contains("folded") ? "+" : "−"; };
+  if (params.has("fold")) foldEl.onclick();
+  if (params.has("nolabels")) document.body.classList.add("nolabels");
+  const TILE = PTMT.sim.DATA.TILE;
+  const ELEV = 58; // inclinaison de la caméra du jeu (render/30-camera.js)
+  const FLY_H = 6; // hauteur à laquelle le rendu soulève la montgolfière
+
+  // --- planche des portraits (?portraits) ---
+  if (params.has("portraits")) {
+    document.body.classList.add("sheet");
+    const P = PTMT.portraits, rows = [];
+    for (const t of PTMT.actors.TYPES) for (const c of [false, true]) {
+      const svg = P.get(t, c), key = t + (c ? "_champion" : "");
+      rows.push(`<tr><td class="name">${P.names[key]}<br><small>${c ? "champion · " + P.names[t + "_boss"] : t}</small></td>` +
+        (params.has("big") ? [160, 64, 28] : [64, 48, 36, 28]).map((s) => `<td class="dark"><div style="width:${s}px;height:${s}px">${svg}</div></td>`).join("") +
+        [48, 28].map((s) => `<td class="light"><div style="width:${s}px;height:${s}px">${svg}</div></td>`).join("") +
+        `<td class="dark"><div style="width:16px;height:16px;border-radius:50%;background:${P.accent[key]}"></div></td></tr>`);
+    }
+    document.getElementById("sheet").innerHTML = "<table>" + rows.join("") + "</table>";
+    for (const s of document.querySelectorAll("#sheet svg")) { s.setAttribute("width", "100%"); s.setAttribute("height", "100%"); }
+    document.title = "Galerie des ennemis · prête";
+    return;
+  }
+
+  const renderer = new THREE.WebGLRenderer({ antialias: !vignettes, powerPreference: "high-performance" });
+  renderer.setPixelRatio(vignettes ? 1 : Math.min(devicePixelRatio, mobile ? 2 : 1.5));
+  renderer.setSize(innerWidth, innerHeight);
+  renderer.outputEncoding = THREE.sRGBEncoding;
+  renderer.toneMapping = THREE.ACESFilmicToneMapping;
+  renderer.toneMappingExposure = 1.05;
+  renderer.shadowMap.enabled = true;
+  renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+  document.body.appendChild(renderer.domElement);
+
+  const scene = new THREE.Scene();
+  scene.background = PTMT.color(0x9fc4e8);
+  const hemi = new THREE.HemisphereLight(PTMT.color(0xbcd6ff), PTMT.color(0x5b6b3a), 0.95);
+  scene.add(hemi);
+  const sun = new THREE.DirectionalLight(PTMT.color(0xffe7c4), 2.3);
+  sun.position.set(-14, 26, 16);
+  sun.castShadow = true;
+  sun.shadow.mapSize.set(2048, 2048);
+  sun.shadow.camera.left = -60; sun.shadow.camera.right = 60; sun.shadow.camera.top = 60; sun.shadow.camera.bottom = -60;
+  sun.shadow.camera.near = 1; sun.shadow.camera.far = 120;
+  sun.shadow.bias = -0.0006; sun.shadow.normalBias = 0.02;
+  scene.add(sun);
+
+  // sol d'herbe à cases (3,6 m) et une route large de terre battue (3 cases), comme en partie
+  function groundTexture() {
+    const c = document.createElement("canvas"); c.width = c.height = 512;
+    const x = c.getContext("2d");
+    x.fillStyle = "#6f9a3c"; x.fillRect(0, 0, 512, 512);
+    const rnd = PTMT.rng(5);
+    const wrap = (fn) => { for (const ox of [-512, 0, 512]) for (const oy of [-512, 0, 512]) { x.save(); x.translate(ox, oy); fn(); x.restore(); } };
+    for (let i = 0; i < 60; i++) { const cx = rnd() * 512, cy = rnd() * 512, light = rnd() > 0.5; wrap(() => { const g = x.createRadialGradient(cx, cy, 0, cx, cy, 60); g.addColorStop(0, light ? "rgba(150,190,80,0.35)" : "rgba(80,120,40,0.35)"); g.addColorStop(1, "rgba(0,0,0,0)"); x.fillStyle = g; x.fillRect(cx - 60, cy - 60, 120, 120); }); }
+    for (let i = 0; i < 6000; i++) { const px = rnd() * 512, py = rnd() * 512, l = 3 + rnd() * 6, dx = (rnd() - 0.5) * 2; x.strokeStyle = `hsl(${80 + rnd() * 30},${40 + rnd() * 25}%,${30 + rnd() * 22}%)`; x.lineWidth = 1; wrap(() => { x.beginPath(); x.moveTo(px, py); x.lineTo(px + dx, py - l); x.stroke(); }); }
+    x.strokeStyle = "rgba(40,60,20,0.28)"; x.lineWidth = 2; x.strokeRect(1, 1, 510, 510);
+    const t = new THREE.CanvasTexture(c); t.wrapS = t.wrapT = THREE.RepeatWrapping; t.encoding = THREE.sRGBEncoding; t.anisotropy = 4;
+    return t;
+  }
+  function roadTexture() {
+    const c = document.createElement("canvas"); c.width = c.height = 256;
+    const x = c.getContext("2d");
+    x.fillStyle = "#c9a46a"; x.fillRect(0, 0, 256, 256);
+    const rnd = PTMT.rng(9);
+    for (let i = 0; i < 900; i++) { x.fillStyle = `rgba(${90 + rnd() * 80},${70 + rnd() * 50},${40 + rnd() * 30},${0.12 + rnd() * 0.2})`; x.beginPath(); x.arc(rnd() * 256, rnd() * 256, 0.6 + rnd() * 2.2, 0, Math.PI * 2); x.fill(); }
+    const t = new THREE.CanvasTexture(c); t.wrapS = t.wrapT = THREE.RepeatWrapping; t.encoding = THREE.sRGBEncoding; t.anisotropy = 4;
+    return t;
+  }
+  const GW = 60;
+  const gtex = groundTexture(); gtex.repeat.set(GW, GW);
+  const ground = new THREE.Mesh(new THREE.PlaneGeometry(GW * TILE, GW * TILE), new THREE.MeshStandardMaterial({ map: gtex, roughness: 0.95 }));
+  ground.rotation.x = -Math.PI / 2;
+  ground.position.set(TILE / 2, 0, TILE / 2);
+  ground.receiveShadow = true;
+  scene.add(ground);
+  const ROAD_W = 3;
+  const rtex = roadTexture(); rtex.repeat.set(GW, ROAD_W);
+  const roadMat = new THREE.MeshStandardMaterial({ map: rtex, roughness: 1 });
+  const roads = [];
+  function addRoad(z, w) {
+    const r = new THREE.Mesh(new THREE.PlaneGeometry(GW * TILE, w * TILE), roadMat);
+    r.rotation.x = -Math.PI / 2; r.position.set(0, 0.012, z); r.receiveShadow = true;
+    scene.add(r); roads.push(r);
+  }
+  // eau (« Eau » : nage du canard ; « Patauge » : pataugeage) : plan translucide, personnages posés à la surface
+  const water = new THREE.Mesh(new THREE.PlaneGeometry(GW * TILE, GW * TILE), new THREE.MeshStandardMaterial({ color: PTMT.color(0x2f8fa6), transparent: true, opacity: 0.74, roughness: 0.12, metalness: 0.1 }));
+  water.rotation.x = -Math.PI / 2; water.position.y = 0.0; water.visible = false; water.renderOrder = 5;
+  scene.add(water);
+  const bed = new THREE.Mesh(new THREE.PlaneGeometry(GW * TILE, GW * TILE), new THREE.MeshStandardMaterial({ color: PTMT.color(0x3b5a4a), roughness: 1 }));
+  bed.rotation.x = -Math.PI / 2; bed.position.y = -0.65; bed.visible = false;
+  scene.add(bed);
+  // ombre au sol de la montgolfière (le rendu du jeu la dessine) : disque sombre adouci
+  const shadowTex = (() => {
+    const c = document.createElement("canvas"); c.width = c.height = 128;
+    const x = c.getContext("2d"), g = x.createRadialGradient(64, 64, 0, 64, 64, 64);
+    g.addColorStop(0, "rgba(0,0,0,0.55)"); g.addColorStop(0.6, "rgba(0,0,0,0.35)"); g.addColorStop(1, "rgba(0,0,0,0)");
+    x.fillStyle = g; x.fillRect(0, 0, 128, 128);
+    return new THREE.CanvasTexture(c);
+  })();
+  const flyShadowGeo = new THREE.PlaneGeometry(1, 1);
+  const flyShadowMat = new THREE.MeshBasicMaterial({ map: shadowTex, transparent: true, depthWrite: false });
+
+  // caméras : orthographique inclinée (celle du jeu) et perspective libre pour les gros plans
+  const persp = new THREE.PerspectiveCamera(40, innerWidth / innerHeight, 0.1, 500);
+  const ortho = new THREE.OrthographicCamera(-1, 1, 1, -1, 0.1, 500);
+  let camera = ortho;
+  const controls = new THREE.OrbitControls(persp, renderer.domElement);
+  controls.enableDamping = true;
+  let orthoWidth = 79; // m visibles en largeur : ≈ 20 cases + marges, soit ≈ 58 px par case sur 1 280 px
+  function setOrtho(width, pitchDeg, target) {
+    camera = ortho;
+    orthoWidth = width;
+    const aspect = innerWidth / innerHeight;
+    ortho.left = -width / 2; ortho.right = width / 2; ortho.top = width / 2 / aspect; ortho.bottom = -width / 2 / aspect;
+    ortho.updateProjectionMatrix();
+    const p = (pitchDeg * Math.PI) / 180, d = 150;
+    ortho.position.set(target.x, target.y + Math.sin(p) * d, target.z + Math.cos(p) * d);
+    ortho.lookAt(target);
+    controls.enabled = false;
+  }
+  function setView(v) {
+    view = v;
+    const target = new THREE.Vector3(0, 0.8, 0);
+    if (v === "jeu") return setOrtho(79, ELEV, new THREE.Vector3(0, 0, 0));
+    if (v === "tel") return setOrtho((innerWidth / 35) * TILE, ELEV, new THREE.Vector3(0, 0, 0)); // ≈ 35 px par case (téléphone)
+    if (v === "jeu2") return setOrtho(46, ELEV, new THREE.Vector3(0, 0, 0));
+    if (v === "jeu4") return setOrtho(24, ELEV, new THREE.Vector3(0, 0, 0));
+    if (v === "top") return setOrtho(46, 88, new THREE.Vector3(0, 0, 0));
+    camera = persp;
+    controls.enabled = true;
+    let dist = 30, pitch = 50, yaw = 0;
+    const wide = !solo && !count;
+    if (v === "close") { dist = wide ? 34 : 11; pitch = 14; target.y = 1.6; }
+    if (v === "three") { dist = wide ? 34 : 11; pitch = 24; yaw = 35; target.y = 1.6; }
+    if (v === "back") { dist = wide ? 34 : 11; pitch = 25; yaw = 160; target.y = 1.6; }
+    if (v === "side") { dist = wide ? 34 : 11; pitch = 16; yaw = 90; target.y = 1.5; }
+    if (v === "face") { dist = 3.6; pitch = 6; yaw = 12; target.set(solo ? -4 : 0, 2.1, 0); }
+    if (v === "far") { dist = 70; pitch = 50; }
+    const p = pitch * Math.PI / 180, y = yaw * Math.PI / 180;
+    persp.position.set(target.x + Math.sin(y) * Math.cos(p) * dist, target.y + Math.sin(p) * dist, target.z + Math.cos(y) * Math.cos(p) * dist);
+    controls.target.copy(target);
+    persp.lookAt(target);
+    controls.update();
+  }
+
+  PTMT.actors.mobile = mobile;
+  await PTMT.actors.load({ all: true });
+
+  // gemme factice (le vrai modèle vient de PTMT.models.gem, ≈ 1,3 m) : octaèdre brillant
+  const GEM_COLORS = [0xe8243a, 0x2fd06a, 0x2b8cff, 0xa050ff, 0xffc21a, 0xe8f6ff];
+  const gemGeo = new THREE.OctahedronGeometry(0.5, 0); gemGeo.scale(1, 1.25, 1);
+  const gemMats = GEM_COLORS.map((c) => new THREE.MeshStandardMaterial({ color: PTMT.color(c), emissive: PTMT.color(c), emissiveIntensity: 0.55, roughness: 0.15, metalness: 0.1, flatShading: true }));
+  function makeGem(i) { const m = new THREE.Mesh(gemGeo, gemMats[i % gemMats.length]); m.position.y = 0.6; m.castShadow = true; return m; }
+
+  // --- ennemis ---
+  const TYPES = typesParam ? typesParam.split(",") : PTMT.actors.TYPES;
+  const items = [];
+  const extras = []; // agriculteurs sortis du tracteur (temporaires)
+  let gemCount = 0;
+  function place(it) {
+    // la montgolfière vole : le rendu soulève l'objet et dessine son ombre au sol
+    const a = it.a;
+    a.object.position.set(it.x, a.flying ? FLY_H : 0, it.z);
+    if (a.flying) {
+      if (!it.shadow) { it.shadow = new THREE.Mesh(flyShadowGeo, flyShadowMat); it.shadow.rotation.x = -Math.PI / 2; it.shadow.renderOrder = 2; scene.add(it.shadow); }
+      it.shadow.position.set(it.x + 0.6, 0.03, it.z - 0.4);
+      const s = 4.6 * a.object.scale.y;
+      it.shadow.scale.set(s, s, 1);
+    }
+  }
+  function spawn(type, rank, x, z, yaw, label) {
+    const a = PTMT.actors.create(type, rank >= 1, rank >= 2);
+    a.object.rotation.y = yaw || 0;
+    scene.add(a.object);
+    const lab = document.createElement("div");
+    lab.className = "label r" + rank;
+    lab.textContent = a.label;
+    if (label === false) lab.style.display = "none";
+    document.body.appendChild(lab);
+    const it = { a, type, rank, label: lab, x, z, x0: x, z0: z, yaw: yaw || 0, phase: Math.random() * 10, state: {}, gem: makeGem(gemCount++), blinkSide: 1 };
+    place(it);
+    items.push(it);
+    return it;
+  }
+  const ranks = only !== null && only !== "" ? [Number(only)] : [0, 1, 2];
+  if (vignettes) {
+    // une variante par vignette, bien espacées (aucune ne déborde sur sa voisine), chacune sur la route
+    TYPES.forEach((t, i) => ranks.forEach((r, j) => spawn(t, r, (i - (TYPES.length - 1) / 2) * 13, (j - 1) * 22, 0, false)));
+    ranks.forEach((r, j) => addRoad((j - 1) * 22, 4));
+  } else if (count) {
+    for (let i = 0; i < count; i++) {
+      const type = TYPES[i % TYPES.length], rank = i % 11 === 10 ? 1 : 0;
+      const it = spawn(type, rank, 0, 0, 0, false);
+      it.roam = { r: 4 + (i % 9) * 3.2, a: (i / count) * Math.PI * 2, s: 0.08 + (i % 3) * 0.02 };
+    }
+    addRoad(0, 14);
+  } else if (solo) {
+    ranks.forEach((r, i) => spawn(solo, r, (i - (ranks.length - 1) / 2) * 8, 0, 0.3));
+    addRoad(0, ROAD_W);
+  } else if (ranks.length === 1) {
+    // une rangée par moitié de bestiaire sur deux routes larges, une case et quart entre voisins
+    const half = Math.ceil(TYPES.length / 2), dx = TILE * 1.25 * (ranks[0] === 2 ? 1.6 : ranks[0] === 1 ? 1.3 : 1);
+    TYPES.forEach((t, i) => spawn(t, ranks[0], ((i % half) - (half - 1) / 2) * dx, i < half ? -TILE * 1.6 : TILE * 1.6, 0));
+    addRoad(-TILE * 1.6, ROAD_W); addRoad(TILE * 1.6, ROAD_W);
+  } else {
+    // deux bandes de huit types, une rangée par rang
+    const half = Math.ceil(TYPES.length / 2), dx = TILE * 1.6, dz = TILE * 1.45;
+    TYPES.forEach((t, i) => ranks.forEach((r, j) => spawn(t, r, ((i % half) - (half - 1) / 2) * dx, (i < half ? -1 : 1) * TILE * 2.6 + (j - 1) * dz, 0)));
+    addRoad(-TILE * 2.6, 4); addRoad(TILE * 2.6, 4);
+  }
+  if (!vignettes) setView(view);
+
+  // --- états et événements ---
+  const STATE_KEYS = [
+    ["moving", "Marche", "m"], ["carrying", "Gemme", "c"], ["water", "Nage", "w"], ["wading", "Patauge", "z"], ["slow", "Ralenti", "l"], ["freeze", "Gel", "f"],
+    ["burn", "Feu", "b"], ["fear", "Peur", "p"], ["invisible", "Invisible", "i"], ["barrier", "Barrière", "r"], ["haste", "Hâte", "a"],
+    ["stun", "Étourdi", "s"], ["disarmed", "Désarmé", "d"], ["radiance", "Rayonnement", "y"], ["lowHp", "PV bas", "v"], ["spin", "Tourner", "t"],
+  ];
+  const EVENTS = [["hit", "h"], ["die", "x"], ["pickup", "1"], ["drop", "2"], ["heal", "3"], ["healed", "4"], ["smoke", "5"], ["tune", "6"], ["lasso", "7"], ["dodge", "8"], ["barrierBreak", "9"], ["spawn", "0"], ["escape", "e"], ["immune", "u"], ["blink", "k"], ["flash", "g"], ["split", "j"]];
+  const global = { moving: !params.has("idle") };
+  for (const k of (params.get("state") || "").split(",").filter(Boolean)) global[k] = true;
+  const buttons = {};
+  const statesEl = document.getElementById("states"), eventsEl = document.getElementById("events"), viewsEl = document.getElementById("views");
+  const rowLabel = (el, txt) => { const b = document.createElement("b"); b.textContent = txt; el.appendChild(b); };
+  rowLabel(statesEl, "États");
+  for (const [k, label, key] of STATE_KEYS) {
+    const b = document.createElement("button");
+    b.textContent = label + " (" + key.toUpperCase() + ")";
+    b.onclick = () => toggle(k);
+    statesEl.appendChild(b);
+    buttons[k] = b;
+  }
+  function refreshButtons() {
+    for (const k in buttons) buttons[k].classList.toggle("on", !!global[k]);
+    const wet = !!global.water || !!global.wading;
+    water.visible = bed.visible = wet;
+    ground.visible = !wet;
+    for (const r of roads) r.visible = !wet;
+  }
+  function toggle(k) { global[k] = !global[k]; refreshButtons(); }
+  refreshButtons();
+  const target = new THREE.Vector3(), from = new THREE.Vector3();
+  function fire(name) {
+    // événements propres à un type : seul ce type les reçoit (comme dans le jeu)
+    const only = { blink: "korrigan", flash: "touriste", split: "tracteur" }[name];
+    for (const it of items) {
+      const a = it.a;
+      if (only && it.type !== only) continue;
+      if (name === "die" || name === "escape" || name === "split") it.koAt = performance.now();
+      if (name === "blink") {
+        // le korrigan saute 1,8 case plus loin (le rendu du jeu le déplace), pouf au départ et à l'arrivée
+        a.object.getWorldPosition(from);
+        it.blinkSide = -it.blinkSide;
+        it.z = it.z0 + it.blinkSide * TILE * 0.9;
+        it.x = it.x0 + TILE * 0.5 * it.blinkSide;
+        place(it);
+        a.event("blink", from);
+        continue;
+      }
+      if (name === "split") {
+        a.event("split");
+        // le rendu fait sauter trois agriculteurs de la cabine
+        for (let i = 0; i < 3; i++) {
+          const f = PTMT.actors.create("fermier", false, false);
+          const ang = (i / 3) * Math.PI * 2 + 0.4;
+          f.object.position.set(it.x + Math.cos(ang) * 2.2, 0, it.z + Math.sin(ang) * 2.2);
+          f.object.rotation.y = ang + Math.PI / 2;
+          scene.add(f.object);
+          f.event("spawn");
+          extras.push({ a: f, t: 0 });
+        }
+        continue;
+      }
+      // cibles des gestes : 3 m devant et un peu à droite (crêpe, lasso, tour photographiée)
+      target.set(a.object.position.x + 3.5, 0, a.object.position.z + 4.2);
+      a.event(name, name === "heal" || name === "lasso" || name === "flash" ? target : undefined);
+    }
+  }
+  rowLabel(eventsEl, "Événements");
+  for (const [name, key] of EVENTS) {
+    const b = document.createElement("button");
+    b.className = "ev"; b.textContent = name + " (" + key + ")";
+    b.onclick = () => fire(name);
+    eventsEl.appendChild(b);
+  }
+  rowLabel(viewsEl, "Vues");
+  for (const v of ["jeu", "tel", "jeu2", "jeu4", "top", "close", "three", "back", "side", "face", "far"]) {
+    const b = document.createElement("button"); b.textContent = v; b.onclick = () => setView(v); viewsEl.appendChild(b);
+  }
+  const vb = document.createElement("button"); vb.textContent = "vignettes";
+  vb.onclick = () => { const q = new URLSearchParams(location.search); q.set("vignettes", ""); location.search = q.toString(); };
+  viewsEl.appendChild(vb);
+  const typesEl = document.getElementById("types");
+  rowLabel(typesEl, "Seul");
+  for (const t of PTMT.actors.TYPES) {
+    const b = document.createElement("button"); b.className = "ty"; b.textContent = t;
+    b.onclick = () => { const q = new URLSearchParams(location.search); q.set("solo", t); q.set("view", "three"); q.delete("vignettes"); location.search = q.toString(); };
+    typesEl.appendChild(b);
+  }
+  const ranksEl = document.getElementById("ranks");
+  rowLabel(ranksEl, "Rangs");
+  for (const [r, txt] of [["", "tous"], ["0", "ordinaires"], ["1", "champions"], ["2", "boss"], ["all", "tout voir"]]) {
+    const b = document.createElement("button"); b.textContent = txt;
+    b.onclick = () => { const q = new URLSearchParams(location.search); q.delete("vignettes"); if (r === "all") { q.delete("solo"); q.delete("rank"); q.set("view", "jeu"); } else if (r) q.set("rank", r); else q.delete("rank"); location.search = q.toString(); };
+    ranksEl.appendChild(b);
+  }
+  addEventListener("keydown", (e) => {
+    const s = STATE_KEYS.find((x) => x[2] === e.key.toLowerCase());
+    if (s) return toggle(s[0]);
+    const ev = EVENTS.find((x) => x[1] === e.key.toLowerCase());
+    if (ev) return fire(ev[0]);
+  });
+  addEventListener("resize", () => { renderer.setSize(innerWidth, innerHeight); persp.aspect = innerWidth / innerHeight; persp.updateProjectionMatrix(); if (camera === ortho && !vignettes) setView(view); if (vignettes) layoutVignettes(); });
+
+  // --- triangles par variante et portraits ---
+  const vs = PTMT.actors.stats();
+  const triLine = "\n" + Object.keys(vs).map((k) => k.replace(":0", "").replace(":1", "+").replace(":2", "♛") + " " + (vs[k].triangles / 1000).toFixed(1) + "k").join(" · ");
+  const pEl = document.getElementById("portraits");
+  if (PTMT.portraits && !count && !vignettes && !params.has("noportraits")) {
+    for (const t of PTMT.actors.TYPES) for (const c of [false, true]) {
+      const key = t + (c ? "_champion" : "");
+      const chip = document.createElement("div");
+      chip.className = "chip" + (c ? " light small" : "");
+      chip.innerHTML = PTMT.portraits.get(t, c) + (c ? "" : "<span>" + PTMT.portraits.names[key] + "</span>");
+      pEl.appendChild(chip);
+    }
+  }
+
+  // --- vignettes : une petite vue orthographique par variante (échelle du jeu), agrandie sans lissage ---
+  const vcfg = { px: Number(params.get("px") || 36), cell: Number(params.get("cell") || 56), zoom: Number(params.get("zoom") || 3) };
+  const vcam = new THREE.OrthographicCamera(-1, 1, 1, -1, 0.1, 500);
+  let vcols = 1;
+  function layoutVignettes() {
+    if (!vignettes) return;
+    document.body.classList.add("vign");
+    document.getElementById("ui").style.display = "none";
+    const n = items.length, z = vcfg.zoom, cell = vcfg.cell;
+    vcols = Math.max(1, Math.min(n, Math.floor(innerWidth / (cell * z))));
+    const rows = Math.ceil(n / vcols);
+    renderer.setSize(vcols * cell, rows * (cell + 12), false);
+    renderer.domElement.style.width = vcols * cell * z + "px";
+    renderer.domElement.style.height = rows * (cell + 12) * z + "px";
+    const leg = document.getElementById("vlegend");
+    leg.innerHTML = items.map((it, i) => `<div style="left:${((i % vcols) + 0.5) * cell * z}px;top:${(Math.floor(i / vcols) * (cell + 12) + cell) * z}px">${it.type}${it.rank ? (it.rank > 1 ? " ♛" : " +") : ""}</div>`).join("");
+  }
+  const _c = new THREE.Vector3(), _box = new THREE.Box3();
+  function renderVignettes() {
+    const cell = vcfg.cell, mpp = TILE / vcfg.px; // mètres par pixel
+    const H = renderer.domElement.height;
+    renderer.setScissorTest(false);
+    renderer.setViewport(0, 0, renderer.domElement.width, H);
+    renderer.setClearColor(0x1d2418);
+    renderer.clear();
+    renderer.setScissorTest(true);
+    const p = (ELEV * Math.PI) / 180;
+    items.forEach((it, i) => {
+      const cx = (i % vcols) * cell, cy = Math.floor(i / vcols) * (cell + 12);
+      // centre : milieu de la silhouette (la montgolfière est cadrée sur son ballon)
+      _box.setFromObject(it.a.object);
+      _box.getCenter(_c);
+      const half = (cell * mpp) / 2;
+      vcam.left = -half; vcam.right = half; vcam.top = half; vcam.bottom = -half;
+      vcam.updateProjectionMatrix();
+      vcam.position.set(_c.x, _c.y + Math.sin(p) * 150, _c.z + Math.cos(p) * 150);
+      vcam.lookAt(_c);
+      renderer.setViewport(cx, H - cy - cell, cell, cell);
+      renderer.setScissor(cx, H - cy - cell, cell, cell);
+      renderer.render(scene, vcam);
+    });
+    renderer.setScissorTest(false);
+  }
+  if (vignettes) layoutVignettes();
+
+  // --- boucle ---
+  const statsEl = document.getElementById("stats");
+  const clock = new THREE.Clock();
+  let time = 0, frames = 0, acc = 0, updMs = 0, fps = 0, frameMs = 0;
+  const tmp = new THREE.Vector3();
+  let paused = false;
+  function step(dt) {
+    time += dt;
+    const t0 = performance.now();
+    for (const it of items) {
+      let a = it.a;
+      if (it.koAt && a.finished) {
+        // relance après K.-O. ou fuite (la galerie recrée l'ennemi comme le ferait le jeu)
+        if (it.gem.parent) it.gem.parent.remove(it.gem);
+        a.release();
+        a = it.a = PTMT.actors.create(it.type, it.rank >= 1, it.rank >= 2);
+        a.object.rotation.y = it.yaw;
+        scene.add(a.object);
+        place(it);
+        it.koAt = 0;
+        a.event("spawn");
+        continue;
+      }
+      if (it.roam) {
+        const r = it.roam;
+        r.a += dt * r.s * (global.moving ? 1 : 0);
+        it.x = Math.cos(r.a) * r.r; it.z = Math.sin(r.a) * r.r;
+        place(it);
+        a.object.rotation.y = -r.a;
+      } else if (global.spin) {
+        a.object.rotation.y = it.yaw + time * 0.8;
+      } else a.object.rotation.y = it.yaw;
+      const st = it.state;
+      st.moving = !!global.moving;
+      st.speed = global.moving ? a.naturalSpeed * (global.haste ? 2 : 1) * (global.slow ? 0.6 : 1) * (global.fear ? 0.8 : 1) * (global.wading ? 0.5 : 1) : 0;
+      if (global.stun || global.freeze) { st.moving = false; st.speed = 0; }
+      st.carrying = !!global.carrying && !a.dead;
+      // nage : seuls les nageurs (canard) ; pataugeage : tous les autres (la montgolfière vole)
+      st.water = (!!global.water || !!global.wading) && it.type === "canard";
+      st.wading = (!!global.wading || !!global.water) && it.type !== "canard" && !a.flying;
+      st.slow = global.slow ? 0.45 : 0;
+      st.freeze = !!global.freeze; st.burn = !!global.burn; st.fear = !!global.fear;
+      st.invisible = global.invisible ? 1 : 0;
+      st.barrier = global.barrier ? 0.5 + 0.5 * Math.abs(Math.sin(time * 0.4)) : 0;
+      st.haste = !!global.haste; st.stun = !!global.stun; st.disarmed = !!global.disarmed; st.radiance = !!global.radiance;
+      st.hp = global.lowHp ? 0.2 : 1;
+      st.alt = FLY_H;
+      // la gemme factice suit l'ancre de port
+      if (st.carrying && it.gem.parent !== a.carryAnchor) a.carryAnchor.add(it.gem);
+      if (!st.carrying && it.gem.parent) it.gem.parent.remove(it.gem);
+      if (it.gem.parent) it.gem.rotation.y += dt * 2;
+      a.update(dt, time, st);
+    }
+    for (let i = extras.length - 1; i >= 0; i--) {
+      const e = extras[i];
+      e.t += dt;
+      e.a.update(dt, time, { moving: true, speed: e.a.naturalSpeed });
+      if (e.t > 3.5 && !e.a.dead) e.a.event("escape");
+      if (e.a.finished) { e.a.release(); scene.remove(e.a.object); extras.splice(i, 1); }
+    }
+    updMs = updMs * 0.9 + (performance.now() - t0) * 0.1;
+  }
+  function frame() {
+    requestAnimationFrame(frame);
+    const dt = Math.min(0.05, clock.getDelta());
+    step(paused ? 0 : dt);
+    if (camera === persp) controls.update();
+    const f0 = performance.now();
+    if (vignettes) renderVignettes();
+    else renderer.render(scene, camera);
+    frameMs = frameMs * 0.9 + (performance.now() - f0) * 0.1;
+    frames++; acc += dt;
+    if (acc > 0.5) { fps = frames / acc; frames = 0; acc = 0; }
+    if (vignettes) return;
+    // étiquettes (au-dessus de a.height : la barre de vie irait là) ; masquées en vue lointaine
+    const far = camera === ortho && orthoWidth > 50;
+    for (const it of items) {
+      if (it.roam) continue;
+      it.label.style.display = far ? "none" : "";
+      if (far) continue;
+      tmp.copy(it.a.object.position); tmp.y += it.a.height + 0.25;
+      tmp.project(camera);
+      it.label.style.left = ((tmp.x + 1) / 2 * innerWidth) + "px";
+      it.label.style.top = ((1 - tmp.y) / 2 * innerHeight) + "px";
+      it.label.style.visibility = tmp.z < 1 ? "visible" : "hidden";
+    }
+    const info = renderer.info.render;
+    statsEl.textContent = `${items.length} ennemis · ${fps.toFixed(0)} i/s · maj ${updMs.toFixed(2)} ms · rendu ${frameMs.toFixed(1)} ms · appels ${info.calls} · triangles ${(info.triangles / 1000).toFixed(0)} k · préparation ${PTMT.actors.loadMs.toFixed(0)} ms` + triLine;
+  }
+  frame();
+
+  // --- pilotage pour les captures ---
+  window.gallery = {
+    set(k, v) { global[k] = v; refreshButtons(); },
+    fire, setView, items, renderer, scene, get camera() { return camera; }, controls, persp, ortho,
+    pause(p) { paused = p; },
+    advance(sec, stepDt) { const d = stepDt || 1 / 30; for (let t = 0; t < sec; t += d) step(d); if (vignettes) renderVignettes(); else renderer.render(scene, camera); step(0); },
+    look(x, y, z, dist, pitch, yaw) {
+      camera = persp; controls.enabled = true;
+      const p = pitch * Math.PI / 180, q = yaw * Math.PI / 180;
+      controls.target.set(x, y, z);
+      persp.position.set(x + Math.sin(q) * Math.cos(p) * dist, y + Math.sin(p) * dist, z + Math.cos(q) * Math.cos(p) * dist);
+      persp.lookAt(controls.target); controls.update();
+    },
+    ortho(width, pitch, x, z) { setOrtho(width, pitch === undefined ? ELEV : pitch, new THREE.Vector3(x || 0, 0, z || 0)); },
+    /** Oriente tous les ennemis (rad ; 0 = vers la caméra, π/2 = vers la droite de l'écran). */
+    face(yaw) { for (const it of items) it.yaw = yaw; },
+    stats() {
+      const info = renderer.info.render;
+      return { actors: items.length, calls: info.calls, triangles: info.triangles, updateMs: +updMs.toFixed(3), renderMs: +frameMs.toFixed(2), fps: +fps.toFixed(1), loadMs: PTMT.actors.loadMs, variants: PTMT.actors.stats() };
+    },
+    bench(frames) {
+      // coût CPU des mises à jour (hors rendu) sur N images
+      const n = frames || 120, d = 1 / 60;
+      const t0 = performance.now();
+      for (let i = 0; i < n; i++) step(d);
+      const upd = (performance.now() - t0) / n;
+      const r0 = performance.now();
+      for (let i = 0; i < 10; i++) renderer.render(scene, camera);
+      const rend = (performance.now() - r0) / 10;
+      const info = renderer.info.render;
+      return { actors: items.length, updateMsPerFrame: +upd.toFixed(3), renderMsSwiftShader: +rend.toFixed(1), calls: info.calls, triangles: info.triangles };
+    },
+  };
+  document.title = "Galerie des ennemis · prête";
+})().catch((e) => { console.error(e && e.stack || e); document.title = "erreur"; });
+</script>
+</body>
+</html>
