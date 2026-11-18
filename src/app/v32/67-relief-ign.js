@@ -1,4 +1,14 @@
-// Moulin V32 — atelier : comparer le relief au RGE ALTI de l'IGN et le recaler.
+// Moulin V32 — relief réel : le relief livré suit les altitudes de l'IGN, et l'atelier peut
+// comparer le relief au RGE ALTI et le recaler.
+//
+// Relief livré : scripts/relief.mjs compare le relief du plan aux altitudes relevées à l'IGN
+// (scripts/releve-ign.mjs) et écrit 66-relief-livre.js, une grille d'écarts lissés appliquée
+// ici à tous les visiteurs, sur toutes les pages. Autour du moulin, de la dépendance et au
+// bord de l'eau, rien ne bouge : la maison, la disposition des lieux et les niveaux d'eau
+// restent ceux du plan. Sans relevé (grille absente), le relief du plan est inchangé.
+//
+// Atelier : mesure faite dans le navigateur, écarts gardés sur cet appareil, appliqués
+// par-dessus le relief livré.
 //
 // Depuis le navigateur (le service altimétrique de la Géoplateforme répond aux pages
 // web), on mesure l'altitude IGN de quelques centaines de points du domaine et on la
@@ -12,13 +22,19 @@
   "use strict";
   const V32 = globalThis.MoulinV32;
 
-  // Recalage du plan sur la carte (ajusté sur les contours des étangs).
-  const GEO = { theta: (1.0 * Math.PI) / 180, scale: 1.06, tx: 12, ty: 0.5, lon0: -2.53509, lat0: 47.72225 };
+  // Calage du plan sur la carte. Échelle et orientation mesurées sur la vue satellite (barre de
+  // 50 m, contours des trois étangs, îles et bâtiments) : une unité du plan vaut 1,026 m et le
+  // nord est en haut à 0,1° près. La position (tx, ty : mètres à l'est et au nord de lon0, lat0)
+  // est affinée par scripts/relief.mjs sur le modèle de terrain de l'IGN, qui la range dans le
+  // relief livré.
+  const GEO = Object.assign({ theta: (0.1 * Math.PI) / 180, scale: 1.026, tx: 12, ty: 0.5, lon0: -2.53509, lat0: 47.72225 }, (V32.reliefLivre && V32.reliefLivre.geo) || {});
   const KX = 111320 * Math.cos((GEO.lat0 * Math.PI) / 180);
   const KY = 110540;
   const ENDPOINT = "https://data.geopf.fr/altimetrie/1.0/calcul/alti/rest/elevation.json";
   const KEY = "relief-ign";
   const HOUSE = { x: 0, z: 0, r: 30 };
+  // La dépendance et sa niche (rectangle tourné : centre, angle, demi-emprise le long de ses axes).
+  const ANNEX = { x: -19.4, z: 6.2, angle: 1.53, u0: -3.4, u1: 6.2, v0: -11.7, v1: 9.3 };
 
   /** Coordonnées de la scène (x est, z sud) → longitude, latitude. */
   function toLonLat(x, z) {
@@ -34,8 +50,40 @@
     return t * t * (3 - 2 * t);
   };
 
-  /** Champ de correction : interpolation pondérée (1/d²) des écarts mesurés. */
-  function correctionField(samples, water) {
+  /** Part du recalage appliquée en un point : rien autour des bâtiments ni au bord de l'eau. */
+  function keep(x, z, water) {
+    const house = smooth(HOUSE.r, HOUSE.r + 25, Math.hypot(x - HOUSE.x, z - HOUSE.z));
+    const c = Math.cos(ANNEX.angle),
+      sn = Math.sin(ANNEX.angle),
+      dx = x - ANNEX.x,
+      dz = z - ANNEX.z;
+    const u = dx * c - dz * sn,
+      v = dx * sn + dz * c;
+    const annex = smooth(12, 37, Math.hypot(Math.max(ANNEX.u0 - u, 0, u - ANNEX.u1), Math.max(ANNEX.v0 - v, 0, v - ANNEX.v1)));
+    const shore = water ? smooth(6, 18, water(x, z)) : 1;
+    return Math.min(house, annex) * shore;
+  }
+
+  /** Relief livré : grille régulière d'écarts (m), lue en bilinéaire ; null si elle est absente. */
+  function deliveredField(livre) {
+    if (!livre || !Array.isArray(livre.d) || !(livre.pas > 0) || livre.d.length !== livre.nx * livre.nz || livre.nx < 2 || livre.nz < 2) return null;
+    const { x0, z0, pas, nx, nz, d } = livre;
+    return (x, z) => {
+      const fx = Math.min(nx - 1.001, Math.max(0, (x - x0) / pas)),
+        fz = Math.min(nz - 1.001, Math.max(0, (z - z0) / pas));
+      const i = Math.floor(fx),
+        j = Math.floor(fz),
+        tx = fx - i,
+        tz = fz - j,
+        k = j * nx + i;
+      const a = d[k] + (d[k + 1] - d[k]) * tx;
+      const b = d[k + nx] + (d[k + nx + 1] - d[k + nx]) * tx;
+      return a + (b - a) * tz;
+    };
+  }
+
+  /** Champ de correction de l'atelier : interpolation pondérée (1/d²) des écarts mesurés, bornée à ±6 m. */
+  function rawField(samples) {
     const usable = samples.filter((s) => Number.isFinite(s.d) && !s.water);
     return (x, z) => {
       let num = 0,
@@ -47,12 +95,7 @@
         num += s.d * w;
         den += w;
       }
-      if (!den) return 0;
-      const value = Math.max(-6, Math.min(6, num / den));
-      // Rien autour de la maison ni au bord de l'eau (les niveaux d'eau restent ceux du plan).
-      const house = smooth(HOUSE.r, HOUSE.r + 25, Math.hypot(x - HOUSE.x, z - HOUSE.z));
-      const shore = water ? smooth(6, 18, water(x, z)) : 1;
-      return value * house * shore;
+      return den ? Math.max(-6, Math.min(6, num / den)) : 0;
     };
   }
 
@@ -78,11 +121,22 @@
       return !!clean;
     },
     onChange: null,
+    /** Écart de l'atelier appliqué à ce chargement (avant estompage), pour cumuler une nouvelle mesure. */
+    localRaw: null,
     /** Appelé par le jeu pendant la construction du relief (après les niveaux d'eau). */
     reshape({ positions, grid, water, bounds }) {
+      // scripts/relief-modele.mjs relève le relief du plan, sans aucun recalage.
+      if (globalThis.MOULIN_RELIEF_ORIGINE) return 0;
+      const delivered = deliveredField(V32.reliefLivre);
       const stored = V32.store.get(KEY, null);
-      if (!stored || !stored.apply || !Array.isArray(stored.samples)) return 0;
-      const exact = correctionField(stored.samples, water);
+      const local = stored && stored.apply && Array.isArray(stored.samples) ? rawField(stored.samples) : null;
+      this.localRaw = local;
+      if (!delivered && !local) return 0;
+      // Rien autour des bâtiments ni au bord de l'eau (les niveaux d'eau restent ceux du plan).
+      const exact = (x, z) => {
+        const value = (delivered ? delivered(x, z) : 0) + (local ? local(x, z) : 0);
+        return value ? value * keep(x, z, water) : 0;
+      };
       // Grille de 4 m (le champ est doux), lue en bilinéaire pour chaque sommet.
       const step = 4;
       const x0 = bounds.x0 - step,
@@ -216,7 +270,7 @@
           const samples = points.map(([x, z], i) => {
             const ign = values[reference.length + i];
             const scene = game.terrainHeight(x, z);
-            return { x, z, d: Number.isFinite(ign) && ign > -100 ? +(ign - zero - scene).toFixed(2) : NaN, water: nearWater(x, z) };
+            return { x, z, d: Number.isFinite(ign) && ign > -100 ? +((ign - zero) / GEO.scale - scene).toFixed(2) : NaN, water: nearWater(x, z) };
           });
           const valid = samples.filter((s) => Number.isFinite(s.d) && !s.water);
           const mean = valid.reduce((a, s) => a + Math.abs(s.d), 0) / Math.max(1, valid.length);
@@ -242,7 +296,14 @@
       });
       applyButton.addEventListener("click", () => {
         if (!last) return;
-        V32.store.set(KEY, { apply: true, samples: last.samples.map((s) => ({ x: s.x, z: s.z, d: s.d, water: s.water })), zero: last.zero, date: last.date });
+        // La mesure a été faite sur le relief affiché : elle s'ajoute au recalage local déjà appliqué.
+        const before = V32.reliefIGN.localRaw;
+        V32.store.set(KEY, {
+          apply: true,
+          samples: last.samples.map((s) => ({ x: s.x, z: s.z, d: Number.isFinite(s.d) && before ? +(s.d + before(s.x, s.z)).toFixed(2) : s.d, water: s.water })),
+          zero: last.zero,
+          date: last.date,
+        });
         clearButton.disabled = false;
         status.textContent = "Recalage enregistré : il sera appliqué au prochain chargement de la page (loin de la maison et de l’eau).";
       });
