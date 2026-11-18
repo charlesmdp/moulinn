@@ -51,16 +51,19 @@
     title: "FPV Drone Race",
     icon: "🚁",
     color: MF.PAL.teal,
-    blurb: "1–8 pilots · gates around the mill",
+    blurb: "1–8 pilots · 11 gates around the mill · thread the bullseye for turbo",
     station: { x: 15.2, z: -35, heading: -Math.PI / 2 },
     kiosk: { x: 15.4, z: -31.2, heading: -Math.PI / 2 },
+    hall: { x: 15.4, z: -38.8, heading: -Math.PI / 2 },
+    range: 110,
     minPlayers: 1,
     maxPlayers: 8,
     maxTime: 300,
     options: [{ key: "laps", label: "Laps", values: [2, 3], default: 3, format: (v) => v + " laps" }],
-    help: "Arrows or WASD: fly and turn · I / K: up, down · J / L: strafe · Space: turbo · E: switch view · C: reset.",
+    help: "Arrows or WASD: fly and turn · I / K: up, down · J / L: strafe · Space: turbo · E: switch view · C: reset. Fly through the very middle of a ring (“Bullseye!”) and your turbo is ready again at once.",
     rank: (list) => list.slice().sort((a, b) => (a.time ? 0 : 1) - (b.time ? 0 : 1) || (a.time || 0) - (b.time || 0) || (b.gates || 0) - (a.gates || 0)),
     describe: (r) => (r.time ? MF.time(r.time) : "did not finish"),
+    board: { label: "Best race time", better: "low", value: (r) => r.time, variant: (o) => (o.laps || 3) + " laps", format: (v) => MF.time(v) },
 
     create(ctx) {
       const { world, session, hud, input, group, camera } = ctx;
@@ -162,7 +165,7 @@
         }
         me.drone.paint.color.copy(MF.color(ctx.self.color));
         const p = PADS[slot % PADS.length];
-        Object.assign(me, { x: p[0], y: H(p[0], p[1]) + 0.3, z: p[1], vx: 0, vy: 0, vz: 0, yaw: -Math.PI / 2, pitch: 0, roll: 0, next: -1, passed: 0, turbo: 0, cool: 0, lap: undefined });
+        Object.assign(me, { x: p[0], y: H(p[0], p[1]) + 0.3, z: p[1], vx: 0, vy: 0, vz: 0, yaw: -Math.PI / 2, pitch: 0, roll: 0, next: -1, passed: 0, turbo: 0, cool: 0, lap: undefined, lapStart: 0, bulls: 0 });
         camState.x = undefined;
         finished = false;
         graceEnd = 0;
@@ -292,6 +295,13 @@
             me.next = (me.next + 1) % N;
             crash = 0;
             MF.sfx.play("ting");
+            if (off < 0.6 && !locked) {
+              // en plein centre de l'anneau : le turbo est rechargé tout de suite
+              me.cool = 0;
+              me.bulls = (me.bulls || 0) + 1;
+              hud.flash("Bullseye! Turbo ready", { color: MF.PAL.yellow, hold: 0.7 });
+              MF.sfx.play("bravo");
+            }
           } else if (off < RING + 0.35) {
             bump(-gate.nx, -gate.ny, -gate.nz, 0.4); // dans le montant de l'anneau
           } else if (off < 9 && performance.now() - missed > 2500) {
@@ -341,7 +351,7 @@
         remotes,
         enter() {
           input.use({ layout: "dual", radio: { kicker: "RADIO CONTROLLER", brand: MF.sponsors.brand("drones-radio") }, leftLabel: "CLIMB · STRAFE", rightLabel: "FLY · TURN", buttons: [{ id: "a", label: "TURBO", key: "Space" }, { id: "b", label: "VIEW", key: "E" }, { id: "c", label: "RESET", key: "C" }] });
-          hud.stats([{ key: "lap", label: "Lap" }, { key: "gate", label: "Gate" }, { key: "time", label: "Time" }, { key: "pos", label: "Position" }]);
+          hud.stats([{ key: "lap", label: "Lap" }, { key: "gate", label: "Gate" }, { key: "time", label: "Time" }, { key: "turbo", label: "Turbo" }, { key: "pos", label: "Position" }]);
           hud.hint(input.touch ? "Right stick: fly and turn · left stick: climb and strafe" : "Arrows or WASD: fly · I / K: up, down · Space: turbo · E: view · C: reset");
           arrow = hud.widget("fete-arrow");
           arrow.hidden = true;
@@ -380,7 +390,9 @@
             if (!finished && phase === "run") {
               if (me.lap !== lap) {
                 if (me.lap !== undefined && lap > me.lap) {
-                  hud.flash(lap === laps ? "Final lap!" : "Lap " + lap + " / " + laps, { color: lap === laps ? MF.PAL.yellow : "#ffffff" });
+                  const lapTime = t - (me.lapStart || 0);
+                  me.lapStart = t;
+                  hud.flash((lap === laps ? "Final lap! · " : "Lap " + lap + " / " + laps + " · ") + MF.time(lapTime, 1), { color: lap === laps ? MF.PAL.yellow : "#ffffff" });
                   MF.sfx.play("tour");
                 }
                 me.lap = lap;
@@ -404,6 +416,7 @@
             hud.set("lap", lap + " / " + laps);
             hud.set("gate", me.next < 0 ? "start" : me.next + 1 + " / " + N);
             hud.set("time", MF.time(Math.max(0, t), 1));
+            hud.set("turbo", me.turbo > 0 ? "🔥" : me.cool > 0 ? Math.ceil(me.cool) + " s" : "ready");
             remotes.send([me.x, me.y, me.z, me.yaw, me.pitch, me.roll], [me.passed, finished ? 1 : 0]);
             lights(time);
             // caméra embarquée (ou de poursuite), qui s'incline avec le drone
