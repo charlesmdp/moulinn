@@ -200,7 +200,7 @@ occupe quoi est dans `src/static/moulin2/sponsors.json` (publié en `/moulin2/sp
 }
 ```
 
-Un emplacement sans `nom` affiche « VOTRE MARQUE ICI » ; `prix` seul affiche le tarif dans la liste
+Un emplacement sans `nom` affiche « YOUR BRAND HERE » ; `prix` seul affiche le tarif dans la liste
 des emplacements libres. Les logos vont dans `src/static/moulin2/logos/`.
 
 ### Règles pour rester fluide

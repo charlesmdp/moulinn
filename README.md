@@ -57,7 +57,7 @@ inscrit lance la partie, les arrivants suivants regardent puis jouent la suivant
 **Sponsors.** Chaque jeu a ses emplacements (arches, bâches le long des parcours,
 toile de fond du stand de tir, télécommandes, bouées, portes des drones… 31 en
 tout), décrits dans `src/static/moulin2/sponsors.json` : sans sponsor, un
-emplacement affiche « VOTRE MARQUE ICI ». Pour vendre un emplacement, renseigner
+emplacement affiche « YOUR BRAND HERE ». Pour vendre un emplacement, renseigner
 `nom`, `accroche`, `lien`, couleurs et éventuellement `logo`, reconstruire et
 publier ; `contact` (texte et lien) alimente le bouton du panneau « Sponsors ».
 Exemple et liste complète : [`src/moulin2/CONCEPTION.md`](src/moulin2/CONCEPTION.md).
@@ -67,10 +67,56 @@ Exemple et liste complète : [`src/moulin2/CONCEPTION.md`](src/moulin2/CONCEPTIO
 site : construire avec `SITE_URL=https://mon-site.example node scripts/build.mjs`
 (ou renseigner `SITE_URL` dans `scripts/build.mjs`).
 
+**Langue.** La page `/moulin2/` est en anglais, pour un public international :
+les jeux et l'interface de la fête le sont dans leur code ; l'habillage du
+moulin (barre d'outils, réglages, météo, écran de chargement) est traduit par
+le dictionnaire de `src/moulin2/02-anglais.js`, appliqué au HTML à la
+construction puis dans le navigateur. Le code du moulin n'est pas modifié et
+`/moulin/` reste en français ; un texte absent du dictionnaire reste en français.
+
 **Mise au point.** `node scripts/labo.mjs` ouvre les mêmes jeux dans un terrain
 d'essai léger (`http://localhost:8090/`, deux onglets pour jouer à deux) ;
 `node tests/fete.test.mjs` vérifie le réseau et le déroulement des parties sans
-navigateur.
+navigateur ; `node tests/fete-labo.mjs` ouvre, lance et joue quelques secondes
+chacun des huit jeux dans un vrai navigateur (Playwright).
+
+## Relief réel (IGN)
+
+Le relief du plan a été estimé d'après des photographies. Il peut être recalé
+sur les altitudes réelles de l'IGN (LiDAR HD ou RGE ALTI), pour tous les
+visiteurs et sur toutes les pages :
+
+```sh
+node scripts/releve-ign.mjs     # altitudes IGN sur une grille de 4 m → scripts/donnees/relief-ign.json
+node scripts/relief.mjs         # calage, écarts, rapport → src/app/v32/66-relief-livre.js
+node scripts/build.mjs          # site avec le relief réel
+node scripts/labo-relief.mjs    # banc d'essai de la fête mis au même relief
+node tests/relief.test.mjs && node tests/fete.test.mjs && node tests/fete-labo.mjs
+```
+
+- **Le relevé a besoin d'internet** : `data.geopf.fr` doit être joignable (un
+  ordinateur personnel, ou un environnement Claude qui autorise cet hôte ; le
+  fichier obtenu se commite). Les autres étapes se font hors connexion.
+  **Aucun relevé n'a encore été traité** : `66-relief-livre.js` est vide et le
+  relief publié est celui du plan.
+- **Calage.** L'échelle et l'orientation du plan viennent de la vue satellite
+  (une unité vaut 1,026 m, nord en haut à 0,1° près). `relief.mjs` affine la
+  position sur le modèle de terrain lui-même : la surface des étangs y est
+  plate et leurs berges montent.
+- **Ce qui ne bouge jamais** : le moulin, la dépendance et leurs abords ; les
+  berges et les niveaux d'eau ; les ouvrages dont les niveaux sont fixés à la
+  main dans le plan (allée, cour, terrasse, escaliers, murets, fauteuil). Entre
+  ces zones et la pleine campagne, l'écart s'applique progressivement.
+- **Étangs.** Chaque étang garde son niveau du plan ; près de lui, le relief
+  est comparé par rapport à son niveau, pour qu'aucun étang ne se retrouve
+  perché ou encaissé. Le rapport donne les niveaux réels des étangs et le
+  profil réel de l'allée : s'ils s'écartent nettement du plan, ils se
+  reprennent à part (`36-hydrologie.js` pour l'eau, `driveLevels` dans
+  `moulin.js` pour l'allée), puis on relance `node scripts/relief-modele.mjs`
+  (relevé du relief du plan) et `node scripts/relief.mjs`.
+- `node scripts/relief.mjs --sans` retire le relief livré. L'atelier garde sa
+  mesure « Relief réel » faite dans le navigateur : elle s'ajoute au relief
+  livré, sur l'appareil seulement.
 
 ## Nouveautés de cette série
 
@@ -512,7 +558,8 @@ Modules de la version 32 (`src/app/v32/`, chargés dans l'ordre des noms) :
 | `60-ui.js` | Habillage de l'interface |
 | `65-atelier.js` | Atelier en onglets et chemins taillés dans la pente |
 | `66-berges.js` | Atelier : gommer ou ajouter des berges (terre, roseaux, carex, iris, pierres), gestes gardés et rejoués |
-| `67-relief-ign.js` | Atelier : mesure du relief IGN RGE ALTI depuis le navigateur, comparaison et recalage doux (hors maison et bords de l'eau) |
+| `66-relief-livre.js` | Relief réel livré : grille d'écarts écrite par `scripts/relief.mjs` (vide tant qu'aucun relevé IGN n'est traité) |
+| `67-relief-ign.js` | Relief réel : applique la grille livrée à tous les visiteurs (hors maison, ouvrages et bords de l'eau) ; atelier : mesure IGN depuis le navigateur, comparaison et recalage local par-dessus |
 | `68-sous-bois.js` | Atelier : zones de sous-bois dessinées au sol (fougères, ronces, sous-bois mêlé), remplies en touffes hors eau, chemins, murets et bâtiments ; tableaux d'instances, budget de plantes, zones gardées, rejouées et exportées |
 | `70-birds.js` | Oiseaux et colverts |
 | `72-materials.js` | Moellons, ardoises, arbustes et massifs lissés |

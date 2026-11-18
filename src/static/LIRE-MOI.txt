@@ -38,7 +38,7 @@ retrouvent dans le même salon ; /moulin2/?salon=mon-code ouvre un salon privé
 directement (WebRTC) après s'être trouvés par des relais publics.
 Sponsors : 31 emplacements (arches, bâches, toile de fond du tir, bouées,
 télécommandes…) décrits dans le fichier moulin2/sponsors.json ; un emplacement
-libre affiche « VOTRE MARQUE ICI ».
+libre affiche « YOUR BRAND HERE ».
 
 NOUVEAUTES DE CETTE SERIE
 Le moulin passe à l'adresse /moulin/ ; la page / n'affiche plus qu'un mot de
