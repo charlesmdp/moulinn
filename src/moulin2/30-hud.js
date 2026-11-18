@@ -43,7 +43,7 @@
       root,
       `<button type="button" class="fete-brand" data-open="players" title="Players, nickname and room">
          <span class="fete-brand-icon" aria-hidden="true">🎪</span>
-         <span class="fete-brand-text"><b>The Mill Fair</b><small data-room>Connecting…</small></span>
+         <span class="fete-brand-text"><b>Dream Mill Fest</b><small data-room>Connecting…</small></span>
        </button>
        <div class="fete-top-actions">
          <button type="button" class="fete-btn fete-btn-main" data-open="games"><span aria-hidden="true">🎮</span><span class="fete-btn-label">Games</span></button>
@@ -198,7 +198,7 @@
         // d'abord les lieux où l'on se retrouve (on y est porté d'un clic), puis les jeux
         panels.games.innerHTML =
           `<div class="fete-games fete-spots">` +
-          [["deck", "💻", "Founders' Deck", "65 seats by the pond · sit & work"], ["wheel", "🎡", "Ferris Wheel", "Hilltop · ride with a view"], ["carousel", "🎠", "Carousel", "On the Green"], ["gate", "🎪", "Main Gate", "Back to the entrance"]]
+          [["deck", "💻", "Founders' Deck", "66 seats by the pond · sit & work"], ["terrace", "🛋️", "Mill Terrace", "Sofa, table for 4, stone skipping, fireworks button"], ["camp", "🔥", "Lumber Camp", "Campfire, hammocks, 3 lumberjack games"], ["wheel", "🎡", "The Tim Ferriss Wheel", "Hilltop · the 4-hour ride (takes a minute)"], ["balloon", "🎈", "Up and to the Right", "Hot-air balloon over the valley"], ["carousel", "🎠", "The Pivot", "Carousel on the Green"], ["gate", "🎪", "Main Gate", "Back to the entrance"]]
             .map(([id, icon, title, sub]) => `<button type="button" class="fete-game-card is-spot" data-spot="${id}"><span class="fete-game-icon" aria-hidden="true">${icon}</span><b>${title}</b><small>${sub}</small></button>`)
             .join("") +
           `</div><div class="fete-games">` +
@@ -447,8 +447,8 @@
           root,
           `<form class="fete-card">
             <div class="fete-welcome-icon" aria-hidden="true">🎪</div>
-            <h2>Welcome to the Mill Fair</h2>
-            <p class="fete-note">A real fairground in the 3D garden of an old French watermill: fifteen games, a Ferris wheel, and a deck by the pond to sit and work. Everyone who opens this page at the same time meets here.</p>
+            <h2>Welcome to the Dream Mill Fest</h2>
+            <p class="fete-note">A fairground for makers in the 3D garden of an old French watermill: 27 games, a Ferris wheel, a hot-air balloon, a campfire, and places to sit and work by the water. Everyone who opens this page at the same time meets here.</p>
             <label class="fete-label" for="fete-pseudo">Your nickname</label>
             <input id="fete-pseudo" type="text" class="fete-input" maxlength="18" value="${esc(profile.name)}" autocomplete="off" spellcheck="false">
             <div class="fete-swatches">${MF.PLAYER_COLORS.map((c) => `<button type="button" data-pick="${c}" style="--c:${c}" aria-pressed="${c === profile.color}" aria-label="Color"></button>`).join("")}</div>

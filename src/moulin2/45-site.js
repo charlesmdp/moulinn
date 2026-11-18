@@ -200,7 +200,7 @@
         p.position.x = (side * span) / 2;
         arch.add(p);
       }
-      const title = MF.sign("THE MILL FAIR", { w: span - 0.3, h: 0.95, bg: MF.PAL.red, color: "#ffffff", border: MF.PAL.yellow, double: true });
+      const title = MF.sign("DREAM MILL FEST", { w: span - 0.3, h: 0.95, bg: MF.PAL.red, color: "#ffffff", border: MF.PAL.yellow, double: true });
       title.position.y = 4.05;
       arch.add(title);
       const sp = MF.sponsors.board("village-arche", span - 0.9, 0.62, { y: 3.2, z: 0.02, kicker: "Entrance arch" });
@@ -219,7 +219,7 @@
       const B = MF.site.board;
       const panel = MF.group({ name: "Panneau_des_jeux", x: B.x, y: H(B.x, B.z), z: B.z, ry: B.heading, parent: gate });
       for (const side of [-1, 1]) MF.cyl(0.06, 0.07, 2.9, MF.PAL.woodDark, { x: side * 1.55, y: 1.45, parent: panel, cast: true, seg: 8 });
-      const head = MF.sign("15 GAMES · FERRIS WHEEL · WORK DECK", { w: 3.0, h: 0.5, bg: MF.PAL.blue, color: "#ffffff", border: "#ffffff" });
+      const head = MF.sign("27 GAMES · 3 RIDES · WORK DECK", { w: 3.0, h: 0.5, bg: MF.PAL.blue, color: "#ffffff", border: "#ffffff" });
       head.position.set(0, 2.6, 0.03);
       panel.add(head);
       panel.add(MF.sponsors.board("village-panneau", 3.0, 1.25, { y: 1.62, z: 0.03, kicker: "Main board" }));
@@ -230,7 +230,8 @@
           { text: "THE MIDWAY · GAME BOOTHS", color: MF.PAL.red, dir: 0 },
           { text: "HILLTOP · WHEEL · RACEWAY · BOOTHS", color: MF.PAL.blue, dir: -Math.PI / 2 },
           { text: "THE GREEN · RIDES", color: MF.PAL.green, dir: 0.7 },
-          { text: "FOUNDERS' DECK · SIT & WORK", color: MF.PAL.purple, dir: 0.15 },
+          { text: "MILL TERRACE · LUMBER CAMP · PONDS", color: MF.PAL.orange, dir: 0.22 },
+          { text: "FOUNDERS' DECK · SIT & WORK", color: MF.PAL.purple, dir: -0.3 },
         ]),
         -2.3,
         -71.6,
@@ -239,7 +240,7 @@
       // grand escalier de bois vers le plateau de la colline
       const S = MF.site.stairway;
       MF.decks.stairs(world, gate, { from: [S.x0, S.z, H(S.x0, S.z) + 0.05], to: [S.x1, S.z, H(S.x1, S.z) + 0.05], width: 3, name: "colline" });
-      const top = MF.sign("HILLTOP ↑ FERRIS WHEEL · RC RACEWAY · 3 BOOTHS", { w: 3.4, h: 0.5, bg: MF.PAL.blue, color: "#ffffff", border: MF.PAL.yellow, double: true });
+      const top = MF.sign("HILLTOP ↑ TIM FERRISS WHEEL · RACEWAY · GOLF · BALLOON", { w: 3.8, h: 0.5, bg: MF.PAL.blue, color: "#ffffff", border: MF.PAL.yellow, double: true });
       top.position.set(S.x0 + 0.2, H(S.x0, S.z) + 3.3, S.z);
       top.rotation.y = Math.PI / 2;
       gate.add(top);
@@ -275,7 +276,9 @@
         Pp.signpost([
           { text: "DRONE AIRFIELD", color: MF.PAL.teal, dir: 1.4 },
           { text: "THE GREEN · RIDES", color: MF.PAL.green, dir: 1.1 },
-          { text: "FOUNDERS' DECK", color: MF.PAL.purple, dir: 0.2 },
+          { text: "LUMBER CAMP · CAMPFIRE", color: MF.PAL.orange, dir: 0.33 },
+          { text: "MILL TERRACE", color: MF.PAL.red, dir: -0.1 },
+          { text: "FOUNDERS' DECK", color: MF.PAL.purple, dir: -0.5 },
         ]),
         3.4,
         -41.5,
@@ -291,8 +294,9 @@
       put(
         hill,
         Pp.signpost([
-          { text: "FERRIS WHEEL", color: MF.PAL.pink, dir: -1.25 },
-          { text: "RC RACEWAY", color: MF.PAL.red, dir: -0.87 },
+          { text: "TIM FERRISS WHEEL", color: MF.PAL.pink, dir: -1.25 },
+          { text: "SHIP FAST RACEWAY", color: MF.PAL.red, dir: -0.87 },
+          { text: "MINI-GOLF · BALLOON · IDEA MAZE", color: MF.PAL.green, dir: -0.78 },
           { text: "BOTTLES · WATER GUNS · CORN HOLE", color: MF.PAL.teal, dir: -2.2 },
           { text: "BACK TO THE MIDWAY", color: MF.PAL.blue, dir: Math.PI / 2 },
         ]),
@@ -325,12 +329,25 @@
       put(green, Pp.picnic(), 42.6, -7.4, -0.3);
       put(green, Pp.cart("hotdog"), 44.2, -1.2, 2.2);
       put(green, Pp.bin(), 46.4, -11.8);
+      // tout à l'est : les jeux du petit étang et de la rivière
       put(
         green,
         Pp.signpost([
-          { text: "BUMPER CARS · MINI-GOLF", color: MF.PAL.red, dir: Math.PI / 2 },
+          { text: "HOOKED · PETIT ÉTANG", color: MF.PAL.blue, dir: 2.4 },
+          { text: "DUCK DERBY · BOOTSTRAP TOSS", color: MF.PAL.orange, dir: 1.7 },
+          { text: "DEFAULT ALIVE · THE PIVOT", color: MF.PAL.teal, dir: -1.95 },
+        ]),
+        116,
+        -2.2,
+      );
+      put(
+        green,
+        Pp.signpost([
+          { text: "BUMPER CARS · THE PIVOT · PONDS · RIVER", color: MF.PAL.red, dir: Math.PI / 2 },
           { text: "THE MIDWAY", color: MF.PAL.blue, dir: -1.3 },
-          { text: "FOUNDERS' DECK", color: MF.PAL.purple, dir: -0.5 },
+          { text: "FROG POND", color: MF.PAL.green, dir: -0.85 },
+          { text: "LUMBER CAMP", color: MF.PAL.orange, dir: -0.28 },
+          { text: "FOUNDERS' DECK", color: MF.PAL.purple, dir: -1.12 },
         ]),
         42.2,
         -12.4,
@@ -340,6 +357,7 @@
     // manèges et espace de travail : chacun dans son fichier, avec ses lieux (« Ride », « Sit »)
     if (MF.rides) live.push(MF.rides.build(Object.assign({ zone, put }, ctx)));
     if (MF.lounge) live.push(MF.lounge.build(Object.assign({ zone, put }, ctx)));
+    if (MF.fest) live.push(MF.fest.build(Object.assign({ zone, put }, ctx)));
 
     for (const z of zones) {
       try {

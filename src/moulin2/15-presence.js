@@ -170,18 +170,34 @@
       avatar.lap.rotation.y = Math.PI; // l'écran regarde le joueur
       avatar.lap.position.set(0, fig ? 0.6 : 0.93, fig ? 0.42 : 0.5);
       body.add(avatar.lap);
-      avatar.setSit(avatar.sitting, true);
+      avatar.setSit(avatar.sitting, true, avatar.place);
     };
-    /** Assis (jambes allongées, bras vers le clavier, ordinateur ouvert) ou debout. */
-    avatar.setSit = function (on, force) {
-      if (avatar.sitting === !!on && !force) return;
+    /**
+     * Assis (jambes allongées, bras vers le clavier, ordinateur ouvert) ou debout. place : la place
+     * occupée quand on la connaît ({ sit, tilt, laptop } : hauteur du bassin, renversement, ordinateur).
+     */
+    avatar.setSit = function (on, force, place) {
+      place = on ? place || null : null;
+      if (avatar.sitting === !!on && avatar.place === place && !force) return;
       avatar.sitting = !!on;
+      avatar.place = place;
+      const lapOn = !!on && !(place && place.laptop === false);
+      avatar.typing = lapOn;
       if (avatar.pack) avatar.pack.visible = !on;
-      if (avatar.lap) avatar.lap.visible = !!on;
+      if (avatar.lap) avatar.lap.visible = lapOn;
       shadow.visible = !on;
       if (fig) {
-        // le bassin à 50 cm au-dessus de la place (un pouf), comme pour mon propre personnage
-        fig.group.position.y = on ? 0.5 - (fig.hipHeight || 0.8) : 0;
+        // le bassin à 50 cm au-dessus de la place (un pouf), comme pour mon propre personnage ;
+        // dans un hamac, le corps se renverse autour du bassin
+        const hip = fig.hipHeight || 0.8, sit = (place && place.sit) ?? 0.5, tilt = (place && place.tilt) || 0;
+        fig.group.position.set(0, on ? sit - hip * Math.cos(tilt) : 0, on ? -hip * Math.sin(tilt) : 0);
+        fig.group.rotation.x = on ? tilt : 0;
+        if (avatar.lap) {
+          // sur les genoux (renversé avec le corps dans un hamac) ou posé sur la table (place.desk)
+          if (place && place.desk) avatar.lap.position.set(0, place.desk + 0.01, 0.5);
+          else avatar.lap.position.set(0, sit + 0.1 * Math.cos(tilt) - 0.42 * Math.sin(tilt), 0.1 * Math.sin(tilt) + 0.42 * Math.cos(tilt));
+          avatar.lap.rotation.x = place && place.desk ? 0 : tilt; // ordre XYZ : demi-tour en y d'abord
+        }
         tag.position.y = on ? 1.62 : 2.12;
         return;
       }
@@ -193,7 +209,7 @@
     /** Une image : marche (d'après la distance parcourue) ou, assis, les mains sur le clavier. */
     avatar.animate = function (dt, step, walking, sitting, speed) {
       if (fig) {
-        fig.update(dt, Object.assign({ speed: sitting ? 0 : speed || (walking ? 1.8 : 0), distance: sitting ? 0 : step, running: !sitting && speed > 3.4, grounded: true, verticalSpeed: 0, riding: !!sitting, steering: 0, quadScale: 1, carDriving: true, laptop32: !!sitting }, world.figureState ? world.figureState() : null));
+        fig.update(dt, Object.assign({ speed: sitting ? 0 : speed || (walking ? 1.8 : 0), distance: sitting ? 0 : step, running: !sitting && speed > 3.4, grounded: true, verticalSpeed: 0, riding: !!sitting, steering: 0, quadScale: 1, carDriving: true, laptop32: !!sitting && avatar.typing !== false }, world.figureState ? world.figureState() : null));
         return;
       }
       if (sitting) {
@@ -294,9 +310,12 @@
       }
       if (selfLap) selfLap.visible = want;
       if (want) {
-        const h = seat.heading || 0;
-        selfLap.position.set(seat.x + Math.sin(h) * 0.42, seat.y + (seat.sit ?? 0.5) + 0.1, seat.z + Math.cos(h) * 0.42);
-        selfLap.rotation.y = h + Math.PI; // l'écran me regarde
+        // sur les genoux : 42 cm devant le bassin, 10 cm au-dessus (le tout renversé avec le corps dans un hamac)
+        // … ou posé sur la table quand la place en a une (seat.desk : hauteur du plateau)
+        const h = seat.heading || 0, tl = seat.desk ? 0 : seat.tilt || 0, f = seat.desk ? 0.5 : 0.1 * Math.sin(tl) + 0.42 * Math.cos(tl);
+        const up = seat.desk ? seat.desk + 0.01 : (seat.sit ?? 0.5) + 0.1 * Math.cos(tl) - 0.42 * Math.sin(tl);
+        selfLap.position.set(seat.x + Math.sin(h) * f, seat.y + up, seat.z + Math.cos(h) * f);
+        selfLap.rotation.set(-tl, h + Math.PI, 0, "YXZ"); // l'écran me regarde
       }
       return true;
     }
@@ -407,9 +426,10 @@
             r.y += (r.ty - r.y) * k;
             r.heading = MF.dampAngle(r.heading, r.th, 10, dt);
           }
+          let at = null;
           if (r.sitting && presence.snap) {
-            // assis dans un manège : à sa place telle qu'on la voit d'ici
-            const at = presence.snap(r);
+            // assis dans un manège ou un hamac : à sa place telle qu'on la voit d'ici
+            at = presence.snap(r);
             if (at) {
               r.x = at.x;
               r.y = at.y;
@@ -426,8 +446,8 @@
             a.setKit(r.peer.kit);
             moving = true;
           }
-          if (a.sitting !== !!r.sitting) {
-            a.setSit(r.sitting);
+          if (a.sitting !== !!r.sitting || (a.place || null) !== (r.sitting ? at : null)) {
+            a.setSit(r.sitting, false, at);
             moving = true;
           }
           a.animate(dt, step, dist > 0.03, r.sitting, r.speed);

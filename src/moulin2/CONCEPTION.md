@@ -1,6 +1,6 @@
 # La Fête du Moulin (`/moulin2`) — conception
 
-Huit jeux de fête foraine multijoueurs posés sur la maquette 3D du moulin. La page `/moulin2/`
+Vingt-sept jeux de fête foraine multijoueurs (le « Dream Mill Fest ») posés sur la maquette 3D du moulin. La page `/moulin2/`
 charge le moulin tel quel (mêmes fichiers que `/moulin/`), plus un second script, « la fête »,
 qui ajoute les jeux, le multijoueur, l'interface et les emplacements de sponsors. **Rien n'est
 changé à la maison ni au terrain** : les jeux sont des objets posés par-dessus (pistes, stands,
@@ -17,7 +17,7 @@ bâches), comme une kermesse dans le jardin.
 | `08-laptops.js` | Les huit ordinateurs en 3D, portés dans le dos (`MF.laptops`) |
 | `10-net.js` | Réseau sans serveur : salons, connexion directe entre navigateurs, repli entre onglets |
 | `12-scores.js` | Top 10 : lecture et envoi (`/api/scores`), repli local, échange entre joueurs (`MF.Scores`) |
-| `15-presence.js` | Qui est là, où, ce qu'il fait ; personnages des autres joueurs ; `MF.interp` |
+| `15-presence.js` | Qui est là, où, ce qu'il fait ; personnages des autres joueurs (le vrai personnage du moulin, teinté) ; places assises ; `MF.interp` |
 | `20-input.js` | Commandes : clavier, souris, tactile, manette ; télécommande à l'écran |
 | `30-hud.js` | Interface : barre du haut, menu des jeux, salle d'attente, compteurs, résultats |
 | `35-sponsors.js` | Emplacements de sponsors (bâches, panneaux) lus dans `sponsors.json` |
@@ -27,9 +27,10 @@ bâches), comme une kermesse dans le jardin.
 | `43-decks.js` | Planchers, gradins et escaliers praticables posés sur le terrain (`MF.decks`) |
 | `44-props.js` | Accessoires de foire en 3D : baraque, guirlandes, poufs, charrettes, drapeaux, confettis |
 | `45-site.js` | Le plan du champ de foire, zone par zone ; panneaux des stands ; tableaux du top 10 |
-| `46-lounge.js` | Le Founders' Deck : 65 poufs en gradins face au Grand étang |
+| `46-lounge.js` | Le Founders' Deck : 66 poufs en gradins face au Grand étang (rive nord-ouest) |
 | `47-rides.js` | Manèges où l'on monte : grande roue (colline), carrousel (pré) |
 | `48-booth.js` | Socle commun des baraques à score (`MF.booth`) |
+| `49-fest.js` | Lieux du Dream Mill Fest : places du salon et de la table de la terrasse, bouton « SHIP IT » et feu d'artifice, feu de camp, hamacs, montgolfière, panneaux-citations |
 | `50-core.js` | Cœur : `MF.registerGame`, `MF.boot`, entrée et sortie d'un jeu, boucle |
 | `games/*.js` | Un fichier par jeu (`rc.js` sert de modèle pour une course, `moles.js` pour une baraque) |
 | `99-host-moulin.js` | Branchement sur le vrai moulin (module V32) |
@@ -66,11 +67,11 @@ regarde vers +z ; l'avant d'un objet de cap `h` est `(sin h, cos h)`, sa droite 
 | Jeu | id | Stand (x, z) | Zone |
 | --- | --- | --- | --- |
 | RC Car Race | `rc` | −69,6 · −45,6 | colline : circuit x −121…−74, z −81…−32 |
-| RC Boat Race | `bateaux` | −10 · 14,6 | Grand étang, devant la terrasse (îlot autour de −14 · 38,5) |
-| FPV Drone Race | `drones` | 15,2 · −35 | terrasse basse ; portes autour du moulin |
+| RC Boat Race | `bateaux` | −10 · 14,6 | Grand étang : grand tour de 262 m, jusqu'à l'île du sud-ouest |
+| FPV Drone Race | `drones` | 15,2 · −35 | terrasse basse ; portes autour du moulin puis boucle au-dessus du lac |
 | Bumper Cars | `autos` | 87,5 · 3,2 | pré, pavillon x 79…96, z −11,4…0,6 |
 | Pumpkin Slingshot | `citrouilles` | 58 · −14 | rive sud de l'étang intermédiaire, radeaux au nord |
-| Mini-Golf | `golf` | 98 · −4,5 | pré, x 99,5…118,5, z −10,5…1,5 |
+| Mill Mini-Golf | `golf` | −117,3 · −14 | plateau : couronne de 15,5 m autour de (−136, −14) |
 | Shooting Gallery | `tir` | 51 · −7,5 | pré, stand x 46…56, z −4,5…1,5 |
 | Hook-a-Duck | `canards` | 66 · −7,5 | pré, bassin autour de (66, −3) |
 | High Striker | `striker` | 6,4 · −73,4 | allée des stands (tour en 11,5 · −73,4) |
@@ -80,17 +81,47 @@ regarde vers +z ; l'avant d'un objet de cap `h` est `(sin h, cos h)`, sa droite 
 | Milk Bottles | `bottles` | −36,5 · −81,2 | colline, rangée nord |
 | Water Gun Race | `water` | −42,6 · −81,2 | colline, rangée nord |
 | Corn Hole | `cornhole` | −49,6 · −82,6 | colline, couloir vers l'ouest |
+| Bounce Rate | `skip` | −2,7 · 14,9 | terrasse du moulin, face au Grand étang |
+| Dogfooding | `eat` | 8,2 · 10,4 | pointe de la terrasse (par le petit pont du bief) |
+| Crossing the Chasm | `frogs` | 36,8 · −5,5 | rive est du bassin de la véranda |
+| Default Alive | `logroll` | 84 · −15 | renflement sud-est de l'étang intermédiaire |
+| Hooked | `fish` | 134 · −22,1 | ponton posé sur le petit étang (construit par le jeu) |
+| Rubber Duck Derby | `derby` | 153,5 · −10,9 | rivière amont, de (153, −15) à (95, −28) |
+| Cut the Scope | `chop` | 27,6 · 23,6 | camp des bûcherons (rive est du Grand étang) |
+| Product-Market Fit | `axe` | 28 · 29,6 | camp des bûcherons |
+| Hockey Stick | `climb` | 27,4 · 35,2 | camp des bûcherons |
+| Unicorn Piñata | `pinata` | 108 · −4,6 | pré, à l'est des auto-tamponneuses |
+| The Idea Maze | `maze` | −163 · 32,1 | plateau, labyrinthe de 22 m de côté autour de (−163, 18) |
+| Bootstrap Toss | `welly` | 162,4 · −3,6 | pré de l'est : couloir vers l'ouest le long de z = −3,6 |
 
-Manèges et lieux : grande roue (−62, −68), carrousel (73,8, −5,8), Founders' Deck (x 16…31,
-z 21…47, rive est du Grand étang), grand escalier de la colline (z −80,6, de x −3,4 à −26,2).
+Manèges et lieux : grande roue (−62, −68), carrousel (73,8, −5,8), montgolfière (−95, −4, au
+bord du plateau), Founders' Deck (x −41,6…−20,5, z 23…37, rive nord-ouest du Grand étang),
+feu de camp (28,4, 43) et hamacs (34…36, 43…46), bouton « SHIP IT » (10,8, 14,4), grand
+escalier de la colline (z −80,6, de x −3,4 à −26,2). Les places de la terrasse reprennent le
+vrai mobilier du moulin (canapé, fauteuils, chaises), relevé sur la page réelle.
 Le plateau de la colline est plat (19,5 à 22 m) pour x ≤ −27 quand z ≤ −74 et pour x ≤ −56
-ailleurs ; le terrain du moulin s'arrête à z = −88.
+ailleurs ; il se prolonge vers le nord-ouest (x −174…−90, z −32…35). Le terrain du moulin
+s'arrête à z = −88 et à x ≈ 175.
 
 La prairie est (x 42…120, z −10,5…1,5) est plate, entre 0,9 et 1,4 m d'altitude ; elle monte
-doucement vers le sud. Au nord, l'étang intermédiaire (niveau −0,42 m) va de z ≈ −25 à z ≈ −39
-pour x entre 44 et 64 ; sa rive nord (z −44…−50) est à 0,5…1,5 m. Le Grand étang (niveau 0) commence
-à z ≈ 18 devant la terrasse du moulin ; l'eau est libre pour x −12…16, z 20…60, et jusqu'à x −36
-au-delà de z 32.
+doucement vers le sud. Elle continue à l'est (x 120…174, z −12…0, entre 0,3 et 1,5 m), bordée
+au nord par la rivière amont (z ≈ −16) et le petit étang (niveau −0,62 m, x 115…147, z −45…−21).
+Au nord, l'étang intermédiaire (niveau −0,42 m) va de z ≈ −25 à z ≈ −39 pour x entre 44 et 64 ;
+sa rive nord (z −44…−50) est à 0,5…1,5 m. Le Grand étang (niveau 0) commence à z ≈ 18 devant la
+terrasse du moulin et s'étire en diagonale jusqu'à (−80, 118) ; sur sa rive est, un massif de
+rhododendrons (x 15…26, z 16…43, 3,7 m de haut) cache la vue : rien n'y est installé.
+**À noter :** le terrain d'essai (`labo/site.json`) s'arrête à x = 120 ; au-delà, seule la
+vraie page fait foi.
+
+### Places assises
+
+Une place est un objet `{ id, x, y, z, heading }` donné à `MF.app.sit(place)` (par un lieu de
+`41-places.js`). Facultatif : `sit` (hauteur du bassin au-dessus de la place, 0,5 m par
+défaut), `tilt` (renversement du corps, hamac), `desk` (hauteur d'un plateau de table : l'ordinateur
+y est posé plutôt que sur les genoux), `laptop: false` (manège), `back`, `up`, `look` (caméra),
+`exit` (où l'on se relève), `moving` et `ride` (place mobile d'un manège). Pour que les autres
+joueurs prennent la même pose, `presence.snap(joueur)` doit renvoyer la place qu'il occupe
+(`49-fest.js` et `47-rides.js` s'en chargent pour leurs places).
 
 ## Écrire un jeu
 

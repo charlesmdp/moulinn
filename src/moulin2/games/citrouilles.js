@@ -38,7 +38,7 @@
     title: "Pumpkin Slingshot",
     icon: "🎃",
     color: MF.PAL.orange,
-    blurb: "Pull back, let go, knock the crows off",
+    blurb: "Launch day: pull back, let go, knock the crows off",
     station: { x: SX, z: SZ + 2.6, heading: Math.PI },
     kiosk: { x: SX + 3.4, z: SZ + 2.4, heading: Math.PI },
     hall: { x: SX - 3.4, z: SZ + 2.4, heading: Math.PI },

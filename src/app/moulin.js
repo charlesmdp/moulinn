@@ -11220,8 +11220,10 @@ lawnWorld20=(modelMatrix*lawnP20).xyz;`,
       const s = seat32;
       (v.visible = !0), (De.visible = !1);
       v.position.set(s.x, s.y, s.z);
-      k.position.set(0, (s.seat ?? 0.5) - W, 0); // bassin à « seat » mètres au-dessus de la place
-      k.rotation.set(s.tilt || 0, s.heading || 0, 0, "YXZ");
+      // bassin à « seat » mètres au-dessus de la place ; « tilt » le renverse autour du bassin (hamac)
+      const tl = s.tilt || 0, hd = s.heading || 0;
+      k.position.set(-W * Math.sin(tl) * Math.sin(hd), (s.seat ?? 0.5) - W * Math.cos(tl), -W * Math.sin(tl) * Math.cos(hd));
+      k.rotation.set(tl, hd, 0, "YXZ");
       v.updateMatrixWorld(!0);
       H.update(f, { speed: 0, distance: 0, running: !1, grounded: !0, verticalSpeed: 0, riding: !0, steering: 0, quadScale: 1, carDriving: s.car !== !1, laptop32: s.laptop !== !1, ...Bt() });
       n.markDirty();

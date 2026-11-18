@@ -19,26 +19,43 @@ LES ADRESSES DU SITE
 /3D/      la même page avec la Vue 3D en plus ;
 /build/   la vue 3D et l'atelier Aménager ;
 /jeu/     le jeu « Pas touche à mes trésors » (seule façon d'y accéder) ;
-/moulin2/ la Fête du Moulin : quinze jeux multijoueurs, une grande roue et un
-          ponton pour travailler, dans le moulin 3D (page publique, faite pour
-          être partagée).
+/moulin2/ la Fête du Moulin, « Dream Mill Fest » : vingt-sept jeux
+          multijoueurs, trois manèges et des endroits où s'asseoir travailler,
+          dans le moulin 3D (page publique, faite pour être partagée).
 /moulin/, /3D/ et /build/ ne sont pas indexées par les moteurs de recherche.
 Le mot de passe est une simple barrière (seule son empreinte est publiée).
 
-LA FETE DU MOULIN (/moulin2/)
+LA FETE DU MOULIN, « DREAM MILL FEST » (/moulin2/)
 Le moulin 3D tel quel (rien n'est changé à la maison ni au terrain), installé
-en champ de foire à l'américaine, tout en volumes 3D, en anglais :
+en fête foraine pour « makers », tout en volumes 3D, en anglais. Vingt-sept
+jeux répartis sur tout le domaine :
 - l'Allée des stands (l'allée du moulin) : High Striker, Whack-a-Mole,
   Skee-Ball, Ring Toss ;
-- la terrasse basse : piste d'envol des drones (portes autour du moulin) ;
+- la terrasse basse : piste d'envol des drones (portes autour du moulin, puis
+  une grande boucle au-dessus du Grand étang) ;
 - la Colline, par le grand escalier : Milk Bottles, Water Gun Race, Corn Hole,
-  la grande roue (on y monte) et le circuit des voitures RC ;
-- le Pré : stand de tir, pêche aux canards, lance-citrouilles (au lance-pierre,
-  vue de profil), carrousel, auto-tamponneuses, mini-golf ;
-- le Grand étang : course de bateaux, et sur la rive le Founders' Deck, 65
-  poufs en gradins pour s'asseoir avec son ordinateur face à l'eau.
+  la grande roue (« The Tim Ferriss Wheel ») et le circuit des voitures RC ;
+  plus loin sur le plateau : mini-golf en couronne, labyrinthe (The Idea
+  Maze), montgolfière (« Up and to the Right », un vol toutes les 72 s) ;
+- le Pré : stand de tir, pêche aux canards, lance-citrouilles, carrousel
+  (« The Pivot »), auto-tamponneuses, piñata ; vers l'est : le rondin qui
+  roule (étang intermédiaire), la pêche au ponton du petit étang, la descente
+  de la rivière en canard de bain, le lancer de botte ;
+- la terrasse du moulin : ricochets sur l'étang ; on s'assoit dans le salon de
+  jardin et à la table (l'ordinateur posé dessus) ; sur la pointe, par le
+  petit pont : concours de hot-dogs et bouton « SHIP IT » (feu d'artifice
+  au-dessus de l'étang, vu de tous) ;
+- le bassin de la véranda : les grenouilles à poser sur les nénuphars ;
+- le Grand étang : course de bateaux (grand tour du lac) ; rive nord-ouest, le
+  Founders' Deck (66 poufs en gradins face à l'eau) ; rive est, le camp des
+  bûcherons : abattage, lancer de hache, mât à grimper, feu de camp (huit
+  rondins où s'asseoir) et trois hamacs.
 En arrivant, on choisit son nom, sa couleur et son ordinateur (porté dans le
-dos). Une musique d'orgue de foire tourne en boucle (bouton pour la couper).
+dos). Les autres joueurs apparaissent avec le personnage du moulin, à leur
+couleur. Touche E pour s'asseoir ou monter dans un manège ; le menu « Games »
+porte d'un clic vers chaque jeu et chaque lieu. Une musique d'orgue de foire
+tourne en boucle (bouton pour la couper). Les noms des jeux et les panneaux
+sont des clins d'œil aux entrepreneurs et indie hackers (hommages).
 Top 10 : chaque jeu a son tableau à côté du stand, affiché aussi pendant la
 partie. Pour que les scores soient communs à tous et gardés pour toujours, il
 faut une fois, dans Cloudflare : créer un espace KV, puis dans le projet Pages,

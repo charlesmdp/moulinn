@@ -18,7 +18,7 @@ hébergement statique en HTTPS). Les sources modifiables sont dans `src/`.
 | `/3D/` | La même page avec la **Vue 3D** en plus |
 | `/build/` | La vue 3D et l'atelier **Aménager** (page non indexée par les moteurs de recherche) |
 | `/jeu/` | Le jeu « Pas touche à mes trésors » (seule façon d'y accéder) |
-| `/moulin2/` | **La Fête du Moulin** : quinze jeux de fête foraine multijoueurs, une grande roue et un ponton pour travailler, dans le moulin 3D (page publique, indexée, faite pour être partagée) |
+| `/moulin2/` | **La Fête du Moulin (« Dream Mill Fest »)** : vingt-sept jeux de fête foraine multijoueurs, trois manèges et des endroits où s'asseoir travailler, dans le moulin 3D (page publique, indexée, faite pour être partagée) |
 
 `/Moulin`, `/3d`, `/Build`, `/Jeu` ou `/Moulin2` (autres majuscules, avec ou
 sans « / ») mènent aux mêmes pages. Le mot de passe de `/` est une simple barrière : seule
@@ -29,34 +29,43 @@ qu'un moteur de recherche n'y mène pas tout droit, `/moulin/`, `/3D/` et
 restent dans le navigateur qui les a faites ; `/build` évite surtout que les
 visiteurs tombent sur l'atelier.
 
-## La Fête du Moulin (`/moulin2/`)
+## La Fête du Moulin — « Dream Mill Fest » (`/moulin2/`)
 
 Le moulin 3D tel quel — rien n'est changé à la maison ni au terrain — transformé en
-champ de foire à l'américaine : une allée de baraques, des manèges, une colline avec
-sa grande roue, quinze jeux à jouer de 1 à 8 (clavier, souris ou doigt), un top 10
-planté à côté de chaque jeu et un ponton pour s'asseoir travailler face à l'étang.
-Tout est en volumes 3D (aucune image) ; seuls les textes des panneaux sont peints.
+fête foraine pour « makers » : une allée de baraques, trois manèges, vingt-sept jeux
+à jouer de 1 à 8 (clavier, souris ou doigt) répartis sur tout le domaine (les trois
+étangs, la rivière, la terrasse, les arbres, le plateau), un top 10 planté à côté de
+chaque jeu, et des endroits où s'asseoir travailler ou discuter. Tout est en volumes
+3D (aucune image) ; seuls les textes des panneaux sont peints.
 
-**Le plan.** On entre par le portail (arche « The Mill Fair », guichet).
+**Le plan.** On entre par le portail (arche « Dream Mill Fest », guichet).
 - *L'Allée des stands* (l'allée du moulin, côté est) : High Striker, Whack-a-Mole,
   Skee-Ball, Ring Toss, sous les guirlandes d'ampoules.
-- *La terrasse basse* : la piste d'envol des drones (leurs portes font le tour du moulin).
-- *La Colline* (plateau nord-ouest, par le grand escalier de bois) : belvédère,
-  Milk Bottles, Water Gun Race, Corn Hole, la grande roue (on y monte), le circuit RC.
+- *La terrasse basse* : la piste d'envol des drones (portes autour du moulin, puis
+  une grande boucle au-dessus du Grand étang).
+- *La Colline* (par le grand escalier de bois) : belvédère, Milk Bottles, Water Gun
+  Race, Corn Hole, la grande roue, le circuit RC ; plus loin sur *le plateau* : le
+  mini-golf en couronne, le labyrinthe, la montgolfière.
 - *Le Pré* (prairie est) : stand de tir, pêche aux canards, lance-citrouilles,
-  carrousel (on y monte), auto-tamponneuses, mini-golf.
-- *Le Grand étang* : course de bateaux ; sur sa rive est, le *Founders' Deck*.
+  carrousel, auto-tamponneuses, piñata ; puis, vers l'est, le rondin de l'étang
+  intermédiaire, le ponton de pêche du petit étang, la descente de la rivière en
+  canard et le lancer de botte.
+- *La terrasse du moulin et sa pointe* (par le petit pont du bief) : ricochets,
+  concours de hot-dogs, salon et table où s'asseoir, bouton « SHIP IT ».
+- *Le bassin de la véranda* : les grenouilles.
+- *Le Grand étang* : course de bateaux (grand tour du lac) ; rive nord-ouest, le
+  *Founders' Deck* ; rive est, *le camp des bûcherons* (trois jeux, feu de camp, hamacs).
 
 | Jeu | Où | Règle |
 | --- | --- | --- |
-| RC Car Race | colline | 3 ou 5 tours d'un circuit de 220 m : tremplin, bandes de boost, départ canon aux feux |
-| RC Boat Race | Grand étang | 3 ou 5 tours de 134 m : tremplin flottant, bidons de nitro |
-| FPV Drone Race | terrasse, autour du moulin | 2 ou 3 tours de 11 portes ; le centre d'un anneau recharge le turbo |
+| RC Car Race | colline | « Ship Fast Raceway » : 3 ou 5 tours d'un circuit de 220 m, tremplin, bandes de boost, départ canon aux feux |
+| RC Boat Race | Grand étang | 1 à 3 tours du lac (262 m) : tremplin flottant, bidons de nitro |
+| FPV Drone Race | terrasse basse, moulin, lac | 1 à 3 tours de 20 portes ; le centre d'un anneau recharge le turbo |
 | Bumper Cars | pré | 90 s : chocs, étoiles, couronne à garder ; des robots complètent la piste |
 | Pumpkin Slingshot | étang intermédiaire | 6 citrouilles au lance-pierre, vue de profil : tours de caisses à faire tomber des radeaux |
-| Mini-Golf | pré | 9 trous (ou 3), chacun son tour |
+| Mill Mini-Golf | plateau | 9 trous en couronne (ou 3), chacun son tour |
 | Shooting Gallery | pré | 60 s : canettes, cibles mobiles, ballons ; prime toutes les 5 touches d'affilée |
-| Hook-a-Duck | pré | 75 s, l'hameçon se balance |
+| Hook-a-Duck | pré | 75 s, l'hameçon se balance ; les 15 dernières secondes comptent double |
 | High Striker | allée | 3 coups de maillet : frapper quand la jauge est au plus haut, faire sonner la cloche |
 | Whack-a-Mole | allée | 45 s : taupes +10, dorées +30, putois −20 |
 | Skee-Ball | allée | 9 boules : viser, doser la force, anneaux de 10 à 100 |
@@ -64,6 +73,18 @@ Tout est en volumes 3D (aucune image) ; seuls les textes des panneaux sont peint
 | Milk Bottles | colline | 6 balles pour raser trois pyramides de bouteilles |
 | Water Gun Race | colline | garder le jet dans la bouche du clown : le premier ballon qui éclate gagne |
 | Corn Hole | colline | 8 sacs : 1 point sur la planche, 3 dans le trou |
+| Cut the Scope | camp des bûcherons | 30 s : abattre le tronc en frappant à gauche ou à droite, sans prendre de branche |
+| Product-Market Fit | camp des bûcherons | 6 haches sur une cible qui se déplace |
+| Hockey Stick | camp des bûcherons | grimper un mât de 12 m et sonner la cloche, au chronomètre |
+| Bounce Rate | terrasse du moulin | 5 galets à faire ricocher sur le Grand étang : le plus de rebonds |
+| Dogfooding | pointe de la terrasse | 30 s de concours de hot-dogs : avaler à son rythme, sans s'étouffer |
+| Crossing the Chasm | bassin de la véranda | 8 grenouilles à poser sur les nénuphars, du plus proche au plus lointain |
+| Default Alive | étang intermédiaire | tenir debout sur le rondin qui roule : la durée est le score |
+| Hooked | petit étang (ponton) | 60 s de pêche : ferrer quand le bouchon plonge, mouliner sans casser le fil |
+| Rubber Duck Derby | rivière | 60 m de descente en canard de bain, en évitant les « bugs » |
+| The Idea Maze | plateau | labyrinthe : trouver l'idée, le MVP et les premiers clients, puis la sortie |
+| Unicorn Piñata | pré | 30 s : frapper la licorne qui se balance |
+| Bootstrap Toss | pré de l'est | 3 bottes à lancer le plus loin possible : jauge à lâcher au bon moment, vent |
 
 **Top 10 « forever ».** Chaque jeu a son tableau en 3D à côté du stand, et le même
 classement reste affiché pendant qu'on joue. Les scores sont gardés par la fonction
@@ -76,12 +97,37 @@ scores en local (et les échange avec les joueurs présents) : rien ne casse, ma
 classement n'est pas commun à tous. Les bornes de chaque jeu (score possible ou non)
 sont dans `RULES`, en tête de la fonction.
 
-**Ordinateur sur le dos, musique, places assises.** À l'arrivée, on choisit son nom,
-sa couleur et son ordinateur (huit modèles en 3D) : il se porte dans le dos comme un
-sac, et ce sur quoi on travaille (« What are you building? ») s'affiche quand on est
-assis. Le *Founders' Deck* offre 65 poufs en gradins face au Grand étang : touche E
-pour s'asseoir, l'ordinateur passe sur les genoux. Un orgue de foire synthétisé
-(aucun fichier audio) joue en boucle ; le bouton ♪ de la barre le coupe.
+**Le personnage, l'ordinateur sur le dos, la musique.** À l'arrivée, on choisit son
+nom, sa couleur et son ordinateur (huit modèles en 3D) : il se porte dans le dos,
+sans bretelles apparentes, liseré à la couleur du joueur. Les autres joueurs sont
+dessinés avec le vrai personnage du moulin (teinté à leur couleur), y compris assis
+et dans les manèges. Un orgue de foire synthétisé (aucun fichier audio) joue en
+boucle ; le bouton ♪ de la barre le coupe.
+
+**Où s'asseoir, où se retrouver** (touche E ; ce sur quoi on travaille, « What are
+you building? », s'affiche au-dessus de qui est assis ; le menu « Games » y porte
+d'un clic) :
+- le *Founders' Deck* : 66 poufs en gradins sur la rive nord-ouest du Grand étang,
+  l'ordinateur ouvert sur les genoux ;
+- la *terrasse du moulin* : le vrai salon de jardin (« Deep Work Lounge » : canapé
+  trois places, deux fauteuils) et les quatre chaises de la vraie table (« Ramen
+  Profitable Table » : l'ordinateur est posé sur la table) ;
+- la *pointe de la terrasse* : charrettes, table de pique-nique et le gros bouton
+  rouge « SHIP IT », qui tire un feu d'artifice au-dessus de l'étang, vu de tous ;
+- le *camp des bûcherons* : huit rondins autour du feu de camp des indie hackers,
+  trois hamacs « The 4-Hour Workweek » (on y travaille allongé) ;
+- les manèges : la grande roue « The Tim Ferriss Wheel », le carrousel « The Pivot »,
+  et la montgolfière « Up and to the Right » (quatre places, un vol toutes les 72 s
+  au-dessus de la vallée ; en vol, l'invite dit dans combien de temps elle revient).
+
+**Clins d'œil.** Les noms de jeux et les panneaux citent des titres et devises
+connus des entrepreneurs et indie hackers (« Zero to One », « Crossing the Chasm »,
+« Hooked », « Default Alive », « Ramen Profitable », « Do things that don't scale »,
+« Make something people want », « Stay hungry. Stay foolish. », « It's always Day 1 »,
+« Move fast and break things », « Ship fast », « Build in public », « Small bets »,
+« It doesn't have to be crazy at work », « The 4-Hour Workweek »…). Ce sont des
+hommages : rien ne laisse entendre que ces personnes soutiennent la fête. Les textes
+sont dans `src/moulin2/49-fest.js` (panneaux) et dans chaque jeu (`games/*.js`).
 
 **Multijoueur sans serveur.** Tous ceux qui ouvrent `/moulin2/` au même moment
 sont dans le même salon public (12 personnes, puis un deuxième salon s'ouvre) ;
@@ -117,8 +163,10 @@ dictionnaire reste en français.
 d'essai léger (`http://localhost:8090/`, deux onglets pour jouer à deux) ;
 `node tests/fete.test.mjs` vérifie le réseau et le déroulement des parties sans
 navigateur ; `node tests/scores.test.mjs` vérifie le top 10 (fonction et accord
-avec les quinze jeux) ; `node tests/fete-labo.mjs` ouvre, lance et joue quelques
-secondes chacun des quinze jeux dans un vrai navigateur (Playwright).
+avec les vingt-sept jeux) ; `node tests/fete-labo.mjs` ouvre, lance et joue quelques
+secondes chacun des vingt-sept jeux dans un vrai navigateur (Playwright). Le terrain
+d'essai ne couvre pas le domaine à l'est de x = 120 (petit étang, rivière, pré de
+l'est) : les jeux qui s'y trouvent y tournent, mais sur un sol absent.
 
 ## Relief réel (IGN)
 

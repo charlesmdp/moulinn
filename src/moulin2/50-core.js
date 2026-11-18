@@ -355,7 +355,7 @@
       return url.href;
     }
     // lieux du menu : on y est porté d'un clic (debout, hors de tout jeu)
-    const SPOTS = { deck: [-31, 21.6, 0], wheel: [-57.4, -68, -Math.PI / 2], carousel: [73.8, -12.2, 0], gate: [1.4, -81.5, 0] };
+    const SPOTS = { deck: [-31, 21.6, 0], terrace: [-4.6, 11.6, 0], camp: [28.6, 40.4, 0], wheel: [-57.4, -68, -Math.PI / 2], balloon: [-99.4, -4, Math.PI / 2], carousel: [73.8, -12.2, 0], gate: [1.4, -81.5, 0] };
     hud.on((action, value) => {
       if (action === "spot" && SPOTS[value]) {
         if (active) leave();
@@ -483,7 +483,9 @@
         const h = seated.heading, sway = Math.sin(time * 0.22) * 0.25;
         const back = seated.back ?? 2.7, up = seated.up ?? 1.75, side = seated.moving ? 0 : 0.9 + sway;
         const to = seated.look || { x: seated.x + Math.sin(h) * 9, y: seated.y + 0.7, z: seated.z + Math.cos(h) * 9 };
-        MF.cam.set(world.camera, { x: seated.x - Math.sin(h) * back + Math.cos(h) * side, y: seated.y + up, z: seated.z - Math.cos(h) * back - Math.sin(h) * side }, to, seated.moving ? 62 : 52);
+        // place.cam : point de vue imposé (salon de la terrasse, vu de face avec l'étang derrière)
+        const eye = seated.cam ? { x: seated.cam.x + sway * 1.6, y: seated.cam.y, z: seated.cam.z } : { x: seated.x - Math.sin(h) * back + Math.cos(h) * side, y: seated.y + up, z: seated.z - Math.cos(h) * back - Math.sin(h) * side };
+        MF.cam.set(world.camera, eye, to, seated.moving ? 62 : 52);
       } else {
         // près d'un stand ou d'un lieu ? (seulement en se promenant avec le personnage)
         let best = null, bd = NEAR, place = null;

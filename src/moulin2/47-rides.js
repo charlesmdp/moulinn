@@ -37,10 +37,14 @@
     MF.cyl(0.32, 0.32, 3.9, red, { y: W.hub, rz: Math.PI / 2, parent: wg, seg: 10 });
     // quai d'embarquement et guichet
     MF.box(3.4, 0.14, 5.2, MF.decks.WOOD, { x: 3.0, y: 0.07, parent: wg });
-    const sign = MF.sign("FERRIS WHEEL", { w: 3.4, h: 0.62, bg: MF.PAL.pink, color: "#ffffff", border: MF.PAL.yellow, double: true });
+    const sign = MF.sign("THE TIM FERRISS WHEEL", { w: 3.4, h: 0.62, bg: MF.PAL.pink, color: "#ffffff", border: MF.PAL.yellow, double: true });
     sign.position.set(4.9, 3.4, 0);
     sign.rotation.y = Math.PI / 2;
     wg.add(sign);
+    const sub = MF.sign("THE 4-HOUR RIDE · (IT TAKES A MINUTE)", { w: 3.4, h: 0.3, px: 128, bg: MF.PAL.cream, color: MF.PAL.ink, double: true });
+    sub.position.set(4.9, 2.92, 0);
+    sub.rotation.y = Math.PI / 2;
+    wg.add(sub);
     for (const dz of [-1.6, 1.6]) {
       const pole = MF.pole(3.7);
       pole.position.set(4.9, 0, dz);
@@ -93,7 +97,7 @@
       z: W.z,
       r: 3.2,
       icon: "🎡",
-      title: "Ferris Wheel",
+      title: "The Tim Ferriss Wheel",
       verb: "Ride",
       run() {
         // la nacelle la plus proche du quai (en bas)
@@ -148,16 +152,19 @@
       const seat = { id: "horse-" + i, x: C.x, y: cy, z: C.z, heading: 0, moving: true, ride: "carousel", exit: { x: C.x, z: C.z - C.r - 1.6 }, back: 2.4, up: 1.5, a, rr, laptop: false, sit: 0.55 };
       horses.push({ horse, seat, a, rr, i });
     }
-    const csign = MF.sign("CAROUSEL", { w: 2.6, h: 0.55, bg: MF.PAL.yellow, color: MF.PAL.red, border: MF.PAL.red, double: true });
+    const csign = MF.sign("THE PIVOT", { w: 2.6, h: 0.55, bg: MF.PAL.yellow, color: MF.PAL.red, border: MF.PAL.red, double: true });
     csign.position.set(0, 4.2, -C.r - 1.1);
     cg.add(csign);
+    const csub = MF.sign("CAROUSEL · ROUND AND ROUND UNTIL IT WORKS", { w: 2.6, h: 0.26, px: 128, bg: MF.PAL.cream, color: MF.PAL.ink, double: true });
+    csub.position.set(0, 3.78, -C.r - 1.1);
+    cg.add(csub);
     places.add({
       id: "carousel",
       x: C.x,
       z: C.z - C.r - 1.2,
       r: 2.6,
       icon: "🎠",
-      title: "Carousel",
+      title: "The Pivot",
       verb: "Ride",
       run() {
         const free = horses.find((h) => !taken(h.seat));

@@ -1,6 +1,6 @@
 // La Fête du Moulin — Bootstrap Toss (le lancer de botte : les « bootstrappers » vont loin).
 //
-// Trois bottes à lancer le plus loin possible sur la grande prairie du plateau. On maintient le
+// Trois bottes à lancer le plus loin possible dans le pré de l'est, le long de la rivière. On maintient le
 // clic : la jauge monte et redescend ; on lâche au plus haut… mais pas tout en haut : au-delà de
 // 96 %, on mord la ligne et le lancer est nul. Le vent pousse ou freine. La meilleure distance est
 // le score.
@@ -18,7 +18,7 @@
     blurb: "3 boots · bootstrappers go the distance",
     help: "Hold the click: the gauge rises and falls. Release as high as you can, but not at the very top: above 96 % you step over the line and the throw is void. Mind the wind. Your best distance is your score.",
     hint: "Hold, release near the top of the gauge (not above 96 %)",
-    at: { x: -99, z: 4, face: Math.PI / 2 },
+    at: { x: 160, z: -3.6, face: Math.PI / 2 },
     stall: false,
     size: { w: 3, d: 1.2 },
     hall: [3.2, 2.6],

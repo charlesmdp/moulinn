@@ -72,7 +72,7 @@
     title: "RC Car Race",
     icon: "🏎️",
     color: MF.PAL.red,
-    blurb: "Hilltop raceway · jump, boost pads · 3 or 5 laps",
+    blurb: "Ship Fast Raceway on the hilltop · jump, boost pads · 3 or 5 laps",
     station: { x: -69.6, z: -45.6, heading: -Math.PI / 2 },
     kiosk: { x: -68.8, z: -42.4, heading: -Math.PI / 2 },
     hall: { x: -68.8, z: -48.9, heading: -Math.PI / 2 },

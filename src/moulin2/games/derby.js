@@ -40,7 +40,8 @@
       const path = MF.path(RIVER, { closed: false, step: 0.5 }), L = path.length;
       // dans le repère du jeu (cap 0 : le repère est celui du monde, décalé) ; l'eau : le lit plus 30 cm
       const X = (x) => x - A.x, Z = (z) => z - A.z;
-      const water = (x, z) => Math.min(world.heightAt(x, z), world.heightAt(x + 0.5, z), world.heightAt(x - 0.5, z), world.heightAt(x, z + 0.5), world.heightAt(x, z - 0.5)) + 0.3 - Y0;
+      // la surface de la rivière affleure le relief en son milieu (relevé sur la page du moulin : à 3 cm près)
+      const water = (x, z) => world.heightAt(x, z) + 0.04 - Y0;
       const spot = (s, lane, out) => {
         const p = path.at(MF.clamp(s, 0, L));
         const x = p.x - p.tz * lane * LANE, z = p.z + p.tx * lane * LANE;
