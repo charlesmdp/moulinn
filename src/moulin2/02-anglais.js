@@ -12,7 +12,16 @@
   /** Textes exacts (espaces resserrés, apostrophes droites) → anglais. */
   const EXACT = {
     // --- page, titres
-    "Le moulin Saint-Christophe": "Saint-Christophe Mill",
+    "Le moulin Saint-Christophe": "The Dream Mill",
+    // la fête est publique : ni le nom du lieu ni celui de la commune n'y paraissent
+    "MOULIN DE SAINT CHRISTOPHE": "DREAM MILL FEST",
+    "CROKMOULAND": "WORK · PLAY · ADVERTISE",
+    "← CROKMOULAND": "A place to relax, work and advertise",
+    "Moulin de Saint-Christophe": "The Dream Mill",
+    "Elven, Morbihan, Bretagne": "Brittany, France",
+    "Moulin de Saint-Christophe · Elven": "The Dream Mill · Brittany",
+    "Elven · 56250": "Brittany",
+    "Bienvenue au moulin": "Welcome to the Dream Mill",
     "Version 31 · Explorer et aménager": "Version 31 · Explore and landscape",
     "Le moulin · paysage de jeu": "The mill · game landscape",
     "LES JARDINS": "THE GARDENS",
@@ -190,7 +199,7 @@
     "avancer et se décaler ·": "move and strafe ·",
     "monter / descendre ·": "up / down ·",
     "regarder ·": "look ·",
-    "Bienvenue au domaine. Le panneau suivant vous explique les commandes pour explorer les jardins.": "Welcome to the estate. The next sign explains the controls for exploring the gardens.",
+    "Bienvenue au domaine. Le panneau suivant vous explique les commandes pour explorer les jardins.": "This old watermill has been turned into a place to relax, work and advertise, for entrepreneurs from all over the world. The next sign explains the controls.",
 
     // --- panneau des commandes à l'entrée (peint sur un panneau 3D : voir le crochet des dessins plus bas)
     "BIENVENUE AU MOULIN": "WELCOME TO THE MILL",

@@ -258,7 +258,7 @@
   }
   /** Lance la musique si elle n'est pas coupée (à appeler après un geste du visiteur). */
   music.start = function () {
-    if (!music.on || music.playing || (typeof document !== "undefined" && document.hidden)) return;
+    if (!music.on || music.ducked || music.playing || (typeof document !== "undefined" && document.hidden)) return;
     if (!ensure()) return;
     music.playing = true;
     cursor = 0;
@@ -286,6 +286,12 @@
     } catch (e) {}
     if (music.on) music.start();
     else music.stop();
+  };
+  /** Une ambiance de travail joue à sa place (voir 09-ambience.js) : l'orgue se tait, puis reprend. */
+  music.duck = function (on) {
+    music.ducked = !!on;
+    if (music.ducked) music.stop();
+    else if (music.wanted) music.start();
   };
   /** Pour les essais : la partition jouée (événements et durée de la boucle). */
   music.score = score;

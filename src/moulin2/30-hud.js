@@ -119,7 +119,7 @@
 
     /* ---------------------------------------------------------------- clics */
     root.addEventListener("click", (ev) => {
-      const t = ev.target.closest("[data-open],[data-close],[data-act],[data-game],[data-spot],[data-sound],[data-music],[data-color],[data-kit],[data-copy],[data-private],[data-public],[data-fold]");
+      const t = ev.target.closest("[data-open],[data-close],[data-act],[data-game],[data-spot],[data-sound],[data-music],[data-ambience],[data-color],[data-kit],[data-copy],[data-private],[data-public],[data-fold]");
       if (!t || !root.contains(t)) return;
       if (t.dataset.open) return openPanel(t.dataset.open);
       if (t.hasAttribute("data-close")) return openPanel(null);
@@ -133,6 +133,7 @@
       }
       if (t.hasAttribute("data-sound")) return act("sound", soundBtn.getAttribute("aria-pressed") !== "true");
       if (t.hasAttribute("data-music")) return act("music", musicBtn.getAttribute("aria-pressed") !== "true");
+      if (t.dataset.ambience) return act("ambience", t.dataset.ambience);
       if (t.hasAttribute("data-fold")) return top10.classList.toggle("is-folded");
       if (t.dataset.color) return act("profile", { color: t.dataset.color });
       if (t.dataset.kit) return act("profile", { kit: t.dataset.kit });
@@ -231,7 +232,7 @@
           `</div>
           <h3>Your laptop</h3>${laptopPicker(model.self.kit, "data-kit")}
           <h3>What are you building?</h3>
-          <input type="text" class="fete-input" data-bio maxlength="40" value="${esc(model.self.bio || "")}" placeholder="shown when you sit at the Founders' Deck" aria-label="What you are building" autocomplete="off" spellcheck="false">
+          <input type="text" class="fete-input" data-bio maxlength="40" value="${esc(model.self.bio || "")}" placeholder="shown under your name, to everyone" aria-label="What you are building" autocomplete="off" spellcheck="false">
           <h3>Play with friends</h3>
           <p class="fete-note">${esc(model.room.label)}. ${model.room.isPrivate ? "Only people with the link can join." : "Every visitor lands here; send the link to play together."}</p>
           <div class="fete-row"><button type="button" class="fete-btn fete-btn-main" data-copy>Copy invite link</button>${model.room.isPrivate ? `<button type="button" class="fete-btn" data-public>Public room</button>` : ""}</div>
@@ -303,7 +304,12 @@
         const sig = JSON.stringify(model);
         if (sig === seatBar._sig || (seatBar.contains(document.activeElement) && document.activeElement.matches("input"))) return;
         seatBar._sig = sig;
-        seatBar.innerHTML = `<span aria-hidden="true">💻</span><input type="text" class="fete-input" data-bio maxlength="40" value="${esc(model.bio || "")}" placeholder="What are you building?" aria-label="What you are building" autocomplete="off" spellcheck="false">
+        // assis, on travaille : choix de l'ambiance sonore ; on regarde autour de soi en glissant
+        seatBar.innerHTML =
+          `<div class="fete-seat-sound" role="group" aria-label="Ambience">` +
+          MF.ambience.MODES.map((m) => `<button type="button" class="fete-seat-mode" data-ambience="${m.id}" aria-pressed="${m.id === model.ambience}" title="${m.name}"><span aria-hidden="true">${m.icon}</span></button>`).join("") +
+          `</div><span class="fete-seat-tip">${mobile ? "Drag to look around" : "Drag to look around · scroll to zoom"}</span>
+          <button type="button" class="fete-btn" data-act="view" title="Reset the view">↺</button>
           <button type="button" class="fete-btn fete-btn-main" data-act="stand">Stand up${mobile ? "" : " <kbd>Esc</kbd>"}</button>`;
       },
 

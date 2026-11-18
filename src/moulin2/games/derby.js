@@ -1,6 +1,7 @@
 // La Fête du Moulin — Rubber Duck Debugging Derby (la course de canards en plastique, sur la rivière).
 //
-// Soixante mètres de rivière à descendre, du pré de l'est jusqu'à l'étang intermédiaire. Le courant
+// Quarante-cinq mètres de rivière à descendre, du pré de l'est jusqu'à l'étang intermédiaire (le
+// départ est en aval du ponton de pêche, qui enjambe la rivière en x = 134). Le courant
 // porte le canard ; on change de couloir (← →, ou clic à gauche ou à droite) pour éviter les « bugs »
 // (des scarabées rouges : une seconde de débogage à chaque choc) et attraper les anneaux verts
 // (« tests au vert » : un coup d'accélérateur). Maintenir Espace (ou le clic) fait pagayer, tant
@@ -8,8 +9,8 @@
 (function () {
   "use strict";
   const MF = globalThis.MoulinFete;
-  const RIVER = [[153, -15.4], [146.34, -15.24], [135.03, -15.6], [127.65, -17.72], [121.24, -21.21], [113.48, -25.32], [108.42, -27.84], [103.09, -28.37], [95, -27.85]];
-  const A = { x: 153.5, z: -13.2 };
+  const RIVER = [[130.2, -16.98], [127.65, -17.72], [121.24, -21.21], [113.48, -25.32], [108.42, -27.84], [103.09, -28.37], [94.12, -27.79], [90.6, -23.7]];
+  const A = { x: 130.6, z: -13.0 };
   const LANE = 0.55, DRIFT = 1.9, PADDLE = 1.5, BOOST = 2.4;
 
   MF.booth({
@@ -17,14 +18,14 @@
     title: "Rubber Duck Derby",
     icon: "🦆",
     color: "#f1c40f",
-    blurb: "Rubber duck debugging: 60 m down the river, dodge the bugs",
+    blurb: "Rubber duck debugging: 45 m down the river, dodge the bugs",
     help: "The current carries your duck. Tap ← or → (or click the left or right side) to change lanes: dodge the red bugs (one second of debugging each) and grab the green rings (tests passing: a burst of speed). Hold Space (or the click) to paddle while you have breath. Your time at the finish is your score.",
     hint: "← / → change lanes · hold Space to paddle · dodge the bugs",
     touchHint: "Tap left or right to change lanes · hold to paddle",
     at: { x: A.x, z: A.z, face: 0 },
     stall: false,
     size: { w: 3, d: 1.0 },
-    hall: [3.2, 1.6],
+    hall: [-3.2, 1.6],
     duration: 75,
     cam: { y: 2.2, z: 1.6, look: [0, 0.2, -3], fov: 58 },
     cross: false,

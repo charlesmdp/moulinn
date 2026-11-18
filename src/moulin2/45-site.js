@@ -268,7 +268,7 @@
       // la terrasse basse : escalier depuis l'allée, tables, limonade
       const L = MF.site.terrace;
       MF.decks.stairs(world, midway, { from: [L.stair[0], L.stair[2], H(L.stair[0], L.stair[2]) + 0.03], to: [L.stair[1], L.stair[2], H(L.stair[1], L.stair[2]) + 0.03], width: 2.4, name: "terrasse", rails: false });
-      put(midway, Pp.picnic(), 8.3, -30.4, 0.4);
+      // (pas de table ici : les deux jardinières de la terrasse basse occupent x 7,6…11,1, z −38,8…−30,2)
       put(midway, Pp.picnic(), 8.0, -46.6, -0.2);
       put(midway, Pp.cart("lemonade"), 7.6, -43.6, 1.9); // hors de l'axe d'envol des drones
       put(

@@ -228,6 +228,11 @@
 .fete-seatbar { position: absolute; left: 50%; bottom: 14px; transform: translateX(-50%); display: flex; align-items: center; gap: 8px; padding: 6px 8px 6px 12px; background: var(--cream); border: 3px solid var(--ink); border-radius: 16px; box-shadow: 0 4px 0 var(--ink); pointer-events: auto; font-size: 20px; max-width: calc(100% - 20px); }
 .fete-seatbar .fete-input { width: min(260px, 46vw); margin: 0; }
 .fete-seatbar[hidden] { display: none; }
+.fete-seat-sound { display: flex; gap: 4px; }
+.fete-seat-mode { width: 34px; height: 34px; border: 3px solid var(--ink); border-radius: 10px; background: #fff; font-size: 16px; line-height: 1; cursor: pointer; padding: 0; }
+.fete-seat-mode[aria-pressed="true"] { background: var(--yellow); box-shadow: 0 2px 0 var(--ink); transform: translateY(-1px); }
+.fete-seat-tip { font-size: 12px; opacity: 0.7; white-space: nowrap; }
+@media (max-width: 620px) { .fete-seat-tip { display: none; } }
 
 /* éléments libres des jeux : viseur, points qui s'envolent, jauge */
 .fete-cross { position: absolute; left: 0; top: 0; width: 46px; height: 46px; margin: -23px 0 0 -23px; border: 3px solid #fff; border-radius: 50%; box-shadow: 0 0 0 2px var(--ink), inset 0 0 0 2px var(--ink); pointer-events: none !important; will-change: transform; }

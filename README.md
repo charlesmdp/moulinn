@@ -81,7 +81,7 @@ chaque jeu, et des endroits où s'asseoir travailler ou discuter. Tout est en vo
 | Crossing the Chasm | bassin de la véranda | 8 grenouilles à poser sur les nénuphars, du plus proche au plus lointain |
 | Default Alive | étang intermédiaire | tenir debout sur le rondin qui roule : la durée est le score |
 | Hooked | petit étang (ponton) | 60 s de pêche : ferrer quand le bouchon plonge, mouliner sans casser le fil |
-| Rubber Duck Derby | rivière | 60 m de descente en canard de bain, en évitant les « bugs » |
+| Rubber Duck Derby | rivière | 45 m de descente en canard de bain (en aval du ponton de pêche), en évitant les « bugs » |
 | The Idea Maze | plateau | labyrinthe : trouver l'idée, le MVP et les premiers clients, puis la sortie |
 | Unicorn Piñata | pré | 30 s : frapper la licorne qui se balance |
 | Bootstrap Toss | pré de l'est | 3 bottes à lancer le plus loin possible : jauge à lâcher au bon moment, vent |

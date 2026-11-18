@@ -46,9 +46,9 @@
         MF.box(3.6, 0.03, 0.08, "#ffffff", { y: b.ground(0, -m) + 0.04, z: -m, parent: d });
       }
       const sign = MF.sign("BOOTSTRAP TOSS", { w: 2.6, h: 0.5, bg: "#d35400", color: "#ffffff", border: MF.PAL.yellow, double: true });
-      sign.position.set(0, 2.6, 3.6);
+      sign.position.set(0, 2.6, 6.1);
       d.add(sign);
-      for (const sx of [-1, 1]) MF.cyl(0.04, 0.04, 2.6, MF.PAL.woodDark, { x: sx * 1.3, y: 1.3, z: 3.6, parent: d, seg: 6 });
+      for (const sx of [-1, 1]) MF.cyl(0.04, 0.04, 2.6, MF.PAL.woodDark, { x: sx * 1.3, y: 1.3, z: 6.1, parent: d, seg: 6 });
       const boot = MF.group({ parent: b.live });
       MF.box(0.14, 0.34, 0.14, "#2d3436", { y: 0.2, parent: boot });
       MF.box(0.14, 0.12, 0.3, "#2d3436", { y: 0.03, z: -0.08, parent: boot });

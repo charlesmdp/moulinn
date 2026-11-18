@@ -10866,9 +10866,13 @@ lawnWorld20=(modelMatrix*lawnP20).xyz;`,
         let gt = !1;
         if (ct.polygon) gt = n.inside([f, J], ct.polygon);
         else {
-          const Gt = oo(ct, f, J);
+          // Le petit pont du bief n'a pas de rampe côté terrasse : son tablier porte 42 cm au-delà de
+          // ses bouts, par-dessus le mur du bief (sinon un liseré de 10 cm était refusé pour « pente »
+          // et l'on ne passait que par le bord nord du pont).
+          const Gt = oo(ct, f, J),
+            lip32 = ct.name === "Petit_pont_du_bief" ? 0.42 : 0.09;
           gt =
-            Math.abs(Gt.u) <= ct.length * 0.5 + 0.09 && Math.abs(Gt.v) <= Math.max(0.12, ct.width * 0.5 - Ze + 0.025);
+            Math.abs(Gt.u) <= ct.length * 0.5 + lip32 && Math.abs(Gt.v) <= Math.max(0.12, ct.width * 0.5 - Ze + 0.025);
         }
         gt && (!Je || ro(ct, f, J) > ro(Je, f, J)) && (Je = ct);
       }
@@ -11220,12 +11224,15 @@ lawnWorld20=(modelMatrix*lawnP20).xyz;`,
       const s = seat32;
       (v.visible = !0), (De.visible = !1);
       v.position.set(s.x, s.y, s.z);
-      // bassin à « seat » mètres au-dessus de la place ; « tilt » le renverse autour du bassin (hamac)
-      const tl = s.tilt || 0, hd = s.heading || 0;
-      k.position.set(-W * Math.sin(tl) * Math.sin(hd), (s.seat ?? 0.5) - W * Math.cos(tl), -W * Math.sin(tl) * Math.cos(hd));
-      k.rotation.set(tl, hd, 0, "YXZ");
+      // bassin à « seat » mètres au-dessus de la place ; « tilt » le renverse autour du bassin ;
+      // « stand » : debout, les pieds sur la place (nacelle de la montgolfière) ; « lying » : allongé
+      // (hamac) : la pose debout, renversée de « tilt » autour du bassin, les jambes tendues
+      const tl = s.tilt || 0, hd = s.heading || 0, up = !!(s.stand || s.lying);
+      if (s.stand) k.position.set(0, 0, 0);
+      else k.position.set(-W * Math.sin(tl) * Math.sin(hd), (s.seat ?? 0.5) - W * Math.cos(tl), -W * Math.sin(tl) * Math.cos(hd));
+      k.rotation.set(s.stand ? 0 : tl, hd, 0, "YXZ");
       v.updateMatrixWorld(!0);
-      H.update(f, { speed: 0, distance: 0, running: !1, grounded: !0, verticalSpeed: 0, riding: !0, steering: 0, quadScale: 1, carDriving: s.car !== !1, laptop32: s.laptop !== !1, ...Bt() });
+      H.update(f, { speed: 0, distance: 0, running: !1, grounded: !0, verticalSpeed: 0, riding: !up, steering: 0, quadScale: 1, carDriving: !up && s.car !== !1, laptop32: !up && s.laptop !== !1, ...Bt() });
       n.markDirty();
     }
     globalThis.MoulinV32 &&
@@ -21326,6 +21333,8 @@ void main(){
         }
         // V32 : le relief suit les nouveaux niveaux d'eau (lits et berges déplacés).
         globalThis.MoulinV32.hydro32 && globalThis.MoulinV32.hydro32.reshape({ positions: e, grid: L, bounds: Bt });
+        // V32 : l'ancien lit de la rivière amont, resté en tranchée dans le pré de l'est, est comblé.
+        globalThis.MoulinV32.comblement32 && globalThis.MoulinV32.comblement32.reshape({ positions: e });
         // V32 : recalage facultatif sur le RGE ALTI de l'IGN (mesuré depuis l'atelier).
         globalThis.MoulinV32.reliefIGN &&
           globalThis.MoulinV32.reliefIGN.reshape({

@@ -57,6 +57,35 @@
     if (options.kit) profile.kit = MF.laptops.valid(options.kit);
     let active = null;
     let seated = null; // place où je suis assis (espace de travail), ou null
+    // Assis (pouf, manège, nacelle) : on regarde autour de soi en glissant la souris ou le doigt.
+    const look = { yaw: 0, pitch: 0, zoom: 1, drag: null };
+    {
+      const cv = world.canvas || world.dom;
+      cv.addEventListener("pointerdown", (ev) => {
+        if (seated && !active) look.drag = { id: ev.pointerId, x: ev.clientX, y: ev.clientY };
+      });
+      addEventListener("pointermove", (ev) => {
+        const d = look.drag;
+        if (!d || d.id !== ev.pointerId || !seated) return;
+        look.yaw += (ev.clientX - d.x) * 0.005;
+        look.pitch = MF.clamp(look.pitch + (ev.clientY - d.y) * 0.004, -1.5, 1.5);
+        d.x = ev.clientX;
+        d.y = ev.clientY;
+        world.invalidate();
+      });
+      const end = (ev) => look.drag && look.drag.id === ev.pointerId && (look.drag = null);
+      addEventListener("pointerup", end);
+      addEventListener("pointercancel", end);
+      cv.addEventListener(
+        "wheel",
+        (ev) => {
+          if (!seated || active) return;
+          look.zoom = MF.clamp(look.zoom * Math.exp(-ev.deltaY * 0.0012), 0.6, 2.4);
+          ev.preventDefault();
+        },
+        { passive: false },
+      );
+    }
     const started = performance.now();
 
     // avant le réseau (qui dit « au revoir » en fermant la page) : rendre la main si on était l'hôte
@@ -271,7 +300,10 @@
       presence.setSeat(seat); // la place entière : hauteur d'assise, ordinateur sur les genoux ou non
       world.dom.classList.add("fete-in-game");
       hud.prompt(null);
-      hud.seat({ bio: net.self.bio });
+      look.yaw = look.pitch = 0;
+      look.zoom = 1;
+      hud.seat({ ambience: MF.ambience.mode });
+      MF.ambience.play(true); // assis, on travaille : l'ambiance choisie remplace l'orgue de foire
       MF.sfx.play("clic");
       world.invalidate();
     }
@@ -281,6 +313,7 @@
       seated = null;
       presence.setSeat(null);
       hud.seat(null);
+      MF.ambience.play(false);
       world.dom.classList.remove("fete-in-game");
       world.player.setEnabled(true);
       if (s.exit) world.player.teleport(s.exit.x, s.exit.z, s.heading);
@@ -374,6 +407,13 @@
         if (seated) presence.setSeat(seated);
       } else if (action === "place") places.run(value);
       else if (action === "stand") stand();
+      else if (action === "ambience") {
+        MF.ambience.set(value);
+        if (seated) hud.seat({ ambience: MF.ambience.mode });
+      } else if (action === "view") {
+        look.yaw = look.pitch = 0;
+        look.zoom = 1;
+      }
       else if (action === "music") {
         MF.music.setOn(value);
         hud.setMusic(MF.music.on);
@@ -481,11 +521,18 @@
         nearDef = nearPlace = null;
         if (seated.moving) presence.setSeat(seated, true);
         const h = seated.heading, sway = Math.sin(time * 0.22) * 0.25;
-        const back = seated.back ?? 2.7, up = seated.up ?? 1.75, side = seated.moving ? 0 : 0.9 + sway;
+        const back = seated.back ?? 2.7, up = seated.up ?? 1.75;
         const to = seated.look || { x: seated.x + Math.sin(h) * 9, y: seated.y + 0.7, z: seated.z + Math.cos(h) * 9 };
         // place.cam : point de vue imposé (salon de la terrasse vu de face, nacelle de la grande roue)
-        const eye = seated.cam ? { x: seated.cam.x + sway * (seated.cam.sway ?? 1.6), y: seated.cam.y, z: seated.cam.z } : { x: seated.x - Math.sin(h) * back + Math.cos(h) * side, y: seated.y + up, z: seated.z - Math.cos(h) * back - Math.sin(h) * side };
-        MF.cam.set(world.camera, eye, to, seated.moving ? 62 : 52);
+        const still = look.yaw || look.pitch ? 0 : 1; // une fois qu'on a tourné la tête, la caméra ne se balance plus
+        const eye = seated.cam ? { x: seated.cam.x + sway * still * (seated.cam.sway ?? 1.6), y: seated.cam.y, z: seated.cam.z } : { x: seated.x - Math.sin(h) * back + Math.cos(h) * (seated.moving ? 0 : 0.9 + sway * still), y: seated.y + up, z: seated.z - Math.cos(h) * back - Math.sin(h) * (seated.moving ? 0 : 0.9 + sway * still) };
+        // regard libre : glisser tourne le regard autour de la caméra, la molette (ou deux doigts) zoome
+        let dx = to.x - eye.x, dy = to.y - eye.y, dz = to.z - eye.z;
+        const far = Math.hypot(dx, dy, dz) || 1, yaw = Math.atan2(dx, dz) + look.yaw, pitch = MF.clamp(Math.asin(MF.clamp(dy / far, -1, 1)) + look.pitch, -1.35, 1.35);
+        dx = Math.sin(yaw) * Math.cos(pitch);
+        dy = Math.sin(pitch);
+        dz = Math.cos(yaw) * Math.cos(pitch);
+        MF.cam.set(world.camera, eye, { x: eye.x + dx * far, y: eye.y + dy * far, z: eye.z + dz * far }, MF.clamp((seated.moving ? 62 : 52) / look.zoom, 22, 88));
       } else {
         // près d'un stand ou d'un lieu ? (seulement en se promenant avec le personnage)
         let best = null, bd = NEAR, place = null;

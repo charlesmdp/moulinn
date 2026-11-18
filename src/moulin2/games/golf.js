@@ -56,7 +56,7 @@
     maxPlayers: 8,
     maxTime: 1500,
     options: [{ key: "holes", label: "Course", values: [9, 3], default: 9, format: (v) => (v === 9 ? "9 holes" : "3 holes (quick)") }],
-    help: "Pull back from the ball like a slingshot, then release (or ← → to aim, hold Space to set the power). The ball farthest from the hole always plays first.",
+    help: "Press anywhere, pull back like a slingshot and release: a short pull is enough for full power (or ← → to aim, hold Space to set the power). The ball farthest from the hole always plays first.",
     rank: (list) => list.slice().sort((a, b) => (a.strokes ? 0 : 1) - (b.strokes ? 0 : 1) || (a.strokes || 0) - (b.strokes || 0) || (a.name < b.name ? -1 : 1)),
     describe: (r, opts) => {
       if (!r.strokes) return "did not finish";
@@ -366,7 +366,7 @@
         out.v = -dx * h.sa + dz * h.ca;
         return k > 0;
       }
-      const p0 = { u: 0, v: 0 }, p1 = { u: 0, v: 0 };
+      const p0 = { u: 0, v: 0 }, fwd = new THREE.Vector3();
       function shoot(h, e, angle, power) {
         const v = 0.6 + power * (VMAX - 0.6);
         my.rolling = { u: e.u, v: e.v, vu: Math.cos(angle) * v, vv: Math.sin(angle) * v, fromU: e.u, fromV: e.v, n: e.strokes[hole] + 1 };
@@ -376,12 +376,23 @@
         const S = input.state, P = S.pointer;
         // viser : lance-pierre au pointeur (on tire en arrière depuis la balle), ou flèches + Espace
         if (S.x) my.aim += S.x * 1.5 * dt; // la caméra est derrière la balle : la droite de l'écran est vers +v
-        if (P.down && pointerUV(h, P, p0)) my.drag = true;
-        if (my.drag && P.isDown && pointerUV(h, P, p1)) {
-          const du = p0.u - p1.u, dv = p0.v - p1.v, len = Math.hypot(du, dv);
-          if (len > 0.08) {
-            my.aim = Math.atan2(dv, du);
-            my.power = MF.clamp(len / 2.4, 0, 1);
+        // Le geste se mesure à l'écran, depuis l'endroit où l'on a appuyé (n'importe où) : on a toujours
+        // la place de tirer à fond (18 % de la hauteur de l'écran), même si la balle est en bas de l'image.
+        if (P.down) {
+          my.drag = true;
+          p0.u = P.nx;
+          p0.v = P.ny;
+        }
+        if (my.drag && P.isDown) {
+          const sx = (p0.u - P.nx) * (camera.aspect || 1.6), sy = p0.v - P.ny, len = Math.hypot(sx, sy);
+          if (len > 0.03) {
+            // sens du tir : opposé au geste ; « haut de l'écran » = devant la caméra, au sol
+            camera.getWorldDirection(fwd);
+            fwd.y = 0;
+            fwd.normalize();
+            const wx = fwd.x * sy - fwd.z * sx, wz = fwd.z * sy + fwd.x * sx;
+            my.aim = Math.atan2(-wx * h.sa + wz * h.ca, wx * h.ca + wz * h.sa);
+            my.power = MF.clamp(len / 0.36, 0, 1);
           } else my.power = 0;
         }
         if (my.drag && P.up) {
@@ -600,7 +611,7 @@
           hud.set("tot", e ? total(e) : "–");
           const who = st.roster.find((p) => p.uid === turnOf);
           const left = Math.ceil(TURN_LIMIT - (session.time() - turnSince));
-          hud.hint(holeEnd ? "Hole complete: " + h.name : myGo ? (my.rolling ? "" : (input.touch ? "Pull back from the ball, release to hit" : "Pull back with the mouse and release · or ← → and hold Space") + (left <= 15 ? " · " + left + " s left" : "")) : who ? who.name + " is playing…" : "");
+          hud.hint(holeEnd ? "Hole complete: " + h.name : myGo ? (my.rolling ? "" : (input.touch ? "Press anywhere, pull back, release to hit" : "Press anywhere, pull back and release · or ← → and hold Space") + (left <= 15 ? " · " + left + " s left" : "")) : who ? who.name + " is playing…" : "");
           if (time - lastBoard > 0.4) {
             lastBoard = time;
             hud.board(st.roster.map((p) => ({ p, e: table.get(p.uid) })).filter((r) => r.e).sort((a, b) => total(a.e) - total(b.e)).map((r) => ({ name: r.p.name, color: r.p.color, self: r.p.uid === ctx.self.uid, text: r.e.gone ? "left" : total(r.e) + (r.p.uid === turnOf ? " ●" : "") })));

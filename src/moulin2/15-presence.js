@@ -181,7 +181,7 @@
       if (avatar.sitting === !!on && avatar.place === place && !force) return;
       avatar.sitting = !!on;
       avatar.place = place;
-      const lapOn = !!on && !(place && place.laptop === false);
+      const lapOn = !!on && !(place && (place.laptop === false || place.stand || place.lying));
       avatar.typing = lapOn;
       if (avatar.pack) avatar.pack.visible = !on;
       if (avatar.lap) avatar.lap.visible = lapOn;
@@ -189,8 +189,10 @@
       if (fig) {
         // le bassin à 50 cm au-dessus de la place (un pouf), comme pour mon propre personnage ;
         // dans un hamac, le corps se renverse autour du bassin
-        const hip = fig.hipHeight || 0.8, sit = (place && place.sit) ?? 0.5, tilt = (place && place.tilt) || 0;
-        fig.group.position.set(0, on ? sit - hip * Math.cos(tilt) : 0, on ? -hip * Math.sin(tilt) : 0);
+        // place.stand : debout dans une nacelle ; place.lying : allongé (pose debout renversée)
+        const hip = fig.hipHeight || 0.8, sit = (place && place.sit) ?? 0.5, stand = !!(place && place.stand), tilt = stand ? 0 : (place && place.tilt) || 0;
+        avatar.upright = stand || !!(place && place.lying);
+        fig.group.position.set(0, on && !stand ? sit - hip * Math.cos(tilt) : 0, on && !stand ? -hip * Math.sin(tilt) : 0);
         fig.group.rotation.x = on ? tilt : 0;
         if (avatar.lap) {
           // sur les genoux (renversé avec le corps dans un hamac) ou posé sur la table (place.desk)
@@ -209,7 +211,7 @@
     /** Une image : marche (d'après la distance parcourue) ou, assis, les mains sur le clavier. */
     avatar.animate = function (dt, step, walking, sitting, speed) {
       if (fig) {
-        fig.update(dt, Object.assign({ speed: sitting ? 0 : speed || (walking ? 1.8 : 0), distance: sitting ? 0 : step, running: !sitting && speed > 3.4, grounded: true, verticalSpeed: 0, riding: !!sitting, steering: 0, quadScale: 1, carDriving: true, laptop32: !!sitting && avatar.typing !== false }, world.figureState ? world.figureState() : null));
+        fig.update(dt, Object.assign({ speed: sitting ? 0 : speed || (walking ? 1.8 : 0), distance: sitting ? 0 : step, running: !sitting && speed > 3.4, grounded: true, verticalSpeed: 0, riding: !!sitting && !avatar.upright, steering: 0, quadScale: 1, carDriving: true, laptop32: !!sitting && !avatar.upright && avatar.typing !== false }, world.figureState ? world.figureState() : null));
         return;
       }
       if (sitting) {
@@ -298,8 +300,8 @@
     /** Mon vrai personnage assis à ma place, ordinateur ouvert sur les genoux ; false si le monde ne sait pas faire. */
     function seatSelf() {
       if (!world.player.sit) return false;
-      if (world.player.sit(seat ? { x: seat.x, y: seat.y, z: seat.z, heading: seat.heading || 0, seat: seat.sit, tilt: seat.tilt, laptop: seat.laptop !== false } : null) === false) return false;
-      const want = !!seat && seat.laptop !== false;
+      if (world.player.sit(seat ? { x: seat.x, y: seat.y, z: seat.z, heading: seat.heading || 0, seat: seat.sit, tilt: seat.tilt, laptop: seat.laptop !== false, stand: !!seat.stand, lying: !!seat.lying } : null) === false) return false;
+      const want = !!seat && seat.laptop !== false && !seat.stand && !seat.lying;
       if (want && (!selfLap || lapKit !== net.self.kit)) {
         if (selfLap) MF.dispose(selfLap);
         lapKit = net.self.kit;

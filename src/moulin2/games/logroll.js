@@ -36,9 +36,9 @@
       const at = b.toWorld(0, ZL), pond = world.waterAt(at.x, at.z);
       const WY = (pond ? pond.level : -0.42) - b.root.position.y;
       const sign = MF.sign("DEFAULT ALIVE", { w: 2.4, h: 0.46, bg: "#16a085", color: "#ffffff", border: "#ffffff", double: true });
-      sign.position.set(0, 2.5, 3.3);
+      sign.position.set(0, 2.5, 5.7);
       d.add(sign);
-      for (const sx of [-1, 1]) MF.cyl(0.04, 0.04, 2.5, MF.PAL.woodDark, { x: sx * 1.2, y: 1.25, z: 3.3, parent: d, seg: 6 });
+      for (const sx of [-1, 1]) MF.cyl(0.04, 0.04, 2.5, MF.PAL.woodDark, { x: sx * 1.2, y: 1.25, z: 5.7, parent: d, seg: 6 });
       // deux bouées qui tiennent le rondin en place, le rondin (il tourne), le bûcheron dessus
       for (const sx of [-1, 1]) {
         MF.cyl(0.3, 0.34, 0.3, MF.PAL.red, { x: sx * 2.4, y: WY + 0.06, z: ZL, parent: d, seg: 12 });

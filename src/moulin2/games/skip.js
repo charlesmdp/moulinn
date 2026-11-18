@@ -37,9 +37,9 @@
       MF.cyl(0.32, 0.26, 0.3, "#8a5a33", { x: 0.9, y: 0.15, z: 0.4, parent: d, seg: 12 });
       for (let i = 0; i < 5; i++) MF.sphere(0.09, "#8f979b", { x: 0.9 + Math.cos(i * 1.3) * 0.14, y: 0.34, z: 0.4 + Math.sin(i * 1.3) * 0.14, parent: d, seg: 7 }).scale.set(1, 0.45, 1);
       const sign = MF.sign("BOUNCE RATE", { w: 2.1, h: 0.46, bg: "#3fa9f5", color: "#ffffff", border: "#ffffff", double: true });
-      sign.position.set(0, 2.5, 3.4); // au-dessus du lanceur, derrière lui : on la lit en arrivant de la terrasse
+      sign.position.set(0, 2.5, 5.5); // au-dessus du lanceur, derrière lui : on la lit en arrivant de la terrasse
       d.add(sign);
-      for (const sx of [-1, 1]) MF.cyl(0.04, 0.04, 2.5, MF.PAL.woodDark, { x: sx * 1.1, y: 1.25, z: 3.4, parent: d, seg: 6 });
+      for (const sx of [-1, 1]) MF.cyl(0.04, 0.04, 2.5, MF.PAL.woodDark, { x: sx * 1.1, y: 1.25, z: 5.5, parent: d, seg: 6 });
       const rings = TARGETS.map(([x, z], i) => {
         const g = MF.group({ x, y: WY, z, parent: d });
         MF.torus(1.0, 0.09, [MF.PAL.red, MF.PAL.yellow, MF.PAL.green][i], { rx: Math.PI / 2, parent: g, seg: 24, tubeSeg: 6 });

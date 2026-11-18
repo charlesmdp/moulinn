@@ -18,8 +18,10 @@
     [11, 41, 2.4], [3, 57, 2.6], [-15, 68, 3], [-36, 68, 3.2], [-50, 58, 3], [-42, 47, 2.8], [-27, 44, 2.6], [-12, 48, 2.6], [0, 33, 2.5],
     [-13, 27.5, 2.5], [-29, 14, 11.5], [-28, 5, 12.5], [-10, -18, 6], [0, -38, 2.6],
   ];
-  const START = { x: 9.5, z: -35, up: 2.5 }; // arche de départ, franchie vers l'ouest
-  const PADS = [[11.2, -35.8], [11.2, -34.2], [13.2, -35.8], [13.2, -34.2], [11.2, -37.4], [11.2, -32.6], [13.2, -37.4], [13.2, -32.6]];
+  // L'arche de départ est franchie vers l'ouest, au-dessus des deux jardinières de la terrasse basse
+  // (x 7,6…11,1) : elle est assez haute pour ne pas y tremper, et les aires de décollage restent à l'est.
+  const START = { x: 9.5, z: -35, up: 3.7 };
+  const PADS = [[12.1, -35.8], [12.1, -34.2], [13.6, -35.8], [13.6, -34.2], [12.1, -37.4], [12.1, -32.6], [13.6, -37.4], [13.6, -32.6]];
   const RING = 2.1; // rayon des anneaux (m)
   const GRACE = 30;
   const D = { vmax: 13, vback: 6, vside: 7, vclimb: 5.5, yaw: 2.5, rate: 2.3, r: 0.32 };

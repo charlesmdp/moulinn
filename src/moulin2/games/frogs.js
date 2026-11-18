@@ -38,9 +38,9 @@
       MF.box(0.16, 0.05, 1.3, MF.PAL.wood, { parent: arm });
       MF.cyl(0.14, 0.11, 0.06, MF.PAL.red, { y: 0.05, z: -0.55, parent: arm, seg: 10 });
       const sign = MF.sign("CROSSING THE CHASM", { w: 2.8, h: 0.46, bg: "#27ae60", color: "#ffffff", border: "#ffffff", double: true });
-      sign.position.set(0, 2.5, 3.5);
+      sign.position.set(0, 2.5, 5.9);
       d.add(sign);
-      for (const sx of [-1, 1]) MF.cyl(0.04, 0.04, 2.5, MF.PAL.woodDark, { x: sx * 1.4, y: 1.25, z: 3.5, parent: d, seg: 6 });
+      for (const sx of [-1, 1]) MF.cyl(0.04, 0.04, 2.5, MF.PAL.woodDark, { x: sx * 1.4, y: 1.25, z: 5.9, parent: d, seg: 6 });
       const pads = PADS.map(([dist, x, r, pts, drift], i) => {
         const g = MF.group({ parent: b.live });
         MF.cyl(r, r, 0.03, pts === 50 ? "#f5c531" : pts === 20 ? "#7bd07a" : "#3fae5a", { parent: g, seg: 16 });
