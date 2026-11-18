@@ -88,7 +88,9 @@
       for (const [sx, sz] of [[-1, -1], [-1, 1], [1, -1], [1, 1]]) MF.box(0.04, 1.25, 0.04, steel, { x: sx * 0.72, y: -0.95, z: sz * 0.52, parent: shell });
       MF.freeze(shell);
       // la place : assis dos à l'ouest, regard vers la vallée (est)
-      const seat = { id: "wheel-" + i, x: W.x, y: base, z: W.z, heading: Math.PI / 2, moving: true, ride: "wheel", look: { x: 0, y: 6, z: -20 }, exit: { x: W.x + 3.6, z: W.z }, back: 0.4, up: 1.25 };
+      // la caméra : derrière l'épaule droite, entre la nacelle et la jante, sous le bord du toit ; elle
+      // regarde le moulin (38° à droite de l'axe de la place) : le personnage est à gauche, la vallée devant
+      const seat = { id: "wheel-" + i, x: W.x, y: base, z: W.z, heading: Math.PI / 2, moving: true, ride: "wheel", look: { x: 0, y: 6, z: -20 }, exit: { x: W.x + 3.6, z: W.z }, cam: { x: W.x - 1.19, y: base + 1.3, z: W.z - 0.42, sway: 0 } };
       cabins.push({ cab, seat, phase: (i / W.n) * TAU });
     }
     const wheelPlace = places.add({
@@ -182,6 +184,8 @@
         c.cab.position.set(0, y, z);
         c.seat.y = base + y - 1.72;
         c.seat.z = W.z + z;
+        c.seat.cam.y = c.seat.y + 1.3;
+        c.seat.cam.z = c.seat.z - 0.42;
       }
       carA = ((time / C.period) * TAU) % TAU;
       turn.rotation.y = carA;

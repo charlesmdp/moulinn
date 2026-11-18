@@ -483,8 +483,8 @@
         const h = seated.heading, sway = Math.sin(time * 0.22) * 0.25;
         const back = seated.back ?? 2.7, up = seated.up ?? 1.75, side = seated.moving ? 0 : 0.9 + sway;
         const to = seated.look || { x: seated.x + Math.sin(h) * 9, y: seated.y + 0.7, z: seated.z + Math.cos(h) * 9 };
-        // place.cam : point de vue imposé (salon de la terrasse, vu de face avec l'étang derrière)
-        const eye = seated.cam ? { x: seated.cam.x + sway * 1.6, y: seated.cam.y, z: seated.cam.z } : { x: seated.x - Math.sin(h) * back + Math.cos(h) * side, y: seated.y + up, z: seated.z - Math.cos(h) * back - Math.sin(h) * side };
+        // place.cam : point de vue imposé (salon de la terrasse vu de face, nacelle de la grande roue)
+        const eye = seated.cam ? { x: seated.cam.x + sway * (seated.cam.sway ?? 1.6), y: seated.cam.y, z: seated.cam.z } : { x: seated.x - Math.sin(h) * back + Math.cos(h) * side, y: seated.y + up, z: seated.z - Math.cos(h) * back - Math.sin(h) * side };
         MF.cam.set(world.camera, eye, to, seated.moving ? 62 : 52);
       } else {
         // près d'un stand ou d'un lieu ? (seulement en se promenant avec le personnage)

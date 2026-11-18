@@ -118,7 +118,8 @@ vraie page fait foi.
 Une place est un objet `{ id, x, y, z, heading }` donné à `MF.app.sit(place)` (par un lieu de
 `41-places.js`). Facultatif : `sit` (hauteur du bassin au-dessus de la place, 0,5 m par
 défaut), `tilt` (renversement du corps, hamac), `desk` (hauteur d'un plateau de table : l'ordinateur
-y est posé plutôt que sur les genoux), `laptop: false` (manège), `back`, `up`, `look` (caméra),
+y est posé plutôt que sur les genoux), `laptop: false` (manège), `back`, `up`, `look`, `cam` (caméra :
+recul, hauteur, point visé, ou point de vue imposé `{ x, y, z, sway }`),
 `exit` (où l'on se relève), `moving` et `ride` (place mobile d'un manège). Pour que les autres
 joueurs prennent la même pose, `presence.snap(joueur)` doit renvoyer la place qu'il occupe
 (`49-fest.js` et `47-rides.js` s'en chargent pour leurs places).
@@ -275,12 +276,18 @@ des emplacements libres. Les logos vont dans `src/static/moulin2/logos/`.
 
 ### Règles pour rester fluide
 
+Mesuré sur la vraie page (rendu logiciel, novembre 2026) : le moulin seul dessine de 900 à
+1 400 objets par image selon l'endroit ; la fête en ajoute de 100 à 1 300 (776 maillages visibles
+au total depuis le pré). Les plus gourmands sont des jeux aux nombreuses pièces mobiles
+(`citrouilles` 96 maillages, `canards` 87, `drones` 63, `bateaux` 61) : c'est là qu'une fusion
+ou des `InstancedMesh` rapporteraient le plus.
+
 Le moulin affiche déjà près de 3 millions de triangles : un jeu reste léger (quelques milliers de
 triangles, peu de matériaux — `MF.mat` les met en commun), ne crée rien à chaque image, retire ce
 qu'il ajoute (`MF.dispose`), et ne dessine que si quelque chose bouge. Une fois son décor construit,
 il le fusionne avec `MF.freeze(groupe)` : un seul maillage par matériau au lieu de dizaines (ce qui
-bouge porte `userData.live = true` et reste à part). Avec cela, la fête n'ajoute presque rien au
-nombre d'appels de dessin de la promenade.
+bouge porte `userData.live = true` et reste à part). Un jeu hors de portée (`range`, 85 m par défaut,
+70 m pour une baraque) n'est pas dessiné du tout.
 
 ## Terrain d'essai
 

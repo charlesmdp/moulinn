@@ -178,13 +178,15 @@
     board(point, "SHIP IT · LAUNCH DAY FIREWORKS", BUTTON.x + 1.3, BUTTON.z - 0.4, 0.5, { w: 3.2, y: by, bg: MF.PAL.red, color: "#ffffff", border: MF.PAL.yellow, top: 2.3 });
     board(point, "IF YOU'RE NOT EMBARRASSED BY V1, YOU SHIPPED TOO LATE", BUTTON.x + 1.3, BUTTON.z - 0.4, 0.5, { w: 3.2, y: by, h: 0.24, top: 1.9, posts: false });
     const show = fireworks(ctx.root || point.parent);
-    let pressed = 0, cool = 0;
+    let pressed = 0, cool = 0, quiet = 0; // quiet : pas deux bouquets à moins de 3 s (même venus d'un autre joueur)
     const fire = (seed) => {
+      if (quiet > 0) return;
+      quiet = 3;
       pressed = 0.25;
       show.launch(seed);
       world.invalidate();
     };
-    if (net) net.on("ship", (d) => Array.isArray(d) && fire(d[0]));
+    if (net) net.on("ship", (d) => Array.isArray(d) && Number.isFinite(d[0]) && fire(d[0]));
     places.add({
       id: "ship-it",
       x: BUTTON.x,
@@ -358,6 +360,7 @@
       update(dt, time) {
         let dirty = false;
         if (cool > 0) cool -= dt;
+        if (quiet > 0) quiet -= dt;
         if (pressed > 0) {
           pressed -= dt;
           knob.position.y = pressed > 0 ? 0.97 : 1.02;
