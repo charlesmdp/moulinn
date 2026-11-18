@@ -49,12 +49,23 @@
          <button type="button" class="fete-btn fete-btn-main" data-open="games"><span aria-hidden="true">🎮</span><span class="fete-btn-label">Games</span></button>
          <button type="button" class="fete-btn" data-open="players" title="Players here"><span aria-hidden="true">👥</span><span data-count>1</span></button>
          <button type="button" class="fete-btn" data-open="sponsors"><span aria-hidden="true">📣</span><span class="fete-btn-label">Sponsors</span></button>
+         <button type="button" class="fete-btn" data-music aria-pressed="true" title="Fair music"><span aria-hidden="true" data-music-icon>🎵</span></button>
          <button type="button" class="fete-btn" data-sound aria-pressed="true" title="Game sounds"><span aria-hidden="true" data-sound-icon>🔊</span></button>
        </div>`,
     );
     const roomLabel = top.querySelector("[data-room]");
     const countLabel = top.querySelector("[data-count]");
     const soundBtn = top.querySelector("[data-sound]");
+    const musicBtn = top.querySelector("[data-music]");
+    /** Choix de l'ordinateur : une vignette par modèle (dessinée d'après le modèle 3D). */
+    const laptopPicker = (current, attr) =>
+      `<div class="fete-laptops">` +
+      MF.laptops.list.map((m) => `<button type="button" ${attr}="${m.id}" aria-pressed="${m.id === current}" title="${esc(m.blurb)}"><i data-thumb="${m.id}" style="--c:${m.color}"></i><span>${esc(m.name)}</span></button>`).join("") +
+      `</div>`;
+    const fillThumbs = (scope) =>
+      MF.laptops.thumbs((images) => {
+        for (const i of scope.querySelectorAll("[data-thumb]")) if (images[i.dataset.thumb]) i.style.backgroundImage = `url(${images[i.dataset.thumb]})`;
+      });
 
     /* ---------------------------------------------------------------- panneaux */
     const panels = {};
@@ -81,12 +92,13 @@
     const prompt = el("button", "fete-prompt", root);
     prompt.type = "button";
     prompt.hidden = true;
-    let promptId = null;
+    let promptId = null, promptAct = "enter";
 
     /* ---------------------------------------------------------------- couche de jeu */
     const game = el("div", "fete-game", root);
     const stats = el("div", "fete-stats", game);
-    const board = el("ol", "fete-board", game);
+    const side = el("div", "fete-side", game); // colonne de droite : classement en direct, puis top 10
+    const board = el("ol", "fete-board", side);
     const custom = el("div", "fete-custom", game);
     const flash = el("div", "fete-flash", game);
     const count = el("div", "fete-count", game);
@@ -96,13 +108,18 @@
     quit.dataset.act = "leave";
     const card = el("section", "fete-card fete-lobby", game);
     card.hidden = true;
+    const top10 = el("aside", "fete-top10" + (mobile ? " is-folded" : ""), side);
+    top10.hidden = true;
+    // assis à l'espace de travail : une barre discrète (se lever, ce sur quoi on travaille)
+    const seatBar = el("div", "fete-seatbar", root);
+    seatBar.hidden = true;
     const toasts = el("div", "fete-toasts", root);
     const statEls = new Map();
     let flashTimer = 0, cardSig = "";
 
     /* ---------------------------------------------------------------- clics */
     root.addEventListener("click", (ev) => {
-      const t = ev.target.closest("[data-open],[data-close],[data-act],[data-game],[data-sound],[data-color],[data-copy],[data-private],[data-public]");
+      const t = ev.target.closest("[data-open],[data-close],[data-act],[data-game],[data-sound],[data-music],[data-color],[data-kit],[data-copy],[data-private],[data-public],[data-fold]");
       if (!t || !root.contains(t)) return;
       if (t.dataset.open) return openPanel(t.dataset.open);
       if (t.hasAttribute("data-close")) return openPanel(null);
@@ -111,7 +128,10 @@
         return act("enter", t.dataset.game);
       }
       if (t.hasAttribute("data-sound")) return act("sound", soundBtn.getAttribute("aria-pressed") !== "true");
+      if (t.hasAttribute("data-music")) return act("music", musicBtn.getAttribute("aria-pressed") !== "true");
+      if (t.hasAttribute("data-fold")) return top10.classList.toggle("is-folded");
       if (t.dataset.color) return act("profile", { color: t.dataset.color });
+      if (t.dataset.kit) return act("profile", { kit: t.dataset.kit });
       if (t.hasAttribute("data-copy")) return act("copy");
       if (t.hasAttribute("data-private")) {
         const input = panels.players.querySelector("[data-code]");
@@ -130,6 +150,7 @@
     });
     root.addEventListener("change", (ev) => {
       if (ev.target.matches("[data-name]")) act("profile", { name: ev.target.value });
+      if (ev.target.matches("[data-bio]")) act("profile", { bio: ev.target.value });
     });
     // les touches tapées dans un champ ne doivent pas faire marcher le personnage
     root.addEventListener("keydown", (ev) => {
@@ -139,7 +160,7 @@
       }
     });
     root.addEventListener("keyup", (ev) => ev.target.matches("input") && ev.stopPropagation());
-    prompt.addEventListener("click", () => promptId && act("enter", promptId));
+    prompt.addEventListener("click", () => promptId && act(promptAct, promptId));
 
     const hud = {
       root,
@@ -152,6 +173,10 @@
         if (root.dataset.mode === m) return;
         root.dataset.mode = m;
         if (m !== "walk") openPanel(openName && null);
+      },
+      setMusic(on) {
+        musicBtn.setAttribute("aria-pressed", String(!!on));
+        musicBtn.querySelector("[data-music-icon]").textContent = on ? "🎵" : "🔕";
       },
       setSound(on) {
         soundBtn.setAttribute("aria-pressed", String(!!on));
@@ -195,11 +220,15 @@
           <div class="fete-swatches">` +
           MF.PLAYER_COLORS.map((c) => `<button type="button" data-color="${c}" style="--c:${c}" aria-pressed="${c === model.self.color}" aria-label="Color"></button>`).join("") +
           `</div>
+          <h3>Your laptop</h3>${laptopPicker(model.self.kit, "data-kit")}
+          <h3>What are you building?</h3>
+          <input type="text" class="fete-input" data-bio maxlength="40" value="${esc(model.self.bio || "")}" placeholder="shown when you sit at the Founders' Deck" aria-label="What you are building" autocomplete="off" spellcheck="false">
           <h3>Play with friends</h3>
           <p class="fete-note">${esc(model.room.label)}. ${model.room.isPrivate ? "Only people with the link can join." : "Every visitor lands here; send the link to play together."}</p>
           <div class="fete-row"><button type="button" class="fete-btn fete-btn-main" data-copy>Copy invite link</button>${model.room.isPrivate ? `<button type="button" class="fete-btn" data-public>Public room</button>` : ""}</div>
           <div class="fete-row"><input type="text" class="fete-input" data-code maxlength="24" placeholder="private room name" value="${esc(model.room.code || "")}" aria-label="Private room name" autocomplete="off" spellcheck="false"><button type="button" class="fete-btn" data-private>Open</button></div>
           <p class="fete-net">${esc(model.net)}</p>`;
+        fillThumbs(panels.players);
       },
       /** Panneau des sponsors : { contact: { texte, lien }, slots: [{ label, game, taken, name, url, price }] } */
       setSponsors(model) {
@@ -225,13 +254,48 @@
             .join("") +
           `</ul>`;
       },
-      /** Bouton « Jouer » quand on est près d'un stand (null pour le cacher). */
+      /**
+       * Bouton d'invite quand on est près d'un stand ou d'un lieu (null pour le cacher) :
+       * { id, icon, title, verb ("Play" par défaut), action ("enter" pour un jeu, "place" pour un lieu) }.
+       */
       prompt(def) {
-        const id = def ? def.id : null;
-        if (id === promptId) return;
-        promptId = id;
+        const id = def ? (def.action || "enter") + ":" + def.id + ":" + (def.title || "") : null;
+        if (id === prompt.dataset.sig) return;
+        prompt.dataset.sig = id || "";
+        promptId = def ? def.id : null;
+        promptAct = def ? def.action || "enter" : "enter";
         prompt.hidden = !def;
-        if (def) prompt.innerHTML = `<span aria-hidden="true">${def.icon}</span><span>Play: <b>${esc(def.title)}</b></span>${mobile ? "" : "<kbd>E</kbd>"}`;
+        if (def) prompt.innerHTML = `<span aria-hidden="true">${def.icon || ""}</span><span>${esc(def.verb || "Play")}: <b>${esc(def.title)}</b></span>${mobile ? "" : "<kbd>E</kbd>"}`;
+      },
+      /**
+       * Top 10 du jeu en cours, visible dans la salle d'attente et pendant la partie (null pour le cacher) :
+       * { title, variant, rows: [{ pos, name, color, text, self }], fresh: rang tout juste obtenu }.
+       */
+      top10(model) {
+        if (!model) {
+          top10.hidden = true;
+          top10._sig = "";
+          return;
+        }
+        const sig = JSON.stringify(model);
+        if (sig === top10._sig) return;
+        top10._sig = sig;
+        top10.hidden = false;
+        const rows = model.rows.length
+          ? model.rows.map((r) => `<li class="${r.self ? "is-self" : ""}${r.pos === model.fresh ? " is-fresh" : ""}"><span class="fete-pos">${r.pos}</span>${dot(r.color)}<b>${esc(r.name)}</b><em>${esc(r.text)}</em></li>`).join("")
+          : `<li class="is-empty">Nobody yet: be the first name on the wall!</li>`;
+        top10.innerHTML = `<button type="button" class="fete-top10-head" data-fold title="Show or hide the top 10"><span aria-hidden="true">🏆</span><b>TOP 10</b><small>${esc(model.variant || "")}</small></button>
+          <ol>${rows}</ol><p>Written here <b>forever</b>.</p>`;
+      },
+      /** Barre affichée quand on est assis : { bio } (null pour la cacher). */
+      seat(model) {
+        seatBar.hidden = !model;
+        if (!model) return (seatBar._sig = "");
+        const sig = JSON.stringify(model);
+        if (sig === seatBar._sig || (seatBar.contains(document.activeElement) && document.activeElement.matches("input"))) return;
+        seatBar._sig = sig;
+        seatBar.innerHTML = `<span aria-hidden="true">💻</span><input type="text" class="fete-input" data-bio maxlength="40" value="${esc(model.bio || "")}" placeholder="What are you building?" aria-label="What you are building" autocomplete="off" spellcheck="false">
+          <button type="button" class="fete-btn fete-btn-main" data-act="stand">Stand up${mobile ? "" : " <kbd>Esc</kbd>"}</button>`;
       },
 
       /* ------------------------------------------------------------ carte du jeu : attente, spectateur, résultats */
@@ -347,6 +411,7 @@
         hud.hint("");
         hud.countdown(null);
         hud.card(null);
+        hud.top10(null);
         flash.classList.remove("is-on");
         custom.innerHTML = "";
       },
@@ -374,26 +439,34 @@
           `<form class="fete-card">
             <div class="fete-welcome-icon" aria-hidden="true">🎪</div>
             <h2>Welcome to the Mill Fair</h2>
-            <p class="fete-note">Eight fairground games in the 3D garden of an old French watermill, solo or multiplayer: everyone who opens this page at the same time meets here.</p>
+            <p class="fete-note">A real fairground in the 3D garden of an old French watermill: fifteen games, a Ferris wheel, and a deck by the pond to sit and work. Everyone who opens this page at the same time meets here.</p>
             <label class="fete-label" for="fete-pseudo">Your nickname</label>
             <input id="fete-pseudo" type="text" class="fete-input" maxlength="18" value="${esc(profile.name)}" autocomplete="off" spellcheck="false">
             <div class="fete-swatches">${MF.PLAYER_COLORS.map((c) => `<button type="button" data-pick="${c}" style="--c:${c}" aria-pressed="${c === profile.color}" aria-label="Color"></button>`).join("")}</div>
+            <label class="fete-label">Pick your laptop <small>you carry it on your back, like a backpack</small></label>
+            ${laptopPicker(profile.kit, "data-laptop")}
+            <label class="fete-label" for="fete-projet">What are you building? <small>optional</small></label>
+            <input id="fete-projet" type="text" class="fete-input" maxlength="40" value="${esc(profile.bio || "")}" placeholder="my SaaS, a newsletter, nothing yet…" autocomplete="off" spellcheck="false">
             <button type="submit" class="fete-btn fete-btn-main fete-btn-go">Enter the fair</button>
           </form>`,
         );
-        let color = profile.color;
+        fillThumbs(w);
+        let color = profile.color, kit = profile.kit;
         w.addEventListener("click", (ev) => {
-          const b = ev.target.closest("[data-pick]");
+          const b = ev.target.closest("[data-pick],[data-laptop]");
           if (!b) return;
           ev.stopPropagation();
-          color = b.dataset.pick;
-          for (const o of w.querySelectorAll("[data-pick]")) o.setAttribute("aria-pressed", String(o === b));
+          const attr = b.hasAttribute("data-pick") ? "data-pick" : "data-laptop";
+          if (attr === "data-pick") color = b.dataset.pick;
+          else kit = b.dataset.laptop;
+          for (const o of w.querySelectorAll("[" + attr + "]")) o.setAttribute("aria-pressed", String(o === b));
         });
         w.querySelector("form").addEventListener("submit", (ev) => {
           ev.preventDefault();
-          const name = w.querySelector("input").value.trim() || profile.name;
+          const name = w.querySelector("#fete-pseudo").value.trim() || profile.name;
+          const bio = w.querySelector("#fete-projet").value.trim();
           w.remove();
-          done({ name, color });
+          done({ name, color, kit, bio });
         });
         return w;
       },

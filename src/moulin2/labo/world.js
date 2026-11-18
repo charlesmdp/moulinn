@@ -194,9 +194,9 @@
     P.speed = f || r ? 4.2 * run : 0;
     P.x += vx * P.speed * dt;
     P.z += vz * P.speed * dt;
-    P.y = heightAt(P.x, P.z);
+    P.y = world.heightAt(P.x, P.z); // sol ou plancher de la fête
     const w = waterAt(P.x, P.z);
-    if (w) P.y = Math.max(P.y, w.level - 0.9);
+    if (w && !(world.onDeck && world.onDeck(P.x, P.z))) P.y = Math.max(P.y, w.level - 0.9);
     avatar.group.position.set(P.x, P.y, P.z);
     avatar.body.rotation.y = P.heading;
     P.phase += P.speed * dt * 2.2;
@@ -207,7 +207,7 @@
     avatar.arms[1].rotation.x = swing * 0.8;
     const d = 5.2, cy = P.y + 1.5;
     camera.position.set(P.x - Math.sin(P.yaw) * Math.cos(P.pitch) * d, cy + Math.sin(P.pitch) * d, P.z - Math.cos(P.yaw) * Math.cos(P.pitch) * d);
-    camera.position.y = Math.max(camera.position.y, heightAt(camera.position.x, camera.position.z) + 0.4);
+    camera.position.y = Math.max(camera.position.y, world.heightAt(camera.position.x, camera.position.z) + 0.4);
     camera.lookAt(P.x, cy, P.z);
     if (camera.fov !== 50) {
       camera.fov = 50;
@@ -245,6 +245,11 @@
       canStand: () => true,
       walk() {},
       walking: () => P.enabled,
+      /** L'ordinateur-sac à dos : ici le personnage est celui de la fête, il suffit de changer de modèle. */
+      wear(object) {
+        avatar.setKit(object.userData.model.id);
+        MF.dispose(object);
+      },
     },
     invalidate() {},
     refreshShadows() {},
@@ -258,6 +263,8 @@
     rtc: relay ? undefined : false,
     relayUrls: relay ? [relay] : undefined,
     welcome: params.get("bienvenue") === "1",
+    kit: params.get("ordi") || undefined,
+    scoresUrl: params.get("scores") === "0" ? "" : "/api/scores",
     name: params.get("nom") || undefined,
     color: params.get("couleur") || undefined,
     now: fixed ? () => time * 1000 : undefined,

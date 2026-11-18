@@ -26,6 +26,24 @@
         }
         return { name: r.name, level: r.level, poly: r.poly, x0, x1, z0, z1 };
       });
+      // L'ordinateur porté dans le dos suit le haut du buste du personnage du moulin (os « spine_03 »).
+      let worn = null, chest = null, figure = null;
+      const spot3 = new THREE.Vector3();
+      function carry() {
+        if (!worn) return;
+        const a = player.getAudioState();
+        if (!figure || !figure.parent) {
+          figure = game.scene.getObjectByName("Promeneur_sweat_bordeaux") || null;
+          chest = figure ? figure.getObjectByName("spine_03") || figure.getObjectByName("spine_02") : null;
+        }
+        const show = !!a.enabled && hooks.getMode() === "play" && !!chest;
+        if (worn.visible !== show) worn.visible = show;
+        if (!show) return;
+        chest.getWorldPosition(spot3);
+        const h = a.heading;
+        worn.position.set(spot3.x - Math.sin(h) * 0.13, spot3.y + 0.17, spot3.z - Math.cos(h) * 0.13);
+        worn.rotation.y = h;
+      }
       const world = {
         THREE,
         scene: game.scene,
@@ -43,6 +61,10 @@
           const t = game.terrainHeight(x, z);
           const s = game.cameraSupportHeight ? game.cameraSupportHeight(x, z) : t;
           return s > t && s - t < 0.6 ? s : t;
+        },
+        /** Plancher de la fête (ponton, gradin, escalier) : le personnage du moulin peut y marcher. */
+        addSurface(surface) {
+          if (V32.walkSurfaces && !V32.walkSurfaces.includes(surface)) V32.walkSurfaces.push(surface);
         },
         /** Étang en ce point ({ name, level, poly }) ou null. */
         waterAt(x, z) {
@@ -67,6 +89,15 @@
             if (hooks.getMode() !== "play") hooks.setMode("play");
           },
           walking: () => hooks.getMode() === "play" && player.enabled,
+          /** Porte un objet dans le dos du personnage (l'ordinateur-sac à dos) ; remplace le précédent. */
+          wear(object) {
+            if (worn) MF.dispose(worn);
+            worn = object;
+            if (worn) {
+              worn.userData.live = true;
+              game.scene.add(worn);
+            }
+          },
         },
         invalidate: () => hooks.markDirty(),
         refreshShadows: () => hooks.refreshShadows(),
@@ -81,7 +112,9 @@
           // la boule à neige « Météo » montre le moulin seul : on y cache la fête
           const globe = hooks.getMode() === "globe";
           if (app.root.visible === globe) app.root.visible = !globe;
-          return app.update(dt, time);
+          const dirty = app.update(dt, time);
+          carry();
+          return dirty;
         },
       };
     },

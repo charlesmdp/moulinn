@@ -6,6 +6,7 @@ import http from "node:http";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { api } from "./lib/api-dev.mjs";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "dist");
 const port = Number(process.env.PORT) || 8080;
@@ -26,6 +27,7 @@ const types = {
 http
   .createServer((request, response) => {
     const url = new URL(request.url, "http://localhost");
+    if (api(request, response)) return; // top 10 de la fête (/api/scores), comme sur le site publié
     let file = path.normalize(path.join(root, decodeURIComponent(url.pathname)));
     if (!file.startsWith(root)) return response.writeHead(403).end();
     if (url.pathname.endsWith("/")) file = path.join(file, "index.html");

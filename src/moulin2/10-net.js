@@ -195,7 +195,11 @@
   function create(options = {}) {
     const BC = options.BroadcastChannel || globalThis.BroadcastChannel;
     const now = options.now || (() => Date.now());
-    const self = { uid: options.uid || MF.uid(10), name: options.name || "Miller", color: options.color || MF.PLAYER_COLORS[0] };
+    // kit : l'ordinateur choisi ; bio : « ce sur quoi je travaille » (affiché quand on est assis)
+    const cleanBio = (v) => String(v ?? "").replace(/[\u0000-\u001f\u007f<>]/g, "").replace(/\s+/g, " ").trim().slice(0, 40);
+    const cleanKit = (v) => (/^[a-z0-9-]{1,16}$/.test(v) ? v : "");
+    const self = { uid: options.uid || MF.uid(10), name: options.name || "Miller", color: options.color || MF.PLAYER_COLORS[0], kit: cleanKit(options.kit), bio: cleanBio(options.bio) };
+    const card = (ask) => ({ name: self.name, color: self.color, kit: self.kit, bio: self.bio, v: PROTO, ask: !!ask });
     const peers = new Map();
     const handlers = new Map();
     const joinFns = [], leaveFns = [], statusFns = [];
@@ -238,7 +242,7 @@
     const pendingDirect = new Set();
 
     function hello(ask, to) {
-      dispatch(envelope("hello", { name: self.name, color: self.color, v: PROTO, ask: !!ask }, to), to);
+      dispatch(envelope("hello", card(ask), to), to);
     }
     function dropPeer(peer, why) {
       if (!peers.delete(peer.uid)) return;
@@ -258,13 +262,13 @@
             receive.asked.set(env.u, t);
             if (via === "direct" && addr) {
               pendingDirect.add(addr);
-              direct.sendAll(envelope("hello", { name: self.name, color: self.color, v: PROTO, ask: true }, env.u), [addr]);
+              direct.sendAll(envelope("hello", card(true), env.u), [addr]);
             } else hello(true, env.u);
           }
           return;
         }
         if (!env.d || env.d.v !== PROTO) return; // autre version du jeu : on s'ignore
-        peer = { uid: env.u, name: "", color: "#888888", links: { tabs: false, direct: null }, seen: { tabs: 0, direct: 0 }, n: 0, joined: t, data: {} };
+        peer = { uid: env.u, name: "", color: "#888888", kit: "", bio: "", links: { tabs: false, direct: null }, seen: { tabs: 0, direct: 0 }, n: 0, joined: t, data: {} };
         peers.set(peer.uid, peer);
         peer.fresh = true;
       }
@@ -279,9 +283,12 @@
       peer.last = t;
       if (env.t === "hello") {
         const d = env.d || {};
-        const changed = peer.name !== d.name || peer.color !== d.color;
+        const kit = cleanKit(d.kit), bio = cleanBio(d.bio);
+        const changed = peer.name !== d.name || peer.color !== d.color || peer.kit !== kit || peer.bio !== bio;
         peer.name = String(d.name || "Miller").slice(0, 18);
         peer.color = /^#[0-9a-f]{6}$/i.test(d.color) ? d.color : "#888888";
+        peer.kit = kit;
+        peer.bio = bio;
         if (peer.fresh) {
           peer.fresh = false;
           emit(joinFns, peer);
@@ -319,7 +326,7 @@
           message: (env, addr) => receive(env, addr, "direct"),
           up(addr) {
             pendingDirect.add(addr);
-            direct.sendAll(envelope("hello", { name: self.name, color: self.color, v: PROTO, ask: true }), [addr]);
+            direct.sendAll(envelope("hello", card(true)), [addr]);
           },
           down(addr) {
             pendingDirect.delete(addr);
@@ -369,6 +376,8 @@
       setProfile(profile) {
         if (profile.name !== undefined) self.name = String(profile.name).trim().slice(0, 18) || "Miller";
         if (profile.color !== undefined) self.color = profile.color;
+        if (profile.kit !== undefined) self.kit = cleanKit(profile.kit);
+        if (profile.bio !== undefined) self.bio = cleanBio(profile.bio);
         hello(false);
       },
       status() {

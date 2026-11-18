@@ -11,6 +11,7 @@ import fs from "node:fs";
 import http from "node:http";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { api } from "./lib/api-dev.mjs";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const port = Number(process.env.PORT) || 8090;
@@ -47,6 +48,7 @@ ${scripts.map((s) => `<script src="${s}"></script>`).join("\n")}
 http
   .createServer((request, response) => {
     const url = new URL(request.url, "http://localhost");
+    if (api(request, response)) return; // top 10 de la fête (/api/scores), comme sur le site publié
     const send = (code, type, body) => response.writeHead(code, { "Content-Type": type, "Cache-Control": "no-store" }).end(body);
     if (url.pathname === "/") return send(200, types[".html"], page(url.searchParams.get("jeux") ? url.searchParams.get("jeux").split(",") : null));
     if (url.pathname === "/labo.css") {

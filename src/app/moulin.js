@@ -10655,6 +10655,9 @@ lawnWorld20=(modelMatrix*lawnP20).xyz;`,
       ],
       Be = n.waterRegions || [],
       Se = n.channels || [];
+    // V32 : liste vivante des surfaces praticables (ponts du plan), que la fête de /moulin2 complète
+    // avec ses pontons et ses gradins : { name, polygon: [[x, z]…], topAt(x, z) }.
+    globalThis.MoulinV32 && (globalThis.MoulinV32.walkSurfaces = I);
     let N = 0,
       Ie = 0,
       E = 0,

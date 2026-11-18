@@ -24,20 +24,23 @@
     if (!def || !def.id || typeof def.create !== "function") throw new Error("Jeu de la fête invalide");
     if (!MF.games.some((g) => g.id === def.id)) MF.games.push(def);
   };
-  const ORDER = ["rc", "bateaux", "golf", "tir", "canards", "autos", "citrouilles", "drones"];
+  const ORDER = ["rc", "bateaux", "drones", "autos", "citrouilles", "golf", "tir", "canards", "striker", "moles", "skee", "rings", "bottles", "water", "cornhole"];
   const PROFILE_KEY = "fete-profil";
   const NEAR = 3.4; // distance (m) à laquelle un stand propose de jouer
 
   function loadProfile() {
     try {
       const p = JSON.parse(localStorage.getItem(PROFILE_KEY));
-      if (p && p.name) return { name: String(p.name).slice(0, 18), color: MF.PLAYER_COLORS.includes(p.color) ? p.color : MF.PLAYER_COLORS[0], known: true };
+      // « connu » : il a déjà choisi son pseudo ET son ordinateur (sinon on lui repose la question)
+      if (p && p.name)
+        return { name: String(p.name).slice(0, 18), color: MF.PLAYER_COLORS.includes(p.color) ? p.color : MF.PLAYER_COLORS[0], kit: MF.laptops.valid(p.kit), bio: String(p.bio || "").slice(0, 40), known: !!p.kit };
     } catch (e) {}
-    return { name: "Miller " + (10 + Math.floor(Math.random() * 90)), color: MF.PLAYER_COLORS[Math.floor(Math.random() * MF.PLAYER_COLORS.length)], known: false };
+    const kits = MF.laptops.list;
+    return { name: "Miller " + (10 + Math.floor(Math.random() * 90)), color: MF.PLAYER_COLORS[Math.floor(Math.random() * MF.PLAYER_COLORS.length)], kit: kits[Math.floor(Math.random() * kits.length)].id, bio: "", known: false };
   }
   function saveProfile(p) {
     try {
-      localStorage.setItem(PROFILE_KEY, JSON.stringify({ name: p.name, color: p.color }));
+      localStorage.setItem(PROFILE_KEY, JSON.stringify({ name: p.name, color: p.color, kit: p.kit, bio: p.bio }));
     } catch (e) {}
   }
 
@@ -51,7 +54,9 @@
     const profile = loadProfile();
     if (options.name) profile.name = options.name;
     if (options.color) profile.color = options.color;
+    if (options.kit) profile.kit = MF.laptops.valid(options.kit);
     let active = null;
+    let seated = null; // place où je suis assis (espace de travail), ou null
     const started = performance.now();
 
     // avant le réseau (qui dit « au revoir » en fermant la page) : rendre la main si on était l'hôte
@@ -61,22 +66,33 @@
           if (active) active.session.leave();
         } catch (e) {}
       });
-    const net = MF.Net.create({ name: profile.name, color: profile.color, room: options.room !== undefined ? options.room : params.get("salon"), rtc: options.rtc, relayUrls: options.relayUrls, turn: options.turn });
+    const net = MF.Net.create({ name: profile.name, color: profile.color, kit: profile.kit, bio: profile.bio, room: options.room !== undefined ? options.room : params.get("salon"), rtc: options.rtc, relayUrls: options.relayUrls, turn: options.turn });
     const presence = MF.Presence.create({ net, world });
     const sessions = MF.Sessions.create({ net, presence, now: options.now });
     const input = MF.Input.create({ dom: world.dom, mobile: world.mobile });
     const hud = MF.Hud.create({ dom: world.dom, mobile: world.mobile });
     hud.setSound(!MF.sfx.muted);
+    hud.setMusic(MF.music.on);
     const root = MF.group({ name: "Fete_du_Moulin" });
     world.scene.add(root);
+    // planchers praticables, lieux où l'on peut agir (s'asseoir, monter dans un manège…), décor
+    MF.decks.install(world);
+    const places = MF.Places.create();
+    let site = null;
     try {
-      MF.freeze(MF.site.build({ world, root }));
+      site = MF.site.build({ world, root, places, presence, hud, net }) || null;
     } catch (error) {
       console.error("[Fête du Moulin] décor", error);
     }
+    // mon ordinateur, porté dans le dos
+    const wear = () => world.player.wear && world.player.wear(MF.laptops.backpack(net.self.kit));
+    wear();
 
     /* ---------------------------------------------------------------- les jeux */
     const defs = MF.games.slice().sort((a, b) => (ORDER.indexOf(a.id) + 99) % 99 - (ORDER.indexOf(b.id) + 99) % 99);
+    // top 10 de chaque jeu : gardés par le site (/api/scores), le navigateur et les joueurs présents
+    const scores = MF.Scores.create({ net, defs, url: options.scoresUrl !== undefined ? options.scoresUrl : MF.assets && MF.assets.scores });
+    let fresh = null; // { key, rank, until } : mon record tout juste inscrit
     const entries = defs.map((def) => {
       const session = sessions.get(def.id, def);
       const group = MF.group({ name: "Jeu_" + def.id, parent: root });
@@ -102,6 +118,7 @@
       entry.ctx = ctx;
       try {
         group.add(MF.freeze(MF.site.kiosk(def, world)));
+        if (def.board && MF.site.hall) entry.hall = MF.site.hall(def, world, scores, group);
         entry.instance = def.create(ctx) || {};
       } catch (error) {
         entry.broken = true;
@@ -109,6 +126,17 @@
       }
       session.onChange((state, prev) => {
         call(entry, "onPhase", state, prev);
+        // fin de partie : mon résultat tente sa chance au top 10
+        if (state && state.phase === "results" && (!prev || prev.phase !== "results") && session.inRoster()) {
+          const done = scores.submit(def, state.opts, state.results[net.self.uid], net.self);
+          if (done) {
+            fresh = { key: done.key, rank: done.rank, until: performance.now() + 15000 };
+            if (entry === active) {
+              hud.flash("NEW RECORD · #" + done.rank + " ON THE WALL, FOREVER", { color: MF.PAL.yellow, hold: 4 });
+              setTimeout(() => MF.sfx.play("bravo"), 700);
+            }
+          }
+        }
         if (entry === active) syncPhase(entry, state, prev);
       });
       return entry;
@@ -137,6 +165,7 @@
       if (!e || e.broken) return false;
       if (active === e) return true;
       if (active) leave();
+      if (seated) stand();
       if (world.player.walk) world.player.walk();
       world.player.setEnabled(false);
       active = e;
@@ -220,6 +249,43 @@
     }
     function refreshCard() {
       hud.card(active ? cardModel(active) : null);
+      // le top 10 du jeu, pour les réglages en cours : visible dans la salle d'attente et pendant la partie
+      const table = active && active.def.board ? scores.table(active.def, active.session.state ? active.session.state.opts : undefined) : null;
+      if (fresh && performance.now() > fresh.until) fresh = null;
+      hud.top10(
+        table && {
+          variant: table.variant || table.label,
+          rows: table.rows.map((r, i) => ({ pos: i + 1, name: r.n, color: r.c, text: table.text(r), self: r.n.toLowerCase() === net.self.name.toLowerCase() })),
+          fresh: fresh && fresh.key === table.key ? fresh.rank : 0,
+        },
+      );
+    }
+
+    /* ---------------------------------------------------------------- s'asseoir, se lever (espace de travail) */
+    function sit(seat) {
+      if (active) leave();
+      if (seated) stand();
+      if (world.player.walk) world.player.walk();
+      world.player.setEnabled(false);
+      seated = seat;
+      presence.setSeat({ x: seat.x, y: seat.y, z: seat.z, heading: seat.heading });
+      world.dom.classList.add("fete-in-game");
+      hud.prompt(null);
+      hud.seat({ bio: net.self.bio });
+      MF.sfx.play("clic");
+      world.invalidate();
+    }
+    function stand() {
+      if (!seated) return;
+      const s = seated;
+      seated = null;
+      presence.setSeat(null);
+      hud.seat(null);
+      world.dom.classList.remove("fete-in-game");
+      world.player.setEnabled(true);
+      if (s.exit) world.player.teleport(s.exit.x, s.exit.z, s.heading);
+      else world.player.teleport(s.x - Math.sin(s.heading) * 0.9, s.z - Math.cos(s.heading) * 0.9, s.heading);
+      world.invalidate();
     }
     const doing = (game, state) => {
       const e = game && find(game);
@@ -248,7 +314,7 @@
       if (hud.panel() === "players") {
         const me = presence.activity();
         hud.setPlayers({
-          self: { name: net.self.name, color: net.self.color },
+          self: { name: net.self.name, color: net.self.color, kit: net.self.kit, bio: net.self.bio },
           players: [{ name: net.self.name, color: net.self.color, self: true, doing: doing(me.game, me.state) }].concat(presence.list().map((r) => ({ name: r.peer.name, color: r.peer.color, self: false, doing: doing(r.game, r.state) }))),
           room: { label: st.label, isPrivate: st.isPrivate, code: st.code },
           net: netText(st),
@@ -297,6 +363,13 @@
       else if (action === "profile") {
         net.setProfile(value);
         saveProfile(net.self);
+        if (value.kit !== undefined) wear();
+        if (seated) presence.setSeat({ x: seated.x, y: seated.y, z: seated.z, heading: seated.heading });
+      } else if (action === "place") places.run(value);
+      else if (action === "stand") stand();
+      else if (action === "music") {
+        MF.music.setOn(value);
+        hud.setMusic(MF.music.on);
       } else if (action === "sound") {
         MF.sfx.setMuted(!value);
         hud.setSound(value);
@@ -331,7 +404,7 @@
     });
 
     // Clavier : E ou Entrée près d'un stand pour jouer ; Échap pour quitter un jeu.
-    let nearDef = null;
+    let nearDef = null, nearPlace = null;
     addEventListener(
       "keydown",
       (ev) => {
@@ -341,10 +414,15 @@
           ev.preventDefault();
           ev.stopPropagation();
           leave();
-        } else if (!active && nearDef && (k === "e" || k === "enter") && !ev.repeat) {
+        } else if (seated && k === "escape") {
           ev.preventDefault();
           ev.stopPropagation();
-          enter(nearDef.id);
+          stand();
+        } else if (!active && !seated && (nearDef || nearPlace) && (k === "e" || k === "enter") && !ev.repeat) {
+          ev.preventDefault();
+          ev.stopPropagation();
+          if (nearDef) enter(nearDef.id);
+          else places.run(nearPlace.id);
         }
       },
       true,
@@ -390,9 +468,18 @@
           hud.countdown(text);
           if (text) MF.sfx.play(text === "Go!" ? "top" : "bip");
         }
+      } else if (seated) {
+        // assis : vue par-dessus l'épaule, vers l'étang (ou vers la vallée, depuis un manège)
+        dirty = true;
+        nearDef = nearPlace = null;
+        if (seated.moving) presence.setSeat({ x: seated.x, y: seated.y, z: seated.z, heading: seated.heading }, true);
+        const h = seated.heading, sway = Math.sin(time * 0.22) * 0.25;
+        const back = seated.back ?? 2.7, up = seated.up ?? 1.75, side = seated.moving ? 0 : 0.9 + sway;
+        const to = seated.look || { x: seated.x + Math.sin(h) * 9, y: seated.y + 0.7, z: seated.z + Math.cos(h) * 9 };
+        MF.cam.set(world.camera, { x: seated.x - Math.sin(h) * back + Math.cos(h) * side, y: seated.y + up, z: seated.z - Math.cos(h) * back - Math.sin(h) * side }, to, seated.moving ? 62 : 52);
       } else {
-        // près d'un stand ? (seulement en se promenant avec le personnage)
-        let best = null, bd = NEAR;
+        // près d'un stand ou d'un lieu ? (seulement en se promenant avec le personnage)
+        let best = null, bd = NEAR, place = null;
         if (!world.player.walking || world.player.walking()) {
           const p = world.player.pose();
           for (const e of entries) {
@@ -403,10 +490,13 @@
               best = e.def;
             }
           }
+          if (!best) place = places.near(p.x, p.z);
         }
         nearDef = best;
-        hud.prompt(best);
+        nearPlace = place;
+        hud.prompt(best || (place && { id: place.id, icon: place.icon, title: place.title, verb: place.verb, action: "place" }));
       }
+      if (site && site.update && site.update(dt, time, world.camera)) dirty = true;
       uiTimer -= dt;
       if (uiTimer <= 0) {
         uiTimer = 0.25;
@@ -420,7 +510,9 @@
     }, 1000);
 
     MF.sponsors.load();
-    const app = { world, net, presence, sessions, input, hud, entries, root, enter, leave, update, find, active: () => active, inviteLink };
+    const app = { world, net, presence, sessions, input, hud, entries, root, enter, leave, update, find, active: () => active, inviteLink, scores, places, sit, stand, seated: () => seated, site };
+    scores.sync();
+    setInterval(() => scores.sync(), 120000);
     MF.app = app;
 
     // Première visite : pseudo et couleur ; puis, avec ?jeu=…, on va droit au jeu demandé.
@@ -432,7 +524,10 @@
       hud.welcome(profile, (p) => {
         net.setProfile(p);
         saveProfile(net.self);
+        wear();
         MF.sfx.play("ting");
+        MF.music.wanted = true;
+        MF.music.start();
         go();
       });
     } else go();

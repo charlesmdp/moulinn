@@ -13,7 +13,7 @@
   const MF = (globalThis.MoulinFete = globalThis.MoulinFete || {});
   MF.version = 1;
   MF.route = ((typeof document !== "undefined" && document.documentElement.dataset.route) || "").toLowerCase();
-  MF.assets = { p2p: "{{asset:p2p}}", sponsors: "moulin2/sponsors.json" };
+  MF.assets = { p2p: "{{asset:p2p}}", sponsors: "moulin2/sponsors.json", scores: "api/scores" };
   if (MF.route !== "moulin2" || MF.preDone) return;
   MF.preDone = true;
 

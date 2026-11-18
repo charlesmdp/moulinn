@@ -192,6 +192,26 @@
     "regarder ·": "look ·",
     "Bienvenue au domaine. Le panneau suivant vous explique les commandes pour explorer les jardins.": "Welcome to the estate. The next sign explains the controls for exploring the gardens.",
 
+    // --- panneau des commandes à l'entrée (peint sur un panneau 3D : voir le crochet des dessins plus bas)
+    "BIENVENUE AU MOULIN": "WELCOME TO THE MILL",
+    "Un secret vous attend près du pont du fond du terrain,": "A secret awaits you near the bridge at the far end of the grounds,",
+    "juste avant que le ruisseau n'alimente l'étang…": "just before the stream flows into the pond…",
+    "ZQSD / FLÈCHES": "WASD / ARROWS",
+    "ZQSD / Flèches": "WASD / Arrows",
+    "Marcher ou conduire": "Walk or drive",
+    "SOURIS": "MOUSE",
+    "Regarder autour de soi": "Look around",
+    "Monter / descendre du véhicule": "Get on / off the vehicle",
+    "Creuser à pied": "Dig (on foot)",
+    "Lampe, uniquement la nuit": "Flashlight, at night only",
+    "MAJ": "SHIFT",
+    "Courir / accélérer": "Run / speed up",
+    "ESPACE": "SPACE",
+    "Sauter à pied / freiner en véhicule": "Jump on foot / brake in a vehicle",
+    "L : lire ce panneau · Sur mobile : toucher la lettre": "L: read this sign · On mobile: tap the letter",
+    "ZQSD / flèches · Maj : courir · Glisser : regarder": "WASD / arrows · Shift: run · Drag: look",
+    "ZQSD · Espace monter · Ctrl descendre · Maj accélérer · Échap libérer la souris": "WASD · Space up · Ctrl down · Shift speed up · Esc release the mouse",
+
     // --- promenade, véhicules, trésor
     "Sauter": "Jump",
     "Courir": "Run",
@@ -388,6 +408,21 @@
     Intl.DateTimeFormat = English;
   } catch (error) {
     /* sans importance : les jours resteront en français */
+  }
+
+  // Textes peints sur des panneaux 3D ou sur la carte (dessinés dans un canevas) : traduits au
+  // moment où le moulin les dessine. Les textes de la fête, déjà en anglais, passent tels quels.
+  try {
+    const proto = CanvasRenderingContext2D.prototype;
+    for (const name of ["fillText", "strokeText", "measureText"]) {
+      const native = proto[name];
+      proto[name] = function (value, ...rest) {
+        const t = typeof value === "string" && value.length > 2 ? translate(value, false) : null;
+        return native.call(this, t === null ? value : t, ...rest);
+      };
+    }
+  } catch (error) {
+    /* sans importance : ces panneaux resteront en français */
   }
 
   const ATTRS = ["title", "aria-label", "placeholder", "alt"];
