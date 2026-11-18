@@ -37,6 +37,12 @@
     const s = def.station;
     const y = world.heightAt(s.x, s.z);
     const h = s.heading || 0;
+    if (def.kiosk === false) {
+      // une baraque porte déjà son nom : seul le rond au sol marque la place du joueur
+      const g = MF.group({ name: "Stand_" + def.id, x: s.x, y, z: s.z });
+      MF.mesh(new (T().RingGeometry)(0.95, 1.2, 28), MF.mat(def.color || MF.PAL.red, { opacity: 0.85 }), { y: 0.13, rx: -Math.PI / 2, parent: g });
+      return g;
+    }
     // le mât est sur le côté du joueur (qui regarde vers le jeu), pour ne pas boucher la vue ;
     // un jeu peut imposer sa place : def.kiosk = { x, z, heading }
     const k = def.kiosk || beside(s, 3.2);
