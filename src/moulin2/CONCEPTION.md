@@ -11,17 +11,27 @@ bâches), comme une kermesse dans le jardin.
 | Fichier | Rôle |
 | --- | --- |
 | `00-pre.js` | Avant le moulin : réglages locaux à part de `/moulin`, plein jour, couleurs plus vives |
+| `02-anglais.js` | Traduction de l'habillage du moulin (HTML, attributs, textes peints sur les panneaux 3D) |
 | `05-kit.js` | Boîte à outils : maths, lignes (`MF.path`), couleurs, formes, panneaux, sons |
+| `07-music.js` | Orgue de foire synthétisé, en boucle (`MF.music`) |
+| `08-laptops.js` | Les huit ordinateurs en 3D, portés dans le dos (`MF.laptops`) |
 | `10-net.js` | Réseau sans serveur : salons, connexion directe entre navigateurs, repli entre onglets |
+| `12-scores.js` | Top 10 : lecture et envoi (`/api/scores`), repli local, échange entre joueurs (`MF.Scores`) |
 | `15-presence.js` | Qui est là, où, ce qu'il fait ; personnages des autres joueurs ; `MF.interp` |
 | `20-input.js` | Commandes : clavier, souris, tactile, manette ; télécommande à l'écran |
 | `30-hud.js` | Interface : barre du haut, menu des jeux, salle d'attente, compteurs, résultats |
 | `35-sponsors.js` | Emplacements de sponsors (bâches, panneaux) lus dans `sponsors.json` |
 | `40-session.js` | Parties : hôte, salle d'attente, décompte, résultats, objets disputés |
 | `42-play.js` | Aides de jeu : caméra, objets des autres joueurs, piste au sol, obstacles |
-| `45-site.js` | Décor commun : arche d'entrée, panneaux des stands |
+| `41-places.js` | Lieux où l'on peut faire quelque chose (touche E) : s'asseoir, monter dans un manège |
+| `43-decks.js` | Planchers, gradins et escaliers praticables posés sur le terrain (`MF.decks`) |
+| `44-props.js` | Accessoires de foire en 3D : baraque, guirlandes, poufs, charrettes, drapeaux, confettis |
+| `45-site.js` | Le plan du champ de foire, zone par zone ; panneaux des stands ; tableaux du top 10 |
+| `46-lounge.js` | Le Founders' Deck : 65 poufs en gradins face au Grand étang |
+| `47-rides.js` | Manèges où l'on monte : grande roue (colline), carrousel (pré) |
+| `48-booth.js` | Socle commun des baraques à score (`MF.booth`) |
 | `50-core.js` | Cœur : `MF.registerGame`, `MF.boot`, entrée et sortie d'un jeu, boucle |
-| `games/*.js` | Un fichier par jeu (`rc.js` sert de modèle) |
+| `games/*.js` | Un fichier par jeu (`rc.js` sert de modèle pour une course, `moles.js` pour une baraque) |
 | `99-host-moulin.js` | Branchement sur le vrai moulin (module V32) |
 | `labo/` | Terrain d'essai léger : même socle, mêmes jeux, décor simplifié |
 | `arcade.css` | Styles de l'interface |
@@ -55,14 +65,26 @@ regarde vers +z ; l'avant d'un objet de cap `h` est `(sin h, cos h)`, sa droite 
 
 | Jeu | id | Stand (x, z) | Zone |
 | --- | --- | --- | --- |
-| Course de voitures RC | `rc` | 4,5 · −58 | allée, prairie nord-est, cour |
-| Course de bateaux | `bateaux` | −10 · 14,6 | Grand étang, devant la terrasse (îlot autour de −14 · 38,5) |
-| Mini-golf | `golf` | 98 · −4,5 | prairie est, x 99,5…118,5, z −10,5…1,5 |
-| Stand de tir | `tir` | 51 · −7,5 | prairie est, stand x 46…56, z −4,5…1,5 |
-| Pêche aux canards | `canards` | 66 · −7,5 | prairie est, bassin autour de (66, −3) |
-| Auto-tamponneuses | `autos` | 78 · −5,5 | prairie est, piste x 80…95, z −10…−1 |
-| Lancer de citrouilles | `citrouilles` | 58 · −14 | rive sud de l'étang intermédiaire, cibles au nord |
-| Course de drones | `drones` | 12 · −36 | départ à l'est de l'allée, portes autour du moulin |
+| RC Car Race | `rc` | −69,6 · −45,6 | colline : circuit x −121…−74, z −81…−32 |
+| RC Boat Race | `bateaux` | −10 · 14,6 | Grand étang, devant la terrasse (îlot autour de −14 · 38,5) |
+| FPV Drone Race | `drones` | 15,2 · −35 | terrasse basse ; portes autour du moulin |
+| Bumper Cars | `autos` | 87,5 · 3,2 | pré, pavillon x 79…96, z −11,4…0,6 |
+| Pumpkin Slingshot | `citrouilles` | 58 · −14 | rive sud de l'étang intermédiaire, radeaux au nord |
+| Mini-Golf | `golf` | 98 · −4,5 | pré, x 99,5…118,5, z −10,5…1,5 |
+| Shooting Gallery | `tir` | 51 · −7,5 | pré, stand x 46…56, z −4,5…1,5 |
+| Hook-a-Duck | `canards` | 66 · −7,5 | pré, bassin autour de (66, −3) |
+| High Striker | `striker` | 6,4 · −73,4 | allée des stands (tour en 11,5 · −73,4) |
+| Whack-a-Mole | `moles` | 7,1 · −67,6 | allée des stands |
+| Skee-Ball | `skee` | 7,1 · −61,8 | allée des stands |
+| Ring Toss | `rings` | 7,1 · −56 | allée des stands |
+| Milk Bottles | `bottles` | −36,5 · −81,2 | colline, rangée nord |
+| Water Gun Race | `water` | −42,6 · −81,2 | colline, rangée nord |
+| Corn Hole | `cornhole` | −49,6 · −82,6 | colline, couloir vers l'ouest |
+
+Manèges et lieux : grande roue (−62, −68), carrousel (73,8, −5,8), Founders' Deck (x 16…31,
+z 21…47, rive est du Grand étang), grand escalier de la colline (z −80,6, de x −3,4 à −26,2).
+Le plateau de la colline est plat (19,5 à 22 m) pour x ≤ −27 quand z ≤ −74 et pour x ≤ −56
+ailleurs ; le terrain du moulin s'arrête à z = −88.
 
 La prairie est (x 42…120, z −10,5…1,5) est plate, entre 0,9 et 1,4 m d'altitude ; elle monte
 doucement vers le sud. Au nord, l'étang intermédiaire (niveau −0,42 m) va de z ≈ −25 à z ≈ −39
@@ -71,6 +93,23 @@ pour x entre 44 et 64 ; sa rive nord (z −44…−50) est à 0,5…1,5 m. Le Gr
 au-delà de z 32.
 
 ## Écrire un jeu
+
+Deux raccourcis ont été ajoutés depuis les premiers jeux :
+
+- **Le tableau du top 10** : `def.board = { label, better: "low" | "high", value(résultat, options),
+  variant(options), format(valeur) }`. Le cœur plante le tableau 3D (place par défaut à côté du
+  stand, ou `def.hall = { x, z, heading }`), l'affiche pendant la partie et envoie le score à la
+  fin. Tout nouveau jeu doit aussi figurer dans `RULES` de `functions/api/scores.js` (sens et
+  bornes plausibles) ; `node tests/scores.test.mjs` le vérifie.
+- **Une baraque** : `MF.booth({ id, title, at: { x, z, face }, stall, duration, cam, setup(b) })`
+  (`48-booth.js`) fournit la baraque, la place du joueur, la caméra au comptoir, le viseur, le
+  chrono, le score en direct et l'envoi du résultat ; le jeu ne décrit que sa scène et sa règle,
+  dans le repère du stand (+z vers le public, +x à droite du joueur). `b.charge()` gère la jauge
+  « maintenir puis lâcher », `b.fly()` le vol en cloche d'un projectile.
+
+`MF.freeze(groupe)` fond en un seul maillage tous les volumes de couleur unie d'un décor (la
+couleur passe dans les sommets) : un matériau repeint en cours de jeu doit donc être créé avec
+`MF.mat(couleur, { unique: true })`, et ce qui bouge doit porter `userData.live = true`.
 
 Un jeu est un fichier `games/<id>.js` qui appelle `MF.registerGame({ … })` :
 

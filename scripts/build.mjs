@@ -187,8 +187,8 @@ async function main() {
       // description, styles.
       page = englishPage(page).replace('<html lang="fr" data-route="moulin2">', '<html lang="en" data-route="moulin2">');
       if (!page.includes('<html lang="en" data-route="moulin2">')) throw new Error("En-tête de index.html inattendu (langue)");
-      const title = "The Mill Fair · 8 multiplayer games in a 3D garden";
-      const description = "RC car, boat and drone races, mini-golf, a shooting gallery, hook-a-duck, bumper cars and pumpkin tossing: eight fairground games for 1 to 8 players, right in your browser, in the 3D garden of an old watermill in Brittany.";
+      const title = "The Mill Fair · 15 multiplayer fairground games in a 3D garden";
+      const description = "Bumper cars, a pumpkin slingshot, whack-a-mole, skee-ball, a high striker, RC car, boat and drone races, a Ferris wheel and a deck to sit and work by the pond: fifteen fairground games for 1 to 8 players, right in your browser, in the 3D garden of an old watermill in Brittany.";
       const swap = (pattern, text) => {
         if (!pattern.test(page)) throw new Error("En-tête de index.html inattendu (" + pattern + ")");
         page = page.replace(pattern, text);

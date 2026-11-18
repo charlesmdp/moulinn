@@ -346,7 +346,7 @@
       const my = { rolling: null, aim: 0, power: 0, charging: false, dir: 1, drag: false, strokesShown: -1 };
       const ray = { o: new THREE.Vector3(), d: new THREE.Vector3() };
       const camPos = new THREE.Vector3(), camLook = new THREE.Vector3(), camTo = new THREE.Vector3(), lookTo = new THREE.Vector3();
-      let sway = 0, lastBoard = 0, askAt = 0, snap = true;
+      let sway = 0, lastBoard = 0, askAt = 0, snap = true, party = null;
       /** Point du plateau sous le pointeur, dans le repère du trou. */
       function pointerUV(h, P, out) {
         ray.o.copy(camera.position);
@@ -447,6 +447,7 @@
         },
         update(dt, time) {
           remotes.update();
+          if (party) party.update(dt);
           const st = session.state, phase = st ? st.phase : "lobby";
           const t = Math.max(0, session.time());
           const playing = !!st && (phase === "run" || phase === "countdown") && table.size > 0;
@@ -516,6 +517,13 @@
               } else if (d.holed) {
                 hud.flash(verdict(d.n, h.par), { color: MF.PAL.yellow, hold: 2 });
                 MF.sfx.play("trou");
+                // sous le par : une pluie de confettis sur le trou (trou en un : le grand jeu)
+                if (d.n < h.par || d.n === 1) {
+                  party = party || MF.props.confetti(group, 30);
+                  const cx = h.X(h.cup[0]), cz = h.Z(h.cup[1]);
+                  party.burst(cx, world.heightAt(cx, cz) + 0.4, cz, d.n === 1 ? 30 : 14, d.n === 1 ? 1.4 : 1);
+                  if (d.n === 1) MF.sfx.play("bravo");
+                }
               } else if (d.n >= MAX_STROKES) hud.flash("Seven strokes: pick up", { hold: 1.6 });
             }
           } else if (myGo) myTurn(dt, h, mine, st);

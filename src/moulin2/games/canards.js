@@ -14,6 +14,7 @@
   const BX = 66, BZ = -3; // centre du bassin
   const R = 2.6; // rayon du bassin (m)
   const DURATION = 75, RESPAWN = 6;
+  const RUSH = 15; // dernières secondes : chaque prise compte double
   const DUCKS = 15;
   const LANES = [1.05, 1.5, 1.95]; // rayons des trois rondes
   const CATCH = 0.105; // distance hameçon-anneau pour accrocher (m)
@@ -61,7 +62,7 @@
     title: "Hook-a-Duck",
     icon: "🦆",
     color: MF.PAL.yellow,
-    blurb: "75 seconds · harder than it looks",
+    blurb: "75 seconds · last 15 seconds count double",
     station: { x: BX, z: BZ - 4.5, heading: 0 },
     kiosk: { x: BX - 4.4, z: BZ - 3.4, heading: 0 },
     minPlayers: 1,
@@ -176,7 +177,8 @@
         for (const [key, c] of session.claims) {
           if (c.u !== uid) continue;
           const m = /^d(\d+):(\d+)$/.exec(key);
-          if (m) s += prize(seed, +m[1], +m[2]).value;
+          // l'heure de la prise est dans la réclamation : tout le monde compte le « double » pareil
+          if (m) s += prize(seed, +m[1], +m[2]).value * (c.t >= (DURATION - RUSH) * 1000 ? 2 : 1);
         }
         return s;
       };
@@ -280,7 +282,8 @@
                 me.catches++;
                 proj.set(d.x, WY + 0.5, d.z).project(camera);
                 const px = ((proj.x + 1) / 2) * hud.root.clientWidth, py = ((1 - proj.y) / 2) * hud.root.clientHeight;
-                hud.pop(d.kind === "gold" ? "Golden duck! +10" : d.kind === "shoe" ? "An old shoe… −3" : "+" + d.value, px, py, { color: d.kind === "shoe" ? "#ff8a80" : d.kind === "gold" ? "#ffe45c" : undefined });
+                const x2 = session.time() >= DURATION - RUSH ? 2 : 1;
+                hud.pop(d.kind === "gold" ? "Golden duck! +" + 10 * x2 : d.kind === "shoe" ? "An old shoe… −" + 3 * x2 : "+" + d.value * x2, px, py, { color: d.kind === "shoe" ? "#ff8a80" : d.kind === "gold" ? "#ffe45c" : undefined });
                 MF.sfx.play(d.kind === "gold" ? "bravo" : d.kind === "shoe" ? "perdu" : "ting");
               }
               break;
@@ -344,9 +347,10 @@
             hud.set("score", scoreOf(ctx.self.uid, st.seed));
             hud.set("time", Math.ceil(left) + " s");
             hud.set("n", me.catches);
-            if (running && left < 10 && !warned) {
+            if (running && left < RUSH && !warned) {
               warned = true;
-              hud.flash("10 seconds left!", { color: MF.PAL.yellow });
+              hud.flash("Rush! Every catch counts double", { color: MF.PAL.yellow, hold: 1.6 });
+              MF.sfx.play("tour");
             }
             if (phase === "run" && t >= DURATION && !reported) {
               reported = true;

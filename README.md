@@ -18,7 +18,7 @@ hébergement statique en HTTPS). Les sources modifiables sont dans `src/`.
 | `/3D/` | La même page avec la **Vue 3D** en plus |
 | `/build/` | La vue 3D et l'atelier **Aménager** (page non indexée par les moteurs de recherche) |
 | `/jeu/` | Le jeu « Pas touche à mes trésors » (seule façon d'y accéder) |
-| `/moulin2/` | **La Fête du Moulin** : huit jeux de fête foraine multijoueurs dans le moulin 3D (page publique, indexée, faite pour être partagée) |
+| `/moulin2/` | **La Fête du Moulin** : quinze jeux de fête foraine multijoueurs, une grande roue et un ponton pour travailler, dans le moulin 3D (page publique, indexée, faite pour être partagée) |
 
 `/Moulin`, `/3d`, `/Build`, `/Jeu` ou `/Moulin2` (autres majuscules, avec ou
 sans « / ») mènent aux mêmes pages. Le mot de passe de `/` est une simple barrière : seule
@@ -31,20 +31,57 @@ visiteurs tombent sur l'atelier.
 
 ## La Fête du Moulin (`/moulin2/`)
 
-Le moulin 3D tel quel — rien n'est changé à la maison ni au terrain — avec, posés
-par-dessus comme une kermesse, huit jeux à jouer de 1 à 8, au clavier, à la
-souris ou au doigt :
+Le moulin 3D tel quel — rien n'est changé à la maison ni au terrain — transformé en
+champ de foire à l'américaine : une allée de baraques, des manèges, une colline avec
+sa grande roue, quinze jeux à jouer de 1 à 8 (clavier, souris ou doigt), un top 10
+planté à côté de chaque jeu et un ponton pour s'asseoir travailler face à l'étang.
+Tout est en volumes 3D (aucune image) ; seuls les textes des panneaux sont peints.
+
+**Le plan.** On entre par le portail (arche « The Mill Fair », guichet).
+- *L'Allée des stands* (l'allée du moulin, côté est) : High Striker, Whack-a-Mole,
+  Skee-Ball, Ring Toss, sous les guirlandes d'ampoules.
+- *La terrasse basse* : la piste d'envol des drones (leurs portes font le tour du moulin).
+- *La Colline* (plateau nord-ouest, par le grand escalier de bois) : belvédère,
+  Milk Bottles, Water Gun Race, Corn Hole, la grande roue (on y monte), le circuit RC.
+- *Le Pré* (prairie est) : stand de tir, pêche aux canards, lance-citrouilles,
+  carrousel (on y monte), auto-tamponneuses, mini-golf.
+- *Le Grand étang* : course de bateaux ; sur sa rive est, le *Founders' Deck*.
 
 | Jeu | Où | Règle |
 | --- | --- | --- |
-| Course de voitures RC | allée, prairie, cour | 3 ou 5 tours d'un circuit de 116 m |
-| Course de bateaux | Grand étang | 3 ou 5 tours de 134 m autour de l'îlot |
-| Mini-golf | prairie est | 9 trous (ou 3), chacun son tour : le plus loin du trou joue |
-| Stand de tir | prairie est | 60 secondes : canettes, cibles mobiles, ballons |
-| Pêche aux canards | prairie est | 75 secondes, l'hameçon se balance |
-| Auto-tamponneuses | prairie est | 90 secondes, un point par choc donné ; des robots complètent la piste |
-| Lancer de citrouilles | rive de l'étang intermédiaire | 5 ou 8 tirs sur des cibles de l'autre côté de l'eau |
-| Course de drones FPV | autour du moulin | 2 ou 3 tours de 11 portes, vue embarquée |
+| RC Car Race | colline | 3 ou 5 tours d'un circuit de 220 m : tremplin, bandes de boost, départ canon aux feux |
+| RC Boat Race | Grand étang | 3 ou 5 tours de 134 m : tremplin flottant, bidons de nitro |
+| FPV Drone Race | terrasse, autour du moulin | 2 ou 3 tours de 11 portes ; le centre d'un anneau recharge le turbo |
+| Bumper Cars | pré | 90 s : chocs, étoiles, couronne à garder ; des robots complètent la piste |
+| Pumpkin Slingshot | étang intermédiaire | 6 citrouilles au lance-pierre, vue de profil : tours de caisses à faire tomber des radeaux |
+| Mini-Golf | pré | 9 trous (ou 3), chacun son tour |
+| Shooting Gallery | pré | 60 s : canettes, cibles mobiles, ballons ; prime toutes les 5 touches d'affilée |
+| Hook-a-Duck | pré | 75 s, l'hameçon se balance |
+| High Striker | allée | 3 coups de maillet : frapper quand la jauge est au plus haut, faire sonner la cloche |
+| Whack-a-Mole | allée | 45 s : taupes +10, dorées +30, putois −20 |
+| Skee-Ball | allée | 9 boules : viser, doser la force, anneaux de 10 à 100 |
+| Ring Toss | allée | 12 anneaux sur des goulots (10, 20, 50) ; la main tremble |
+| Milk Bottles | colline | 6 balles pour raser trois pyramides de bouteilles |
+| Water Gun Race | colline | garder le jet dans la bouche du clown : le premier ballon qui éclate gagne |
+| Corn Hole | colline | 8 sacs : 1 point sur la planche, 3 dans le trou |
+
+**Top 10 « forever ».** Chaque jeu a son tableau en 3D à côté du stand, et le même
+classement reste affiché pendant qu'on joue. Les scores sont gardés par la fonction
+`functions/api/scores.js` (Cloudflare Pages Functions) dans un magasin KV. **À faire
+une fois** dans le tableau de bord Cloudflare : *Workers & Pages → KV* : créer un
+espace (par exemple `moulin-scores`), puis dans le projet Pages : *Settings →
+Functions → KV namespace bindings* : variable `SCORES` → cet espace, et redéployer.
+Tant que ce n'est pas fait, la fonction répond 501 et chaque navigateur garde ses
+scores en local (et les échange avec les joueurs présents) : rien ne casse, mais le
+classement n'est pas commun à tous. Les bornes de chaque jeu (score possible ou non)
+sont dans `RULES`, en tête de la fonction.
+
+**Ordinateur sur le dos, musique, places assises.** À l'arrivée, on choisit son nom,
+sa couleur et son ordinateur (huit modèles en 3D) : il se porte dans le dos comme un
+sac, et ce sur quoi on travaille (« What are you building? ») s'affiche quand on est
+assis. Le *Founders' Deck* offre 65 poufs en gradins face au Grand étang : touche E
+pour s'asseoir, l'ordinateur passe sur les genoux. Un orgue de foire synthétisé
+(aucun fichier audio) joue en boucle ; le bouton ♪ de la barre le coupe.
 
 **Multijoueur sans serveur.** Tous ceux qui ouvrent `/moulin2/` au même moment
 sont dans le même salon public (12 personnes, puis un deuxième salon s'ouvre) ;
@@ -53,13 +90,14 @@ un jeu. Les navigateurs se trouvent par des relais publics puis se parlent
 directement (WebRTC, bibliothèque Trystero) ; les onglets d'un même navigateur
 se voient même hors ligne. Chaque jeu a sa salle d'attente : n'importe quel
 inscrit lance la partie, les arrivants suivants regardent puis jouent la suivante.
+Dans les baraques, tout le monde joue en même temps, côte à côte.
 
-**Sponsors.** Chaque jeu a ses emplacements (arches, bâches le long des parcours,
-toile de fond du stand de tir, télécommandes, bouées, portes des drones… 31 en
-tout), décrits dans `src/static/moulin2/sponsors.json` : sans sponsor, un
-emplacement affiche « YOUR BRAND HERE ». Pour vendre un emplacement, renseigner
-`nom`, `accroche`, `lien`, couleurs et éventuellement `logo`, reconstruire et
-publier ; `contact` (texte et lien) alimente le bouton du panneau « Sponsors ».
+**Sponsors.** Chaque grand jeu a ses emplacements (arches, bâches le long des
+parcours, toile de fond du stand de tir, télécommandes, bouées, portes des drones…),
+décrits dans `src/static/moulin2/sponsors.json` : sans sponsor, un emplacement
+affiche « YOUR BRAND HERE ». Pour vendre un emplacement, renseigner `nom`,
+`accroche`, `lien`, couleurs et éventuellement `logo`, reconstruire et publier ;
+`contact` (texte et lien) alimente le bouton du panneau « Sponsors ».
 Exemple et liste complète : [`src/moulin2/CONCEPTION.md`](src/moulin2/CONCEPTION.md).
 
 **Image de partage.** Pour que X ou LinkedIn affichent l'aperçu de la page
@@ -69,16 +107,18 @@ site : construire avec `SITE_URL=https://mon-site.example node scripts/build.mjs
 
 **Langue.** La page `/moulin2/` est en anglais, pour un public international :
 les jeux et l'interface de la fête le sont dans leur code ; l'habillage du
-moulin (barre d'outils, réglages, météo, écran de chargement) est traduit par
-le dictionnaire de `src/moulin2/02-anglais.js`, appliqué au HTML à la
-construction puis dans le navigateur. Le code du moulin n'est pas modifié et
-`/moulin/` reste en français ; un texte absent du dictionnaire reste en français.
+moulin (barre d'outils, réglages, météo, écran de chargement, panneaux 3D des
+touches à l'entrée) est traduit par le dictionnaire de `src/moulin2/02-anglais.js`,
+appliqué au HTML à la construction puis dans le navigateur. Le code du moulin
+n'est pas modifié et `/moulin/` reste en français ; un texte absent du
+dictionnaire reste en français.
 
 **Mise au point.** `node scripts/labo.mjs` ouvre les mêmes jeux dans un terrain
 d'essai léger (`http://localhost:8090/`, deux onglets pour jouer à deux) ;
 `node tests/fete.test.mjs` vérifie le réseau et le déroulement des parties sans
-navigateur ; `node tests/fete-labo.mjs` ouvre, lance et joue quelques secondes
-chacun des huit jeux dans un vrai navigateur (Playwright).
+navigateur ; `node tests/scores.test.mjs` vérifie le top 10 (fonction et accord
+avec les quinze jeux) ; `node tests/fete-labo.mjs` ouvre, lance et joue quelques
+secondes chacun des quinze jeux dans un vrai navigateur (Playwright).
 
 ## Relief réel (IGN)
 
