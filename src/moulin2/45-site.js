@@ -233,7 +233,7 @@
       const B = MF.site.board;
       const panel = MF.group({ name: "Panneau_des_jeux", x: B.x, y: H(B.x, B.z), z: B.z, ry: B.heading, parent: gate });
       for (const side of [-1, 1]) MF.cyl(0.06, 0.07, 2.9, MF.PAL.woodDark, { x: side * 1.55, y: 1.45, parent: panel, cast: true, seg: 8 });
-      const head = MF.sign("27 GAMES · 3 RIDES · WORK DECK", { w: 3.0, h: 0.5, bg: MF.PAL.blue, color: "#ffffff", border: "#ffffff" });
+      const head = MF.sign("35 GAMES · 3 RIDES · WORK DECK", { w: 3.0, h: 0.5, bg: MF.PAL.blue, color: "#ffffff", border: "#ffffff" });
       head.position.set(0, 2.6, 0.03);
       panel.add(head);
       panel.add(MF.sponsors.board("village-panneau", 3.0, 1.25, { y: 1.62, z: 0.03, kicker: "Main board" }));
@@ -350,6 +350,7 @@
           { text: "HOOKED · PETIT ÉTANG", color: MF.PAL.blue, dir: 2.4 },
           { text: "DUCK DERBY · BOOTSTRAP TOSS", color: MF.PAL.orange, dir: 1.7 },
           { text: "DEFAULT ALIVE · THE PIVOT", color: MF.PAL.teal, dir: -1.95 },
+          { text: "ELEVATOR PITCH", color: MF.PAL.purple, dir: 1.37 },
         ]),
         116,
         -2.2,

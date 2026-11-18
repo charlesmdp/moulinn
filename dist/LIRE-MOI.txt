@@ -19,7 +19,7 @@ LES ADRESSES DU SITE
 /3D/      la même page avec la Vue 3D en plus ;
 /build/   la vue 3D et l'atelier Aménager ;
 /jeu/     le jeu « Pas touche à mes trésors » (seule façon d'y accéder) ;
-/moulin2/ la Fête du Moulin, « Dream Mill Fest » : vingt-sept jeux
+/moulin2/ la Fête du Moulin, « Dream Mill Fest » : trente-cinq jeux
           multijoueurs, trois manèges et des endroits où s'asseoir travailler,
           dans le moulin 3D (page publique, faite pour être partagée).
 /moulin/, /3D/ et /build/ ne sont pas indexées par les moteurs de recherche.
@@ -65,11 +65,20 @@ Multijoueur sans serveur : tous ceux qui ouvrent /moulin2/ au même moment se
 retrouvent dans le même salon ; /moulin2/?salon=mon-code ouvre un salon privé
 à partager, /moulin2/?jeu=rc mène droit à un jeu. Les navigateurs se parlent
 directement (WebRTC) après s'être trouvés par des relais publics.
-Sponsors : des emplacements (arches, bâches, toile de fond du tir, bouées,
-télécommandes…) décrits dans le fichier moulin2/sponsors.json ; un emplacement
-libre affiche « YOUR BRAND HERE ».
+Sponsors : un sponsor par jeu, un pour les tableaux du top 10 et un sponsor
+principal pour toute la fête ; on les propose aux guichets « Ad Booth » de la
+fête (aperçu pour soi, demande, publication par le propriétaire avec sa clé).
+Un emplacement libre affiche « YOUR BRAND HERE ».
 
 NOUVEAUTES DE CETTE SERIE
+Dream Mill Fest, deuxième tour : 35 jeux au lieu de 27 (taureau mécanique,
+pile de caisses, sauteur vertical, cabine à billets, traversée, train qui
+grandit, course vue du dessus, jeu de mémoire) ; la rive sud du Grand étang
+aménagée ; carte du parc (touche M) avec les joueurs en direct ; quinze
+chapeaux et image personnelle sur l'ordinateur ; guichets de sponsors (un
+sponsor par jeu, un pour les tableaux du top 10, un sponsor principal ;
+publication réservée au propriétaire, variable ADS_KEY du site) ; ambiances
+pour travailler (jazz, pluie, bruit blanc ou brun) ; feu d'artifice en formes.
 La Fête du Moulin devient le « Dream Mill Fest » : 27 jeux au lieu de 15, sur
 tout le domaine (camp des bûcherons, terrasse et sa pointe, bassin de la
 véranda, les trois étangs, la rivière, le pré de l'est, le plateau) ; grands

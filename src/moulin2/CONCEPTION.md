@@ -14,13 +14,16 @@ bâches), comme une kermesse dans le jardin.
 | `02-anglais.js` | Traduction de l'habillage du moulin (HTML, attributs, textes peints sur les panneaux 3D) |
 | `05-kit.js` | Boîte à outils : maths, lignes (`MF.path`), couleurs, formes, panneaux, sons |
 | `07-music.js` | Orgue de foire synthétisé, en boucle (`MF.music`) |
-| `08-laptops.js` | Les huit ordinateurs en 3D, portés dans le dos (`MF.laptops`) |
+| `08-hats.js` | Les quinze chapeaux (`MF.hats`) : ils remplacent le chapeau de paille du personnage, sur l'os de sa tête |
+| `08-laptops.js` | Les huit ordinateurs en 3D, portés dans le dos (`MF.laptops`), avec l'image du joueur sur le capot |
+| `09-ambience.js` | Ambiances pour travailler assis : jazz, pluie, bruit blanc ou brun, synthétisés (`MF.ambience`) |
 | `10-net.js` | Réseau sans serveur : salons, connexion directe entre navigateurs, repli entre onglets |
 | `12-scores.js` | Top 10 : lecture et envoi (`/api/scores`), repli local, échange entre joueurs (`MF.Scores`) |
 | `15-presence.js` | Qui est là, où, ce qu'il fait ; personnages des autres joueurs (le vrai personnage du moulin, teinté) ; places assises ; `MF.interp` |
 | `20-input.js` | Commandes : clavier, souris, tactile, manette ; télécommande à l'écran |
 | `30-hud.js` | Interface : barre du haut, menu des jeux, salle d'attente, compteurs, résultats |
-| `35-sponsors.js` | Emplacements de sponsors (bâches, panneaux) lus dans `sponsors.json` |
+| `32-map.js` | La carte du parc : petite carte ronde, grande carte (touche M) avec légende et joueurs en direct (`MF.ParkMap`) |
+| `35-sponsors.js` | Sponsors : une annonce par cible (toute la fête, tableaux du top 10, chaque jeu), aperçu local, `/api/sponsors` |
 | `40-session.js` | Parties : hôte, salle d'attente, décompte, résultats, objets disputés |
 | `42-play.js` | Aides de jeu : caméra, objets des autres joueurs, piste au sol, obstacles |
 | `41-places.js` | Lieux où l'on peut faire quelque chose (touche E) : s'asseoir, monter dans un manège |
@@ -30,6 +33,7 @@ bâches), comme une kermesse dans le jardin.
 | `46-lounge.js` | Le Founders' Deck : 66 poufs en gradins face au Grand étang (rive nord-ouest) |
 | `47-rides.js` | Manèges où l'on monte : grande roue (colline), carrousel (pré) |
 | `48-booth.js` | Socle commun des baraques à score (`MF.booth`) |
+| `49-fest.js` | Terrasse du moulin, camp des bûcherons, montgolfière, feu d'artifice, rive sud, guichets des sponsors (`MF.fest`) |
 | `49-fest.js` | Lieux du Dream Mill Fest : places du salon et de la table de la terrasse, bouton « SHIP IT » et feu d'artifice, feu de camp, hamacs, montgolfière, panneaux-citations |
 | `50-core.js` | Cœur : `MF.registerGame`, `MF.boot`, entrée et sortie d'un jeu, boucle |
 | `games/*.js` | Un fichier par jeu (`rc.js` sert de modèle pour une course, `moles.js` pour une baraque) |
@@ -93,6 +97,18 @@ regarde vers +z ; l'avant d'un objet de cap `h` est `(sin h, cos h)`, sa droite 
 | Unicorn Piñata | `pinata` | 108 · −4,6 | pré, à l'est des auto-tamponneuses |
 | The Idea Maze | `maze` | −163 · 32,1 | plateau, labyrinthe de 22 m de côté autour de (−163, 18) |
 | Bootstrap Toss | `welly` | 162,4 · −3,6 | pré de l'est : couloir vers l'ouest le long de z = −3,6 |
+| Elevator Pitch | `pitch` | 122 · −4,1 | pré de l'est, baraque tournée vers le nord |
+| Bull Market | `bull` | −54 · 121,2 | rive sud : arène de 6,6 m autour de (−54, 126,5), sur estrade |
+| Tech Stack | `stack` | −45 · 120,1 | rive sud : pile en (−45, 125,1) |
+| Burn Rate | `burn` | −47,5 · 116,3 | rive sud, côté étang : baraque tournée vers le sud |
+| Up Round | `upround` | −38,5 · 119,7 | rive sud : tour en (−38,5, 125) |
+| Go To Market | `market` | −71,7 · 126,3 | rive sud : estrade de 7,6 × 14,6 m vers l'ouest (x −87…−73, z 122,5…130) |
+| Hype Train | `train` | −142,5 · 19,7 | plateau : arène de 16 m autour de (−142,5, 29,5), sur estrade |
+| Garage Grand Prix | `grandprix` | −111 · −1,3 | plateau : piste de 20 × 10 m autour de (−111, 5,5), sur estrade |
+
+La rive sud du Grand étang : la berge est à z ≈ 122 entre x = −84 et −64 (bande de 8 m jusqu'au
+bois), et tout est en herbe au sud de z = 108 pour x ≥ −56. Le terrain y penche (10 %) : les jeux
+qui ont besoin d'un sol plat sont posés sur des estrades (constante `LIFT` ou `TOP` du jeu).
 
 Manèges et lieux : grande roue (−62, −68), carrousel (73,8, −5,8), montgolfière (−95, −4, au
 bord du plateau), Founders' Deck (x −41,6…−20,5, z 23…37, rive nord-ouest du Grand étang),
@@ -255,24 +271,30 @@ libre (viseur, jauge), retiré quand on quitte le jeu.
 
 ### Sponsors
 
-Chaque jeu pose ses emplacements : `MF.sponsors.banner(id, largeur, hauteur)` (bâche entre deux
-piquets, lisible des deux côtés), `MF.sponsors.board(id, largeur, hauteur, options)` (panneau à
-plat), `MF.sponsors.texture(id, { w, h })` (texture à coller où l'on veut), `MF.sponsors.brand(id)`
-(texte court, pour la télécommande). La liste des emplacements est dans `35-sponsors.js` ; qui
-occupe quoi est dans `src/static/moulin2/sponsors.json` (publié en `/moulin2/sponsors.json`) :
+Une annonce (`{ name, tagline, url, image, bg, fg }`) par **cible** : `fair` (le sponsor principal),
+`top10` (les tableaux des records) ou l'identifiant d'un jeu. Chaque emplacement a un identifiant ;
+sa cible s'en déduit : `fest-…` et `village-…` → `fair`, `top10-<jeu>` → `top10` (à défaut, le
+sponsor du jeu), `<jeu>-…` → le jeu. Un jeu pose ses emplacements avec
+`MF.sponsors.banner(id, largeur, hauteur)` (bâche entre deux piquets, lisible des deux côtés),
+`MF.sponsors.board(id, largeur, hauteur, options)` (panneau à plat),
+`MF.sponsors.texture(id, { w, h })` (texture à coller où l'on veut) ou `MF.sponsors.brand(id)`
+(texte court, pour la télécommande). Tout jeu a déjà, sans rien écrire : le comptoir de sa baraque
+(`<jeu>-comptoir`, pour les baraques de `MF.booth`), le panneau sous son top 10 (`<jeu>-tableau`),
+le bandeau de son tableau (`top10-<jeu>`) et la ligne « Presented by » de sa carte.
 
-```json
-{
-  "contact": { "texte": "Réserver un emplacement : @moncompte sur X", "lien": "https://x.com/moncompte" },
-  "emplacements": {
-    "rc-arche": { "nom": "Acme", "accroche": "Des outils pour indés", "lien": "https://acme.dev",
-                  "fond": "#101828", "texte": "#ffffff", "logo": "moulin2/logos/acme.png", "prix": "200 €" }
-  }
-}
-```
+Les annonces viennent de trois endroits, du plus fort au plus faible :
+1. `src/static/moulin2/sponsors.json` (réglage à la main, emplacement par emplacement) :
+   `{ "emplacements": { "rc-arche": { "nom": "Acme", "accroche": "…", "lien": "https://acme.dev",
+   "fond": "#101828", "texte": "#ffffff", "logo": "moulin2/logos/acme.png" } } }` ;
+2. l'aperçu local : ce qu'un visiteur essaie au guichet (gardé dans son navigateur, visible de lui seul) ;
+3. `/api/sponsors` (`functions/api/sponsors.js`) : ce que le propriétaire a publié. Un visiteur peut
+   y déposer une demande (30 en attente au plus) ; publier, retirer, accepter ou refuser demande la
+   clé du propriétaire, variable `ADS_KEY` du projet Pages. Le stockage est l'espace KV `SCORES`
+   (clés `ads:v1` et `ads:req:v1`). Les images sont réduites par la page avant l'envoi (512 × 256
+   pixels au plus, « data: » de 60 000 caractères au plus ; ni SVG ni adresse extérieure).
 
-Un emplacement sans `nom` affiche « YOUR BRAND HERE » ; `prix` seul affiche le tarif dans la liste
-des emplacements libres. Les logos vont dans `src/static/moulin2/logos/`.
+Un emplacement sans annonce affiche « YOUR BRAND HERE ». Sept guichets (`MF.fest.AD_BOOTHS`) et le
+bouton « Sponsors » ouvrent le formulaire ; `tests/sponsors.test.mjs` vérifie la fonction.
 
 ### Règles pour rester fluide
 

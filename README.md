@@ -18,7 +18,7 @@ hébergement statique en HTTPS). Les sources modifiables sont dans `src/`.
 | `/3D/` | La même page avec la **Vue 3D** en plus |
 | `/build/` | La vue 3D et l'atelier **Aménager** (page non indexée par les moteurs de recherche) |
 | `/jeu/` | Le jeu « Pas touche à mes trésors » (seule façon d'y accéder) |
-| `/moulin2/` | **La Fête du Moulin (« Dream Mill Fest »)** : vingt-sept jeux de fête foraine multijoueurs, trois manèges et des endroits où s'asseoir travailler, dans le moulin 3D (page publique, indexée, faite pour être partagée) |
+| `/moulin2/` | **La Fête du Moulin (« Dream Mill Fest »)** : trente-cinq jeux de fête foraine multijoueurs, trois manèges et des endroits où s'asseoir travailler, dans le moulin 3D (page publique, indexée, faite pour être partagée) |
 
 `/Moulin`, `/3d`, `/Build`, `/Jeu` ou `/Moulin2` (autres majuscules, avec ou
 sans « / ») mènent aux mêmes pages. Le mot de passe de `/` est une simple barrière : seule
@@ -32,7 +32,7 @@ visiteurs tombent sur l'atelier.
 ## La Fête du Moulin — « Dream Mill Fest » (`/moulin2/`)
 
 Le moulin 3D tel quel — rien n'est changé à la maison ni au terrain — transformé en
-fête foraine pour « makers » : une allée de baraques, trois manèges, vingt-sept jeux
+fête foraine pour « makers » : une allée de baraques, trois manèges, trente-cinq jeux
 à jouer de 1 à 8 (clavier, souris ou doigt) répartis sur tout le domaine (les trois
 étangs, la rivière, la terrasse, les arbres, le plateau), un top 10 planté à côté de
 chaque jeu, et des endroits où s'asseoir travailler ou discuter. Tout est en volumes
@@ -45,16 +45,20 @@ chaque jeu, et des endroits où s'asseoir travailler ou discuter. Tout est en vo
   une grande boucle au-dessus du Grand étang).
 - *La Colline* (par le grand escalier de bois) : belvédère, Milk Bottles, Water Gun
   Race, Corn Hole, la grande roue, le circuit RC ; plus loin sur *le plateau* : le
-  mini-golf en couronne, le labyrinthe, la montgolfière.
+  mini-golf en couronne, le labyrinthe, la montgolfière, la course vue du dessus
+  (Garage Grand Prix) et l'arène du Hype Train.
 - *Le Pré* (prairie est) : stand de tir, pêche aux canards, lance-citrouilles,
   carrousel, auto-tamponneuses, piñata ; puis, vers l'est, le rondin de l'étang
   intermédiaire, le ponton de pêche du petit étang, la descente de la rivière en
-  canard et le lancer de botte.
+  canard, le lancer de botte et l'ascenseur à mémoire (Elevator Pitch).
 - *La terrasse du moulin et sa pointe* (par le petit pont du bief) : ricochets,
   concours de hot-dogs, salon et table où s'asseoir, bouton « SHIP IT ».
 - *Le bassin de la véranda* : les grenouilles.
 - *Le Grand étang* : course de bateaux (grand tour du lac) ; rive nord-ouest, le
-  *Founders' Deck* ; rive est, *le camp des bûcherons* (trois jeux, feu de camp, hamacs).
+  *Founders' Deck* ; rive est, *le camp des bûcherons* (trois jeux, feu de camp, hamacs) ;
+  *rive sud* (au bout du chemin de la rive est) : ricochets, taureau mécanique, pile
+  de caisses, sauteur vertical, cabine à billets et la traversée « Go To Market ».
+- *Partout* : sept guichets « Ad Booth » (sponsors) et la carte du parc (touche M).
 
 | Jeu | Où | Règle |
 | --- | --- | --- |
@@ -85,6 +89,14 @@ chaque jeu, et des endroits où s'asseoir travailler ou discuter. Tout est en vo
 | The Idea Maze | plateau | labyrinthe : trouver l'idée, le MVP et les premiers clients, puis la sortie |
 | Unicorn Piñata | pré | 30 s : frapper la licorne qui se balance |
 | Bootstrap Toss | pré de l'est | 3 bottes à lancer le plus loin possible : jauge à lâcher au bon moment, vent |
+| Elevator Pitch | pré de l'est | mémoire : répéter une suite de quatre boutons qui s'allonge et s'accélère à chaque étage |
+| Bull Market | rive sud | taureau mécanique : on se penche à contresens, on serre aux ruades ; ne s'arrête que lorsqu'on est éjecté |
+| Tech Stack | rive sud | empiler des caisses : ce qui dépasse est coupé, la pile rétrécit et accélère |
+| Burn Rate | rive sud | cabine à billets : attraper les billets, éviter les factures, la caisse se vide de plus en plus vite |
+| Up Round | rive sud | sauteur vertical : de planche en planche, toujours plus haut (planches qui glissent, qui cèdent, ours) |
+| Go To Market | rive sud | traversée case par case : routes, rivières à radeaux, voies du train, de plus en plus serré |
+| Hype Train | plateau | un train qui grandit en ramassant des likes, sans percuter les trains concurrents ni ceux des autres joueurs |
+| Garage Grand Prix | plateau | course vue du dessus, tout le circuit à l'écran : 5 tours, dérapages, huile, herbe |
 
 **Top 10 « forever ».** Chaque jeu a son tableau en 3D à côté du stand, et le même
 classement reste affiché pendant qu'on joue. Les scores sont gardés par la fonction
@@ -99,7 +111,10 @@ sont dans `RULES`, en tête de la fonction.
 
 **Le personnage, l'ordinateur sur le dos, la musique.** À l'arrivée, on choisit son
 nom, sa couleur et son ordinateur (huit modèles en 3D) : il se porte dans le dos,
-sans bretelles apparentes, liseré à la couleur du joueur. Les autres joueurs sont
+sans bretelles apparentes, liseré à la couleur du joueur. Dans le menu des joueurs,
+on choisit aussi son chapeau (quinze modèles, du chapeau de paille d'origine à la
+licorne) et l'on peut coller sa propre image sur le capot de l'ordinateur ; les
+autres joueurs voient les deux, ainsi que ce sur quoi chacun travaille, sous son nom. Les autres joueurs sont
 dessinés avec le vrai personnage du moulin (teinté à leur couleur), y compris assis
 et dans les manèges. Un orgue de foire synthétisé (aucun fichier audio) joue en
 boucle ; le bouton ♪ de la barre le coupe.
@@ -138,12 +153,21 @@ se voient même hors ligne. Chaque jeu a sa salle d'attente : n'importe quel
 inscrit lance la partie, les arrivants suivants regardent puis jouent la suivante.
 Dans les baraques, tout le monde joue en même temps, côte à côte.
 
-**Sponsors.** Chaque grand jeu a ses emplacements (arches, bâches le long des
-parcours, toile de fond du stand de tir, télécommandes, bouées, portes des drones…),
-décrits dans `src/static/moulin2/sponsors.json` : sans sponsor, un emplacement
-affiche « YOUR BRAND HERE ». Pour vendre un emplacement, renseigner `nom`,
-`accroche`, `lien`, couleurs et éventuellement `logo`, reconstruire et publier ;
-`contact` (texte et lien) alimente le bouton du panneau « Sponsors ».
+**Sponsors.** Un sponsor par jeu (ses bâches, le comptoir de son stand, le panneau
+sous son top 10, la carte du jeu), un pour les tableaux du top 10, et un sponsor
+principal pour toute la fête (arche d'entrée, grand panneau, bâche sur le moulin,
+montgolfière, guichets, carte du parc, écran de chargement). Sans sponsor, un
+emplacement affiche « YOUR BRAND HERE ». Sept guichets « Ad Booth » (et le bouton
+« Sponsors ») ouvrent le formulaire : marque, slogan, site, image, couleurs.
+- *Essayer* : l'aperçu n'est visible que dans son propre navigateur.
+- *Demander* : la demande est mise en attente sur le site.
+- *Publier* (propriétaire) : « I own this fair » → clé → « Publish », ou « Show the
+  requests » pour accepter ou refuser les demandes. La clé est la variable `ADS_KEY`
+  du projet Cloudflare Pages (*Settings → Variables and Secrets*, type « Secret »,
+  six caractères au moins), et les annonces sont rangées dans le même espace KV que
+  le top 10 (`SCORES`). Sans `ADS_KEY`, personne ne peut publier ; rien n'est payant.
+On peut aussi régler un emplacement à la main dans
+`src/static/moulin2/sponsors.json` (`nom`, `accroche`, `lien`, couleurs, `logo`).
 Exemple et liste complète : [`src/moulin2/CONCEPTION.md`](src/moulin2/CONCEPTION.md).
 
 **Image de partage.** Pour que X ou LinkedIn affichent l'aperçu de la page
@@ -163,8 +187,9 @@ dictionnaire reste en français.
 d'essai léger (`http://localhost:8090/`, deux onglets pour jouer à deux) ;
 `node tests/fete.test.mjs` vérifie le réseau et le déroulement des parties sans
 navigateur ; `node tests/scores.test.mjs` vérifie le top 10 (fonction et accord
-avec les vingt-sept jeux) ; `node tests/fete-labo.mjs` ouvre, lance et joue quelques
-secondes chacun des vingt-sept jeux dans un vrai navigateur (Playwright). Le terrain
+avec les trente-cinq jeux) ; `node tests/sponsors.test.mjs` vérifie la fonction des
+sponsors (rien n'est publié sans la clé) ; `node tests/fete-labo.mjs` ouvre, lance et
+joue quelques secondes chacun des trente-cinq jeux dans un vrai navigateur (Playwright). Le terrain
 d'essai ne couvre pas le domaine à l'est de x = 120 (petit étang, rivière, pré de
 l'est) : les jeux qui s'y trouvent y tournent, mais sur un sol absent.
 
@@ -208,6 +233,17 @@ node tests/relief.test.mjs && node tests/fete.test.mjs && node tests/fete-labo.m
 
 ## Nouveautés de cette série
 
+- **Dream Mill Fest, deuxième tour** (`/moulin2/`) : 35 jeux au lieu de 27 (taureau
+  mécanique, pile de caisses, sauteur vertical, cabine à billets, traversée, train
+  qui grandit, course vue du dessus, jeu de mémoire), la rive sud du Grand étang
+  aménagée ; jeux plus exigeants à mesure que la partie avance ; carte du parc
+  façon brochure (touche M) avec les joueurs en direct ; quinze chapeaux et image
+  personnelle sur l'ordinateur ; guichets de sponsors (un sponsor par jeu, un pour
+  les tableaux, un sponsor principal) ; ambiances pour travailler (jazz, pluie,
+  bruit blanc ou brun) ; hamac allongé avec citations ; feu d'artifice en formes ;
+  grande roue plus haute et regard libre depuis les places assises ; fanions et
+  enseigne sur le moulin ; écran de chargement aux couleurs de la fête ; tranchée
+  du pré de l'est comblée, petit pont de la terrasse praticable.
 - **La Fête du Moulin devient le « Dream Mill Fest »** (`/moulin2/`) : 27 jeux au
   lieu de 15, répartis sur tout le domaine (camp des bûcherons sur la rive est,
   terrasse et sa pointe, bassin de la véranda, étang intermédiaire, petit étang,

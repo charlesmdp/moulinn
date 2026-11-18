@@ -187,7 +187,7 @@ async function main() {
       // description, styles.
       page = englishPage(page).replace('<html lang="fr" data-route="moulin2">', '<html lang="en" data-route="moulin2">');
       if (!page.includes('<html lang="en" data-route="moulin2">')) throw new Error("En-tête de index.html inattendu (langue)");
-      const title = "Dream Mill Fest · 27 multiplayer fairground games in a 3D garden";
+      const title = "Dream Mill Fest · 35 multiplayer fairground games in a 3D garden";
       const description = "Bumper cars, a pumpkin slingshot, lumberjack games, a rubber duck derby, fishing, mini-golf, RC car, boat and drone races, a Ferris wheel, a hot-air balloon, a campfire and a deck to sit and work by the pond: 27 fairground games for 1 to 8 players, right in your browser, in the 3D garden of an old watermill in Brittany.";
       const swap = (pattern, text) => {
         if (!pattern.test(page)) throw new Error("En-tête de index.html inattendu (" + pattern + ")");

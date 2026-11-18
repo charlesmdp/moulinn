@@ -48,6 +48,15 @@ export const RULES = {
   maze: ["low", 4, 900],
   pinata: ["high", 1, 5000],
   welly: ["high", 1, 700],
+  // rive sud, plateau, pré de l'est : huit jeux de plus
+  bull: ["high", 1, 6000],
+  stack: ["high", 1, 500],
+  pitch: ["high", 1, 200],
+  burn: ["high", 1, 9000],
+  upround: ["high", 1, 5000],
+  market: ["high", 1, 2000],
+  train: ["high", 1, 1000],
+  grandprix: ["low", 15, 900],
 };
 const KEY = "top10:v1";
 const MAX_VARIANTS = 4;

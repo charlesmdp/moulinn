@@ -15,14 +15,14 @@
   // Zones (rubans) et allées de la fête (pointillés) : tracés à la main sur le plan du domaine.
   const ZONES = [
     ["MAIN GATE", 32, -86], ["THE MIDWAY", 36, -64], ["HILLTOP", -50, -52], ["THE PLATEAU", -132, 48], ["THE MILL", -24, -14], ["LUMBER CAMP", 64, 42],
-    ["THE GREEN", 64, 16], ["EAST MEADOW", 140, 14], ["FOUNDERS' DECK", -66, 30], ["SOUTH SHORE", -34, 139], ["GRAND ÉTANG", -24, 64],
+    ["THE GREEN", 64, 16], ["EAST MEADOW", 140, 14], ["FOUNDERS' DECK", -66, 30], ["SOUTH SHORE", -52, 137], ["GRAND ÉTANG", -24, 64],
   ];
   const PATHS = [
     [[2, -88], [1, -72], [0, -57], [-2.3, -43], [-3.4, -34], [-1.2, -27], [-0.5, -18]], // l'allée du moulin
     [[-3.4, -80.6], [-26, -80.6], [-45, -76], [-62, -60], [-70, -46], [-88, -28], [-96, -10], [-118, -12], [-140, 12], [-160, 30]], // la colline, le plateau
     [[4, -22], [20, -16], [42, -9], [60, -8], [88, -4], [110, -4], [134, -8], [160, -5]], // le pré, jusqu'au pré de l'est
     [[-2, -8], [-6, 6], [-4, 12], [3.4, 9.5], [10, 11]], // la terrasse et sa pointe
-    [[14, 2], [22, 12], [28, 24], [29, 40], [20, 52], [10, 70], [4, 92], [-14, 108], [-40, 122], [-64, 124], [-86, 124]], // la rive est, jusqu'à la rive sud
+    [[14, 2], [22, 12], [28, 24], [29, 40], [20, 52], [10, 70], [4, 92], [-14, 108], [-33, 118], [-50, 119.5], [-62, 124.6], [-72, 127]], // la rive est, jusqu'à la rive sud
     [[-8, 12], [-18, 18], [-31, 22]], // le ponton des fondateurs
   ];
   // Cours d'eau (relevés sur la page du moulin) : [largeur, [x, z]…] ; le bief fait le tour par le nord.

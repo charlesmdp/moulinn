@@ -24,7 +24,7 @@
     if (!def || !def.id || typeof def.create !== "function") throw new Error("Jeu de la fête invalide");
     if (!MF.games.some((g) => g.id === def.id)) MF.games.push(def);
   };
-  const ORDER = ["rc", "bateaux", "drones", "autos", "citrouilles", "golf", "tir", "canards", "striker", "moles", "skee", "rings", "bottles", "water", "cornhole", "skip", "eat", "frogs", "logroll", "fish", "derby", "chop", "axe", "climb", "pinata", "maze", "welly"];
+  const ORDER = ["rc", "bateaux", "drones", "autos", "citrouilles", "golf", "tir", "canards", "striker", "moles", "skee", "rings", "bottles", "water", "cornhole", "skip", "eat", "frogs", "logroll", "fish", "derby", "chop", "axe", "climb", "pinata", "maze", "welly", "pitch", "bull", "stack", "burn", "upround", "market", "train", "grandprix"];
   const PROFILE_KEY = "fete-profil";
   const NEAR = 3.4; // distance (m) à laquelle un stand propose de jouer
 
@@ -463,7 +463,7 @@
       },
     });
     // lieux du menu : on y est porté d'un clic (debout, hors de tout jeu)
-    const SPOTS = { deck: [-31, 21.6, 0], terrace: [-4.6, 11.6, 0], camp: [28.6, 40.4, 0], wheel: [-57.4, -68, -Math.PI / 2], balloon: [-99.4, -4, Math.PI / 2], carousel: [73.8, -12.2, 0], gate: [1.4, -81.5, 0] };
+    const SPOTS = { deck: [-31, 21.6, 0], terrace: [-4.6, 11.6, 0], camp: [28.6, 40.4, 0], wheel: [-57.4, -68, -Math.PI / 2], balloon: [-99.4, -4, Math.PI / 2], carousel: [73.8, -12.2, 0], south: [-50.5, 119.4, 0], gate: [1.4, -81.5, 0] };
     hud.on((action, value) => {
       if (action === "spot" && SPOTS[value]) {
         if (active) leave();

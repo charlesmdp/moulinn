@@ -154,7 +154,7 @@
         const b = def.board;
         if (!b || !result || result.dnf) return null;
         const value = b.value(result, opts || {});
-        if (!Number.isFinite(value)) return null;
+        if (!Number.isFinite(value) || (b.better !== "low" && value <= 0)) return null; // un score nul ne s'inscrit pas
         const key = scores.keyOf(def, opts);
         const row = { n: cleanName(self.name) || "Miller", s: Math.round(value * 100) / 100, c: self.color, d: new Date().toISOString().slice(0, 10) };
         const rows = insert(boards.get(key) || [], row, b.better);

@@ -1,4 +1,4 @@
-// Essai des vingt-sept jeux de la fête dans le banc d'essai (scripts/labo.mjs), avec un vrai navigateur :
+// Essai des trente-cinq jeux de la fête dans le banc d'essai (scripts/labo.mjs), avec un vrai navigateur :
 // chaque jeu est ouvert, lancé et joué quelques secondes d'horloge simulée ; aucune erreur ne doit
 // sortir. À relancer après tout changement du relief ou d'un jeu.
 //
@@ -80,7 +80,7 @@ try {
   const placesOk = !missing.length && !unsat.length && places.fireworks;
   console.log(`  ${placesOk ? "✓" : "✗"} lieux : ${Object.values(places.count).reduce((a, b) => a + b, 0)} places et manèges` + (missing.length ? `, compte inattendu pour ${missing.join(", ")}` : "") + (unsat.length ? `, impossible de s'asseoir à ${unsat.join(", ")}` : "") + (places.fireworks ? ", feu d'artifice tiré" : ", feu d'artifice absent"));
   if (errors.length) console.log("  ✗ erreurs de la page : " + errors.slice(0, 5).join(" | "));
-  failed = bad > 0 || errors.length > 0 || Object.keys(out).length < 27 || !placesOk;
+  failed = bad > 0 || errors.length > 0 || Object.keys(out).length < 35 || !placesOk;
   console.log(`\n${Object.keys(out).length} jeux essayés, ${failed ? "des problèmes" : "aucun problème"}`);
 } catch (error) {
   console.log("  ✗ " + String(error.message || error));

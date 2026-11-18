@@ -23,7 +23,7 @@
     [-24, 17, 0], // vers le ponton des fondateurs
     [-91, 3, Math.PI], // le bord du plateau, près de la montgolfière
     [150, -6, -Math.PI / 2], // le pré de l'est
-    [-70, 126.5, Math.PI], // la rive sud
+    [-68, 128, Math.PI], // la rive sud
     [40, 36, -Math.PI / 2], // le camp des bûcherons
   ];
   const BALLOON = { x: -95, z: -4, rise: 34, drift: 18, period: 72 }; // un vol toutes les 72 s : 18 s au sol, montée, palier, descente
@@ -640,6 +640,8 @@
         { text: "THE IDEA MAZE", color: MF.PAL.purple, dir: -1.05 },
         { text: "BALLOON · UP AND TO THE RIGHT", color: MF.PAL.orange, dir: -0.55 },
         { text: "SHIP FAST RACEWAY · TIM FERRISS WHEEL", color: MF.PAL.red, dir: 2.6 },
+        { text: "GARAGE GRAND PRIX", color: MF.PAL.blue, dir: -0.9 },
+        { text: "HYPE TRAIN", color: MF.PAL.teal, dir: -0.95 },
       ]),
       -91.6,
       -10.4,
@@ -723,6 +725,28 @@
       if (!best) best = fixed.find((s) => Math.hypot(r.tx - s.x, r.tz - s.z) < 0.34) || null;
       return best || (before ? before(r) : null);
     };
+
+    /* ---- La rive sud du Grand étang : six jeux entre l'eau et le bois. Poteau indicateur à l'arrivée
+       du chemin de la rive, lampadaires, une charrette, un mot pour ceux qui passent. */
+    {
+      const south = zone("Rive_sud", -58, 121, 130);
+      put(
+        south,
+        P.signpost([
+          { text: "BULL MARKET", color: MF.PAL.red, dir: -0.28 },
+          { text: "TECH STACK · UP ROUND", color: MF.PAL.purple, dir: 1.2 },
+          { text: "BURN RATE", color: MF.PAL.green, dir: 2.54 },
+          { text: "BOUNCE RATE · GO TO MARKET · AD BOOTH", color: MF.PAL.blue, dir: -1.45 },
+        ]),
+        -52,
+        119.2,
+      );
+      board(south, "SOUTH SHORE · 6 GAMES BY THE LAKE", -34.4, 119.4, Math.PI / 2, { w: 3.6, bg: MF.PAL.blue, color: "#ffffff", border: "#ffffff", top: 2.6 });
+      board(south, "1,000 TRUE FANS", -66.5, 126.2, Math.PI, { w: 2.0, top: 0.7, h: 0.32 });
+      for (const [x, z] of [[-41.5, 119.6], [-49.6, 117], [-58.6, 119.4], [-69.6, 124.6]]) put(south, P.lamp(3.5), x, z);
+      put(south, P.cart("hotdog"), -42.2, 115.6, 2.6);
+      put(south, P.bench(), -57.2, 117.8, Math.PI);
+    }
 
     /* ---- Les guichets des sponsors (« Ad Booth ») : à l'entrée et dans chaque coin du parc. On y
        ouvre le formulaire : marque, slogan, site, image ; aperçu pour soi, demande au propriétaire. */
