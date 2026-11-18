@@ -56,8 +56,31 @@ try {
     if (!good) bad++;
     console.log(`  ${good ? "✓" : "✗"} ${id} : stand ${r.stand ? "praticable" : "HORS SOL PRATICABLE"}, partie « ${r.phase} », ${r.appels} appels de dessin`);
   }
+  // les lieux : on s'assoit à une place de chaque sorte, puis on tire le feu d'artifice
+  const places = await page.evaluate(() => {
+    const app = window.MoulinFete.app, labo = window.__labo, count = {}, sat = {};
+    for (const p of app.places.list) {
+      const kind = p.id.replace(/-?\d+$/, "");
+      count[kind] = (count[kind] || 0) + 1;
+    }
+    for (const id of ["seat-0", "sofa-1", "armchair-0", "table-2", "fire-3", "hammock-1"]) {
+      app.places.run(id);
+      for (let i = 0; i < 6; i++) labo.frame(0.0333, false);
+      sat[id] = !!app.seated() && app.seated().id === id;
+      app.stand();
+    }
+    app.places.run("ship-it");
+    for (let i = 0; i < 40; i++) labo.frame(0.0333, false);
+    const show = labo.world.scene.getObjectByName("Feu_d_artifice");
+    return { count, sat, fireworks: !!show && show.visible };
+  });
+  const want = { seat: 66, sofa: 3, armchair: 2, table: 4, fire: 8, hammock: 3, balloon: 1, "ship-it": 1, "ferris-wheel": 1, carousel: 1 };
+  const missing = Object.keys(want).filter((k) => places.count[k] !== want[k]);
+  const unsat = Object.keys(places.sat).filter((k) => !places.sat[k]);
+  const placesOk = !missing.length && !unsat.length && places.fireworks;
+  console.log(`  ${placesOk ? "✓" : "✗"} lieux : ${Object.values(places.count).reduce((a, b) => a + b, 0)} places et manèges` + (missing.length ? `, compte inattendu pour ${missing.join(", ")}` : "") + (unsat.length ? `, impossible de s'asseoir à ${unsat.join(", ")}` : "") + (places.fireworks ? ", feu d'artifice tiré" : ", feu d'artifice absent"));
   if (errors.length) console.log("  ✗ erreurs de la page : " + errors.slice(0, 5).join(" | "));
-  failed = bad > 0 || errors.length > 0 || Object.keys(out).length < 27;
+  failed = bad > 0 || errors.length > 0 || Object.keys(out).length < 27 || !placesOk;
   console.log(`\n${Object.keys(out).length} jeux essayés, ${failed ? "des problèmes" : "aucun problème"}`);
 } catch (error) {
   console.log("  ✗ " + String(error.message || error));

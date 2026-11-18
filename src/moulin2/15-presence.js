@@ -452,6 +452,16 @@
           }
           a.animate(dt, step, dist > 0.03, r.sitting, r.speed);
           if (r.sitting || a.fig) moving = true;
+          // de près (voisin de canapé), l'étiquette rétrécit pour ne pas couvrir l'écran
+          const eye = world.camera && world.camera.position;
+          if (eye) {
+            const k = MF.clamp(Math.hypot(eye.x - r.x, eye.y - r.y - 1.6, eye.z - r.z) / 7, 0.38, 1);
+            if (Math.abs(k - (a.tagK || 1)) > 0.03) {
+              if (!a.tagSize) a.tagSize = [a.tag.scale.x, a.tag.scale.y];
+              a.tagK = k;
+              a.tag.scale.set(a.tagSize[0] * k, a.tagSize[1] * k, 1);
+            }
+          }
           const label = r.sitting && r.peer.bio ? r.peer.name + " · " + r.peer.bio : r.peer.name;
           if (r.name !== label) {
             r.name = label;

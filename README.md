@@ -208,6 +208,17 @@ node tests/relief.test.mjs && node tests/fete.test.mjs && node tests/fete-labo.m
 
 ## Nouveautés de cette série
 
+- **La Fête du Moulin devient le « Dream Mill Fest »** (`/moulin2/`) : 27 jeux au
+  lieu de 15, répartis sur tout le domaine (camp des bûcherons sur la rive est,
+  terrasse et sa pointe, bassin de la véranda, étang intermédiaire, petit étang,
+  rivière, pré de l'est, plateau) ; grands parcours pour les bateaux (tour du lac)
+  et les drones (boucle au-dessus de l'étang) ; mini-golf en couronne, départs
+  dégagés ; *Founders' Deck* déplacé sur la rive nord-ouest (les rhododendrons le
+  cachaient) ; le vrai personnage du moulin partout (assis, dans les manèges, pour
+  les autres joueurs), l'ordinateur dans le dos sans bretelles apparentes ; places
+  assises sur le vrai mobilier de la terrasse, feu de camp, hamacs, montgolfière,
+  bouton « SHIP IT » (feu d'artifice) ; noms et panneaux en clins d'œil aux
+  entrepreneurs et indie hackers.
 - **Le moulin passe à l'adresse `/moulin/`** : la page `/` n'affiche plus qu'un
   mot de passe (`azerty`) qui y mène ; `/moulin/` s'ouvre directement, sans mot
   de passe ; `/3D/`, `/build/` et `/jeu/` ne changent pas.

@@ -70,6 +70,13 @@ télécommandes…) décrits dans le fichier moulin2/sponsors.json ; un emplacem
 libre affiche « YOUR BRAND HERE ».
 
 NOUVEAUTES DE CETTE SERIE
+La Fête du Moulin devient le « Dream Mill Fest » : 27 jeux au lieu de 15, sur
+tout le domaine (camp des bûcherons, terrasse et sa pointe, bassin de la
+véranda, les trois étangs, la rivière, le pré de l'est, le plateau) ; grands
+parcours pour les bateaux et les drones ; mini-golf en couronne ; Founders'
+Deck déplacé sur la rive nord-ouest ; le vrai personnage partout (assis, dans
+les manèges, pour les autres joueurs) ; places assises sur le mobilier de la
+terrasse, feu de camp, hamacs, montgolfière, bouton « SHIP IT ».
 Le moulin passe à l'adresse /moulin/ ; la page / n'affiche plus qu'un mot de
 passe (azerty) qui y mène. Trésor du moulin : le coffre déterré affiche
 « Bravo, vous avez trouvé le trésor ! Merci de montrer cet écran au créateur

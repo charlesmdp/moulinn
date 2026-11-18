@@ -65,7 +65,7 @@
     title: "RC Boat Race",
     icon: "🚤",
     color: MF.PAL.blue,
-    blurb: "Grand tour of the lake · jump ramp, nitro cans · 1 to 3 laps",
+    blurb: "The Naval Regatta: grand tour of the lake · jump ramp, nitro cans · 1 to 3 laps",
     station: { x: -10, z: 14.6, heading: 0 },
     kiosk: { x: -13.4, z: 15.2, heading: 0 },
     hall: { x: -6.4, z: 15.2, heading: 0 },

@@ -47,7 +47,7 @@
     title: "Mill Mini-Golf",
     icon: "⛳",
     color: MF.PAL.green,
-    blurb: "9 holes in a ring on the hilltop · take turns",
+    blurb: "The minimalist course: 9 holes in a ring on the hilltop · take turns",
     station: { x: RING.x + RING.r + 3.2, z: RING.z, heading: -Math.PI / 2 },
     kiosk: { x: RING.x + RING.r + 3.6, z: RING.z - 3.4, heading: -Math.PI / 2 },
     hall: { x: RING.x + RING.r + 3.6, z: RING.z + 3.4, heading: -Math.PI / 2 },

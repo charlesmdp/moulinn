@@ -9,7 +9,7 @@
 //   Le camp des bûcherons (rive est du Grand étang) : feu de camp « Indie Hackers » (huit rondins où
 //     s'asseoir), hamacs « The 4-Hour Workweek ».
 //   Le bord du plateau : montgolfière « Up and to the right » où l'on monte à quatre.
-//   Un peu partout : panneaux-citations.
+//   Un peu partout : panneaux-citations ; dans le pré, la vache violette.
 //
 //   MF.fest.build({ world, places, presence, net, zone, put }) → { update(dt, t, camera) }
 (function () {
@@ -249,6 +249,25 @@
     board(hillQuotes, "MAKE SOMETHING PEOPLE WANT", -56.4, -79.4, Math.PI / 2, { w: 2.9, top: 0.75, h: 0.34, bg: "#fff0b8" });
     board(hillQuotes, "SHIP FAST RACEWAY", -66.6, -43.4, 0.9, { w: 3.0, h: 0.5, bg: MF.PAL.red, color: "#ffffff", border: MF.PAL.yellow, top: 3.0 });
 
+    /* ---- Le pré : la vache violette (« Purple Cow » : être remarquable), près des tables */
+    const meadow = zone("Vache_violette", 41, -9, 100);
+    {
+      const cow = MF.group({ name: "Vache_violette", x: 40.8, y: H(40.8, -9.4), z: -9.4, ry: 0.9, parent: meadow });
+      const purple = "#8e44ad", pale = "#d7b5ea";
+      MF.box(0.8, 0.75, 1.6, purple, { y: 1.05, parent: cow, cast: true });
+      MF.box(0.5, 0.5, 0.6, purple, { y: 1.35, z: 1.0, parent: cow, cast: true });
+      MF.box(0.36, 0.26, 0.24, pale, { y: 1.22, z: 1.36, parent: cow });
+      for (const sx of [-1, 1]) {
+        MF.cone(0.06, 0.24, "#ffffff", { x: sx * 0.2, y: 1.72, z: 0.95, rz: -sx * 0.5, parent: cow, seg: 6 });
+        MF.box(0.2, 0.1, 0.05, purple, { x: sx * 0.36, y: 1.5, z: 0.95, parent: cow });
+        for (const sz of [-0.55, 0.55]) MF.box(0.2, 0.7, 0.2, purple, { x: sx * 0.26, y: 0.35, z: sz, parent: cow });
+      }
+      MF.box(0.5, 0.3, 0.5, pale, { y: 0.92, z: -0.1, parent: cow });
+      MF.box(0.3, 0.16, 0.36, "#ff9bc4", { y: 0.62, z: -0.35, parent: cow });
+      MF.box(0.06, 0.5, 0.06, purple, { y: 1.0, z: -0.84, rx: 0.25, parent: cow });
+      board(meadow, "THE PURPLE COW · BE REMARKABLE", 39.4, -10.6, 0.9, { w: 3.0, top: 0.7, h: 0.32, bg: pale });
+    }
+
     /* ---- Le bord du plateau : poteau indicateur, montgolfière face à la vallée */
     const fields = zone("Bord_du_plateau", -98, -8, 170);
     put(
@@ -266,6 +285,7 @@
     const B = BALLOON, gy = H(B.x, B.z);
     MF.cyl(2.6, 2.6, 0.08, "#f3e3c2", { x: B.x, y: gy + 0.04, z: B.z, parent: fields, seg: 20 });
     board(fields, "UP AND TO THE RIGHT · BALLOON RIDES", B.x - 3.6, B.z + 3.4, 0.9, { w: 4.2, bg: MF.PAL.orange, color: "#ffffff", border: "#ffffff", top: 2.5 });
+    board(fields, "SCREW IT, LET'S DO IT", B.x - 2.4, B.z - 3.0, -0.7, { w: 2.4, top: 0.7, h: 0.32 });
     const balloon = MF.group({ name: "Montgolfiere", parent: fields });
     balloon.userData.live = true;
     const shell = MF.group({ parent: balloon });
